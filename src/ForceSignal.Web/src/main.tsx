@@ -416,7 +416,7 @@ function App() {
       loadSnapshot(session.matchId).catch(handleSessionError);
     });
 
-    connection
+    const started = connection
       .start()
       .then(() => {
         setConnectionState('live');
@@ -429,7 +429,9 @@ function App() {
 
     return () => {
       setConnectionState('offline');
-      connection.stop().catch(() => undefined);
+      // Stopping while start() is still in flight throws and can leave the connection
+      // running, so wait for the handshake to settle before tearing it down.
+      started.finally(() => connection.stop().catch(() => undefined));
     };
   }, [session?.matchId, session?.participantToken]);
 
