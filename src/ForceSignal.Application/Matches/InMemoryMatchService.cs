@@ -241,7 +241,7 @@ public sealed class InMemoryMatchService : IMatchService
                 Guid.NewGuid(),
                 fleet.Id,
                 NormalizeText(request.Name, "Unnamed Ship"),
-                request.ClassName,
+                NormalizeOptionalText(request.ClassName),
                 thrustRating,
                 request.InitialVelocity,
                 request.InitialCourse,
@@ -1222,6 +1222,10 @@ public sealed class InMemoryMatchService : IMatchService
     /// <summary>Trims caller-supplied display text, falling back when it is blank.</summary>
     private static string NormalizeText(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+
+    /// <summary>Trims optional display text, collapsing blank input to null.</summary>
+    private static string? NormalizeOptionalText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string NormalizeOrdnanceStatus(string? value) =>
         value?.Trim().ToLowerInvariant() switch

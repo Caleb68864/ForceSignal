@@ -247,6 +247,7 @@ public sealed class InMemoryMatchServiceTurnFlowTests
         Assert.Equal("Player", withShip.Participants.Single(p => p.Id == joined.ParticipantId).DisplayName);
         Assert.Equal("Fleet", fleet.Name);
         Assert.Equal("Unnamed Ship", withShip.Ships.Single().Name);
+        Assert.Null(withShip.Ships.Single().ClassName);
     }
 
     [Fact]
