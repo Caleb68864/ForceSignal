@@ -12,6 +12,21 @@ ForceSignal is currently focused on being a session-based tabletop helper for in
 - [x] Physical table workflow: print/export ship cards, compact tablet-friendly controls, public table display mode, and pass-and-play privacy.
 - [x] Damage detail: threshold checks, damage-control reminders, critical system hit markers, crippled/dead-in-space states.
 
+## Movement Rule Fidelity
+
+The current profile is a deliberately simplified cinematic model. These two known
+divergences were identified while converging the app against `current-functionality-should.md`
+and are deferred, not forgotten.
+
+- [ ] Free rotation at rest: a stationary ship should be able to turn to any facing without
+      spending thrust. Today every turn costs thrust and is capped at half thrust, so a
+      thrust-0 station or a stopped hull can never change facing at all.
+- [ ] Split course changes across the move: a plotted turn should pivot half at the start and
+      the remainder at the mid-point, moving half the velocity between the two pivots. The
+      resolver currently divides the move into equal segments and pivots between them, which
+      approximates the same shape but puts ships on a slightly different path and changes
+      where the movement trail bends.
+
 ## Later Production Options
 
 - [x] Browser/local snapshot recovery for tabletop use through local autosave and explicit snapshot export.
