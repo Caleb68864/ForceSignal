@@ -32,7 +32,11 @@ and are deferred, not forgotten.
 - [x] Browser/local snapshot recovery for tabletop use through local autosave and explicit snapshot export.
 - [ ] Durable PostgreSQL persistence for long-running online matches. Deferred until real-world tabletop testing proves what needs durable storage.
 - [x] Spectator/public table display with hidden information removed.
-- [ ] Reconnect-safe online play once the tabletop workflows are proven. Deferred with database-backed persistence.
+- [ ] Reconnect-safe online play once the tabletop workflows are proven. The client half is in
+      place: automatic reconnect re-establishes the match notification group, resyncs the
+      snapshot, and reports link state, and participant presence is tracked and logged on
+      connect/disconnect. Still blocked by durable persistence — an API restart drops
+      in-memory match state, so the session ends no matter how cleanly the client reconnects.
 
 ## Current Constraint
 
