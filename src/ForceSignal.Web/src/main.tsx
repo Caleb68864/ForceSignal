@@ -448,6 +448,7 @@ function App() {
     [snapshot?.ships, ownedFleets],
   );
   const activeFleet = ownedFleets.find((fleet) => fleet.id === activeFleetId) ?? ownedFleets[0];
+  const activeFleetShipCount = ownedShips.filter((ship) => ship.fleetId === activeFleet?.id).length;
   const ownedShipIds = useMemo(() => new Set(ownedShips.map((ship) => ship.id)), [ownedShips]);
   const visibleOwnedShipIds = useMemo(() => (publicMode ? new Set<string>() : ownedShipIds), [publicMode, ownedShipIds]);
 
@@ -602,7 +603,7 @@ function App() {
 
     setSnapshot(importedSnapshot);
     setActiveFleetId(fleet.id);
-    setMessage(`Imported ${exportData.ships.length} ships into ${exportData.name}.`);
+    setMessage(`Imported ${exportData.ships.length} ship${exportData.ships.length === 1 ? '' : 's'} into ${exportData.name}.`);
   }
 
   async function markReady() {
@@ -1106,7 +1107,7 @@ function App() {
               </div>
               {snapshot ? (
                 <div className="match-counters" aria-label="Match counters">
-                  <span>{snapshot.ships.length} ships</span>
+                  <span>{snapshot.ships.length} {snapshot.ships.length === 1 ? 'ship' : 'ships'}</span>
                   <span>{snapshot.orderStatuses.filter((status) => status.isCommitted).length}/{snapshot.ships.length} locked</span>
                   <span>{snapshot.movementResults.length} resolved</span>
                 </div>
@@ -1156,8 +1157,8 @@ function App() {
                   <div className="fleet-transfer">
                     <span className="label">Fleet transfer</span>
                     <div className="transfer-summary">
-                      <strong>{ownedShips.filter((ship) => ship.fleetId === activeFleet?.id).length}</strong>
-                      <span>ships in {activeFleet?.name ?? 'this fleet'} ready for export</span>
+                      <strong>{activeFleetShipCount}</strong>
+                      <span>{activeFleetShipCount === 1 ? 'ship' : 'ships'} in {activeFleet?.name ?? 'this fleet'} ready for export</span>
                     </div>
                     <div className="quick-actions">
                       <button className="ghost" onClick={() => exportOwnedFleet('json')}>Export JSON</button>
@@ -1793,7 +1794,7 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
         <div className="section-head compact">
           <div>
             <span className="label">Weapons</span>
-            <h3>{form.weapons.length} mounts</h3>
+            <h3>{form.weapons.length} {form.weapons.length === 1 ? 'mount' : 'mounts'}</h3>
           </div>
           <button
             className="ghost"
