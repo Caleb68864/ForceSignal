@@ -1930,6 +1930,7 @@ function PlayMap({
     startY: number;
     didMove: boolean;
   } | null>(null);
+  const markerLongPressRef = useRef<{ pointerId: number; timeoutId: number } | null>(null);
   const pointersRef = useRef(new Map<number, TablePoint>());
   const pinchRef = useRef<{ distance: number; scale: number } | null>(null);
   const [viewport, setViewport] = useState({ scale: 1, x: 0, y: 0 });
@@ -2062,6 +2063,36 @@ function PlayMap({
     const nextShip = snapshot.ships[(currentIndex + 1 + snapshot.ships.length) % snapshot.ships.length];
     onFocus(nextShip.id);
     setMapNotice(`${nextShip.name} selected`);
+  }
+
+  function clearMarkerLongPress() {
+    if (markerLongPressRef.current) {
+      window.clearTimeout(markerLongPressRef.current.timeoutId);
+      markerLongPressRef.current = null;
+    }
+  }
+
+  /// Right click and long press on a marker resolve to the same actions: select the ship,
+  /// and for an opposing contact hand it to the selected friendly ship as a target.
+  function markerActionsFor(ship: Ship, isOwned: boolean) {
+    if (isOwned && !ship.isDestroyed) {
+      onFocus(ship.id);
+      setInspectorMode('helm');
+      setMapNotice(`${ship.name} selected. Right-click or long press open table space to plot course.`);
+      return;
+    }
+
+    if (selectedShip && ownedShipIds.has(selectedShip.id) && ship.id !== selectedShip.id) {
+      // Targeting acts on the selected friendly ship, so it stays the planning subject
+      // even though the gesture landed on the opposing marker.
+      onFocus(selectedShip.id);
+      updateMapFiringDraft(selectedShip, { targetShipId: ship.id });
+      setInspectorMode('fire');
+      setMapNotice(`${ship.name} set as target for ${selectedShip.name}.`);
+      return;
+    }
+
+    onFocus(ship.id);
   }
 
   function clearLongPress() {
@@ -2466,6 +2497,17 @@ function PlayMap({
                   event.preventDefault();
                   event.stopPropagation();
                   onFocus(ship.id);
+                  markerLongPressRef.current = {
+                    pointerId: event.pointerId,
+                    timeoutId: window.setTimeout(() => {
+                      markerLongPressRef.current = null;
+                      // Drop the pending drag so releasing after a long press does not also plot.
+                      if (markerDragRef.current?.pointerId === event.pointerId) {
+                        markerDragRef.current = null;
+                      }
+                      markerActionsFor(ship, isOwned);
+                    }, 550),
+                  };
                   if (isOwned && !ship.isDestroyed) {
                     setInspectorMode('helm');
                     markerDragRef.current = {
@@ -2499,10 +2541,12 @@ function PlayMap({
                   const moved = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
                   if (moved > 8) {
                     drag.didMove = true;
+                    clearMarkerLongPress();
                     setMapNotice(`${ship.name}: release to plot course.`);
                   }
                 }}
                 onPointerUp={(event) => {
+                  clearMarkerLongPress();
                   const drag = markerDragRef.current;
                   if (!drag || drag.pointerId !== event.pointerId || drag.shipId !== ship.id) {
                     return;
@@ -2519,6 +2563,7 @@ function PlayMap({
                   markerDragRef.current = null;
                 }}
                 onPointerCancel={(event) => {
+                  clearMarkerLongPress();
                   if (markerDragRef.current?.pointerId === event.pointerId) {
                     markerDragRef.current = null;
                   }
@@ -2529,21 +2574,7 @@ function PlayMap({
                 onContextMenu={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  if (isOwned && !ship.isDestroyed) {
-                    onFocus(ship.id);
-                    setInspectorMode('helm');
-                    setMapNotice(`${ship.name} selected. Right-click open table space to plot course.`);
-                    return;
-                  }
-
-                  if (selectedShip && ownedShipIds.has(selectedShip.id) && ship.id !== selectedShip.id) {
-                    updateMapFiringDraft(selectedShip, { targetShipId: ship.id });
-                    setInspectorMode('fire');
-                    setMapNotice(`${ship.name} set as target for ${selectedShip.name}.`);
-                    return;
-                  }
-
-                  onFocus(ship.id);
+                  markerActionsFor(ship, isOwned);
                 }}
                 onFocus={() => onFocus(ship.id)}
               >
