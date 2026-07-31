@@ -20,6 +20,9 @@ public interface IMatchService
     /// <summary>Returns true when the token belongs to a participant of the match.</summary>
     bool IsMatchParticipant(Guid matchId, string participantToken);
 
+    /// <summary>Records realtime connection state for a participant. Returns null when unknown.</summary>
+    MatchSnapshotDto? SetParticipantConnection(Guid matchId, string participantToken, bool isConnected);
+
     /// <summary>Updates participant readiness during setup.</summary>
     MatchSnapshotDto SetReady(Guid matchId, string participantToken, bool isReady);
 
@@ -132,6 +135,28 @@ public sealed class InMemoryMatchService : IMatchService
         {
             return _matches.TryGetValue(matchId, out var match)
                 && match.Participants.Any(p => p.Token == participantToken);
+        }
+    }
+
+    public MatchSnapshotDto? SetParticipantConnection(Guid matchId, string participantToken, bool isConnected)
+    {
+        lock (_gate)
+        {
+            if (!_matches.TryGetValue(matchId, out var match))
+            {
+                return null;
+            }
+
+            var participant = match.Participants.SingleOrDefault(p => p.Token == participantToken);
+            if (participant is null || participant.IsConnected == isConnected)
+            {
+                return null;
+            }
+
+            participant.IsConnected = isConnected;
+            match.AddLog("Session", match.Phase.ToString(), $"{participant.DisplayName} {(isConnected ? "connected" : "disconnected")}.");
+            match.Touch("ParticipantConnectionChanged");
+            return ToSnapshot(match);
         }
     }
 
@@ -864,7 +889,8 @@ public sealed class InMemoryMatchService : IMatchService
         public required string DisplayName { get; init; }
         public required string Role { get; init; }
         public bool IsReady { get; set; }
-        public bool IsConnected { get; set; } = true;
+        // False until a realtime hub connection joins the match group for this token.
+        public bool IsConnected { get; set; }
 
         public static ParticipantState Create(string displayName, string role) => new()
         {

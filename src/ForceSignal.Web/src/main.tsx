@@ -351,6 +351,7 @@ function App() {
   const [publicMode, setPublicMode] = useState(false);
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
+  const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('offline');
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
   const spentDraftTurnRef = useRef<string | null>(null);
 
@@ -402,20 +403,32 @@ function App() {
 
     const joinGroup = () => connection.invoke('JoinMatchGroup', session.matchId, session.participantToken);
 
+    connection.onreconnecting(() => setConnectionState('reconnecting'));
+    connection.onclose(() => setConnectionState('offline'));
+
     // Automatic reconnect creates a new connection id, so group membership has to be re-established
     // or the client silently stops receiving snapshot notifications after any network blip.
     connection.onreconnected(() => {
-      joinGroup()
-        .then(() => loadSnapshot(session.matchId))
-        .catch(handleSessionError);
+      setConnectionState('live');
+      joinGroup().catch(showError(setMessage));
+      // Resync independently of the rejoin: if the match is gone (for example the API restarted
+      // and dropped in-memory state) this is what surfaces the expired session.
+      loadSnapshot(session.matchId).catch(handleSessionError);
     });
 
     connection
       .start()
-      .then(joinGroup)
-      .catch(showError(setMessage));
+      .then(() => {
+        setConnectionState('live');
+        return joinGroup();
+      })
+      .catch((error) => {
+        setConnectionState('offline');
+        showError(setMessage)(error);
+      });
 
     return () => {
+      setConnectionState('offline');
       connection.stop().catch(() => undefined);
     };
   }, [session?.matchId, session?.participantToken]);
@@ -1008,6 +1021,11 @@ function App() {
               ? `${formatPhase(snapshot.phase)} · Turn ${snapshot.turnNumber}${snapshot.tableWidth ? ` · ${snapshot.tableWidth}x${snapshot.tableDepth}` : ''}`
               : 'No match'}
           </strong>
+          {session ? (
+            <span className={`link-state ${connectionState}`} title={`Realtime link ${connectionState}`}>
+              {connectionState === 'live' ? 'Link live' : connectionState === 'reconnecting' ? 'Reconnecting' : 'Link lost'}
+            </span>
+          ) : null}
           {publicMode ? (
             // The side panel that owns the toggle is hidden in public mode, so the exit lives here.
             <button className="ghost" type="button" onClick={() => setPublicMode(false)}>Exit Public Display</button>
@@ -1173,7 +1191,7 @@ function App() {
                   {snapshot?.participants.map((participant) => (
                     <li key={participant.id}>
                       <span>{participant.displayName}</span>
-                      <small>{participant.role} · {participant.isReady ? 'Ready' : 'Setting up'}</small>
+                      <small>{participant.role} · {participant.isReady ? 'Ready' : 'Setting up'} · {participant.isConnected ? 'Online' : 'Offline'}</small>
                     </li>
                   ))}
                 </ul>
