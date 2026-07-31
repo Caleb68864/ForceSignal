@@ -13,3 +13,4 @@ TestResults/
 .playwright-cli/
 output/
 .playwright-mcp/
+bash.exe.stackdump

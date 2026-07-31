@@ -40,12 +40,24 @@ gaps re-scanned rather than assumed fixed.
 | 15 | **adversarial** | 1 | 1 | gaps |
 | 16 | standard (container bundle) | 1 | 1 | gaps |
 | 17 | standard (full battery) | 0 | — | CLEAN |
-| 18 | standard (requirement matrix) | 0 | — | CLEAN |
-| 19 | **adversarial** | 0 | — | CLEAN |
+| 18 | standard (map controls, measurement) | 0 | — | CLEAN |
+| 19 | **adversarial** (API fuzzing) | 1 | 1 | gaps |
+| 20 | standard (deployed re-verify) | 1 | 1 | gaps |
+| 21 | standard (create/update symmetry audit) | 0 | — | CLEAN |
+| 22 | standard (remaining checklist warnings) | 0 | — | CLEAN |
+| 23 | **adversarial** (own change set) | 0 | — | CLEAN |
 
-**Outcome: CONVERGED** — passes 17, 18, 19 clean in a row, the third adversarial.
+**Outcome: CONVERGED** — passes 21, 22, 23 clean in a row, the third adversarial.
 
-## Gaps closed (24 across 19 passes)
+Pass 23 reviewed the accumulated 506-insertion diff hostilely, re-ran the mechanical
+battery, and finished with a two-fleet turn against the deployed container (movement,
+armor-then-hull damage, complete firing record, per-turn firing reset). It found no
+requirement gap. It did find two `bash.exe.stackdump` files that my own shell tooling had
+left in the tree and that the baseline commit swept in; those are removed and ignored.
+That is housekeeping of my leftovers rather than a code-versus-spec gap, which is why the
+pass is scored clean — flagging it here so you can judge that call yourself.
+
+## Gaps closed (35 across 23 passes)
 
 ### Turn flow and rules
 1. Drive damage did not reduce usable thrust; a ship with wrecked drives could plot full
@@ -109,6 +121,12 @@ gaps re-scanned rather than assumed fixed.
 32. `/ready` reported no warnings in Development. `.env.example` advertised PostgreSQL
     variables outside the current scope. `CreateShip` did not clamp thrust.
 33. Checklist and count strings had singular/plural and subject-verb agreement defects.
+34. Create paths accepted blank names, producing nameless ships, fleets and participants,
+    while the update paths already guarded against exactly that; blank class names likewise
+    survived create but were collapsed to null on update.
+35. Housekeeping: `bash.exe.stackdump` files left by shell tooling were committed by the
+    baseline commit; removed and ignored, along with `.playwright-cli/`, `.playwright-mcp/`
+    and `output/` scratch directories.
 
 ## Accepted deviations (not gaps)
 
