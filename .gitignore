@@ -12,3 +12,4 @@ coverage/
 TestResults/
 .playwright-cli/
 output/
+.playwright-mcp/
