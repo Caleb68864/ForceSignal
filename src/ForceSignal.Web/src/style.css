@@ -187,6 +187,12 @@ h3 {
   z-index: 1;
 }
 
+.topbar-status {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .topbar strong {
   min-width: max-content;
   border: 1px solid var(--amber);

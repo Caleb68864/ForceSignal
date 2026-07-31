@@ -885,8 +885,8 @@ function App() {
     }
 
     if (format === 'csv') {
-      downloadText(`${baseName}.csv`, 'text/csv', matchLogToCsv(snapshot.matchLog));
-      setMessage('After-action log exported as CSV.');
+      downloadText(`${baseName}.csv`, 'text/csv', matchLogToCsv(snapshot));
+      setMessage('After-action report exported as CSV.');
       return;
     }
 
@@ -983,7 +983,17 @@ function App() {
           <h1>ForceSignal</h1>
           <p>Space fleet tabletop companion for synchronized orders and battle records.</p>
         </div>
-        <strong>{snapshot ? `${formatPhase(snapshot.phase)} · Turn ${snapshot.turnNumber}` : 'No match'}</strong>
+        <div className="topbar-status">
+          <strong>
+            {snapshot
+              ? `${formatPhase(snapshot.phase)} · Turn ${snapshot.turnNumber}${snapshot.tableWidth ? ` · ${snapshot.tableWidth}x${snapshot.tableDepth}` : ''}`
+              : 'No match'}
+          </strong>
+          {publicMode ? (
+            // The side panel that owns the toggle is hidden in public mode, so the exit lives here.
+            <button className="ghost" type="button" onClick={() => setPublicMode(false)}>Exit Public Display</button>
+          ) : null}
+        </div>
       </section>
 
       <section className="legal-notice" aria-label="Unofficial companion notice">
@@ -1036,10 +1046,10 @@ function App() {
             </div>
             <div className="side-actions">
               <span className="label">Match commands</span>
-              <button onClick={markReady}>Ready</button>
+              <button onClick={() => markReady().catch(showError(setMessage))}>Ready</button>
               <button className="ghost" onClick={() => lockOwnedOrders().catch(showError(setMessage))}>Lock Fleet Orders</button>
               <button className="ghost" onClick={() => revealOwnedOrders().catch(showError(setMessage))}>Reveal Fleet Orders</button>
-              <button onClick={advanceTurn}>Advance Turn</button>
+              <button onClick={() => advanceTurn().catch(showError(setMessage))}>Advance Turn</button>
               <button className={publicMode ? 'ghost active' : 'ghost'} onClick={() => {
                 setPublicMode((current) => !current);
                 setActiveView('map');
@@ -4046,10 +4056,31 @@ function fleetExportToCsv(fleet: FleetExport) {
   return `${rows.map((row) => row.map(csvEscape).join(',')).join('\n')}\n`;
 }
 
-function matchLogToCsv(log: MatchLogEntry[]) {
-  const rows = [
+function matchLogToCsv(snapshot: MatchSnapshot) {
+  const summaryRows = [
+    ['section', 'name', 'detail'],
+    ['match', snapshot.name, `room ${snapshot.joinCode}, turn ${snapshot.turnNumber}, ${formatPhase(snapshot.phase)}`],
+    ['table', `${snapshot.tableWidth} x ${snapshot.tableDepth}`, 'inches'],
+    ...snapshot.fleets.map((fleet) => [
+      'fleet',
+      fleet.name,
+      `${fleet.faction ?? 'no faction'}, ${snapshot.participants.find((participant) => participant.id === fleet.ownerParticipantId)?.displayName ?? 'unknown'}`,
+    ]),
+    ...snapshot.ships.map((ship) => [
+      'ship',
+      ship.name,
+      `pos ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)}, V${ship.currentVelocity}/C${ship.currentCourse}, hull ${ship.hullDamage}/${ship.hullMax}, armor ${ship.armorDamage}/${ship.armorMax}, screens ${ship.screenRating}${ship.isDestroyed ? ', destroyed' : ''}`,
+    ]),
+    ...(snapshot.ordnanceMarkers ?? []).map((marker) => [
+      'ordnance',
+      marker.name,
+      `${marker.markerType} ${normalizeOrdnanceStatus(marker.status)}, pos ${marker.positionX.toFixed(1)},${marker.positionY.toFixed(1)}, endurance ${marker.enduranceRemaining}`,
+    ]),
+  ];
+
+  const logRows = [
     ['sequence', 'timestamp', 'turnNumber', 'phase', 'category', 'message'],
-    ...log.map((entry) => [
+    ...snapshot.matchLog.map((entry) => [
       String(entry.sequence),
       entry.timestamp,
       String(entry.turnNumber),
@@ -4059,7 +4090,8 @@ function matchLogToCsv(log: MatchLogEntry[]) {
     ]),
   ];
 
-  return `${rows.map((row) => row.map(csvEscape).join(',')).join('\n')}\n`;
+  const toCsv = (rows: string[][]) => rows.map((row) => row.map(csvEscape).join(',')).join('\n');
+  return `${toCsv(summaryRows)}\n\n${toCsv(logRows)}\n`;
 }
 
 function matchLogToMarkdown(snapshot: MatchSnapshot) {
