@@ -226,6 +226,30 @@ public sealed class InMemoryMatchServiceTurnFlowTests
     }
 
     [Fact]
+    public void BlankDisplayTextFallsBackInsteadOfCreatingNamelessRecords()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("   ", "  ", 72, 48));
+        var joined = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, ""));
+        var snapshot = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "  ", null));
+        var fleet = snapshot.Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+        var withShip = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken,
+            "  ",
+            "  ",
+            4,
+            0,
+            1,
+            10,
+            0));
+
+        Assert.Equal("Admiral", withShip.Participants.Single(p => p.Id == owner.ParticipantId).DisplayName);
+        Assert.Equal("Player", withShip.Participants.Single(p => p.Id == joined.ParticipantId).DisplayName);
+        Assert.Equal("Fleet", fleet.Name);
+        Assert.Equal("Unnamed Ship", withShip.Ships.Single().Name);
+    }
+
+    [Fact]
     public void CreateShip_ClampsThrustRatingToTheSupportedRange()
     {
         var table = TestMatch.Create();

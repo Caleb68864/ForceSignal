@@ -84,9 +84,9 @@ public sealed class InMemoryMatchService : IMatchService
         lock (_gate)
         {
             var matchId = Guid.NewGuid();
-            var participant = ParticipantState.Create(request.DisplayName, "Owner");
+            var participant = ParticipantState.Create(NormalizeText(request.DisplayName, "Admiral"), "Owner");
             var joinCode = CreateJoinCode();
-            var match = new MatchState(matchId, joinCode, request.MatchName ?? "Space Fleet Match", participant)
+            var match = new MatchState(matchId, joinCode, NormalizeText(request.MatchName, "Space Fleet Match"), participant)
             {
                 TableWidth = Math.Clamp(request.TableWidth, 24, 144),
                 TableDepth = Math.Clamp(request.TableDepth, 24, 96)
@@ -108,7 +108,7 @@ public sealed class InMemoryMatchService : IMatchService
             }
 
             var match = _matches[matchId];
-            var participant = ParticipantState.Create(request.DisplayName, "Player");
+            var participant = ParticipantState.Create(NormalizeText(request.DisplayName, "Player"), "Player");
             match.Participants.Add(participant);
             match.AddLog("Setup", match.Phase.ToString(), $"{participant.DisplayName} joined the match.");
             match.Touch("ParticipantJoined");
@@ -206,8 +206,9 @@ public sealed class InMemoryMatchService : IMatchService
         {
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, request.ParticipantToken);
-            match.Fleets.Add(new FleetState(Guid.NewGuid(), participant.Id, request.Name, request.Faction, NormalizeFleetColor(request.FleetColor)));
-            match.AddLog("Setup", match.Phase.ToString(), $"{request.Name} fleet created for {participant.DisplayName}.");
+            var fleetName = NormalizeText(request.Name, "Fleet");
+            match.Fleets.Add(new FleetState(Guid.NewGuid(), participant.Id, fleetName, request.Faction, NormalizeFleetColor(request.FleetColor)));
+            match.AddLog("Setup", match.Phase.ToString(), $"{fleetName} fleet created for {participant.DisplayName}.");
             match.Touch("FleetCreated");
             return ToSnapshot(match);
         }
@@ -239,7 +240,7 @@ public sealed class InMemoryMatchService : IMatchService
             match.Ships.Add(new ShipState(
                 Guid.NewGuid(),
                 fleet.Id,
-                request.Name,
+                NormalizeText(request.Name, "Unnamed Ship"),
                 request.ClassName,
                 thrustRating,
                 request.InitialVelocity,
@@ -1216,7 +1217,10 @@ public sealed class InMemoryMatchService : IMatchService
         return zeroBased + 1;
     }
 
-    private static string NormalizeOrdnanceText(string? value, string fallback) =>
+    private static string NormalizeOrdnanceText(string? value, string fallback) => NormalizeText(value, fallback);
+
+    /// <summary>Trims caller-supplied display text, falling back when it is blank.</summary>
+    private static string NormalizeText(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 
     private static string NormalizeOrdnanceStatus(string? value) =>
