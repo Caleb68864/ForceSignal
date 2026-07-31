@@ -142,7 +142,9 @@ public sealed class InMemoryMatchService : IMatchService
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, participantToken);
             participant.IsReady = isReady;
-            if (match.Phase == MatchPhase.FleetSetup && match.Participants.Count >= 2 && match.Participants.All(p => p.IsReady) && match.Ships.Count >= match.Participants.Count)
+            // A single-device local match (one admiral tracking the table) must be able to start,
+            // so readiness gates on ships being present rather than on a second participant.
+            if (match.Phase == MatchPhase.FleetSetup && match.Participants.All(p => p.IsReady) && match.Ships.Count > 0 && match.Ships.Count >= match.Participants.Count)
             {
                 match.Phase = MatchPhase.OrderEntry;
                 match.AddLog("Phase", match.Phase.ToString(), "All crews ready. Order entry opened.");

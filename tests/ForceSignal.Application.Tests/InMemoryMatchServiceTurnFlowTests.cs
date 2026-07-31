@@ -7,6 +7,42 @@ namespace ForceSignal.Application.Tests;
 public sealed class InMemoryMatchServiceTurnFlowTests
 {
     [Fact]
+    public void SoloLocalMatch_CanRunAFullTurnWithoutASecondParticipant()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Solo Admiral", "Single Device"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Home Watch", null)).Fleets.Single();
+        var ship = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken,
+            "Lone Star",
+            "Cruiser",
+            4,
+            6,
+            3,
+            12,
+            2,
+            StartX: 20,
+            StartY: 24)).Ships.Single();
+
+        var orderEntry = service.SetReady(owner.MatchId, owner.ParticipantToken, true);
+        Assert.Equal("OrderEntry", orderEntry.Phase);
+
+        var order = new MovementOrder(1, 1, TurnDirection.Starboard, [new TurnManeuver(TurnDirection.Starboard, 1)]);
+        Assert.Equal("OrdersLocked", service.CommitOrder(owner.MatchId, new CommitOrderRequest(owner.ParticipantToken, ship.Id, order, "solo-salt")).Phase);
+        Assert.Equal("Movement", service.RevealOrder(owner.MatchId, new RevealOrderRequest(owner.ParticipantToken, ship.Id, order, "solo-salt")).Phase);
+
+        var firing = service.AdvanceTurn(owner.MatchId, owner.ParticipantToken);
+        Assert.Equal("Firing", firing.Phase);
+        var moved = firing.Ships.Single();
+        Assert.Equal(7, moved.CurrentVelocity);
+        Assert.Equal(4, moved.CurrentCourse);
+
+        var nextTurn = service.AdvanceTurn(owner.MatchId, owner.ParticipantToken);
+        Assert.Equal("OrderEntry", nextTurn.Phase);
+        Assert.Equal(2, nextTurn.TurnNumber);
+    }
+
+    [Fact]
     public void CommitOrder_DuringFleetSetup_IsRejected()
     {
         var table = TestMatch.Create();
