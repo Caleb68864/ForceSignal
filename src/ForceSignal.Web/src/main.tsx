@@ -4349,7 +4349,7 @@ function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set<string
 
   const destroyedWithOrders = snapshot.ships.filter((ship) => ship.isDestroyed && statuses.get(ship.id)?.isCommitted);
   if (destroyedWithOrders.length > 0) {
-    items.push({ id: 'destroyed-orders', text: `${destroyedWithOrders.length} destroyed ship${destroyedWithOrders.length === 1 ? '' : 's'} still have orders`, severity: 'warning' });
+    items.push({ id: 'destroyed-orders', text: `${destroyedWithOrders.length} destroyed ship${destroyedWithOrders.length === 1 ? ' still has' : 's still have'} orders`, severity: 'warning' });
   }
 
   const destroyedFired = snapshot.firingResults.filter((result) => snapshot.ships.find((ship) => ship.id === result.attackerShipId)?.isDestroyed);
@@ -4361,7 +4361,7 @@ function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set<string
   if (activeOrdnance.length > 0) {
     items.push({
       id: 'ordnance',
-      text: `${activeOrdnance.length} active ordnance marker${activeOrdnance.length === 1 ? '' : 's'} need movement/resolution checks`,
+      text: `${activeOrdnance.length} active ordnance marker${activeOrdnance.length === 1 ? ' needs' : 's need'} movement/resolution checks`,
       severity: 'warning',
     });
   }
