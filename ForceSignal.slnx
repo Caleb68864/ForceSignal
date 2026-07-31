@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ForceSignal.Api/ForceSignal.Api.csproj" />
+    <Project Path="src/ForceSignal.Application/ForceSignal.Application.csproj" />
+    <Project Path="src/ForceSignal.Contracts/ForceSignal.Contracts.csproj" />
+    <Project Path="src/ForceSignal.Domain/ForceSignal.Domain.csproj" />
+    <Project Path="src/ForceSignal.Infrastructure/ForceSignal.Infrastructure.csproj" />
+    <Project Path="src/ForceSignal.Modules.FullThrust/ForceSignal.Modules.FullThrust.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ForceSignal.Api.Tests/ForceSignal.Api.Tests.csproj" />
+    <Project Path="tests/ForceSignal.Application.Tests/ForceSignal.Application.Tests.csproj" />
+    <Project Path="tests/ForceSignal.Domain.Tests/ForceSignal.Domain.Tests.csproj" />
+    <Project Path="tests/ForceSignal.Modules.FullThrust.Tests/ForceSignal.Modules.FullThrust.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,6 @@
+@ForceSignal.Api_HostAddress = http://localhost:5225
+
+GET {{ForceSignal.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

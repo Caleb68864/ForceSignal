@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ForceSignal.Domain\ForceSignal.Domain.csproj" />
+    <ProjectReference Include="..\ForceSignal.Contracts\ForceSignal.Contracts.csproj" />
+    <ProjectReference Include="..\ForceSignal.Modules.FullThrust\ForceSignal.Modules.FullThrust.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

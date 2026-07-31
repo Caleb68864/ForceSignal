@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+.git/
+.playwright-cli/
+output/
+*.user
+*.suo
+*.log
+.env

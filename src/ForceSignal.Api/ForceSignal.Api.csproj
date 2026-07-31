@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.17" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ForceSignal.Application\ForceSignal.Application.csproj" />
+    <ProjectReference Include="..\ForceSignal.Infrastructure\ForceSignal.Infrastructure.csproj" />
+    <ProjectReference Include="..\ForceSignal.Contracts\ForceSignal.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,303 @@
+using ForceSignal.Domain.Rules;
+
+namespace ForceSignal.Contracts.Matches;
+
+/// <summary>Creates a new tabletop match and first participant session.</summary>
+/// <param name="DisplayName">Display name for the first participant.</param>
+/// <param name="MatchName">Optional human-readable match name.</param>
+/// <param name="TableWidth">Table width in play units.</param>
+/// <param name="TableDepth">Table depth in play units.</param>
+public sealed record CreateMatchRequest(string DisplayName, string? MatchName, int TableWidth = 72, int TableDepth = 48);
+
+/// <summary>Joins an existing match by room code.</summary>
+/// <param name="JoinCode">Memorable room code shown by the host.</param>
+/// <param name="DisplayName">Display name for the joining participant.</param>
+public sealed record JoinMatchRequest(string JoinCode, string DisplayName);
+
+/// <summary>Sets the caller readiness state during fleet setup.</summary>
+/// <param name="IsReady">True when the participant is ready to start order entry.</param>
+public sealed record ReadyRequest(bool IsReady);
+
+/// <summary>Creates a fleet owned by the participant token.</summary>
+/// <param name="ParticipantToken">Secret participant token issued when creating or joining a match.</param>
+/// <param name="Name">Fleet name shown in the UI and log.</param>
+/// <param name="Faction">Optional user-owned faction or force label.</param>
+/// <param name="FleetColor">Optional CSS hex color used for map accents.</param>
+public sealed record CreateFleetRequest(string ParticipantToken, string Name, string? Faction, string? FleetColor = null);
+
+/// <summary>Adds a ship record to a fleet.</summary>
+/// <param name="ParticipantToken">Secret participant token for the fleet owner.</param>
+/// <param name="Name">Ship display name.</param>
+/// <param name="ClassName">Optional class or hull type label.</param>
+/// <param name="ThrustRating">Maximum thrust available for movement plotting.</param>
+/// <param name="InitialVelocity">Starting velocity.</param>
+/// <param name="InitialCourse">Starting course on the twelve-point course clock.</param>
+/// <param name="HullMax">Maximum hull damage boxes.</param>
+/// <param name="ArmorMax">Maximum armor damage boxes.</param>
+/// <param name="StartX">Starting X position on the table.</param>
+/// <param name="StartY">Starting Y position on the table.</param>
+/// <param name="ScreenRating">Defensive screen rating.</param>
+/// <param name="Weapons">Weapon mounts carried by the ship.</param>
+/// <param name="IconKey">Map icon key selected for this ship.</param>
+/// <param name="FighterEnduranceMax">Maximum fighter endurance turns for fighter groups.</param>
+/// <param name="FighterEnduranceUsed">Tracked fighter endurance turns already spent.</param>
+/// <param name="FighterMaxRange">Maximum operating range from the fighter group's home carrier.</param>
+/// <param name="FighterStatus">Docked, Airborne, or Recovering status for fighter groups.</param>
+/// <param name="HomeCarrierShipId">Optional carrier ship that launched or owns the fighter group.</param>
+public sealed record CreateShipRequest(
+    string ParticipantToken,
+    string Name,
+    string? ClassName,
+    int ThrustRating,
+    int InitialVelocity,
+    int InitialCourse,
+    int HullMax,
+    int ArmorMax,
+    decimal StartX = 0,
+    decimal StartY = 0,
+    int ScreenRating = 0,
+    IReadOnlyList<WeaponMountDto>? Weapons = null,
+    string? IconKey = null,
+    int FighterEnduranceMax = 0,
+    int FighterEnduranceUsed = 0,
+    int FighterMaxRange = 0,
+    string? FighterStatus = null,
+    Guid? HomeCarrierShipId = null);
+
+/// <summary>Updates editable ship profile, position, and equipment fields.</summary>
+public sealed record UpdateShipProfileRequest(
+    string ParticipantToken,
+    string Name,
+    string? ClassName,
+    int ThrustRating,
+    int CurrentVelocity,
+    int CurrentCourse,
+    int HullMax,
+    int ArmorMax,
+    decimal PositionX = 0,
+    decimal PositionY = 0,
+    int ScreenRating = 0,
+    IReadOnlyList<WeaponMountDto>? Weapons = null,
+    string? IconKey = null,
+    int FighterEnduranceMax = 0,
+    int FighterEnduranceUsed = 0,
+    int FighterMaxRange = 0,
+    string? FighterStatus = null,
+    Guid? HomeCarrierShipId = null);
+
+/// <summary>Updates fighter launch/recovery and endurance tracking for a fighter group.</summary>
+public sealed record UpdateFighterOperationsRequest(
+    string ParticipantToken,
+    string FighterStatus,
+    int FighterEnduranceUsed,
+    int FighterEnduranceMax,
+    int FighterMaxRange,
+    Guid? HomeCarrierShipId = null);
+
+/// <summary>Adds a launched ordnance or salvo marker to the table map.</summary>
+public sealed record CreateOrdnanceMarkerRequest(
+    string ParticipantToken,
+    string Name,
+    string MarkerType,
+    Guid? SourceShipId,
+    Guid? TargetShipId,
+    decimal PositionX,
+    decimal PositionY,
+    int Course = 1,
+    int Speed = 0,
+    int EnduranceRemaining = 1,
+    int AttackDice = 0,
+    int MaxRange = 0,
+    string Status = "Active");
+
+/// <summary>Updates a launched ordnance or salvo marker on the table map.</summary>
+public sealed record UpdateOrdnanceMarkerRequest(
+    string ParticipantToken,
+    string Name,
+    string MarkerType,
+    Guid? TargetShipId,
+    decimal PositionX,
+    decimal PositionY,
+    int Course = 1,
+    int Speed = 0,
+    int EnduranceRemaining = 1,
+    int AttackDice = 0,
+    int MaxRange = 0,
+    string Status = "Active");
+
+/// <summary>Removes a launched ordnance or salvo marker from the table map.</summary>
+public sealed record RemoveOrdnanceMarkerRequest(string ParticipantToken);
+
+/// <summary>Updates the physical table dimensions used by map planning.</summary>
+public sealed record UpdateMatchTableRequest(string ParticipantToken, int TableWidth, int TableDepth);
+
+/// <summary>Duplicates an owned ship, optionally assigning a new name.</summary>
+public sealed record DuplicateShipRequest(string ParticipantToken, string? Name);
+
+/// <summary>Replaces tracked damage values for a ship.</summary>
+public sealed record UpdateShipDamageRequest(
+    string ParticipantToken,
+    int HullDamage,
+    int ArmorDamage,
+    int FireControlDamage,
+    int DriveDamage,
+    int WeaponDamage);
+
+/// <summary>Commits a hidden movement order by storing its salted hash.</summary>
+public sealed record CommitOrderRequest(
+    string ParticipantToken,
+    Guid ShipId,
+    MovementOrder Order,
+    string Salt);
+
+/// <summary>Reveals a committed movement order and verifies it against the original salted hash.</summary>
+public sealed record RevealOrderRequest(
+    string ParticipantToken,
+    Guid ShipId,
+    MovementOrder Order,
+    string Salt);
+
+/// <summary>Resolves one weapon mount firing at a target during the firing phase.</summary>
+public sealed record FireWeaponRequest(
+    string ParticipantToken,
+    Guid AttackerShipId,
+    Guid TargetShipId,
+    Guid WeaponId,
+    int Range,
+    FiringArc Arc);
+
+/// <summary>Session details returned when a participant creates a match.</summary>
+public sealed record MatchCreatedResponse(Guid MatchId, string JoinCode, Guid ParticipantId, string ParticipantToken);
+
+/// <summary>Session details returned when a participant joins a match.</summary>
+public sealed record MatchJoinedResponse(Guid MatchId, string JoinCode, Guid ParticipantId, string ParticipantToken);
+
+/// <summary>Authoritative match state returned by API calls and SignalR notifications.</summary>
+public sealed record MatchSnapshotDto(
+    Guid MatchId,
+    string JoinCode,
+    string Name,
+    string Phase,
+    int TurnNumber,
+    string RulesProfileKey,
+    int TableWidth,
+    int TableDepth,
+    IReadOnlyList<ParticipantDto> Participants,
+    IReadOnlyList<FleetDto> Fleets,
+    IReadOnlyList<ShipDto> Ships,
+    IReadOnlyList<OrderStatusDto> OrderStatuses,
+    IReadOnlyList<RevealedOrderDto> RevealedOrders,
+    IReadOnlyList<MovementResultDto> MovementResults,
+    IReadOnlyList<FiringResultDto> FiringResults,
+    IReadOnlyList<OrdnanceMarkerDto> OrdnanceMarkers,
+    IReadOnlyList<MatchLogEntryDto> MatchLog,
+    long Version);
+
+/// <summary>Participant display and readiness state.</summary>
+public sealed record ParticipantDto(Guid Id, string DisplayName, string Role, bool IsReady, bool IsConnected);
+
+/// <summary>Fleet display state and owner association.</summary>
+public sealed record FleetDto(Guid Id, Guid OwnerParticipantId, string Name, string? Faction, string FleetColor);
+
+/// <summary>Ship profile, table position, equipment, and damage state.</summary>
+public sealed record ShipDto(
+    Guid Id,
+    Guid FleetId,
+    string Name,
+    string? ClassName,
+    int ThrustRating,
+    int CurrentVelocity,
+    int CurrentCourse,
+    decimal PositionX,
+    decimal PositionY,
+    int HullMax,
+    int HullDamage,
+    int ArmorMax,
+    int ArmorDamage,
+    int FireControlDamage,
+    int DriveDamage,
+    int WeaponDamage,
+    int ScreenRating,
+    IReadOnlyList<WeaponMountDto> Weapons,
+    bool IsDestroyed,
+    string IconKey,
+    int FighterEnduranceMax,
+    int FighterEnduranceUsed,
+    int FighterMaxRange,
+    string FighterStatus,
+    Guid? HomeCarrierShipId);
+
+/// <summary>Commit/reveal status for a ship order.</summary>
+public sealed record OrderStatusDto(Guid ShipId, Guid OwnerParticipantId, bool IsCommitted, bool IsRevealed, bool VerificationFailed);
+
+/// <summary>Verified movement order visible after reveal.</summary>
+public sealed record RevealedOrderDto(
+    Guid ShipId,
+    int VelocityDelta,
+    int TurnSteps,
+    TurnDirection TurnDirection,
+    IReadOnlyList<TurnManeuver>? TurnManeuvers);
+
+/// <summary>Resolved movement result for one ship.</summary>
+public sealed record MovementResultDto(
+    Guid ShipId,
+    int StartingVelocity,
+    int StartingCourse,
+    int EndingVelocity,
+    int EndingCourse,
+    IReadOnlyList<MovementSegment>? Segments);
+
+/// <summary>Weapon mount profile attached to a ship.</summary>
+public sealed record WeaponMountDto(
+    Guid Id,
+    string Name,
+    int AttackDice,
+    int MaxRange,
+    FiringArc Arc,
+    int AmmoMax = 0,
+    int AmmoUsed = 0,
+    int ReloadTurns = 0);
+
+/// <summary>Resolved firing details for one weapon attack.</summary>
+public sealed record FiringResultDto(
+    Guid AttackerShipId,
+    Guid TargetShipId,
+    Guid WeaponId,
+    string WeaponName,
+    int TurnNumber,
+    int Range,
+    string RangeBand,
+    FiringArc Arc,
+    int RawDice,
+    int RangePenalty,
+    int ScreenReduction,
+    int SystemPenalty,
+    int Damage,
+    int ArmorDamageApplied,
+    int HullDamageApplied);
+
+/// <summary>Launched ordnance or salvo marker tracked on the table map.</summary>
+public sealed record OrdnanceMarkerDto(
+    Guid Id,
+    Guid OwnerParticipantId,
+    string Name,
+    string MarkerType,
+    Guid? SourceShipId,
+    Guid? TargetShipId,
+    decimal PositionX,
+    decimal PositionY,
+    int Course,
+    int Speed,
+    int EnduranceRemaining,
+    int AttackDice,
+    int MaxRange,
+    string Status);
+
+/// <summary>One chronological battle log entry.</summary>
+public sealed record MatchLogEntryDto(
+    long Sequence,
+    DateTimeOffset Timestamp,
+    int TurnNumber,
+    string Phase,
+    string Category,
+    string Message);
