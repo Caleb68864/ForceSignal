@@ -1213,7 +1213,8 @@ function App() {
                 const draft = draftFor(ship.id, drafts);
                 const status = snapshot.orderStatuses.find((item) => item.shipId === ship.id);
                 const result = snapshot.movementResults.find((item) => item.shipId === ship.id);
-                const canEdit = ownedShips.some((ownedShip) => ownedShip.id === ship.id);
+                // Public display shows every hull as a read-only record: no command controls.
+                const canEdit = visibleOwnedShipIds.has(ship.id);
                 const isEditing = editingShipId === ship.id;
                 const isFocused = mapFocusShipId === ship.id || (!mapFocusShipId && canEdit && ownedShips[0]?.id === ship.id);
                 const showShipControls = canEdit && (isFocused || isEditing);
