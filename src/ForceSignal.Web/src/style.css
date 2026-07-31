@@ -2177,7 +2177,24 @@ small,
     min-height: 48px;
   }
 
-  .damage-buttons button {
+  /* Class-scoped desktop sizes outrank the bare element rule above, so the
+     compact control groups have to be raised explicitly for touch. */
+  .side-actions button,
+  .table-setup button,
+  .checklist-actions button,
+  .quick-actions button,
+  .log-actions button,
+  .selected-action-tabs button,
+  .contact-ranges button,
+  .map-firing-assistant button,
+  .fighter-ops-panel button,
+  .ordnance-panel button,
+  .ordnance-list-row button {
+    min-height: 48px;
+  }
+
+  .damage-buttons button,
+  .turn-chip {
     min-height: 44px;
   }
 
@@ -2396,5 +2413,33 @@ small,
 
   .helm-hint {
     font-size: 0.68rem;
+  }
+}
+
+/* Touch sizing keyed on pointer type as well as width: tablets are commonly
+   wider than the phone breakpoint but still finger-driven. */
+@media (pointer: coarse) {
+  button,
+  input,
+  select,
+  .side-actions button,
+  .table-setup button,
+  .checklist-actions button,
+  .quick-actions button,
+  .log-actions button,
+  .view-tabs button,
+  .selected-action-tabs button,
+  .contact-ranges button,
+  .map-firing-assistant button,
+  .fighter-ops-panel button,
+  .ordnance-panel button,
+  .ordnance-list-row button,
+  .map-controls button {
+    min-height: 48px;
+  }
+
+  .damage-buttons button,
+  .turn-chip {
+    min-height: 44px;
   }
 }
