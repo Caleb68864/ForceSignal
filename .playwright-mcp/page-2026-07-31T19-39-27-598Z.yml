@@ -1,0 +1,191 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "ForceSignal" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Space fleet tabletop companion for synchronized orders and battle records.
+    - strong [ref=e8]: Fleet Setup · Turn 1
+  - region "Unofficial companion notice" [ref=e9]:
+    - generic [ref=e10]:
+      - strong [ref=e11]: Unofficial companion
+      - paragraph [ref=e12]: ForceSignal is an unofficial tabletop companion. It is not affiliated with, endorsed by, or sponsored by Ground Zero Games.
+      - paragraph [ref=e13]: Full Thrust and Ground Zero Games are trademarks/property of their respective owners. Use your own legally obtained rules and fleet data.
+    - link "Rules" [ref=e14] [cursor=pointer]:
+      - /url: https://shop.groundzerogames.co.uk/rules.html
+  - generic [ref=e23]:
+    - complementary [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]: Room
+        - heading "SEVEN-ORBIT-COMET" [level=2] [ref=e27]
+      - generic [ref=e28]:
+        - generic [ref=e29]: You
+        - paragraph [ref=e30]: Admiral · Owner
+      - generic [ref=e31]:
+        - generic [ref=e32]: Table
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - text: Width
+            - spinbutton "Width" [ref=e35]: "72"
+          - generic [ref=e36]:
+            - text: Depth
+            - spinbutton "Depth" [ref=e37]: "48"
+        - button "Set Table" [ref=e38] [cursor=pointer]
+      - generic [ref=e39]:
+        - generic [ref=e40]: Match commands
+        - button "Ready" [ref=e41] [cursor=pointer]
+        - button "Lock Fleet Orders" [ref=e42] [cursor=pointer]
+        - button "Reveal Fleet Orders" [ref=e43] [cursor=pointer]
+        - button "Advance Turn" [ref=e44] [cursor=pointer]
+        - button "Public Display" [ref=e45] [cursor=pointer]
+        - button "Print Cards" [ref=e46] [cursor=pointer]
+        - button "Save Snapshot" [ref=e47] [cursor=pointer]
+        - button "Leave Device Session" [ref=e48] [cursor=pointer]
+    - region "Match console" [ref=e49]:
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e52]: Profile
+          - heading "Cinematic space fleet profile" [level=2] [ref=e53]
+          - generic [ref=e54]: Bring your own legally obtained rules. No official rules text or fleet lists are bundled.
+        - generic "Match counters" [ref=e55]:
+          - generic [ref=e56]: 0 ships
+          - generic [ref=e57]: 0/0 locked
+          - generic [ref=e58]: 0 resolved
+        - paragraph [ref=e59]: Created room SEVEN-ORBIT-COMET.
+      - region "Fleet setup workflow" [ref=e60]:
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - generic [ref=e63]: Fleet setup
+            - heading "Patrol Group" [level=3] [ref=e64]
+          - paragraph [ref=e65]: Add ships, tune stats, and move fleet files before marking ready.
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - generic [ref=e68]: Add ship
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - text: Fleet name
+                - textbox "Fleet name" [ref=e71]: Patrol Group
+              - generic [ref=e72]:
+                - text: Faction
+                - textbox "Faction" [ref=e73]: Custom
+              - generic [ref=e74]:
+                - text: Fleet color
+                - textbox "Fleet color" [ref=e75]: "#47f1ff"
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - generic [ref=e78]: Presets
+                - generic [ref=e79]:
+                  - button "Escort" [ref=e80] [cursor=pointer]
+                  - button "Frigate" [ref=e81] [cursor=pointer]
+                  - button "Destroyer" [ref=e82] [cursor=pointer]
+                  - button "Cruiser" [ref=e83] [cursor=pointer]
+                  - button "Carrier" [ref=e84] [cursor=pointer]
+                  - button "Fighters" [ref=e85] [cursor=pointer]
+                  - button "Station" [ref=e86] [cursor=pointer]
+              - generic [ref=e87]:
+                - text: Ship name
+                - textbox "Ship name" [ref=e88]: Valiant
+              - generic [ref=e89]:
+                - text: Class
+                - textbox "Class" [ref=e90]: Cruiser
+              - generic [ref=e91]:
+                - text: Ship icon
+                - combobox "Ship icon" [ref=e92]:
+                  - option "Escort"
+                  - option "Frigate"
+                  - option "Destroyer"
+                  - option "Cruiser" [selected]
+                  - option "Carrier"
+                  - option "Dreadnought"
+                  - option "Fighter group"
+                  - option "Station"
+              - generic [ref=e93]:
+                - text: Thrust
+                - spinbutton "Thrust" [ref=e94]: "4"
+              - generic [ref=e95]:
+                - text: Start velocity
+                - spinbutton "Start velocity" [ref=e96]: "8"
+              - generic [ref=e97]:
+                - text: Course
+                - spinbutton "Course" [ref=e98]: "1"
+              - generic [ref=e99]:
+                - text: Position X
+                - spinbutton "Position X" [ref=e100]: "12"
+              - generic [ref=e101]:
+                - text: Position Y
+                - spinbutton "Position Y" [ref=e102]: "24"
+              - generic [ref=e103]:
+                - text: Hull boxes
+                - spinbutton "Hull boxes" [ref=e104]: "12"
+              - generic [ref=e105]:
+                - text: Armor boxes
+                - spinbutton "Armor boxes" [ref=e106]: "4"
+              - generic [ref=e107]:
+                - text: Screens
+                - spinbutton "Screens" [ref=e108]: "1"
+              - generic [ref=e109]:
+                - generic [ref=e110]:
+                  - generic [ref=e111]:
+                    - generic [ref=e112]: Weapons
+                    - heading "1 mounts" [level=3] [ref=e113]
+                  - button "Add" [ref=e114] [cursor=pointer]
+                - generic [ref=e115]:
+                  - generic [ref=e116]:
+                    - text: Name
+                    - textbox "Name" [ref=e117]: Class-2 Beam
+                  - generic [ref=e118]:
+                    - text: Dice
+                    - spinbutton "Dice" [ref=e119]: "2"
+                  - generic [ref=e120]:
+                    - text: Range
+                    - spinbutton "Range" [ref=e121]: "24"
+                  - generic [ref=e122]:
+                    - text: Arc
+                    - combobox "Arc" [ref=e123]:
+                      - option "Fore" [selected]
+                      - option "Aft"
+                      - option "Port"
+                      - option "Starboard"
+                      - option "All"
+                  - generic [ref=e124]:
+                    - text: Ammo
+                    - spinbutton "Ammo" [ref=e125]: "0"
+                  - generic [ref=e126]:
+                    - text: Used
+                    - spinbutton "Used" [ref=e127]: "0"
+                  - generic [ref=e128]:
+                    - text: Reload
+                    - spinbutton "Reload" [ref=e129]: "0"
+                  - button "Remove" [ref=e130] [cursor=pointer]
+            - button "Add Ship" [ref=e131] [cursor=pointer]
+          - generic [ref=e132]:
+            - generic [ref=e133]: Fleet transfer
+            - generic [ref=e134]:
+              - strong [ref=e135]: "0"
+              - generic [ref=e136]: owned ships ready for export
+            - generic [ref=e137]:
+              - button "Export JSON" [ref=e138] [cursor=pointer]
+              - button "Export CSV" [ref=e139] [cursor=pointer]
+            - button "Import Fleet" [ref=e140] [cursor=pointer]
+            - paragraph [ref=e141]: Imports are for user-owned fleet data. Do not bundle official fleet lists, SSDs, logos, artwork, or copied rule text.
+      - generic [ref=e142]:
+        - generic [ref=e143]:
+          - heading "Participants" [level=3] [ref=e144]
+          - list [ref=e145]:
+            - listitem [ref=e146]:
+              - generic [ref=e147]: Admiral
+              - generic [ref=e148]: Owner · Setting up
+        - generic [ref=e149]:
+          - heading "Fleets" [level=3] [ref=e150]
+          - list [ref=e151]
+      - navigation "Battle views" [ref=e152]:
+        - button "Ships" [ref=e153] [cursor=pointer]
+        - button "Play Map" [ref=e154] [cursor=pointer]
+        - button "Log" [ref=e155] [cursor=pointer]
+      - region "Pre-turn checklist" [ref=e156]:
+        - generic [ref=e157]:
+          - generic [ref=e158]:
+            - generic [ref=e159]: Pre-turn checklist
+            - heading "Clear to proceed" [level=3] [ref=e160]
+          - generic [ref=e161]:
+            - generic [ref=e162]: 0 warn
+            - button "Undo Damage" [disabled] [ref=e163]
+        - generic [ref=e164]: All live ships are inside table bounds

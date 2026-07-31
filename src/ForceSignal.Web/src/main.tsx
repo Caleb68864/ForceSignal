@@ -352,6 +352,7 @@ function App() {
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
+  const spentDraftTurnRef = useRef<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(draftsKey, JSON.stringify(drafts));
@@ -362,6 +363,22 @@ function App() {
       localStorage.setItem(snapshotBackupKey, JSON.stringify({ savedAt: new Date().toISOString(), snapshot }));
     }
   }, [snapshot]);
+
+  // An order is spent once movement resolves. Drop the local drafts then, so the next turn
+  // starts from a clean plot instead of previewing - or silently re-locking - last turn's helm.
+  useEffect(() => {
+    if (!snapshot || snapshot.phase !== 'Firing') {
+      return;
+    }
+
+    const turnKey = `${snapshot.matchId}:${snapshot.turnNumber}`;
+    if (spentDraftTurnRef.current === turnKey) {
+      return;
+    }
+
+    spentDraftTurnRef.current = turnKey;
+    setDrafts({});
+  }, [snapshot?.matchId, snapshot?.turnNumber, snapshot?.phase]);
 
   useEffect(() => {
     if (!session) {
@@ -418,6 +435,8 @@ function App() {
     [snapshot?.ships, ownedFleets],
   );
   const activeFleet = ownedFleets.find((fleet) => fleet.id === activeFleetId) ?? ownedFleets[0];
+  const ownedShipIds = useMemo(() => new Set(ownedShips.map((ship) => ship.id)), [ownedShips]);
+  const visibleOwnedShipIds = useMemo(() => (publicMode ? new Set<string>() : ownedShipIds), [publicMode, ownedShipIds]);
 
   async function createMatch() {
     clearLocalMatchState();
@@ -1182,7 +1201,7 @@ function App() {
             {snapshot ? (
               <PreTurnChecklist
                 snapshot={snapshot}
-                ownedShipIds={publicMode ? new Set() : new Set(ownedShips.map((ship) => ship.id))}
+                ownedShipIds={visibleOwnedShipIds}
                 damageUndoLabel={damageUndo?.shipName}
                 onUndoDamage={() => undoLastDamage().catch(showError(setMessage))}
               />
@@ -1200,7 +1219,7 @@ function App() {
                 const showShipControls = canEdit && (isFocused || isEditing);
                 const shipThrust = usableThrust(ship);
                 const maxTurn = maxLegalTurn(shipThrust, draft.velocityDelta);
-                const firingDraft = firingDraftFor(ship, snapshot.ships, firingDrafts);
+                const firingDraft = firingDraftFor(ship, snapshot.ships, firingDrafts, ownedShipIds);
                 return (
                   <article className={['ship-card', isFocused ? 'focused' : '', showShipControls ? '' : 'compact'].join(' ')} key={ship.id}>
                     <div className="ship-header">
@@ -1399,6 +1418,7 @@ function App() {
                         <FiringConsole
                           ship={ship}
                           ships={snapshot.ships}
+                          ownedShipIds={ownedShipIds}
                           draft={firingDraft}
                           phase={snapshot.phase}
                           firingResults={snapshot.firingResults}
@@ -1479,7 +1499,7 @@ function App() {
             {activeView === 'map' && snapshot ? (
               <PlayMap
                 snapshot={snapshot}
-                ownedShipIds={publicMode ? new Set() : new Set(ownedShips.map((ship) => ship.id))}
+                ownedShipIds={visibleOwnedShipIds}
                 ownerParticipantId={publicMode ? undefined : session.participantId}
                 drafts={drafts}
                 firingDrafts={firingDrafts}
@@ -1919,7 +1939,7 @@ function PlayMap({
   const [measureLine, setMeasureLine] = useState<{ start: TablePoint; end: TablePoint } | null>(null);
   const [mapNotice, setMapNotice] = useState('Pan ready');
   const selectedDraft = selectedShip ? draftFor(selectedShip.id, drafts) : null;
-  const selectedFiringDraft = selectedShip ? firingDraftFor(selectedShip, snapshot.ships, firingDrafts) : null;
+  const selectedFiringDraft = selectedShip ? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds) : null;
   const selectedCanPlot = selectedShip ? ownedShipIds.has(selectedShip.id) && !selectedShip.isDestroyed : false;
   const selectedPlannedCourse = selectedShip && selectedDraft ? previewCourse(selectedShip.currentCourse, selectedDraft) : null;
   const selectedFleet = snapshot.fleets.find((fleet) => fleet.id === selectedShip?.fleetId);
@@ -2065,7 +2085,7 @@ function PlayMap({
   }
 
   function updateMapFiringDraft(ship: Ship, patch: Partial<FiringDraft>) {
-    const current = firingDraftFor(ship, snapshot.ships, firingDrafts);
+    const current = firingDraftFor(ship, snapshot.ships, firingDrafts, ownedShipIds);
     const target = snapshot.ships.find((item) => item.id === (patch.targetShipId ?? current.targetShipId));
     const weapon = ship.weapons.find((item) => item.id === (patch.weaponId ?? current.weaponId)) ?? ship.weapons[0];
     const range = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : current.range;
@@ -2591,11 +2611,12 @@ function PlayMap({
               <MapFiringAssistant
                 ship={selectedShip}
                 ships={snapshot.ships}
-                draft={selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts)}
+                ownedShipIds={ownedShipIds}
+                draft={selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds)}
                 phase={phase}
                 firingResults={snapshot.firingResults}
                 onChange={(patch) => updateMapFiringDraft(selectedShip, patch)}
-                onFire={() => onFire(selectedShip, selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts)).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
+                onFire={() => onFire(selectedShip, selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds)).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
               />
             ) : null}
             {inspectorMode === 'fire' && selectedShip && ownedShipIds.has(selectedShip.id) ? (
@@ -3040,6 +3061,7 @@ function MeasureOverlay({ line, tableWidth, tableDepth }: { line: { start: Table
 function MapFiringAssistant({
   ship,
   ships,
+  ownedShipIds,
   draft,
   phase,
   firingResults,
@@ -3048,13 +3070,14 @@ function MapFiringAssistant({
 }: {
   ship: Ship;
   ships: Ship[];
+  ownedShipIds: Set<string>;
   draft: FiringDraft;
   phase: string;
   firingResults: FiringResult[];
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
 }) {
-  const targetOptions = ships.filter((candidate) => candidate.id !== ship.id && !candidate.isDestroyed);
+  const targetOptions = firingTargetOptions(ship, ships, ownedShipIds);
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
   const target = targetOptions.find((candidate) => candidate.id === draft.targetShipId) ?? targetOptions[0];
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : 0;
@@ -3083,7 +3106,9 @@ function MapFiringAssistant({
       <label>
         Target
         <select value={draft.targetShipId} onChange={(event) => onChange({ targetShipId: event.target.value })}>
-          {targetOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+          {targetOptions.map((option) => (
+            <option key={option.id} value={option.id}>{option.name}{ownedShipIds.has(option.id) ? ' - yours' : ''}</option>
+          ))}
         </select>
       </label>
       <label>
@@ -3153,6 +3178,7 @@ function MovementPreviewOverlay({
 function FiringConsole({
   ship,
   ships,
+  ownedShipIds,
   draft,
   phase,
   firingResults,
@@ -3161,13 +3187,14 @@ function FiringConsole({
 }: {
   ship: Ship;
   ships: Ship[];
+  ownedShipIds: Set<string>;
   draft: FiringDraft;
   phase: string;
   firingResults: FiringResult[];
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
 }) {
-  const targetOptions = ships.filter((candidate) => candidate.id !== ship.id && !candidate.isDestroyed);
+  const targetOptions = firingTargetOptions(ship, ships, ownedShipIds);
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
   const target = targetOptions.find((candidate) => candidate.id === draft.targetShipId) ?? targetOptions[0];
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : null;
@@ -3188,8 +3215,8 @@ function FiringConsole({
       <label>
         Target
         <select value={draft.targetShipId} onChange={(event) => onChange({ targetShipId: event.target.value })}>
-          {targetOptions.map((target) => (
-            <option key={target.id} value={target.id}>{target.name}</option>
+          {targetOptions.map((option) => (
+            <option key={option.id} value={option.id}>{option.name}{ownedShipIds.has(option.id) ? ' - yours' : ''}</option>
           ))}
         </select>
       </label>
@@ -3824,11 +3851,11 @@ function nextShipName(name: string) {
 
 const firingArcs: FiringArc[] = ['Fore', 'Aft', 'Port', 'Starboard', 'All'];
 
-function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, FiringDraft>): FiringDraft {
+function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, FiringDraft>, ownedShipIds?: Set<string>): FiringDraft {
   const current = drafts[ship.id];
   const isTargetable = (candidate: Ship) => candidate.id !== ship.id && !candidate.isDestroyed;
   const target = ships.find((candidate) => candidate.id === current?.targetShipId && isTargetable(candidate))
-    ?? ships.find(isTargetable);
+    ?? firingTargetOptions(ship, ships, ownedShipIds)[0];
   const weapon = ship.weapons.find((mount) => mount.id === current?.weaponId) ?? ship.weapons[0];
   const arcs = allowedFiringArcs(weapon);
   return {
@@ -3837,6 +3864,20 @@ function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, Firing
     range: Math.max(1, current?.range ?? 12),
     arc: current?.arc && arcs.includes(current.arc) ? current.arc : weapon?.arc ?? 'Fore',
   };
+}
+
+/// Selectable targets for a firing solution: hostile contacts first, nearest first.
+/// Friendly hulls stay selectable for deliberate crossfire but are never the default.
+function firingTargetOptions(ship: Ship, ships: Ship[], ownedShipIds?: Set<string>): Ship[] {
+  return ships
+    .filter((candidate) => candidate.id !== ship.id && !candidate.isDestroyed)
+    .map((candidate) => ({
+      candidate,
+      friendly: ownedShipIds?.has(candidate.id) ?? false,
+      range: distanceBetweenShips(ship, candidate),
+    }))
+    .sort((left, right) => Number(left.friendly) - Number(right.friendly) || left.range - right.range)
+    .map((entry) => entry.candidate);
 }
 
 function allowedFiringArcs(weapon?: WeaponMount): FiringArc[] {

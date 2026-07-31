@@ -1,0 +1,151 @@
+- main [ref=f2e3]:
+  - generic [ref=f2e4]:
+    - generic [ref=f2e5]:
+      - heading "ForceSignal" [level=1] [ref=f2e6]
+      - paragraph [ref=f2e7]: Space fleet tabletop companion for synchronized orders and battle records.
+    - strong [ref=f2e9]: Order Entry · Turn 1 · 72x48
+  - region "Unofficial companion notice" [ref=f2e10]:
+    - generic [ref=f2e11]:
+      - strong [ref=f2e12]: Unofficial companion
+      - paragraph [ref=f2e13]: ForceSignal is an unofficial tabletop companion. It is not affiliated with, endorsed by, or sponsored by Ground Zero Games.
+      - paragraph [ref=f2e14]: Full Thrust and Ground Zero Games are trademarks/property of their respective owners. Use your own legally obtained rules and fleet data.
+    - link "Rules" [ref=f2e15] [cursor=pointer]:
+      - /url: https://shop.groundzerogames.co.uk/rules.html
+  - generic [ref=f2e16]:
+    - complementary [ref=f2e17]:
+      - generic [ref=f2e18]:
+        - generic [ref=f2e19]: Room
+        - heading "LANCE-DRIFT-VECTOR" [level=2] [ref=f2e20]
+      - generic [ref=f2e21]:
+        - generic [ref=f2e22]: You
+        - paragraph [ref=f2e23]: Blue · Owner
+      - generic [ref=f2e24]:
+        - generic [ref=f2e25]: Table
+        - generic [ref=f2e26]:
+          - generic [ref=f2e27]:
+            - text: Width
+            - spinbutton "Width" [ref=f2e28]: "72"
+          - generic [ref=f2e29]:
+            - text: Depth
+            - spinbutton "Depth" [ref=f2e30]: "48"
+        - button "Set Table" [ref=f2e31] [cursor=pointer]
+      - generic [ref=f2e32]:
+        - generic [ref=f2e33]: Match commands
+        - button "Ready" [ref=f2e34] [cursor=pointer]
+        - button "Lock Fleet Orders" [ref=f2e35] [cursor=pointer]
+        - button "Reveal Fleet Orders" [ref=f2e36] [cursor=pointer]
+        - button "Advance Turn" [ref=f2e37] [cursor=pointer]
+        - button "Public Display" [ref=f2e38] [cursor=pointer]
+        - button "Print Cards" [ref=f2e39] [cursor=pointer]
+        - button "Save Snapshot" [ref=f2e40] [cursor=pointer]
+        - button "Leave Device Session" [ref=f2e41] [cursor=pointer]
+    - region "Match console" [ref=f2e42]:
+      - generic [ref=f2e43]:
+        - generic [ref=f2e44]:
+          - generic [ref=f2e45]: Profile
+          - heading "Cinematic space fleet profile" [level=2] [ref=f2e46]
+          - generic [ref=f2e47]: Bring your own legally obtained rules. No official rules text or fleet lists are bundled.
+        - generic "Match counters" [ref=f2e60]:
+          - generic [ref=f2e61]: 4 ships
+          - generic [ref=f2e62]: 0/4 locked
+          - generic [ref=f2e63]: 0 resolved
+        - paragraph [ref=f2e48]: Ready.
+      - navigation "Battle views" [ref=f2e56]:
+        - button "Ships" [ref=f2e57] [cursor=pointer]
+        - button "Play Map" [active] [ref=f2e58] [cursor=pointer]
+        - button "Log" [ref=f2e59] [cursor=pointer]
+      - region "Pre-turn checklist" [ref=f2e76]:
+        - generic [ref=f2e77]:
+          - generic [ref=f2e78]:
+            - generic [ref=f2e79]: Pre-turn checklist
+            - heading "1 blocker" [level=3] [ref=f2e80]
+          - generic [ref=f2e81]:
+            - generic [ref=f2e82]: 0 warn
+            - button "Undo Damage" [disabled] [ref=f2e83]
+        - generic [ref=f2e84]:
+          - generic [ref=f2e85]: 4 live ships missing orders
+          - generic [ref=f2e86]: All live ships are inside table bounds
+      - region "Estimated play map" [ref=f2e339]:
+        - generic [ref=f2e340]:
+          - generic [ref=f2e341]:
+            - generic [ref=f2e342]: Play map
+            - heading "72 x 48 table" [level=3] [ref=f2e343]
+          - paragraph [ref=f2e344]: Pan ready
+        - generic "Map controls" [ref=f2e345]:
+          - generic [ref=f2e346]:
+            - generic [ref=f2e347]: Contact
+            - combobox "Contact" [ref=f2e348]:
+              - option "Valiant - yours" [selected]
+              - option "Home Plate - yours"
+              - option "Alpha Wing - yours"
+              - option "Crimson - contact"
+          - button "Zoom out" [ref=f2e349] [cursor=pointer]: "-"
+          - slider "Map zoom" [ref=f2e350]: "1"
+          - button "Zoom in" [ref=f2e351] [cursor=pointer]: +
+          - button "Center" [ref=f2e352] [cursor=pointer]
+          - button "Next" [ref=f2e353] [cursor=pointer]
+          - button "Fit" [ref=f2e354] [cursor=pointer]
+          - button "Measure" [ref=f2e355] [cursor=pointer]
+          - generic [ref=f2e356]: 100%
+        - application "Tactical play map. Use arrow keys to pan, plus and minus to zoom, and Home to fit." [ref=f2e357]:
+          - generic [ref=f2e358]:
+            - button [ref=f2e359] [cursor=pointer]:
+              - generic: S
+              - strong [ref=f2e363]: VAL
+              - emphasis [ref=f2e364]: Blue
+            - button [ref=f2e365] [cursor=pointer]:
+              - generic: S
+              - strong [ref=f2e369]: HOM
+              - emphasis [ref=f2e370]: Blue
+            - button [ref=f2e371] [cursor=pointer]:
+              - strong [ref=f2e377]: ALP
+              - emphasis [ref=f2e378]: Blue
+            - button [ref=f2e379] [cursor=pointer]:
+              - strong [ref=f2e383]: CRI
+              - emphasis [ref=f2e384]: Red
+        - generic [ref=f2e385]:
+          - generic [ref=f2e386]:
+            - generic [ref=f2e387]: Selected contact
+            - heading "Valiant" [level=3] [ref=f2e388]
+            - generic [ref=f2e389]: Cruiser · Your fleet
+            - generic "Selected ship tools" [ref=f2e390]:
+              - button "Status" [ref=f2e391] [cursor=pointer]
+              - button "Helm" [ref=f2e392] [cursor=pointer]
+              - button "Fire" [ref=f2e393] [cursor=pointer]
+              - button "Ops" [disabled] [ref=f2e394]
+            - generic [ref=f2e395]:
+              - generic [ref=f2e396]: Nearest contacts
+              - button [ref=f2e397] [cursor=pointer]:
+                - text: Alpha Wing
+                - strong [ref=f2e398]: "6.3"
+              - button [ref=f2e399] [cursor=pointer]:
+                - text: Home Plate
+                - strong [ref=f2e400]: "8.5"
+              - button [ref=f2e401] [cursor=pointer]:
+                - text: Crimson
+                - strong [ref=f2e402]: "22.0"
+          - generic [ref=f2e403]:
+            - generic [ref=f2e404]:
+              - generic [ref=f2e405]: Position
+              - strong [ref=f2e406]: 18.0,24.0
+            - generic [ref=f2e407]:
+              - generic [ref=f2e408]: Velocity
+              - strong [ref=f2e409]: "6"
+            - generic [ref=f2e410]:
+              - generic [ref=f2e411]: Course
+              - strong [ref=f2e412]: "3"
+            - generic [ref=f2e413]:
+              - generic [ref=f2e414]: Planned
+              - strong [ref=f2e415]: "3"
+            - generic [ref=f2e416]:
+              - generic [ref=f2e417]: Turn
+              - strong [ref=f2e418]: No turn
+            - generic [ref=f2e419]:
+              - generic [ref=f2e420]: Hull
+              - strong [ref=f2e421]: 0/12
+            - generic [ref=f2e422]:
+              - generic [ref=f2e423]: Armor
+              - strong [ref=f2e424]: 0/4
+            - generic [ref=f2e425]:
+              - generic [ref=f2e426]: Screens
+              - strong [ref=f2e427]: "1"

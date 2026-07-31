@@ -1,0 +1,297 @@
+- main [ref=f7e3]:
+  - generic [ref=f7e4]:
+    - generic [ref=f7e5]:
+      - heading "ForceSignal" [level=1] [ref=f7e6]
+      - paragraph [ref=f7e7]: Space fleet tabletop companion for synchronized orders and battle records.
+    - strong [ref=f7e9]: Firing · Turn 1 · 72x48
+  - region "Unofficial companion notice" [ref=f7e10]:
+    - generic [ref=f7e11]:
+      - strong [ref=f7e12]: Unofficial companion
+      - paragraph [ref=f7e13]: ForceSignal is an unofficial tabletop companion. It is not affiliated with, endorsed by, or sponsored by Ground Zero Games.
+      - paragraph [ref=f7e14]: Full Thrust and Ground Zero Games are trademarks/property of their respective owners. Use your own legally obtained rules and fleet data.
+    - link "Rules" [ref=f7e15] [cursor=pointer]:
+      - /url: https://shop.groundzerogames.co.uk/rules.html
+  - generic [ref=f7e16]:
+    - complementary [ref=f7e17]:
+      - generic [ref=f7e18]:
+        - generic [ref=f7e19]: Room
+        - heading "LANCE-DRIFT-VECTOR" [level=2] [ref=f7e20]
+      - generic [ref=f7e21]:
+        - generic [ref=f7e22]: You
+        - paragraph [ref=f7e23]: Blue · Owner
+      - generic [ref=f7e24]:
+        - generic [ref=f7e25]: Table
+        - generic [ref=f7e26]:
+          - generic [ref=f7e27]:
+            - text: Width
+            - spinbutton "Width" [ref=f7e28]: "72"
+          - generic [ref=f7e29]:
+            - text: Depth
+            - spinbutton "Depth" [ref=f7e30]: "48"
+        - button "Set Table" [ref=f7e31] [cursor=pointer]
+      - generic [ref=f7e32]:
+        - generic [ref=f7e33]: Match commands
+        - button "Ready" [ref=f7e34] [cursor=pointer]
+        - button "Lock Fleet Orders" [ref=f7e35] [cursor=pointer]
+        - button "Reveal Fleet Orders" [ref=f7e36] [cursor=pointer]
+        - button "Advance Turn" [ref=f7e37] [cursor=pointer]
+        - button "Public Display" [ref=f7e38] [cursor=pointer]
+        - button "Print Cards" [ref=f7e39] [cursor=pointer]
+        - button "Save Snapshot" [ref=f7e40] [cursor=pointer]
+        - button "Leave Device Session" [ref=f7e41] [cursor=pointer]
+    - region "Match console" [ref=f7e42]:
+      - generic [ref=f7e43]:
+        - generic [ref=f7e44]:
+          - generic [ref=f7e45]: Profile
+          - heading "Cinematic space fleet profile" [level=2] [ref=f7e46]
+          - generic [ref=f7e47]: Bring your own legally obtained rules. No official rules text or fleet lists are bundled.
+        - generic "Match counters" [ref=f7e48]:
+          - generic [ref=f7e49]: 4 ships
+          - generic [ref=f7e50]: 4/4 locked
+          - generic [ref=f7e51]: 4 resolved
+        - paragraph [ref=f7e52]: Ready.
+      - generic [ref=f7e53]:
+        - generic [ref=f7e54]:
+          - heading "Participants" [level=3] [ref=f7e55]
+          - list [ref=f7e56]:
+            - listitem [ref=f7e57]:
+              - generic [ref=f7e58]: Blue
+              - generic [ref=f7e59]: Owner · Ready
+            - listitem [ref=f7e60]:
+              - generic [ref=f7e61]: Red
+              - generic [ref=f7e62]: Player · Ready
+        - generic [ref=f7e63]:
+          - heading "Fleets" [level=3] [ref=f7e64]
+          - list [ref=f7e65]:
+            - listitem [ref=f7e66]:
+              - generic [ref=f7e67]: Blue Watch
+              - generic [ref=f7e68]: Test
+            - listitem [ref=f7e69]:
+              - generic [ref=f7e70]: Red Watch
+              - generic [ref=f7e71]: Test
+      - navigation "Battle views" [ref=f7e72]:
+        - button "Ships" [ref=f7e73] [cursor=pointer]
+        - button "Play Map" [ref=f7e74] [cursor=pointer]
+        - button "Log" [ref=f7e75] [cursor=pointer]
+      - region "Pre-turn checklist" [ref=f7e76]:
+        - generic [ref=f7e77]:
+          - generic [ref=f7e78]:
+            - generic [ref=f7e79]: Pre-turn checklist
+            - heading "Clear to proceed" [level=3] [ref=f7e80]
+          - generic [ref=f7e81]:
+            - generic [ref=f7e82]: 1 warn
+            - button "Undo Damage" [disabled] [ref=f7e83]
+        - generic [ref=f7e84]:
+          - generic [ref=f7e85]: 3 friendly weapons not logged
+          - generic [ref=f7e86]: All live ships are inside table bounds
+      - generic [ref=f7e87]:
+        - article [ref=f7e88]:
+          - generic [ref=f7e89]:
+            - generic [ref=f7e90]:
+              - generic [ref=f7e91]: Ship record
+              - heading "Valiant" [level=3] [ref=f7e92]
+              - generic [ref=f7e93]: Cruiser · Thrust 4
+            - strong [ref=f7e94]: Operational
+          - generic [ref=f7e95]:
+            - generic [ref=f7e96]: Orders locked
+            - generic [ref=f7e97]: Undamaged
+            - generic [ref=f7e98]: Screens 1
+          - generic [ref=f7e99]:
+            - button "Focused" [ref=f7e100] [cursor=pointer]
+            - button "Edit Stats" [ref=f7e101] [cursor=pointer]
+            - button "Duplicate" [ref=f7e102] [cursor=pointer]
+            - button "Repair All" [ref=f7e103] [cursor=pointer]
+          - generic [ref=f7e104]:
+            - generic [ref=f7e105]:
+              - generic [ref=f7e106]: Velocity
+              - strong [ref=f7e107]: "6"
+            - generic [ref=f7e108]:
+              - generic [ref=f7e109]: Course
+              - strong [ref=f7e110]: "1"
+            - generic [ref=f7e111]:
+              - generic [ref=f7e112]: Next
+              - strong [ref=f7e113]: "1"
+            - generic [ref=f7e114]:
+              - generic [ref=f7e115]: Screens
+              - strong [ref=f7e116]: "1"
+            - generic [ref=f7e117]:
+              - generic [ref=f7e118]: Pos
+              - strong [ref=f7e119]: 23,21
+          - generic "Valiant card tools" [ref=f7e120]:
+            - button "Helm" [ref=f7e121] [cursor=pointer]
+            - button "Fire" [ref=f7e122] [cursor=pointer]
+            - button "Damage" [ref=f7e123] [cursor=pointer]
+          - region "Valiant helm" [ref=f7e124]:
+            - generic [ref=f7e125]: Helm
+            - generic "Current course 1, selected course 1, maximum turn 2" [ref=f7e126]:
+              - generic [ref=f7e127]:
+                - generic [ref=f7e128]: PORT LIMIT 11
+                - strong [ref=f7e129]: HELM 1
+                - generic [ref=f7e130]: STARBOARD LIMIT 3
+              - slider "Course change helm" [ref=f7e131]:
+                - generic [ref=f7e132]: "1"
+                - generic [ref=f7e133]: "2"
+                - generic [ref=f7e134]: "3"
+                - generic [ref=f7e135]: "4"
+                - generic [ref=f7e136]: "5"
+                - generic [ref=f7e137]: "6"
+                - generic [ref=f7e138]: "7"
+                - generic [ref=f7e139]: "8"
+                - generic [ref=f7e140]: "9"
+                - generic [ref=f7e141]: "10"
+                - generic [ref=f7e142]: "11"
+                - generic [ref=f7e143]: "12"
+                - generic [ref=f7e150]:
+                  - generic [ref=f7e151]: No turn
+                  - strong [ref=f7e152]: "0"
+                  - emphasis [ref=f7e153]: MAX 2
+              - paragraph [ref=f7e154]: Drag, tap, or use left/right arrows.
+          - generic [ref=f7e155]:
+            - generic [ref=f7e156]: Order plot
+            - paragraph [ref=f7e157]: Thrust spend 0/4 · turn cap 2
+            - generic [ref=f7e158]:
+              - button "Drift" [ref=f7e159] [cursor=pointer]
+              - button "Max Accel" [ref=f7e160] [cursor=pointer]
+              - button "Max Decel" [ref=f7e161] [cursor=pointer]
+              - button "Copy Fleet" [ref=f7e162] [cursor=pointer]
+            - generic [ref=f7e163]:
+              - text: Velocity
+              - spinbutton "Velocity" [ref=f7e164]: "0"
+            - generic [ref=f7e165]:
+              - text: Turn
+              - spinbutton "Turn" [ref=f7e166]: "0"
+            - generic [ref=f7e167]:
+              - text: Direction
+              - combobox "Direction" [ref=f7e168]:
+                - option "None" [selected]
+                - option "Port"
+                - option "Starboard"
+            - generic "Valiant ordered turn sequence" [ref=f7e169]:
+              - generic [ref=f7e170]:
+                - generic [ref=f7e171]: Sequence
+                - strong [ref=f7e172]: No turn
+              - generic [ref=f7e174]:
+                - button "Port +1" [ref=f7e175] [cursor=pointer]
+                - button "Starboard +1" [ref=f7e176] [cursor=pointer]
+                - button "Clear Turns" [ref=f7e177] [cursor=pointer]
+            - button "Lock" [ref=f7e178] [cursor=pointer]
+            - button "Reveal" [ref=f7e179] [cursor=pointer]
+          - generic [ref=f7e180]:
+            - generic [ref=f7e181]: Locked
+            - generic [ref=f7e182]: Revealed
+          - paragraph [ref=f7e183]: Moves to V6, C1
+        - article [ref=f7e184]:
+          - generic [ref=f7e185]:
+            - generic [ref=f7e186]:
+              - generic [ref=f7e187]: Ship record
+              - heading "Home Plate" [level=3] [ref=f7e188]
+              - generic [ref=f7e189]: Carrier · Thrust 4
+            - strong [ref=f7e190]: Operational
+          - generic [ref=f7e191]:
+            - generic [ref=f7e192]: Orders locked
+            - generic [ref=f7e193]: Damage recorded
+            - generic [ref=f7e194]: Screens 1
+          - generic [ref=f7e195]:
+            - button "Focus" [ref=f7e196] [cursor=pointer]
+            - button "Edit Stats" [ref=f7e197] [cursor=pointer]
+          - generic [ref=f7e198]:
+            - generic [ref=f7e199]:
+              - generic [ref=f7e200]: Velocity
+              - strong [ref=f7e201]: "4"
+            - generic [ref=f7e202]:
+              - generic [ref=f7e203]: Course
+              - strong [ref=f7e204]: "3"
+            - generic [ref=f7e205]:
+              - generic [ref=f7e206]: Next
+              - strong [ref=f7e207]: "3"
+            - generic [ref=f7e208]:
+              - generic [ref=f7e209]: Screens
+              - strong [ref=f7e210]: "1"
+            - generic [ref=f7e211]:
+              - generic [ref=f7e212]: Pos
+              - strong [ref=f7e213]: 16,30
+          - generic [ref=f7e214]:
+            - generic [ref=f7e215]: Locked
+            - generic [ref=f7e216]: Revealed
+          - paragraph [ref=f7e217]: Moves to V4, C3
+        - article [ref=f7e218]:
+          - generic [ref=f7e219]:
+            - generic [ref=f7e220]:
+              - generic [ref=f7e221]: Ship record
+              - heading "Alpha Wing" [level=3] [ref=f7e222]
+              - generic [ref=f7e223]: Fighter Group · Thrust 6
+            - strong [ref=f7e224]: Operational
+          - generic [ref=f7e225]:
+            - generic [ref=f7e226]: Orders locked
+            - generic [ref=f7e227]: Undamaged
+          - generic [ref=f7e228]:
+            - button "Focus" [ref=f7e229] [cursor=pointer]
+            - button "Edit Stats" [ref=f7e230] [cursor=pointer]
+          - generic [ref=f7e231]:
+            - generic [ref=f7e232]:
+              - generic [ref=f7e233]: Velocity
+              - strong [ref=f7e234]: "12"
+            - generic [ref=f7e235]:
+              - generic [ref=f7e236]: Course
+              - strong [ref=f7e237]: "3"
+            - generic [ref=f7e238]:
+              - generic [ref=f7e239]: Next
+              - strong [ref=f7e240]: "3"
+            - generic [ref=f7e241]:
+              - generic [ref=f7e242]: Screens
+              - strong [ref=f7e243]: "0"
+            - generic [ref=f7e244]:
+              - generic [ref=f7e245]: Pos
+              - strong [ref=f7e246]: 28,30
+          - generic [ref=f7e247]:
+            - generic [ref=f7e248]: Locked
+            - generic [ref=f7e249]: Revealed
+          - paragraph [ref=f7e250]: Moves to V12, C3
+        - article [ref=f7e251]:
+          - generic [ref=f7e252]:
+            - generic [ref=f7e253]:
+              - generic [ref=f7e254]: Ship record
+              - heading "Crimson" [level=3] [ref=f7e255]
+              - generic [ref=f7e256]: Destroyer · Thrust 4
+            - strong [ref=f7e257]: Operational
+          - generic [ref=f7e258]:
+            - generic [ref=f7e259]: Orders locked
+            - generic [ref=f7e260]: Undamaged
+          - generic [ref=f7e261]:
+            - generic [ref=f7e262]:
+              - generic [ref=f7e263]: Velocity
+              - strong [ref=f7e264]: "5"
+            - generic [ref=f7e265]:
+              - generic [ref=f7e266]: Course
+              - strong [ref=f7e267]: "10"
+            - generic [ref=f7e268]:
+              - generic [ref=f7e269]: Next
+              - strong [ref=f7e270]: "10"
+            - generic [ref=f7e271]:
+              - generic [ref=f7e272]: Screens
+              - strong [ref=f7e273]: "0"
+            - generic [ref=f7e274]:
+              - generic [ref=f7e275]: Pos
+              - strong [ref=f7e276]: 35,23
+          - generic [ref=f7e277]:
+            - generic [ref=f7e278]: Damage report
+            - generic [ref=f7e280]:
+              - generic [ref=f7e281]: Hull
+              - strong [ref=f7e282]: 0/10
+            - generic [ref=f7e295]:
+              - generic [ref=f7e296]: Armor
+              - strong [ref=f7e297]: 0/2
+            - generic [ref=f7e302]:
+              - generic [ref=f7e303]: Firecon
+              - strong [ref=f7e304]: 0/6
+            - generic [ref=f7e313]:
+              - generic [ref=f7e314]: Drive
+              - strong [ref=f7e315]: 0/4
+            - generic [ref=f7e322]:
+              - generic [ref=f7e323]: Weapons
+              - strong [ref=f7e324]: 0/12
+            - paragraph [ref=f7e338]: Opponent order remains hidden until reveal.
+          - generic [ref=f7e339]:
+            - generic [ref=f7e340]: Locked
+            - generic [ref=f7e341]: Revealed
+          - paragraph [ref=f7e342]: Moves to V5, C10
