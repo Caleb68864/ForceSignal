@@ -35,6 +35,78 @@ public sealed class InMemoryMatchServiceTurnFlowTests
     }
 
     [Fact]
+    public void FailedReveal_CanBeRepairedByRelockingWithoutDeadlockingTheTurn()
+    {
+        var table = TestMatch.Create();
+        table.MarkBothReady();
+        var accelerate = new MovementOrder(1, 0, TurnDirection.None);
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt"));
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueEscort.Id, Drift, "escort-salt"));
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
+
+        // Reveal an order that does not match the commitment: verification must fail, not throw.
+        var mismatched = table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueLead.Id, Drift, "blue-salt"));
+        Assert.Equal("Reveal", mismatched.Phase);
+        var failedStatus = mismatched.OrderStatuses.Single(status => status.ShipId == table.BlueLead.Id);
+        Assert.True(failedStatus.VerificationFailed);
+        Assert.False(failedStatus.IsRevealed);
+        Assert.Contains(mismatched.MatchLog, entry => entry.Category == "Orders" && entry.Message.Contains("did not match", StringComparison.OrdinalIgnoreCase));
+
+        // The turn must remain recoverable: re-lock the mismatched ship and reveal again.
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt-2"));
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt-2"));
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueEscort.Id, Drift, "escort-salt"));
+
+        var firing = table.Service.AdvanceTurn(table.MatchId, table.OwnerToken);
+        Assert.Equal("Firing", firing.Phase);
+    }
+
+    [Fact]
+    public void CommitOrder_UsesThrustLeftAfterDriveDamage()
+    {
+        var table = TestMatch.Create();
+        table.MarkBothReady();
+        // Blue Lead has thrust 4; three drive hits leave 1 thrust point.
+        table.Service.UpdateShipDamage(table.BlueLead.Id, new UpdateShipDamageRequest(table.OwnerToken, 0, 0, 0, 3, 0));
+
+        var overspend = Assert.Throws<InvalidOperationException>(() =>
+            table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(
+                table.OwnerToken,
+                table.BlueLead.Id,
+                new MovementOrder(2, 0, TurnDirection.None),
+                "blue-salt")));
+        Assert.Contains("thrust", overspend.Message, StringComparison.OrdinalIgnoreCase);
+
+        var locked = table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(
+            table.OwnerToken,
+            table.BlueLead.Id,
+            new MovementOrder(1, 0, TurnDirection.None),
+            "blue-salt"));
+        Assert.True(locked.OrderStatuses.Single(status => status.ShipId == table.BlueLead.Id).IsCommitted);
+    }
+
+    [Fact]
+    public void AdvanceTurn_DiscardsOrdersForShipsDestroyedBeforeMovement()
+    {
+        var table = TestMatch.Create();
+        table.MarkBothReady();
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueLead.Id, Drift, "blue-salt"));
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueEscort.Id, new MovementOrder(2, 0, TurnDirection.None), "escort-salt"));
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueLead.Id, Drift, "blue-salt"));
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueEscort.Id, new MovementOrder(2, 0, TurnDirection.None), "escort-salt"));
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
+        table.Service.UpdateShipDamage(table.BlueEscort.Id, new UpdateShipDamageRequest(table.OwnerToken, table.BlueEscort.HullMax, 0, 0, 0, 0));
+
+        var firing = table.Service.AdvanceTurn(table.MatchId, table.OwnerToken);
+
+        var wreck = firing.Ships.Single(ship => ship.Id == table.BlueEscort.Id);
+        Assert.Equal(table.BlueEscort.CurrentVelocity, wreck.CurrentVelocity);
+        Assert.Contains(firing.MatchLog, entry => entry.Message.Contains("destroyed before movement", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void DestroyedShips_DoNotBlockLockAndRevealGates()
     {
         var table = TestMatch.Create();

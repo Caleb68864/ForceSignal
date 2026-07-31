@@ -457,12 +457,17 @@ public sealed class InMemoryMatchService : IMatchService
         {
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, request.ParticipantToken);
-            if (match.Phase is not (MatchPhase.OrderEntry or MatchPhase.OrdersLocked))
+            var ship = FindOwnedShip(match, participant.Id, request.ShipId);
+            // A ship whose reveal failed verification must be able to re-lock during the reveal
+            // phase, otherwise the mismatch deadlocks the turn.
+            var isFailedRevealRepair = match.Phase == MatchPhase.Reveal
+                && match.Commitments.TryGetValue(ship.Id, out var priorCommitment)
+                && priorCommitment.VerificationFailed == true;
+            if (match.Phase is not (MatchPhase.OrderEntry or MatchPhase.OrdersLocked) && !isFailedRevealRepair)
             {
                 throw new InvalidOperationException("Movement orders can only be locked during order entry.");
             }
 
-            var ship = FindOwnedShip(match, participant.Id, request.ShipId);
             if (IsDestroyed(ship))
             {
                 throw new InvalidOperationException($"{ship.Name} is destroyed and cannot receive movement orders.");
@@ -678,6 +683,12 @@ public sealed class InMemoryMatchService : IMatchService
             foreach (var commitment in match.Commitments.Values)
             {
                 var ship = match.Ships.Single(s => s.Id == commitment.ShipId);
+                if (IsDestroyed(ship))
+                {
+                    match.AddLog("Movement", match.Phase.ToString(), $"{DescribeShip(match, ship)} was destroyed before movement resolved; its order was discarded.");
+                    continue;
+                }
+
                 var startingVelocity = ship.CurrentVelocity;
                 var startingCourse = ship.CurrentCourse;
                 var startingX = ship.PositionX;

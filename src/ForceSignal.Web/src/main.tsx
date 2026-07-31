@@ -1480,6 +1480,7 @@ function App() {
               <PlayMap
                 snapshot={snapshot}
                 ownedShipIds={publicMode ? new Set() : new Set(ownedShips.map((ship) => ship.id))}
+                ownerParticipantId={publicMode ? undefined : session.participantId}
                 drafts={drafts}
                 firingDrafts={firingDrafts}
                 phase={snapshot.phase}
@@ -1859,6 +1860,7 @@ function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (form: Shi
 function PlayMap({
   snapshot,
   ownedShipIds,
+  ownerParticipantId,
   drafts,
   firingDrafts,
   phase,
@@ -1874,6 +1876,7 @@ function PlayMap({
 }: {
   snapshot: MatchSnapshot;
   ownedShipIds: Set<string>;
+  ownerParticipantId?: string;
   drafts: Record<string, DraftOrder>;
   firingDrafts: Record<string, FiringDraft>;
   phase: string;
@@ -1924,7 +1927,6 @@ function PlayMap({
   const selectedIsFighterGroup = selectedShip ? isFighterGroup(selectedShip) : false;
   const selectedIsCarrier = selectedShip ? normalizeShipIconKey(selectedShip.iconKey, selectedShip.className) === 'carrier' : false;
   const ordnanceMarkers = snapshot.ordnanceMarkers ?? [];
-  const ownedParticipantIds = new Set(snapshot.fleets.filter((fleet) => Array.from(ownedShipIds).some((shipId) => snapshot.ships.find((ship) => ship.id === shipId)?.fleetId === fleet.id)).map((fleet) => fleet.ownerParticipantId));
   const contactRanges = selectedShip
     ? snapshot.ships
       .filter((ship) => ship.id !== selectedShip.id)
@@ -2619,7 +2621,7 @@ function PlayMap({
             {inspectorMode === 'fire' && ordnanceMarkers.length > 0 ? (
               <OrdnanceMarkerList
                 markers={ordnanceMarkers}
-                canEdit={(marker) => ownedParticipantIds.has(marker.ownerParticipantId)}
+                canEdit={(marker) => Boolean(ownerParticipantId) && marker.ownerParticipantId === ownerParticipantId}
                 onUpdate={onUpdateOrdnance}
                 onRemove={onRemoveOrdnance}
               />
