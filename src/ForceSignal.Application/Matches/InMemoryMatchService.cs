@@ -32,6 +32,9 @@ public interface IMatchService
     /// <summary>Claims an unclaimed seat in a restored match and issues a participant token.</summary>
     MatchJoinedResponse ClaimSeat(Guid matchId, Guid participantId, ClaimSeatRequest request);
 
+    /// <summary>Resolves a room code to a match id and whether seats are still claimable.</summary>
+    MatchIdentityDto FindMatchByCode(string joinCode);
+
     /// <summary>Updates participant readiness during setup.</summary>
     MatchSnapshotDto SetReady(Guid matchId, string participantToken, bool isReady);
 
@@ -215,21 +218,22 @@ public sealed class InMemoryMatchService : IMatchService
             }
 
             var seatIds = seats.Select(s => s.Id).ToHashSet();
+            var fleetIdMap = NewIdMap(snapshot.Fleets?.Select(f => f.Id), "fleet");
+            var shipIdMap = NewIdMap(snapshot.Ships.Select(s => s.Id), "ship");
             foreach (var fleet in snapshot.Fleets ?? [])
             {
                 var ownerId = seatIds.Contains(fleet.OwnerParticipantId) ? fleet.OwnerParticipantId : seats[0].Id;
                 match.Fleets.Add(new FleetState(
-                    fleet.Id == Guid.Empty ? Guid.NewGuid() : fleet.Id,
+                    fleetIdMap[fleet.Id],
                     ownerId,
                     NormalizeText(fleet.Name, "Fleet"),
                     NormalizeOptionalText(fleet.Faction),
                     NormalizeFleetColor(fleet.FleetColor)));
             }
 
-            var fleetIds = match.Fleets.Select(f => f.Id).ToHashSet();
             foreach (var ship in snapshot.Ships)
             {
-                if (!fleetIds.Contains(ship.FleetId))
+                if (!fleetIdMap.TryGetValue(ship.FleetId, out var restoredFleetId))
                 {
                     throw new InvalidOperationException($"Ship {ship.Name} references a fleet that is not in the snapshot.");
                 }
@@ -237,8 +241,8 @@ public sealed class InMemoryMatchService : IMatchService
                 var iconKey = NormalizeIconKey(ship.IconKey, ship.ClassName);
                 var fighterEnduranceMax = NormalizeFighterEnduranceMax(ship.FighterEnduranceMax, iconKey, ship.ClassName);
                 var restoredShip = new ShipState(
-                    ship.Id == Guid.Empty ? Guid.NewGuid() : ship.Id,
-                    ship.FleetId,
+                    shipIdMap[ship.Id],
+                    restoredFleetId,
                     NormalizeText(ship.Name, "Unnamed Ship"),
                     NormalizeOptionalText(ship.ClassName),
                     Math.Clamp(ship.ThrustRating, 0, 20),
@@ -268,10 +272,10 @@ public sealed class InMemoryMatchService : IMatchService
             // Carrier links resolve only once every ship exists.
             foreach (var ship in snapshot.Ships.Where(s => s.HomeCarrierShipId is not null))
             {
-                var restoredShip = match.Ships.SingleOrDefault(s => s.Id == ship.Id);
+                var restoredShip = match.Ships.SingleOrDefault(s => s.Id == shipIdMap[ship.Id]);
                 if (restoredShip is not null)
                 {
-                    restoredShip.HomeCarrierShipId = ValidateCarrierId(match, ship.HomeCarrierShipId);
+                    restoredShip.HomeCarrierShipId = ValidateCarrierId(match, MapShipId(shipIdMap, ship.HomeCarrierShipId));
                 }
             }
 
@@ -283,8 +287,8 @@ public sealed class InMemoryMatchService : IMatchService
                     ownerId,
                     NormalizeOrdnanceText(marker.Name, "Salvo"),
                     NormalizeOrdnanceText(marker.MarkerType, "Missile"),
-                    marker.SourceShipId,
-                    marker.TargetShipId,
+                    MapShipId(shipIdMap, marker.SourceShipId),
+                    MapShipId(shipIdMap, marker.TargetShipId),
                     ClampPosition(marker.PositionX, match.TableWidth),
                     ClampPosition(marker.PositionY, match.TableDepth),
                     NormalizeCourse(marker.Course),
@@ -308,9 +312,14 @@ public sealed class InMemoryMatchService : IMatchService
 
             foreach (var firing in snapshot.FiringResults ?? [])
             {
+                if (!shipIdMap.ContainsKey(firing.AttackerShipId) || !shipIdMap.ContainsKey(firing.TargetShipId))
+                {
+                    continue;
+                }
+
                 match.FiringResults.Add(new FiringResultState(
-                    firing.AttackerShipId,
-                    firing.TargetShipId,
+                    shipIdMap[firing.AttackerShipId],
+                    shipIdMap[firing.TargetShipId],
                     firing.WeaponId,
                     NormalizeText(firing.WeaponName, "Weapon"),
                     firing.TurnNumber,
@@ -328,7 +337,7 @@ public sealed class InMemoryMatchService : IMatchService
 
             var (phase, lockedOrdersDropped) = RestorePhase(snapshot.Phase);
             match.Phase = phase;
-            RestoreRevealedCommitments(match, snapshot, phase);
+            RestoreRevealedCommitments(match, snapshot, phase, shipIdMap);
 
             var savedNote = savedAt is null ? "an exported snapshot" : $"a snapshot saved {savedAt:u}";
             var droppedNote = lockedOrdersDropped
@@ -347,6 +356,20 @@ public sealed class InMemoryMatchService : IMatchService
                 lockedOrdersDropped,
                 BuildSeats(match),
                 ToSnapshot(match));
+        }
+    }
+
+    public MatchIdentityDto FindMatchByCode(string joinCode)
+    {
+        lock (_gate)
+        {
+            if (string.IsNullOrWhiteSpace(joinCode) || !_joinCodes.TryGetValue(joinCode.Trim(), out var matchId))
+            {
+                throw new InvalidOperationException("Room code was not found.");
+            }
+
+            var match = _matches[matchId];
+            return new MatchIdentityDto(match.Id, match.JoinCode, match.Participants.Any(p => !p.IsClaimed));
         }
     }
 
@@ -383,7 +406,11 @@ public sealed class InMemoryMatchService : IMatchService
     /// public once revealed, so nothing secret is reconstructed. This is what lets a restored
     /// Movement phase apply its orders exactly once, and a restored Firing phase keep its trails.
     /// </summary>
-    private void RestoreRevealedCommitments(MatchState match, MatchSnapshotDto snapshot, MatchPhase phase)
+    private void RestoreRevealedCommitments(
+        MatchState match,
+        MatchSnapshotDto snapshot,
+        MatchPhase phase,
+        Dictionary<Guid, Guid> shipIdMap)
     {
         if (phase is not (MatchPhase.Movement or MatchPhase.Firing))
         {
@@ -392,7 +419,9 @@ public sealed class InMemoryMatchService : IMatchService
 
         foreach (var revealed in snapshot.RevealedOrders ?? [])
         {
-            var ship = match.Ships.SingleOrDefault(s => s.Id == revealed.ShipId);
+            var ship = shipIdMap.TryGetValue(revealed.ShipId, out var restoredShipId)
+                ? match.Ships.SingleOrDefault(s => s.Id == restoredShipId)
+                : null;
             var fleet = ship is null ? null : match.Fleets.SingleOrDefault(f => f.Id == ship.FleetId);
             if (ship is null || fleet is null)
             {
@@ -422,6 +451,24 @@ public sealed class InMemoryMatchService : IMatchService
                         result.Segments));
         }
     }
+
+    /// <summary>Maps every id in a restored collection to a fresh id, rejecting duplicates.</summary>
+    private static Dictionary<Guid, Guid> NewIdMap(IEnumerable<Guid>? ids, string label)
+    {
+        var map = new Dictionary<Guid, Guid>();
+        foreach (var id in ids ?? [])
+        {
+            if (!map.TryAdd(id, Guid.NewGuid()))
+            {
+                throw new InvalidOperationException($"Snapshot contains duplicate {label} ids.");
+            }
+        }
+
+        return map;
+    }
+
+    private static Guid? MapShipId(Dictionary<Guid, Guid> shipIdMap, Guid? sourceId) =>
+        sourceId is Guid id && shipIdMap.TryGetValue(id, out var mapped) ? mapped : null;
 
     private static (MatchPhase Phase, bool LockedOrdersDropped) RestorePhase(string? exported) => exported switch
     {

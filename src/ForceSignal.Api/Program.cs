@@ -3,6 +3,7 @@ using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Matches;
 using Microsoft.AspNetCore.SignalR;
 using Scalar.AspNetCore;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +36,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddSingleton<IMatchService, InMemoryMatchService>();
 
 var app = builder.Build();
+var RestoreJson = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+{
+    Converters = { new JsonStringEnumConverter() },
+};
 
 if (app.Environment.IsDevelopment())
 {
@@ -106,6 +111,78 @@ app.MapPost("/api/matches/join", (JoinMatchRequest request, IMatchService matche
     .WithSummary("Joins a match by room code.")
     .Produces<MatchJoinedResponse>()
     .ProducesProblem(StatusCodes.Status400BadRequest);
+
+app.MapPost("/api/matches/restore", (JsonElement body, IMatchService matches) =>
+{
+    // Accept either the exported {savedAt, snapshot} wrapper or a bare snapshot, because a user
+    // will hand over whichever file they kept.
+    var hasWrapper = body.ValueKind == JsonValueKind.Object
+        && body.TryGetProperty("snapshot", out var wrapped)
+        && wrapped.ValueKind == JsonValueKind.Object;
+    var snapshotElement = hasWrapper ? body.GetProperty("snapshot") : body;
+    DateTimeOffset? savedAt = body.ValueKind == JsonValueKind.Object
+        && body.TryGetProperty("savedAt", out var saved)
+        && saved.ValueKind == JsonValueKind.String
+        && DateTimeOffset.TryParse(saved.GetString(), out var parsed)
+            ? parsed
+            : null;
+
+    MatchSnapshotDto? snapshot;
+    try
+    {
+        snapshot = snapshotElement.Deserialize<MatchSnapshotDto>(RestoreJson);
+    }
+    catch (JsonException ex)
+    {
+        throw new InvalidOperationException($"Snapshot could not be read: {ex.Message}");
+    }
+
+    if (snapshot is null)
+    {
+        throw new InvalidOperationException("Snapshot payload was empty.");
+    }
+
+    return Results.Ok(matches.RestoreMatch(snapshot, savedAt));
+})
+    .WithName("RestoreMatch")
+    .WithTags("Matches")
+    .WithSummary("Rebuilds a match from an exported snapshot backup.")
+    .Produces<MatchRestoredResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest);
+
+app.MapGet("/api/matches/by-code/{joinCode}", (string joinCode, IMatchService matches) =>
+    Results.Ok(matches.FindMatchByCode(joinCode)))
+    .WithName("GetMatchByCode")
+    .WithTags("Matches")
+    .WithSummary("Resolves a room code to a match id and whether seats are still claimable.")
+    .Produces<MatchIdentityDto>()
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
+app.MapGet("/api/matches/{matchId:guid}/seats", (Guid matchId, IMatchService matches) =>
+    Results.Ok(matches.GetSeats(matchId)))
+    .WithName("GetMatchSeats")
+    .WithTags("Matches")
+    .WithSummary("Lists claimable seats in a restored match.")
+    .Produces<IReadOnlyList<MatchSeatDto>>()
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
+app.MapPost("/api/matches/{matchId:guid}/seats/{participantId:guid}/claim", async (
+    Guid matchId,
+    Guid participantId,
+    ClaimSeatRequest request,
+    IMatchService matches,
+    IHubContext<MatchHub> hub) =>
+{
+    var session = matches.ClaimSeat(matchId, participantId, request);
+    await NotifySnapshotChanged(hub, matches.GetSnapshot(matchId), "SeatClaimed");
+    return Results.Ok(session);
+})
+    .WithName("ClaimMatchSeat")
+    .WithTags("Matches")
+    .WithSummary("Claims a seat in a restored match and issues a participant token.")
+    .Produces<MatchJoinedResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound);
 
 app.MapGet("/api/matches/{matchId:guid}/snapshot", (Guid matchId, IMatchService matches) =>
     Results.Ok(matches.GetSnapshot(matchId)))

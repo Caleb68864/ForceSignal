@@ -29,11 +29,18 @@ public sealed class InMemoryMatchServiceRestoreTests
 
         var ship = Assert.Single(restored.Snapshot.Ships);
         Assert.Equal("Valiant", ship.Name);
-        Assert.Equal(exported.Ships.Single().Id, ship.Id);
         Assert.Equal(20, ship.PositionX);
         Assert.Equal(1, ship.Weapons.Single().AmmoUsed);
         Assert.Equal("#f5c766", restored.Snapshot.Fleets.Single().FleetColor);
-        Assert.Equal(exported.Fleets.Single().Id, restored.Snapshot.Fleets.Single().Id);
+
+        // Fleet and ship ids are reissued so a restored copy cannot collide with a still-running
+        // match in the by-ship-id and by-fleet-id lookups; references stay internally consistent.
+        var restoredFleet = restored.Snapshot.Fleets.Single();
+        Assert.NotEqual(exported.Ships.Single().Id, ship.Id);
+        Assert.NotEqual(exported.Fleets.Single().Id, restoredFleet.Id);
+        Assert.Equal(restoredFleet.Id, ship.FleetId);
+        // Participant ids are preserved so a device recognises the seat it held.
+        Assert.Equal(exported.Participants.Single().Id, restored.Seats.Single().ParticipantId);
 
         // Original log carries over, plus one restore entry.
         Assert.Equal(exported.MatchLog.Count + 1, restored.Snapshot.MatchLog.Count);
@@ -90,8 +97,9 @@ public sealed class InMemoryMatchServiceRestoreTests
         // The spent weapon stays spent: firing it again must be refused.
         var seat = restored.Seats.Single(s => s.Role == "Owner");
         var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+        var restoredAttacker = restored.Snapshot.Ships.Single(s => s.Name == "Valiant");
         var error = Assert.Throws<InvalidOperationException>(() =>
-            service.FireWeapon(restored.MatchId, new FireWeaponRequest(session.ParticipantToken, attacker.Id, target.Id, weaponId, 8, FiringArc.Fore)));
+            service.FireWeapon(restored.MatchId, new FireWeaponRequest(session.ParticipantToken, restoredAttacker.Id, restoredTarget.Id, weaponId, 8, FiringArc.Fore)));
         Assert.Contains("already fired", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -173,16 +181,52 @@ public sealed class InMemoryMatchServiceRestoreTests
         Assert.Contains("already been claimed", doubleClaim.Message, StringComparison.OrdinalIgnoreCase);
 
         // The claimed seat commands its own ship...
-        service.UpdateShipDamage(blueShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0));
+        var restoredBlueShip = restored.Snapshot.Ships.Single(s => s.Name == "Valiant");
+        var restoredRedShip = restored.Snapshot.Ships.Single(s => s.Name == "Crimson");
+        service.UpdateShipDamage(restoredBlueShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0));
 
         // ...and not the opponent's.
         Assert.Throws<UnauthorizedAccessException>(() =>
-            service.UpdateShipDamage(redShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0)));
+            service.UpdateShipDamage(restoredRedShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0)));
+
+        // Source ids belong to the other service instance and are unknown here.
+        Assert.Throws<InvalidOperationException>(() =>
+            service.UpdateShipDamage(blueShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0)));
+        Assert.NotEqual(blueShip.Id, restoredBlueShip.Id);
+        Assert.NotEqual(redShip.Id, restoredRedShip.Id);
 
         // The opponent seat is still claimable, and the claimed one reports as taken.
         var seats = service.GetSeats(restored.MatchId);
         Assert.True(seats.Single(s => s.DisplayName == "Blue").IsClaimed);
         Assert.False(seats.Single(s => s.DisplayName == "Red").IsClaimed);
+    }
+
+    [Fact]
+    public void RestoreMatch_AlongsideTheStillRunningSourceMatch_LeavesBothEditable()
+    {
+        // Restoring a backup of a match that is still live must not make ship lookups ambiguous:
+        // the by-ship-id endpoints scan every match in the store.
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Live Source"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        var liveShip = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24)).Ships.Single();
+
+        var restored = service.RestoreMatch(service.GetSnapshot(owner.MatchId), null);
+        var seat = restored.Seats.Single();
+        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+        var restoredShip = restored.Snapshot.Ships.Single();
+
+        // Both copies remain independently editable.
+        var liveEdit = service.UpdateShipDamage(liveShip.Id, new UpdateShipDamageRequest(owner.ParticipantToken, 3, 0, 0, 0, 0));
+        var restoredEdit = service.UpdateShipDamage(restoredShip.Id, new UpdateShipDamageRequest(session.ParticipantToken, 5, 0, 0, 0, 0));
+
+        Assert.Equal(3, liveEdit.Ships.Single().HullDamage);
+        Assert.Equal(5, restoredEdit.Ships.Single().HullDamage);
+        Assert.NotEqual(liveShip.Id, restoredShip.Id);
+        // The room code was taken, so a fresh one was minted.
+        Assert.False(restored.ReusedJoinCode);
+        Assert.NotEqual(owner.JoinCode, restored.JoinCode);
     }
 
     [Fact]
