@@ -382,6 +382,55 @@ public sealed class InMemoryMatchServiceRestoreTests
     }
 
     [Fact]
+    public void RestoreMatch_FromRevealExport_FallsBackToOrderEntry()
+    {
+        // The design's phase table maps Reveal alongside OrdersLocked; this pins that row.
+        var table = RestoreFixture.TwoFleetsReady("Reveal Row");
+        var drift = new MovementOrder(0, 0, TurnDirection.None);
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueShipId, drift, "b"));
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OpponentToken, table.RedShipId, drift, "r"));
+        var partial = table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueShipId, drift, "b"));
+        Assert.Equal("Reveal", partial.Phase);
+
+        var restored = new InMemoryMatchService().RestoreMatch(table.Service.GetSnapshot(table.MatchId), null);
+
+        Assert.Equal("OrderEntry", restored.RestoredPhase);
+        Assert.True(restored.LockedOrdersDropped);
+        Assert.All(restored.Snapshot.OrderStatuses, status => Assert.False(status.IsCommitted));
+        Assert.Empty(restored.Snapshot.RevealedOrders);
+        Assert.Contains(restored.Snapshot.MatchLog, e => e.Message.Contains("Locked orders could not be restored", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RestoreMatch_KeepsDestroyedShipsDestroyedAndStaysPlayable()
+    {
+        var table = RestoreFixture.TwoFleetsReady("Destroyed Row");
+        var redShip = table.Service.GetSnapshot(table.MatchId).Ships.Single(s => s.Name == "Crimson");
+        table.Service.UpdateShipDamage(redShip.Id, new UpdateShipDamageRequest(table.OpponentToken, redShip.HullMax, redShip.ArmorMax, 0, 0, 0));
+        var exported = table.Service.GetSnapshot(table.MatchId);
+        Assert.True(exported.Ships.Single(s => s.Name == "Crimson").IsDestroyed);
+
+        var service = new InMemoryMatchService();
+        var restored = service.RestoreMatch(exported, null);
+
+        var wreck = restored.Snapshot.Ships.Single(s => s.Name == "Crimson");
+        Assert.True(wreck.IsDestroyed);
+        Assert.Equal(wreck.HullMax, wreck.HullDamage);
+
+        // The restored match is still playable: claim both seats, ready up, reach order entry
+        // without the wreck blocking the gate.
+        foreach (var seat in restored.Seats)
+        {
+            var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+            var snapshot = service.SetReady(restored.MatchId, session.ParticipantToken, true);
+            if (seat == restored.Seats[^1])
+            {
+                Assert.Equal("OrderEntry", snapshot.Phase);
+            }
+        }
+    }
+
+    [Fact]
     public void RestoreMatch_RejectsUnusableSnapshots()
     {
         var service = new InMemoryMatchService();
@@ -428,6 +477,34 @@ public sealed class InMemoryMatchServiceRestoreTests
         Assert.Equal(3, ship.ScreenRating);
         Assert.Equal(0, ship.CurrentVelocity);
         Assert.InRange(ship.CurrentCourse, 1, 12);
+    }
+
+    /// <summary>Two ready fleets, one ship each, as a starting point for restore scenarios.</summary>
+    private sealed record RestoreFixture(
+        InMemoryMatchService Service,
+        Guid MatchId,
+        string OwnerToken,
+        string OpponentToken,
+        Guid BlueShipId,
+        Guid RedShipId)
+    {
+        public static RestoreFixture TwoFleetsReady(string matchName)
+        {
+            var service = new InMemoryMatchService();
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", matchName));
+            var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
+            var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
+                .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+            var redFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null))
+                .Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
+            var blueShip = service.CreateShip(blueFleet.Id, new CreateShipRequest(
+                owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24)).Ships.Single(s => s.Name == "Valiant");
+            var redShip = service.CreateShip(redFleet.Id, new CreateShipRequest(
+                opponent.ParticipantToken, "Crimson", "Destroyer", 4, 6, 9, 10, 1, StartX: 32, StartY: 24)).Ships.Single(s => s.Name == "Crimson");
+            service.SetReady(owner.MatchId, owner.ParticipantToken, true);
+            service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
+            return new RestoreFixture(service, owner.MatchId, owner.ParticipantToken, opponent.ParticipantToken, blueShip.Id, redShip.Id);
+        }
     }
 
     [Fact]
