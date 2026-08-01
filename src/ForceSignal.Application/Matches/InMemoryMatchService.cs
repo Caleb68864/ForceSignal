@@ -29,6 +29,9 @@ public interface IMatchService
     /// <summary>Lists seats for a match, showing which are still claimable.</summary>
     IReadOnlyList<MatchSeatDto> GetSeats(Guid matchId);
 
+    /// <summary>Claims an unclaimed seat in a restored match and issues a participant token.</summary>
+    MatchJoinedResponse ClaimSeat(Guid matchId, Guid participantId, ClaimSeatRequest request);
+
     /// <summary>Updates participant readiness during setup.</summary>
     MatchSnapshotDto SetReady(Guid matchId, string participantToken, bool isReady);
 
@@ -303,8 +306,29 @@ public sealed class InMemoryMatchService : IMatchService
                     entry.Message));
             }
 
+            foreach (var firing in snapshot.FiringResults ?? [])
+            {
+                match.FiringResults.Add(new FiringResultState(
+                    firing.AttackerShipId,
+                    firing.TargetShipId,
+                    firing.WeaponId,
+                    NormalizeText(firing.WeaponName, "Weapon"),
+                    firing.TurnNumber,
+                    firing.Range,
+                    NormalizeText(firing.RangeBand, "close"),
+                    firing.Arc,
+                    firing.RawDice,
+                    firing.RangePenalty,
+                    firing.ScreenReduction,
+                    firing.SystemPenalty,
+                    firing.Damage,
+                    firing.ArmorDamageApplied,
+                    firing.HullDamageApplied));
+            }
+
             var (phase, lockedOrdersDropped) = RestorePhase(snapshot.Phase);
             match.Phase = phase;
+            RestoreRevealedCommitments(match, snapshot, phase);
 
             var savedNote = savedAt is null ? "an exported snapshot" : $"a snapshot saved {savedAt:u}";
             var droppedNote = lockedOrdersDropped
@@ -331,6 +355,71 @@ public sealed class InMemoryMatchService : IMatchService
         lock (_gate)
         {
             return BuildSeats(FindMatch(matchId));
+        }
+    }
+
+    public MatchJoinedResponse ClaimSeat(Guid matchId, Guid participantId, ClaimSeatRequest request)
+    {
+        lock (_gate)
+        {
+            var match = FindMatch(matchId);
+            var seat = match.Participants.SingleOrDefault(p => p.Id == participantId)
+                ?? throw new InvalidOperationException("Seat was not found.");
+            if (seat.IsClaimed)
+            {
+                throw new InvalidOperationException($"{seat.DisplayName} has already been claimed on another device.");
+            }
+
+            var token = seat.Claim();
+            seat.IsConnected = false;
+            match.AddLog("Session", match.Phase.ToString(), $"{seat.DisplayName} claimed their seat in the restored match.");
+            match.Touch("SeatClaimed");
+            return new MatchJoinedResponse(match.Id, match.JoinCode, seat.Id, token);
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds commitments from the snapshot's revealed orders and movement results. Both are
+    /// public once revealed, so nothing secret is reconstructed. This is what lets a restored
+    /// Movement phase apply its orders exactly once, and a restored Firing phase keep its trails.
+    /// </summary>
+    private void RestoreRevealedCommitments(MatchState match, MatchSnapshotDto snapshot, MatchPhase phase)
+    {
+        if (phase is not (MatchPhase.Movement or MatchPhase.Firing))
+        {
+            return;
+        }
+
+        foreach (var revealed in snapshot.RevealedOrders ?? [])
+        {
+            var ship = match.Ships.SingleOrDefault(s => s.Id == revealed.ShipId);
+            var fleet = ship is null ? null : match.Fleets.SingleOrDefault(f => f.Id == ship.FleetId);
+            if (ship is null || fleet is null)
+            {
+                continue;
+            }
+
+            var order = new MovementOrder(
+                revealed.VelocityDelta,
+                revealed.TurnSteps,
+                revealed.TurnDirection,
+                revealed.TurnManeuvers);
+            var result = snapshot.MovementResults?.SingleOrDefault(m => m.ShipId == revealed.ShipId);
+            match.Commitments[ship.Id] = new OrderCommitmentState(
+                ship.Id,
+                fleet.OwnerParticipantId,
+                _commitments.CreateHash(_rules.Normalize(order), Guid.NewGuid().ToString("n")),
+                true,
+                false,
+                order,
+                result is null
+                    ? null
+                    : new MovementResult(
+                        result.StartingVelocity,
+                        result.StartingCourse,
+                        result.EndingVelocity,
+                        result.EndingCourse,
+                        result.Segments));
         }
     }
 
