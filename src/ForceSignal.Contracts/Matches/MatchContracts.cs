@@ -293,6 +293,48 @@ public sealed record OrdnanceMarkerDto(
     int MaxRange,
     string Status);
 
+/// <summary>Claims an unclaimed seat in a restored match.</summary>
+/// <param name="DisplayName">Seat display name, confirmed by the caller.</param>
+public sealed record ClaimSeatRequest(string DisplayName);
+
+/// <summary>An unclaimed or claimed seat in a restored match.</summary>
+/// <param name="ParticipantId">Participant id preserved from the restored snapshot.</param>
+/// <param name="DisplayName">Admiral name shown when picking a seat.</param>
+/// <param name="Role">Owner or Player, preserved from the snapshot.</param>
+/// <param name="IsClaimed">True once a device has taken this seat.</param>
+/// <param name="FleetCount">Fleets that follow this seat.</param>
+/// <param name="ShipCount">Ships across this seat's fleets.</param>
+public sealed record MatchSeatDto(
+    Guid ParticipantId,
+    string DisplayName,
+    string Role,
+    bool IsClaimed,
+    int FleetCount,
+    int ShipCount);
+
+/// <summary>Result of restoring a match from an exported snapshot.</summary>
+/// <param name="MatchId">Newly issued match id for the restored match.</param>
+/// <param name="JoinCode">Room code for the restored match.</param>
+/// <param name="ReusedJoinCode">True when the exported room code was still free and was reused.</param>
+/// <param name="RestoredPhase">Phase the restore landed in, which may differ from the export.</param>
+/// <param name="LockedOrdersDropped">True when locked orders could not be restored and order entry reopened.</param>
+/// <param name="Seats">Seats available to claim.</param>
+/// <param name="Snapshot">Authoritative snapshot of the restored match.</param>
+public sealed record MatchRestoredResponse(
+    Guid MatchId,
+    string JoinCode,
+    bool ReusedJoinCode,
+    string RestoredPhase,
+    bool LockedOrdersDropped,
+    IReadOnlyList<MatchSeatDto> Seats,
+    MatchSnapshotDto Snapshot);
+
+/// <summary>Match identity resolved from a room code.</summary>
+/// <param name="MatchId">Match the room code refers to.</param>
+/// <param name="JoinCode">Normalized room code.</param>
+/// <param name="HasUnclaimedSeats">True when the match was restored and still has seats to claim.</param>
+public sealed record MatchIdentityDto(Guid MatchId, string JoinCode, bool HasUnclaimedSeats);
+
 /// <summary>One chronological battle log entry.</summary>
 public sealed record MatchLogEntryDto(
     long Sequence,
