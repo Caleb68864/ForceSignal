@@ -152,6 +152,89 @@ public sealed class InMemoryMatchServiceRestoreTests
     }
 
     [Fact]
+    public void ClaimedSeat_CommandsOnlyItsOwnFleets_AndCannotBeClaimedTwice()
+    {
+        var source = new InMemoryMatchService();
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Ownership Source"));
+        var opponent = source.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
+        var blueFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+        var redFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null)).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
+        var blueShip = source.CreateShip(blueFleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24)).Ships.Single(s => s.Name == "Valiant");
+        var redShip = source.CreateShip(redFleet.Id, new CreateShipRequest(opponent.ParticipantToken, "Crimson", "Destroyer", 4, 0, 9, 10, 1, StartX: 32, StartY: 24)).Ships.Single(s => s.Name == "Crimson");
+
+        var service = new InMemoryMatchService();
+        var restored = service.RestoreMatch(source.GetSnapshot(owner.MatchId), null);
+        var blueSeat = restored.Seats.Single(s => s.DisplayName == "Blue");
+        var blueSession = service.ClaimSeat(restored.MatchId, blueSeat.ParticipantId, new ClaimSeatRequest("Blue"));
+
+        // Claiming the same seat again is refused.
+        var doubleClaim = Assert.Throws<InvalidOperationException>(() =>
+            service.ClaimSeat(restored.MatchId, blueSeat.ParticipantId, new ClaimSeatRequest("Blue")));
+        Assert.Contains("already been claimed", doubleClaim.Message, StringComparison.OrdinalIgnoreCase);
+
+        // The claimed seat commands its own ship...
+        service.UpdateShipDamage(blueShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0));
+
+        // ...and not the opponent's.
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            service.UpdateShipDamage(redShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0)));
+
+        // The opponent seat is still claimable, and the claimed one reports as taken.
+        var seats = service.GetSeats(restored.MatchId);
+        Assert.True(seats.Single(s => s.DisplayName == "Blue").IsClaimed);
+        Assert.False(seats.Single(s => s.DisplayName == "Red").IsClaimed);
+    }
+
+    [Fact]
+    public void RestoreMatch_RejectsUnusableSnapshots()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Reject Source"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
+        var good = service.GetSnapshot(owner.MatchId);
+
+        Assert.Throws<InvalidOperationException>(() => service.RestoreMatch(good with { Ships = [] }, null));
+        Assert.Throws<InvalidOperationException>(() => service.RestoreMatch(good with { Participants = [] }, null));
+        Assert.Throws<InvalidOperationException>(() => service.RestoreMatch(good with { RulesProfileKey = "not-a-profile" }, null));
+        Assert.Throws<InvalidOperationException>(() => service.RestoreMatch(good with { Fleets = [] }, null));
+    }
+
+    [Fact]
+    public void RestoreMatch_ClampsHandEditedValues()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Clamp Source"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
+        var exported = service.GetSnapshot(owner.MatchId);
+        var mangled = exported with
+        {
+            TableWidth = 100000,
+            Ships = [exported.Ships.Single() with
+            {
+                ThrustRating = 9999,
+                HullMax = 999999,
+                HullDamage = -5,
+                ScreenRating = 9,
+                CurrentCourse = 40,
+                CurrentVelocity = -12,
+            }],
+        };
+
+        var restored = new InMemoryMatchService().RestoreMatch(mangled, null).Snapshot;
+        var ship = restored.Ships.Single();
+
+        Assert.Equal(144, restored.TableWidth);
+        Assert.Equal(20, ship.ThrustRating);
+        Assert.Equal(80, ship.HullMax);
+        Assert.Equal(0, ship.HullDamage);
+        Assert.Equal(3, ship.ScreenRating);
+        Assert.Equal(0, ship.CurrentVelocity);
+        Assert.InRange(ship.CurrentCourse, 1, 12);
+    }
+
+    [Fact]
     public void EmptyToken_NeverAuthenticates()
     {
         var service = new InMemoryMatchService();
