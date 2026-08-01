@@ -68,8 +68,18 @@ a hand-edited file cannot inject illegal state.
 Identity:
 
 - New match id and new participant tokens.
-- Preserved fleet, ship and participant ids, keeping `homeCarrierShipId`, order statuses and
-  firing-result references valid, and letting a device recognise the seat it held.
+- **Reissued fleet and ship ids**, with every reference remapped consistently
+  (`homeCarrierShipId`, ship-to-fleet links, ordnance source/target, firing results, revealed
+  orders and movement results).
+- Preserved **participant** ids, so a device can recognise the seat it held.
+
+> **Recorded deviation.** This section originally called for preserving fleet and ship ids for
+> reference integrity. Implementation proved that wrong: `/api/ships/{id}/damage` and the other
+> by-ship-id and by-fleet-id endpoints resolve the owning match by scanning every match in the
+> store, so a restored copy sharing ids with a still-running match made those lookups ambiguous
+> and broke edits in *both* copies. Reissuing the ids and remapping references keeps integrity
+> without the collision. Covered by
+> `RestoreMatch_AlongsideTheStillRunningSourceMatch_LeavesBothEditable`.
 - The exported room code is reused when free, otherwise a new one is minted and reported.
 - Participants return with `IsConnected = false` and no token until claimed; `IsReady` is preserved.
 

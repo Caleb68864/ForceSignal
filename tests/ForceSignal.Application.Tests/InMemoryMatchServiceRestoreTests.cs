@@ -258,6 +258,98 @@ public sealed class InMemoryMatchServiceRestoreTests
     }
 
     [Fact]
+    public void RestoreMatch_CarriesOrdnanceMarkersAndSeatReadiness()
+    {
+        var source = new InMemoryMatchService();
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Ordnance Source"));
+        var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        var carrier = source.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Home Plate", "Carrier", 4, 4, 3, 14, 5, StartX: 12, StartY: 20, IconKey: "carrier")).Ships.Single(s => s.Name == "Home Plate");
+        var fighter = source.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Alpha Wing", "Fighter Group", 6, 12, 3, 6, 0,
+            StartX: 16, StartY: 22, IconKey: "fighter-group",
+            FighterEnduranceMax: 6, FighterEnduranceUsed: 2, FighterMaxRange: 24,
+            FighterStatus: "Airborne", HomeCarrierShipId: carrier.Id)).Ships.Single(s => s.Name == "Alpha Wing");
+        source.CreateOrdnanceMarker(owner.MatchId, new CreateOrdnanceMarkerRequest(
+            owner.ParticipantToken, "Alpha Salvo", "Missile", carrier.Id, fighter.Id, 18, 24, 2, 12, 3, 3, 24));
+        source.SetReady(owner.MatchId, owner.ParticipantToken, true);
+        var exported = source.GetSnapshot(owner.MatchId);
+        Assert.True(exported.Participants.Single().IsReady);
+
+        var restored = new InMemoryMatchService().RestoreMatch(exported, null).Snapshot;
+
+        // Ordnance survives, with its ship references remapped to the restored hulls.
+        var marker = Assert.Single(restored.OrdnanceMarkers);
+        var restoredCarrier = restored.Ships.Single(s => s.Name == "Home Plate");
+        var restoredFighter = restored.Ships.Single(s => s.Name == "Alpha Wing");
+        Assert.Equal("Alpha Salvo", marker.Name);
+        Assert.Equal("Missile", marker.MarkerType);
+        Assert.Equal("Active", marker.Status);
+        Assert.Equal(3, marker.EnduranceRemaining);
+        Assert.Equal(18, marker.PositionX);
+        Assert.Equal(24, marker.PositionY);
+        Assert.Equal(restoredCarrier.Id, marker.SourceShipId);
+        Assert.Equal(restoredFighter.Id, marker.TargetShipId);
+
+        // Fighter state and the carrier link come back.
+        Assert.Equal("Airborne", restoredFighter.FighterStatus);
+        Assert.Equal(2, restoredFighter.FighterEnduranceUsed);
+        Assert.Equal(24, restoredFighter.FighterMaxRange);
+        Assert.Equal(restoredCarrier.Id, restoredFighter.HomeCarrierShipId);
+
+        // Readiness is preserved; the seat is unclaimed and offline until a device takes it.
+        var participant = Assert.Single(restored.Participants);
+        Assert.True(participant.IsReady);
+        Assert.False(participant.IsConnected);
+    }
+
+    [Fact]
+    public void ClaimSeat_ForAnUnknownSeat_IsRejectedAsNotFound()
+    {
+        var source = new InMemoryMatchService();
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Unknown Seat Source"));
+        var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        source.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
+
+        var service = new InMemoryMatchService();
+        var restored = service.RestoreMatch(source.GetSnapshot(owner.MatchId), null);
+
+        var unknownSeat = Assert.Throws<InvalidOperationException>(() =>
+            service.ClaimSeat(restored.MatchId, Guid.NewGuid(), new ClaimSeatRequest("Nobody")));
+        // "not found" is what the API layer maps to 404.
+        Assert.Contains("not found", unknownSeat.Message, StringComparison.OrdinalIgnoreCase);
+
+        var unknownMatch = Assert.Throws<InvalidOperationException>(() =>
+            service.ClaimSeat(Guid.NewGuid(), restored.Seats.Single().ParticipantId, new ClaimSeatRequest("Nobody")));
+        Assert.Contains("not found", unknownMatch.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RestoreMatch_RejectedPayload_LeavesTheStoreUntouched()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Atomic Source"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
+        var exported = service.GetSnapshot(owner.MatchId);
+
+        // A ship pointing at a fleet that is not in the payload fails partway through the rebuild.
+        var broken = exported with { Fleets = [] };
+        Assert.Throws<InvalidOperationException>(() => service.RestoreMatch(broken, null));
+
+        // Nothing was committed: the room code is still free, so a good restore can reuse it.
+        var good = service.RestoreMatch(exported, null);
+        Assert.False(good.ReusedJoinCode); // the source match still holds the original code
+        var afterFailure = Assert.Throws<InvalidOperationException>(() => service.FindMatchByCode("NO-SUCH-ROOM"));
+        Assert.Contains("not found", afterFailure.Message, StringComparison.OrdinalIgnoreCase);
+
+        // The source match is intact and still commandable.
+        var sourceStillWorks = service.GetSnapshot(owner.MatchId);
+        Assert.Single(sourceStillWorks.Ships);
+        Assert.Equal("FleetSetup", sourceStillWorks.Phase);
+    }
+
+    [Fact]
     public void RestoreMatch_RejectsUnusableSnapshots()
     {
         var service = new InMemoryMatchService();
