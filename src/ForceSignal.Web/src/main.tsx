@@ -525,7 +525,14 @@ function App() {
 
   async function restoreFromBackupFile(file: File) {
     clearLocalMatchState();
-    const restored = await post<MatchRestored>('/api/matches/restore', JSON.parse(await file.text()));
+    let backup: unknown;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      throw new Error(`${file.name} is not readable as JSON. Pick a snapshot exported by ForceSignal.`);
+    }
+
+    const restored = await post<MatchRestored>('/api/matches/restore', backup);
     const codeNote = restored.reusedJoinCode ? '' : ' The old room code was taken, so this room has a new one.';
     setPendingRestore({
       matchId: restored.matchId,
@@ -1125,6 +1132,7 @@ function App() {
             <h2>{pendingRestore.joinCode}</h2>
             <p className="privacy">{pendingRestore.note} Pick the admiral you were playing - fleets follow the seat.</p>
           </div>
+          <p className="auth-status">{message}</p>
           {pendingRestore.seats.map((seat) => (
             <button
               key={seat.participantId}
@@ -1150,6 +1158,7 @@ function App() {
             <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
           </label>
           <button onClick={() => joinMatch().catch(showError(setMessage))}>Join Match</button>
+          <p className="auth-status auth-wide">{message}</p>
           <button className="ghost auth-wide" type="button" onClick={exportLastSnapshotBackup}>Export Last Device Backup</button>
           <button className="ghost auth-wide" type="button" onClick={() => restoreInputRef.current?.click()}>Restore Match From Backup</button>
           <input
