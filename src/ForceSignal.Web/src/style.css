@@ -2470,3 +2470,14 @@ small,
   border-color: var(--red);
   color: var(--red);
 }
+
+.seat-picker {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.seat-picker .privacy {
+  max-width: 620px;
+  margin-top: 4px;
+}

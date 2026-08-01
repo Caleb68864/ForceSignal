@@ -173,6 +173,37 @@ type Session = {
   joinCode: string;
 };
 
+type MatchSeat = {
+  participantId: string;
+  displayName: string;
+  role: string;
+  isClaimed: boolean;
+  fleetCount: number;
+  shipCount: number;
+};
+
+type PendingRestore = {
+  matchId: string;
+  joinCode: string;
+  seats: MatchSeat[];
+  note: string;
+};
+
+type MatchRestored = {
+  matchId: string;
+  joinCode: string;
+  reusedJoinCode: boolean;
+  restoredPhase: string;
+  lockedOrdersDropped: boolean;
+  seats: MatchSeat[];
+};
+
+type MatchIdentity = {
+  matchId: string;
+  joinCode: string;
+  hasUnclaimedSeats: boolean;
+};
+
 type DraftOrder = {
   velocityDelta: number;
   turnSteps: number;
@@ -352,7 +383,9 @@ function App() {
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
   const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('offline');
+  const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
+  const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const spentDraftTurnRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -466,12 +499,52 @@ function App() {
 
   async function joinMatch() {
     clearLocalMatchState();
-    const response = await post<Session & { matchId: string; joinCode: string }>('/api/matches/join', {
-      displayName,
-      joinCode,
+    try {
+      const response = await post<Session & { matchId: string; joinCode: string }>('/api/matches/join', {
+        displayName,
+        joinCode,
+      });
+      setSession(response);
+      setMessage(`Joined room ${response.joinCode}.`);
+    } catch (error) {
+      // A restored room refuses ordinary joins until every seat is claimed.
+      if (!(error instanceof ApiRequestError) || !error.message.toLowerCase().includes('claim')) {
+        throw error;
+      }
+
+      const identity = await get<MatchIdentity>(`/api/matches/by-code/${encodeURIComponent(joinCode)}`);
+      setPendingRestore({
+        matchId: identity.matchId,
+        joinCode: identity.joinCode,
+        seats: await get<MatchSeat[]>(`/api/matches/${identity.matchId}/seats`),
+        note: 'This room was restored from a backup.',
+      });
+      setMessage('Claim the seat you were playing.');
+    }
+  }
+
+  async function restoreFromBackupFile(file: File) {
+    clearLocalMatchState();
+    const restored = await post<MatchRestored>('/api/matches/restore', JSON.parse(await file.text()));
+    const codeNote = restored.reusedJoinCode ? '' : ' The old room code was taken, so this room has a new one.';
+    setPendingRestore({
+      matchId: restored.matchId,
+      joinCode: restored.joinCode,
+      seats: restored.seats,
+      note: restored.lockedOrdersDropped
+        ? `Restored at ${formatPhase(restored.restoredPhase)}. Locked orders could not be recovered - re-lock to continue.${codeNote}`
+        : `Restored at ${formatPhase(restored.restoredPhase)}.${codeNote}`,
     });
-    setSession(response);
-    setMessage(`Joined room ${response.joinCode}.`);
+    setMessage(`Restored into room ${restored.joinCode}. Claim your seat to take command.`);
+  }
+
+  async function claimSeat(restored: PendingRestore, seat: MatchSeat) {
+    const claimed = await post<Session>(`/api/matches/${restored.matchId}/seats/${seat.participantId}/claim`, {
+      displayName: seat.displayName,
+    });
+    setPendingRestore(null);
+    setSession(claimed);
+    setMessage(`Took command as ${seat.displayName}.`);
   }
 
   async function loadSnapshot(matchId: string) {
@@ -1045,7 +1118,27 @@ function App() {
         <a href={officialRulesUrl} target="_blank" rel="noreferrer">Rules</a>
       </section>
 
-      {!session ? (
+      {!session && pendingRestore ? (
+        <section className="panel seat-picker" aria-label="Claim a seat">
+          <div>
+            <span className="label">Restored room</span>
+            <h2>{pendingRestore.joinCode}</h2>
+            <p className="privacy">{pendingRestore.note} Pick the admiral you were playing - fleets follow the seat.</p>
+          </div>
+          {pendingRestore.seats.map((seat) => (
+            <button
+              key={seat.participantId}
+              type="button"
+              className={seat.isClaimed ? 'ghost' : undefined}
+              disabled={seat.isClaimed}
+              onClick={() => claimSeat(pendingRestore, seat).catch(showError(setMessage))}
+            >
+              {seat.displayName} · {seat.role} · {seat.fleetCount} fleet{seat.fleetCount === 1 ? '' : 's'}, {seat.shipCount} ship{seat.shipCount === 1 ? '' : 's'}{seat.isClaimed ? ' · taken' : ''}
+            </button>
+          ))}
+          <button className="ghost" type="button" onClick={() => setPendingRestore(null)}>Cancel</button>
+        </section>
+      ) : !session ? (
         <section className="panel auth-grid" aria-label="Create or join match">
           <label>
             Display name
@@ -1058,6 +1151,20 @@ function App() {
           </label>
           <button onClick={() => joinMatch().catch(showError(setMessage))}>Join Match</button>
           <button className="ghost auth-wide" type="button" onClick={exportLastSnapshotBackup}>Export Last Device Backup</button>
+          <button className="ghost auth-wide" type="button" onClick={() => restoreInputRef.current?.click()}>Restore Match From Backup</button>
+          <input
+            ref={restoreInputRef}
+            className="file-input"
+            type="file"
+            accept=".json,application/json"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) {
+                restoreFromBackupFile(file).catch(showError(setMessage));
+              }
+            }}
+          />
         </section>
       ) : (
         <div className="workspace">
