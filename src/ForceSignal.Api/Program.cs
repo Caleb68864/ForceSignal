@@ -112,8 +112,20 @@ app.MapPost("/api/matches/join", (JoinMatchRequest request, IMatchService matche
     .Produces<MatchJoinedResponse>()
     .ProducesProblem(StatusCodes.Status400BadRequest);
 
-app.MapPost("/api/matches/restore", (JsonElement body, IMatchService matches) =>
+app.MapPost("/api/matches/restore", async (HttpRequest http, IMatchService matches) =>
 {
+    // Parse the body here rather than binding JsonElement: model-binding failures surface as a
+    // plain-text 400, and this endpoint must answer malformed files with problem+json.
+    JsonElement body;
+    try
+    {
+        body = await JsonSerializer.DeserializeAsync<JsonElement>(http.Body, RestoreJson);
+    }
+    catch (JsonException ex)
+    {
+        throw new InvalidOperationException($"Snapshot file could not be read as JSON: {ex.Message}");
+    }
+
     // Accept either the exported {savedAt, snapshot} wrapper or a bare snapshot, because a user
     // will hand over whichever file they kept.
     var hasWrapper = body.ValueKind == JsonValueKind.Object

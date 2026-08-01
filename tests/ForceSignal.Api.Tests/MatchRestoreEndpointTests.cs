@@ -101,17 +101,25 @@ public sealed class MatchRestoreEndpointTests
         Assert.Equal(HttpStatusCode.NotFound, unknownCode.StatusCode);
     }
 
-    [Fact]
-    public async Task Restore_WithGarbagePayload_ReturnsProblemDetails()
+    [Theory]
+    // Every rejected payload must answer with problem+json, including a file that is not JSON at
+    // all - model binding would otherwise return a plain-text 400.
+    [InlineData("{ not json at all", "could not be read")]
+    [InlineData("", "could not be read")]
+    [InlineData("{\"snapshot\":{\"ships\":[]}}", "no participants")]
+    [InlineData("{\"participants\":[{\"id\":\"11111111-1111-1111-1111-111111111111\",\"displayName\":\"A\",\"role\":\"Owner\"}],\"ships\":[]}", "no ships")]
+    public async Task Restore_WithUnusablePayload_ReturnsProblemDetails(string payload, string expected)
     {
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsync("/api/matches/restore",
-            new StringContent("{\"snapshot\":{\"ships\":[]}}", Encoding.UTF8, "application/json"));
+            new StringContent(payload, Encoding.UTF8, "application/json"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(expected, problem.GetProperty("detail").GetString() ?? string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     private static WebApplicationFactory<Program> CreateFactory() =>
