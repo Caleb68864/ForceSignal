@@ -23,6 +23,12 @@ public interface IMatchService
     /// <summary>Records realtime connection state for a participant. Returns null when unknown.</summary>
     MatchSnapshotDto? SetParticipantConnection(Guid matchId, string participantToken, bool isConnected);
 
+    /// <summary>Rebuilds a match from an exported snapshot. Participants return as unclaimed seats.</summary>
+    MatchRestoredResponse RestoreMatch(MatchSnapshotDto snapshot, DateTimeOffset? savedAt);
+
+    /// <summary>Lists seats for a match, showing which are still claimable.</summary>
+    IReadOnlyList<MatchSeatDto> GetSeats(Guid matchId);
+
     /// <summary>Updates participant readiness during setup.</summary>
     MatchSnapshotDto SetReady(Guid matchId, string participantToken, bool isReady);
 
@@ -159,6 +165,197 @@ public sealed class InMemoryMatchService : IMatchService
             return ToSnapshot(match);
         }
     }
+
+    public MatchRestoredResponse RestoreMatch(MatchSnapshotDto snapshot, DateTimeOffset? savedAt)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Participants is null or { Count: 0 })
+        {
+            throw new InvalidOperationException("Snapshot has no participants to restore.");
+        }
+
+        if (snapshot.Ships is null or { Count: 0 })
+        {
+            throw new InvalidOperationException("Snapshot has no ships to restore.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.RulesProfileKey)
+            && snapshot.RulesProfileKey != FullThrustLightCinematicRules.ProfileKey)
+        {
+            throw new InvalidOperationException($"Snapshot uses unknown rules profile: {snapshot.RulesProfileKey}.");
+        }
+
+        lock (_gate)
+        {
+            var matchId = Guid.NewGuid();
+            var reusedJoinCode = !string.IsNullOrWhiteSpace(snapshot.JoinCode)
+                && !_joinCodes.ContainsKey(snapshot.JoinCode);
+            var joinCode = reusedJoinCode ? snapshot.JoinCode : CreateJoinCode();
+
+            var seats = snapshot.Participants
+                .Select(p => ParticipantState.CreateSeat(
+                    p.Id == Guid.Empty ? Guid.NewGuid() : p.Id,
+                    NormalizeText(p.DisplayName, "Admiral"),
+                    p.Role == "Owner" ? "Owner" : "Player",
+                    p.IsReady))
+                .ToList();
+
+            var match = new MatchState(matchId, joinCode, NormalizeText(snapshot.Name, "Space Fleet Match"), seats[0])
+            {
+                TableWidth = Math.Clamp(snapshot.TableWidth, 24, 144),
+                TableDepth = Math.Clamp(snapshot.TableDepth, 24, 96),
+                TurnNumber = Math.Max(1, snapshot.TurnNumber)
+            };
+            foreach (var seat in seats.Skip(1))
+            {
+                match.Participants.Add(seat);
+            }
+
+            var seatIds = seats.Select(s => s.Id).ToHashSet();
+            foreach (var fleet in snapshot.Fleets ?? [])
+            {
+                var ownerId = seatIds.Contains(fleet.OwnerParticipantId) ? fleet.OwnerParticipantId : seats[0].Id;
+                match.Fleets.Add(new FleetState(
+                    fleet.Id == Guid.Empty ? Guid.NewGuid() : fleet.Id,
+                    ownerId,
+                    NormalizeText(fleet.Name, "Fleet"),
+                    NormalizeOptionalText(fleet.Faction),
+                    NormalizeFleetColor(fleet.FleetColor)));
+            }
+
+            var fleetIds = match.Fleets.Select(f => f.Id).ToHashSet();
+            foreach (var ship in snapshot.Ships)
+            {
+                if (!fleetIds.Contains(ship.FleetId))
+                {
+                    throw new InvalidOperationException($"Ship {ship.Name} references a fleet that is not in the snapshot.");
+                }
+
+                var iconKey = NormalizeIconKey(ship.IconKey, ship.ClassName);
+                var fighterEnduranceMax = NormalizeFighterEnduranceMax(ship.FighterEnduranceMax, iconKey, ship.ClassName);
+                var restoredShip = new ShipState(
+                    ship.Id == Guid.Empty ? Guid.NewGuid() : ship.Id,
+                    ship.FleetId,
+                    NormalizeText(ship.Name, "Unnamed Ship"),
+                    NormalizeOptionalText(ship.ClassName),
+                    Math.Clamp(ship.ThrustRating, 0, 20),
+                    Math.Max(0, ship.CurrentVelocity),
+                    NormalizeCourse(ship.CurrentCourse),
+                    Math.Clamp(ship.HullMax, 1, 80),
+                    Math.Clamp(ship.ArmorMax, 0, 40),
+                    ClampPosition(ship.PositionX, match.TableWidth),
+                    ClampPosition(ship.PositionY, match.TableDepth),
+                    Math.Clamp(ship.ScreenRating, 0, 3),
+                    NormalizeWeapons(ship.Weapons),
+                    iconKey)
+                {
+                    FighterEnduranceMax = fighterEnduranceMax,
+                    FighterEnduranceUsed = NormalizeFighterEnduranceUsed(ship.FighterEnduranceUsed, fighterEnduranceMax),
+                    FighterMaxRange = NormalizeFighterMaxRange(ship.FighterMaxRange, iconKey, ship.ClassName),
+                    FighterStatus = NormalizeFighterStatus(ship.FighterStatus, iconKey, ship.ClassName),
+                };
+                restoredShip.HullDamage = ClampDamage(ship.HullDamage, restoredShip.HullMax);
+                restoredShip.ArmorDamage = ClampDamage(ship.ArmorDamage, restoredShip.ArmorMax);
+                restoredShip.FireControlDamage = ClampDamage(ship.FireControlDamage, 6);
+                restoredShip.DriveDamage = ClampDamage(ship.DriveDamage, restoredShip.ThrustRating);
+                restoredShip.WeaponDamage = ClampDamage(ship.WeaponDamage, 12);
+                match.Ships.Add(restoredShip);
+            }
+
+            // Carrier links resolve only once every ship exists.
+            foreach (var ship in snapshot.Ships.Where(s => s.HomeCarrierShipId is not null))
+            {
+                var restoredShip = match.Ships.SingleOrDefault(s => s.Id == ship.Id);
+                if (restoredShip is not null)
+                {
+                    restoredShip.HomeCarrierShipId = ValidateCarrierId(match, ship.HomeCarrierShipId);
+                }
+            }
+
+            foreach (var marker in snapshot.OrdnanceMarkers ?? [])
+            {
+                var ownerId = seatIds.Contains(marker.OwnerParticipantId) ? marker.OwnerParticipantId : seats[0].Id;
+                match.OrdnanceMarkers.Add(new OrdnanceMarkerState(
+                    marker.Id == Guid.Empty ? Guid.NewGuid() : marker.Id,
+                    ownerId,
+                    NormalizeOrdnanceText(marker.Name, "Salvo"),
+                    NormalizeOrdnanceText(marker.MarkerType, "Missile"),
+                    marker.SourceShipId,
+                    marker.TargetShipId,
+                    ClampPosition(marker.PositionX, match.TableWidth),
+                    ClampPosition(marker.PositionY, match.TableDepth),
+                    NormalizeCourse(marker.Course),
+                    Math.Clamp(marker.Speed, 0, 72),
+                    Math.Clamp(marker.EnduranceRemaining, 0, 24),
+                    Math.Clamp(marker.AttackDice, 0, 24),
+                    Math.Clamp(marker.MaxRange, 0, 120),
+                    NormalizeOrdnanceStatus(marker.Status)));
+            }
+
+            foreach (var entry in snapshot.MatchLog ?? [])
+            {
+                match.AddRestoredLog(new MatchLogEntryState(
+                    entry.Sequence,
+                    entry.Timestamp,
+                    entry.TurnNumber,
+                    entry.Phase,
+                    entry.Category,
+                    entry.Message));
+            }
+
+            var (phase, lockedOrdersDropped) = RestorePhase(snapshot.Phase);
+            match.Phase = phase;
+
+            var savedNote = savedAt is null ? "an exported snapshot" : $"a snapshot saved {savedAt:u}";
+            var droppedNote = lockedOrdersDropped
+                ? " Locked orders could not be restored; re-lock to continue."
+                : string.Empty;
+            match.AddLog("Session", match.Phase.ToString(), $"Match restored from {savedNote} into room {joinCode}.{droppedNote}");
+
+            _matches.Add(matchId, match);
+            _joinCodes[joinCode] = matchId;
+            match.Touch("MatchRestored");
+            return new MatchRestoredResponse(
+                matchId,
+                joinCode,
+                reusedJoinCode,
+                match.Phase.ToString(),
+                lockedOrdersDropped,
+                BuildSeats(match),
+                ToSnapshot(match));
+        }
+    }
+
+    public IReadOnlyList<MatchSeatDto> GetSeats(Guid matchId)
+    {
+        lock (_gate)
+        {
+            return BuildSeats(FindMatch(matchId));
+        }
+    }
+
+    private static (MatchPhase Phase, bool LockedOrdersDropped) RestorePhase(string? exported) => exported switch
+    {
+        nameof(MatchPhase.FleetSetup) => (MatchPhase.FleetSetup, false),
+        nameof(MatchPhase.Movement) => (MatchPhase.Movement, false),
+        nameof(MatchPhase.Firing) => (MatchPhase.Firing, false),
+        // Commitment salts are never exported, so locked orders cannot come back.
+        nameof(MatchPhase.OrdersLocked) or nameof(MatchPhase.Reveal) => (MatchPhase.OrderEntry, true),
+        _ => (MatchPhase.OrderEntry, false),
+    };
+
+    private static IReadOnlyList<MatchSeatDto> BuildSeats(MatchState match) =>
+        match.Participants.Select(p =>
+        {
+            var fleets = match.Fleets.Where(f => f.OwnerParticipantId == p.Id).ToArray();
+            return new MatchSeatDto(
+                p.Id,
+                p.DisplayName,
+                p.Role,
+                p.IsClaimed,
+                fleets.Length,
+                match.Ships.Count(s => fleets.Any(f => f.Id == s.FleetId)));
+        }).ToArray();
 
     public MatchSnapshotDto SetReady(Guid matchId, string participantToken, bool isReady)
     {
@@ -884,6 +1081,7 @@ public sealed class InMemoryMatchService : IMatchService
         public long Version { get; private set; } = 1;
         public void Touch(string _) => Version++;
         public void AddLog(string category, string phase, string message) => MatchLog.Add(new MatchLogEntryState(MatchLog.Count + 1, DateTimeOffset.UtcNow, TurnNumber, phase, category, message));
+        public void AddRestoredLog(MatchLogEntryState entry) => MatchLog.Add(entry);
     }
 
     private sealed class ParticipantState
