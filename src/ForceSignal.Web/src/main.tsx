@@ -2083,6 +2083,7 @@ function PlayMap({
   const [inspectorMode, setInspectorMode] = useState<'status' | 'helm' | 'fire' | 'ops'>('status');
   const [measureLine, setMeasureLine] = useState<{ start: TablePoint; end: TablePoint } | null>(null);
   const [mapNotice, setMapNotice] = useState('Pan ready');
+  const [hoveredShipId, setHoveredShipId] = useState<string | null>(null);
   const selectedDraft = selectedShip ? draftFor(selectedShip.id, drafts) : null;
   const selectedFiringDraft = selectedShip ? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds) : null;
   const selectedCanPlot = selectedShip ? ownedShipIds.has(selectedShip.id) && !selectedShip.isDestroyed : false;
@@ -2091,6 +2092,7 @@ function PlayMap({
   const selectedFleetColor = normalizeFleetColor(selectedFleet?.fleetColor);
   const selectedIsFighterGroup = selectedShip ? isFighterGroup(selectedShip) : false;
   const selectedIsCarrier = selectedShip ? normalizeShipIconKey(selectedShip.iconKey, selectedShip.className) === 'carrier' : false;
+  const hoveredShip = hoveredShipId ? snapshot.ships.find((ship) => ship.id === hoveredShipId) : undefined;
   const ordnanceMarkers = snapshot.ordnanceMarkers ?? [];
   const contactRanges = selectedShip
     ? snapshot.ships
@@ -2636,7 +2638,11 @@ function PlayMap({
                   '--fleet-color': fleetColor,
                 } as CSSProperties}
                 title={`${ship.name} ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)} V${ship.currentVelocity} C${ship.currentCourse}`}
-                onPointerEnter={() => setMapNotice(`${ship.name}: V${ship.currentVelocity} C${ship.currentCourse} hull ${ship.hullDamage}/${ship.hullMax}`)}
+                onPointerEnter={() => {
+                  setHoveredShipId(ship.id);
+                  setMapNotice(`${ship.name}: V${ship.currentVelocity} C${ship.currentCourse} hull ${ship.hullDamage}/${ship.hullMax}`);
+                }}
+                onPointerLeave={() => setHoveredShipId((current) => (current === ship.id ? null : current))}
                 onPointerDown={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -2736,6 +2742,18 @@ function PlayMap({
               </button>
             );
           })}
+          {hoveredShip ? (
+            <MapContactCard
+              ship={hoveredShip}
+              fleet={snapshot.fleets.find((fleet) => fleet.id === hoveredShip.fleetId)}
+              owner={snapshot.participants.find((participant) => participant.id === snapshot.fleets.find((fleet) => fleet.id === hoveredShip.fleetId)?.ownerParticipantId)}
+              result={snapshot.movementResults.find((item) => item.shipId === hoveredShip.id)}
+              draft={ownedShipIds.has(hoveredShip.id) ? draftFor(hoveredShip.id, drafts) : undefined}
+              isOwned={ownedShipIds.has(hoveredShip.id)}
+              tableWidth={snapshot.tableWidth}
+              tableDepth={snapshot.tableDepth}
+            />
+          ) : null}
           {selectedShip && selectedPlannedCourse && inspectorMode === 'helm' ? (
             <span
               className={selectedCanPlot ? 'planned-bearing-map active' : 'planned-bearing-map'}
@@ -2860,6 +2878,94 @@ function PlayMap({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/// Hover readout for a contact: heading, this turn's resolved move, and the damage record.
+function MapContactCard({
+  ship,
+  fleet,
+  owner,
+  result,
+  draft,
+  isOwned,
+  tableWidth,
+  tableDepth,
+}: {
+  ship: Ship;
+  fleet?: Fleet;
+  owner?: Participant;
+  result?: MovementResult;
+  draft?: DraftOrder;
+  isOwned: boolean;
+  tableWidth: number;
+  tableDepth: number;
+}) {
+  const left = mapPercent(ship.positionX, tableWidth);
+  const top = mapPercent(ship.positionY, tableDepth);
+  const plannedCourse = draft ? previewCourse(ship.currentCourse, draft) : null;
+  const plannedTurn = draft ? formatTurnSequence(draft) : null;
+  const systems = [
+    ship.fireControlDamage > 0 ? `firecon ${ship.fireControlDamage}` : null,
+    ship.driveDamage > 0 ? `drive ${ship.driveDamage}/${ship.thrustRating}` : null,
+    ship.weaponDamage > 0 ? `weapons ${ship.weaponDamage}` : null,
+  ].filter(Boolean);
+
+  return (
+    <div
+      className={`map-contact-card ${left > 62 ? 'flip' : ''} ${isOwned ? 'owned' : 'opponent'}`}
+      style={{ left: `${left}%`, top: `${top}%`, '--fleet-color': normalizeFleetColor(fleet?.fleetColor) } as CSSProperties}
+      aria-hidden="true"
+    >
+      <div className="contact-card-head">
+        <span
+          className={`contact-card-glyph ${ship.isDestroyed ? 'destroyed' : ''}`}
+          style={{ '--course': `${courseAngle(ship.currentCourse)}deg` } as CSSProperties}
+        >
+          <ShipIcon iconKey={normalizeShipIconKey(ship.iconKey, ship.className)} />
+        </span>
+        <span className="contact-card-title">
+          <strong>{ship.name}</strong>
+          <small>{ship.className ?? 'Unclassified'} · {owner?.displayName ?? 'Player'}{isOwned ? ' · yours' : ''}</small>
+        </span>
+        {ship.isDestroyed ? <em className="destroyed">Destroyed</em> : null}
+      </div>
+
+      <dl className="contact-card-rows">
+        <div>
+          <dt>Heading</dt>
+          <dd>V{ship.currentVelocity} · C{ship.currentCourse}{plannedCourse !== null && plannedCourse !== ship.currentCourse ? ` → C${plannedCourse}` : ''}</dd>
+        </div>
+        {plannedTurn && plannedTurn !== 'No turn' ? (
+          <div>
+            <dt>Plotted</dt>
+            <dd>{plannedTurn}{draft && draft.velocityDelta !== 0 ? ` · dV ${draft.velocityDelta > 0 ? '+' : ''}${draft.velocityDelta}` : ''}</dd>
+          </div>
+        ) : null}
+        {result ? (
+          <div>
+            <dt>Moved</dt>
+            <dd>v{result.startingVelocity}/c{result.startingCourse} → v{result.endingVelocity}/c{result.endingCourse}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>Position</dt>
+          <dd>{ship.positionX.toFixed(1)}, {ship.positionY.toFixed(1)}</dd>
+        </div>
+        <div>
+          <dt>Hull</dt>
+          <dd className={ship.hullDamage >= Math.ceil(ship.hullMax / 2) ? 'hurt' : ''}>{ship.hullDamage}/{ship.hullMax}{ship.hullDamage >= Math.ceil(ship.hullMax / 2) && !ship.isDestroyed ? ' · crippled' : ''}</dd>
+        </div>
+        <div>
+          <dt>Armor</dt>
+          <dd>{ship.armorDamage}/{ship.armorMax}{ship.screenRating > 0 ? ` · screens ${ship.screenRating}` : ''}</dd>
+        </div>
+        <div>
+          <dt>Systems</dt>
+          <dd className={systems.length > 0 ? 'hurt' : ''}>{systems.length > 0 ? systems.join(' · ') : 'all nominal'}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }
 
@@ -4036,7 +4142,9 @@ function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, Firing
   return {
     targetShipId: target?.id ?? '',
     weaponId: weapon?.id ?? '',
-    range: Math.max(1, current?.range ?? 12),
+    // Default to the measured distance to the resolved target. A fixed default would let one
+    // click on Fire resolve an attack at a range the table geometry does not support.
+    range: Math.max(1, current?.range ?? (target ? Math.round(distanceBetweenShips(ship, target)) : 12)),
     arc: current?.arc && arcs.includes(current.arc) ? current.arc : weapon?.arc ?? 'Fore',
   };
 }
