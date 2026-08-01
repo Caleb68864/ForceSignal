@@ -166,13 +166,23 @@ public sealed record RevealOrderRequest(
     string Salt);
 
 /// <summary>Resolves one weapon mount firing at a target during the firing phase.</summary>
+/// <param name="ParticipantToken">Session token of the firing participant.</param>
+/// <param name="AttackerShipId">The firing ship.</param>
+/// <param name="TargetShipId">The ship being fired at.</param>
+/// <param name="WeaponId">The mount being fired.</param>
+/// <param name="Range">Range measured on the table, in mu.</param>
+/// <param name="Arc">
+/// Optional. The arc the caller believes the target lies in. The server works the arc out from the
+/// two ships' positions and the firing ship's course; when this is supplied it must agree, which
+/// catches a client and a table that have drifted apart.
+/// </param>
 public sealed record FireWeaponRequest(
     string ParticipantToken,
     Guid AttackerShipId,
     Guid TargetShipId,
     Guid WeaponId,
     int Range,
-    FiringArc Arc);
+    FiringArc? Arc = null);
 
 /// <summary>Session details returned when a participant creates a match.</summary>
 public sealed record MatchCreatedResponse(Guid MatchId, string JoinCode, Guid ParticipantId, string ParticipantToken);
@@ -258,15 +268,36 @@ public sealed record MovementResultDto(
     IReadOnlyList<MovementSegment>? Segments);
 
 /// <summary>Weapon mount profile attached to a ship.</summary>
+/// <param name="Id">Stable mount id.</param>
+/// <param name="Name">Mount name as printed on the ship record.</param>
+/// <param name="AttackDice">Dice rolled at the closest range band.</param>
+/// <param name="MaxRange">Longest range the mount reaches, in mu.</param>
+/// <param name="Arcs">
+/// Arcs the mount bears through. A battery may bear through one, two, or three adjacent arcs, and
+/// an all-round mount bears through every arc except aft, which is blacked out on every weapon.
+/// </param>
+/// <param name="AmmoMax">Rounds carried, or zero for an unlimited beam mount.</param>
+/// <param name="AmmoUsed">Rounds already spent.</param>
+/// <param name="ReloadTurns">Turns needed to reload, for the table's own bookkeeping.</param>
 public sealed record WeaponMountDto(
     Guid Id,
     string Name,
     int AttackDice,
     int MaxRange,
-    FiringArc Arc,
+    IReadOnlyList<FiringArc>? Arcs = null,
     int AmmoMax = 0,
     int AmmoUsed = 0,
-    int ReloadTurns = 0);
+    int ReloadTurns = 0)
+{
+    /// <summary>
+    /// Compatibility field for data written before ForceSignal used six arcs. When
+    /// <see cref="Arcs"/> is empty this four-arc name is expanded: "Port" covers both port arcs,
+    /// "Starboard" both starboard arcs, "Aft" the two quarters either side of the blind spot, and
+    /// "All" everything a weapon may fire through. Never written back out.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Arc { get; init; }
+}
 
 /// <summary>Resolved firing details for one weapon attack.</summary>
 public sealed record FiringResultDto(

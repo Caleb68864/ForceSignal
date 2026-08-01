@@ -722,6 +722,55 @@ small,
   text-transform: uppercase;
 }
 
+/* Which of the six arcs a mount bears through. The aft arc is never offered. */
+.arc-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.arc-toggle-row {
+  display: flex;
+  gap: 4px;
+}
+
+.arc-toggle {
+  min-width: 34px;
+  padding: 4px 0;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.arc-toggle.on {
+  border-color: var(--line-hot);
+  background: rgba(71, 241, 255, 0.16);
+  color: var(--text);
+}
+
+/* The measured bearing to the target: read from the table, not chosen by the player. */
+.bearing-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bearing-readout strong {
+  color: var(--line-hot);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.bearing-readout small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
 /* The faces the app rolled for a spent mount, so the table can audit the shot. */
 .dice-readout {
   color: var(--line-hot);
@@ -1330,7 +1379,8 @@ small,
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: conic-gradient(from -28deg, rgba(245, 199, 102, 0.1) 0 56deg, transparent 56deg 360deg);
+  /* Arcs are exactly 60 degrees wide, centred on the arc's own bearing. */
+  background: conic-gradient(from -30deg, rgba(245, 199, 102, 0.1) 0 60deg, transparent 60deg 360deg);
   transform-origin: 50% 50%;
 }
 

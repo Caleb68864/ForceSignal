@@ -186,13 +186,13 @@ public sealed class InMemoryMatchServiceTurnFlowTests
 
         table.Service.UpdateShipDamage(table.RedLead.Id, new UpdateShipDamageRequest(table.OpponentToken, table.RedLead.HullMax, 0, 0, 0, 0));
         var deadTarget = Assert.Throws<InvalidOperationException>(() =>
-            table.Service.FireWeapon(table.MatchId, new FireWeaponRequest(table.OwnerToken, table.BlueLead.Id, table.RedLead.Id, table.BlueWeaponId, 6, FiringArc.Fore)));
+            table.Service.FireWeapon(table.MatchId, new FireWeaponRequest(table.OwnerToken, table.BlueLead.Id, table.RedLead.Id, table.BlueWeaponId, 6)));
         Assert.Contains("already destroyed", deadTarget.Message, StringComparison.OrdinalIgnoreCase);
 
         table.Service.UpdateShipDamage(table.RedLead.Id, new UpdateShipDamageRequest(table.OpponentToken, 0, 0, 0, 0, 0));
         table.Service.UpdateShipDamage(table.BlueLead.Id, new UpdateShipDamageRequest(table.OwnerToken, table.BlueLead.HullMax, 0, 0, 0, 0));
         var deadAttacker = Assert.Throws<InvalidOperationException>(() =>
-            table.Service.FireWeapon(table.MatchId, new FireWeaponRequest(table.OwnerToken, table.BlueLead.Id, table.RedLead.Id, table.BlueWeaponId, 6, FiringArc.Fore)));
+            table.Service.FireWeapon(table.MatchId, new FireWeaponRequest(table.OwnerToken, table.BlueLead.Id, table.RedLead.Id, table.BlueWeaponId, 6)));
         Assert.Contains("cannot fire", deadAttacker.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -315,7 +315,7 @@ public sealed class InMemoryMatchServiceTurnFlowTests
                 0,
                 StartX: 18,
                 StartY: 24,
-                Weapons: [new WeaponMountDto(blueWeaponId, "Class-3 Beam", 3, 24, FiringArc.Fore)])).Ships.Single(ship => ship.Name == "Blue Lead");
+                Weapons: [new WeaponMountDto(blueWeaponId, "Class-3 Beam", 3, 24, [.. FiringArcs.Firable])])).Ships.Single(ship => ship.Name == "Blue Lead");
             var blueEscort = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken,
                 "Blue Escort",

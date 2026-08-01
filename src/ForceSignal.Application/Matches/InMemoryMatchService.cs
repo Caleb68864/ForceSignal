@@ -712,7 +712,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 source.PositionX,
                 source.PositionY,
                 source.ScreenRating,
-                source.Weapons.Select(w => new WeaponMountState(Guid.NewGuid(), w.Name, w.AttackDice, w.MaxRange, w.Arc, w.AmmoMax, w.AmmoUsed, w.ReloadTurns)).ToList(),
+                source.Weapons.Select(w => new WeaponMountState(Guid.NewGuid(), w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns)).ToList(),
                 source.IconKey)
             {
                 FighterEnduranceMax = source.FighterEnduranceMax,
@@ -996,16 +996,21 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException($"{weapon.Name} has already fired this turn.");
             }
 
-            if (weapon.Arc != FiringArc.All && request.Arc != weapon.Arc)
+            // Which arc the target sits in is geometry, not a choice: it follows from the firing
+            // ship's course and where the two ships are on the table.
+            var targetArc = BearingToTarget(attacker, target);
+            if (request.Arc is { } declaredArc && declaredArc != targetArc)
             {
-                throw new InvalidOperationException($"{weapon.Name} cannot fire through the {request.Arc} arc.");
+                throw new InvalidOperationException(
+                    $"{target.Name} bears {FiringArcs.Describe(targetArc)} of {attacker.Name}, not {FiringArcs.Describe(declaredArc)}. Fix the ship positions if the table disagrees.");
             }
 
             var solution = new FiringSolution(
-                new WeaponAttackProfile(weapon.Name, weapon.AttackDice, weapon.MaxRange, weapon.Arc),
+                new WeaponAttackProfile(weapon.Name, weapon.AttackDice, weapon.MaxRange, weapon.Arcs),
                 request.Range,
                 target.ScreenRating,
-                attacker.WeaponDamage);
+                attacker.WeaponDamage,
+                targetArc);
             var validation = _firingRules.Validate(solution);
             if (!validation.IsValid)
             {
@@ -1032,7 +1037,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 match.TurnNumber,
                 request.Range,
                 RangeBand(request.Range, weapon.MaxRange),
-                request.Arc,
+                targetArc,
                 result.RawDice,
                 result.RangePenalty,
                 result.ScreenReduction,
@@ -1061,7 +1066,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.AddLog(
                 "Fire",
                 match.Phase.ToString(),
-                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {request.Arc} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
+                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
             match.Touch("WeaponFired");
             return ToSnapshot(match);
         }
@@ -1201,7 +1206,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.DriveDamage,
             s.WeaponDamage,
             s.ScreenRating,
-            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arc, w.AmmoMax, w.AmmoUsed, w.ReloadTurns)).ToArray(),
+            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns)).ToArray(),
             s.HullDamage >= s.HullMax,
             s.IconKey,
             s.FighterEnduranceMax,
@@ -1347,13 +1352,13 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int PointsValue { get; set; }
     }
 
-    private sealed class WeaponMountState(Guid id, string name, int attackDice, int maxRange, FiringArc arc, int ammoMax, int ammoUsed, int reloadTurns)
+    private sealed class WeaponMountState(Guid id, string name, int attackDice, int maxRange, IReadOnlyList<FiringArc> arcs, int ammoMax, int ammoUsed, int reloadTurns)
     {
         public Guid Id { get; } = id;
         public string Name { get; } = name;
         public int AttackDice { get; } = attackDice;
         public int MaxRange { get; } = maxRange;
-        public FiringArc Arc { get; } = arc;
+        public IReadOnlyList<FiringArc> Arcs { get; } = arcs;
         public int AmmoMax { get; } = ammoMax;
         public int AmmoUsed { get; set; } = ammoUsed;
         public int ReloadTurns { get; } = reloadTurns;
@@ -1554,6 +1559,13 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         return carrier.Id;
     }
 
+    /// <summary>The arc the target lies in, relative to the firing ship's nose.</summary>
+    private static FiringArc BearingToTarget(ShipState attacker, ShipState target) =>
+        FiringArcs.Bearing(
+            attacker.CurrentCourse,
+            (double)(target.PositionX - attacker.PositionX),
+            (double)(target.PositionY - attacker.PositionY));
+
     private static (decimal X, decimal Y) EstimatePositionFromResult(decimal x, decimal y, MovementResult result, int tableWidth, int tableDepth)
     {
         var segments = result.Segments is { Count: > 0 }
@@ -1750,13 +1762,48 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             ? NormalizeWeapons(weapons)
             : NormalizeWeapons([.. weapons.Select(w => w with { Name = NormalizeText(w.Name, "Unnamed Mount") })]);
 
+    /// <summary>
+    /// Resolves the arcs a mount bears through. An explicit set wins; otherwise the legacy
+    /// four-arc name is expanded. The aft arc is always removed, because every weapon has it
+    /// blacked out, and a mount left with nothing is treated as bearing fore.
+    /// </summary>
+    private static IReadOnlyList<FiringArc> NormalizeArcs(WeaponMountDto weapon)
+    {
+        var arcs = weapon.Arcs is { Count: > 0 }
+            ? weapon.Arcs
+            : ExpandLegacyArc(weapon.Arc);
+        var firable = arcs.Where(FiringArcs.CanFireThrough).Distinct().ToArray();
+        return firable.Length > 0 ? firable : [FiringArc.Fore];
+    }
+
+    /// <summary>
+    /// Expands a pre-six-arc mount name. The old arcs were 90 degrees wide, so each side arc
+    /// becomes the two 60 degree arcs on that side, and the old aft arc becomes the two quarters
+    /// either side of the blind spot.
+    /// </summary>
+    private static IReadOnlyList<FiringArc> ExpandLegacyArc(string? legacyArc)
+    {
+        var name = legacyArc?.Trim().Replace(" ", string.Empty).Replace("-", string.Empty).ToLowerInvariant();
+        return name switch
+        {
+            "all" => FiringArcs.Firable,
+            "port" => [FiringArc.ForePort, FiringArc.AftPort],
+            "starboard" => [FiringArc.ForeStarboard, FiringArc.AftStarboard],
+            "aft" => [FiringArc.AftPort, FiringArc.AftStarboard],
+            null or "" => [FiringArc.Fore],
+            _ => FiringArcJsonConverter.TryParse(name, out var arc) && FiringArcs.CanFireThrough(arc)
+                ? [arc]
+                : [FiringArc.Fore],
+        };
+    }
+
     private static WeaponMountState[] NormalizeWeapons(IReadOnlyList<WeaponMountDto>? weapons)
     {
         if (weapons is null || weapons.Count == 0)
         {
             return
             [
-                new WeaponMountState(Guid.NewGuid(), "Class-2 Beam", 2, 24, FiringArc.Fore, 0, 0, 0)
+                new WeaponMountState(Guid.NewGuid(), "Class-2 Beam", 2, 24, [FiringArc.Fore], 0, 0, 0)
             ];
         }
 
@@ -1767,7 +1814,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 w.Name.Trim(),
                 Math.Clamp(w.AttackDice, 1, 12),
                 Math.Clamp(w.MaxRange, 1, 72),
-                w.Arc,
+                NormalizeArcs(w),
                 Math.Clamp(w.AmmoMax, 0, 99),
                 Math.Clamp(w.AmmoUsed, 0, Math.Max(0, w.AmmoMax)),
                 Math.Clamp(w.ReloadTurns, 0, 12)))

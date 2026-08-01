@@ -37,12 +37,15 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
       FTL kills a system on 1, then 1-2, then 1-3 by threshold, worst threshold only when an attack
       crosses several rows. Without this, combat is a flat hull-point race and no system is ever
       knocked out except by hand.
-- [ ] Six 60 degree fire arcs (gap 2). The app uses the superseded four 90 degree arcs, so a real
-      ship's firing coverage cannot be transcribed.
-- [ ] Aft blind spot (gap 3). FTL forbids any weapon firing out of the aft arc; the app allows it,
-      which removes most of the reason to manoeuvre.
-- [ ] Verify arc bearing against geometry (gap 4). Firing checks only that the declared arc matches
-      the mount, never that the target is actually in that arc relative to the attacker's course.
+- [x] Six 60 degree fire arcs (gap 2). Fore, fore starboard, aft starboard, aft, aft port, fore
+      port. A mount now bears through a *set* of arcs, so a battery covering three adjacent arcs or
+      an all-round turret can both be transcribed. Fleets and snapshots written with the old four
+      arcs still load, expanded per mount.
+- [x] Aft blind spot (gap 3). No weapon may fire through the aft arc: mount normalization strips
+      it, the firing rules refuse it whatever the mount, and the editor never offers it.
+- [x] Verify arc bearing against geometry (gap 4). The arc a target lies in is computed from the
+      firing ship's course and the two positions, and the mount is held to it. An arc supplied by
+      the client is treated as a cross-check and a disagreement names the real bearing.
 - [ ] Fire control gating (gap 5). Losing all firecons should stop a ship firing, and each working
       firecon should allow exactly one target that turn. Today firecon damage changes nothing.
 - [ ] Drift for unordered ships (gap 7). The rules let a ship with no written order continue on the

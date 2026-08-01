@@ -30,7 +30,7 @@ public sealed class InMemoryMatchServiceCombatTests
             StartX: 18,
             StartY: 30,
             ScreenRating: 1,
-            Weapons: [new WeaponMountDto(blueWeapon, "Class-3 Beam", 3, 24, FiringArc.Fore)])).Ships.Single(s => s.Name == "Blue One");
+            Weapons: [new WeaponMountDto(blueWeapon, "Class-3 Beam", 3, 24, [.. FiringArcs.Firable])])).Ships.Single(s => s.Name == "Blue One");
         var redShip = service.CreateShip(redFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken,
             "Red One",
@@ -42,7 +42,7 @@ public sealed class InMemoryMatchServiceCombatTests
             1,
             StartX: 50,
             StartY: 18,
-            Weapons: [new WeaponMountDto(redWeapon, "Class-2 Beam", 2, 24, FiringArc.Fore)])).Ships.Single(s => s.Name == "Red One");
+            Weapons: [new WeaponMountDto(redWeapon, "Class-2 Beam", 2, 24, [.. FiringArcs.Firable])])).Ships.Single(s => s.Name == "Red One");
 
         service.SetReady(owner.MatchId, owner.ParticipantToken, true);
         var orderEntry = service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
@@ -76,7 +76,7 @@ public sealed class InMemoryMatchServiceCombatTests
         Assert.Contains(firing.MovementResults, result => result.ShipId == blueShip.Id && result.Segments?.Select(segment => segment.Course).SequenceEqual([12, 1, 12, 1]) == true);
         Assert.Contains(firing.MatchLog, entry => entry.Category == "Movement" && entry.Message.Contains("helm S1, P1, S1", StringComparison.OrdinalIgnoreCase));
 
-        var afterFire = service.FireWeapon(owner.MatchId, new FireWeaponRequest(owner.ParticipantToken, blueShip.Id, redShip.Id, blueWeapon, 10, FiringArc.Fore));
+        var afterFire = service.FireWeapon(owner.MatchId, new FireWeaponRequest(owner.ParticipantToken, blueShip.Id, redShip.Id, blueWeapon, 10));
         var damagedRed = afterFire.Ships.Single(ship => ship.Id == redShip.Id);
         Assert.True(damagedRed.ArmorDamage + damagedRed.HullDamage > 0);
         Assert.Contains(afterFire.FiringResults, result => result.AttackerShipId == blueShip.Id && result.TargetShipId == redShip.Id && result.Range == 10);
@@ -99,21 +99,25 @@ public sealed class InMemoryMatchServiceCombatTests
             "Attacker",
             "Cruiser",
             4,
-            8,
-            1,
+            InitialVelocity: 0,
+            InitialCourse: 12,
             12,
             0,
-            Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, FiringArc.Fore)]));
+            StartX: 20,
+            StartY: 30,
+            Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, [FiringArc.Fore])]));
         var attacker = attackerSnapshot.Ships.Single(s => s.Name == "Attacker");
         var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken,
             "Target",
             "Frigate",
             4,
-            8,
-            7,
+            InitialVelocity: 0,
+            InitialCourse: 6,
             8,
             1,
+            StartX: 20,
+            StartY: 18,
             ScreenRating: 1)).Ships.Single(s => s.Name == "Target");
 
         service.SetReady(owner.MatchId, owner.ParticipantToken, true);
@@ -164,20 +168,24 @@ public sealed class InMemoryMatchServiceCombatTests
             "Attacker",
             "Cruiser",
             4,
-            8,
-            1,
+            InitialVelocity: 0,
+            InitialCourse: 12,
             12,
             0,
-            Weapons: [new WeaponMountDto(weaponId, "Class-2 Beam", 2, 24, FiringArc.Fore)])).Ships.Single(s => s.Name == "Attacker");
+            StartX: 20,
+            StartY: 30,
+            Weapons: [new WeaponMountDto(weaponId, "Class-2 Beam", 2, 24, [FiringArc.Fore])])).Ships.Single(s => s.Name == "Attacker");
         var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken,
             "Target",
             "Frigate",
             4,
+            InitialVelocity: 0,
+            InitialCourse: 6,
             8,
-            7,
-            8,
-            1)).Ships.Single(s => s.Name == "Target");
+            1,
+            StartX: 20,
+            StartY: 18)).Ships.Single(s => s.Name == "Target");
 
         service.SetReady(owner.MatchId, owner.ParticipantToken, true);
         service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
@@ -210,20 +218,24 @@ public sealed class InMemoryMatchServiceCombatTests
             "Missile Boat",
             "Destroyer",
             4,
-            8,
-            1,
+            InitialVelocity: 0,
+            InitialCourse: 12,
             10,
             0,
-            Weapons: [new WeaponMountDto(weaponId, "Needle Missile", 2, 24, FiringArc.Fore, AmmoMax: 1)])).Ships.Single(s => s.Name == "Missile Boat");
+            StartX: 20,
+            StartY: 30,
+            Weapons: [new WeaponMountDto(weaponId, "Needle Missile", 2, 24, [FiringArc.Fore], AmmoMax: 1)])).Ships.Single(s => s.Name == "Missile Boat");
         var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken,
             "Target",
             "Frigate",
             4,
+            InitialVelocity: 0,
+            InitialCourse: 6,
             8,
-            7,
-            8,
-            1)).Ships.Single(s => s.Name == "Target");
+            1,
+            StartX: 20,
+            StartY: 18)).Ships.Single(s => s.Name == "Target");
 
         service.SetReady(owner.MatchId, owner.ParticipantToken, true);
         service.SetReady(owner.MatchId, opponent.ParticipantToken, true);

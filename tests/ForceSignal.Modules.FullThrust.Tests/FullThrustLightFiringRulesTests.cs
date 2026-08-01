@@ -35,7 +35,7 @@ public sealed class FullThrustLightFiringRulesTests
     public void Resolve_RollsOneDiePerClassAndScoresTheRolledFaces()
     {
         var result = Dice(6, 4, 5).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, FiringArc.Fore),
+            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
             Range: 11,
             TargetScreenRating: 0,
             AttackerWeaponDamage: 0));
@@ -69,7 +69,7 @@ public sealed class FullThrustLightFiringRulesTests
         Assert.Equal(3, level3.ScreenReduction);
 
         static FiringSolution Solution(int screens) => new(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, FiringArc.Fore), 11, screens, 0);
+            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]), 11, screens, 0);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class FullThrustLightFiringRulesTests
     {
         // The old subtraction model made this impossible: one die minus one screen was always zero.
         var result = Dice(6).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-1 Beam", 1, 12, FiringArc.Fore),
+            new WeaponAttackProfile("Class-1 Beam", 1, 12, [FiringArc.Fore]),
             Range: 9,
             TargetScreenRating: 1,
             AttackerWeaponDamage: 0));
@@ -96,7 +96,7 @@ public sealed class FullThrustLightFiringRulesTests
     public void Resolve_LosesOneDiePerTwelveUnitBand(int range, int expectedPenalty)
     {
         var result = Dice(6, 6, 6).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, FiringArc.Fore),
+            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
             range,
             TargetScreenRating: 0,
             AttackerWeaponDamage: 0));
@@ -110,7 +110,7 @@ public sealed class FullThrustLightFiringRulesTests
     public void Resolve_WeaponDamageRemovesDiceBeforeTheyAreRolled()
     {
         var result = Dice(6, 6, 6).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, FiringArc.Fore),
+            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
             Range: 6,
             TargetScreenRating: 0,
             AttackerWeaponDamage: 2));
@@ -124,13 +124,56 @@ public sealed class FullThrustLightFiringRulesTests
     public void Validate_RejectsOutOfRangeFire()
     {
         var result = _rules.Validate(new FiringSolution(
-            new WeaponAttackProfile("Needle Beam", 1, 12, FiringArc.Fore),
+            new WeaponAttackProfile("Needle Beam", 1, 12, [FiringArc.Fore]),
             Range: 13,
             TargetScreenRating: 0,
             AttackerWeaponDamage: 0));
 
         Assert.False(result.IsValid);
         Assert.Contains("out of range", result.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_RefusesToFireThroughTheAftBlindSpot()
+    {
+        // An all-round mount still cannot shoot dead astern: every weapon has that arc blacked out.
+        var result = _rules.Validate(new FiringSolution(
+            new WeaponAttackProfile("Class-2 Beam", 2, 24, [.. FiringArcs.Firable]),
+            Range: 6,
+            TargetScreenRating: 0,
+            AttackerWeaponDamage: 0,
+            TargetArc: FiringArc.Aft));
+
+        Assert.False(result.IsValid);
+        Assert.Contains("aft arc", result.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_RefusesAnArcTheMountDoesNotBearThrough()
+    {
+        var result = _rules.Validate(new FiringSolution(
+            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
+            Range: 6,
+            TargetScreenRating: 0,
+            AttackerWeaponDamage: 0,
+            TargetArc: FiringArc.AftPort));
+
+        Assert.False(result.IsValid);
+        Assert.Contains("does not bear", result.Errors[0]);
+        Assert.Contains("aft port", result.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_AcceptsAnyArcAMultiArcBatteryBearsThrough()
+    {
+        // A battery may bear through several adjacent arcs, which is how published ships are drawn.
+        var battery = new WeaponAttackProfile(
+            "Class-2 Beam", 2, 24, [FiringArc.ForePort, FiringArc.Fore, FiringArc.ForeStarboard]);
+
+        Assert.All(
+            new[] { FiringArc.ForePort, FiringArc.Fore, FiringArc.ForeStarboard },
+            arc => Assert.True(_rules.Validate(new FiringSolution(battery, 6, 0, 0, arc)).IsValid));
+        Assert.False(_rules.Validate(new FiringSolution(battery, 6, 0, 0, FiringArc.AftStarboard)).IsValid);
     }
 
     /// <summary>Firing rules fed a fixed sequence of die faces, cycling if more are needed.</summary>

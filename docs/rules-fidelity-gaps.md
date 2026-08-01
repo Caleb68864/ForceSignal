@@ -36,52 +36,73 @@ Code: `InMemoryMatchService.FireWeapon` (damage application), `ShipState` hull f
 
 ---
 
-## Gap 2 — Four 90 degree fire arcs instead of six 60 degree arcs
+## Gap 2 — Four 90 degree fire arcs instead of six 60 degree arcs — FIXED 2026-08-01
 
 **Rules** (`Core/Fire Arcs.md`): a ship has six 60 degree arcs, clockwise from dead ahead -
 FORE, FORE STARBOARD, AFT STARBOARD, AFT, AFT PORT, FORE PORT. FT2 originally used four 90
 degree arcs; Fleet Book 1 replaced them and six arcs is now standard, including in FTL.
 
-**App**: `FiringArc` is `Fore, Aft, Port, Starboard, All` - the superseded four-arc scheme.
+**Was**: `FiringArc` was `Fore, Aft, Port, Starboard, All` - the superseded four-arc scheme.
 
-**Why it matters**: published ship data and SSDs are drawn in six arcs, so a real ship cannot be
-transcribed into the app without distorting its firing coverage. Arcs also align with the
-12-point course clock, which is how players read bearings at the table.
+**Now**: `FiringArc` is the six named arcs, clockwise from dead ahead: Fore, ForeStarboard,
+AftStarboard, Aft, AftPort, ForePort. A mount carries a *set* of arcs rather than one, because a
+battery bears through one, two, or three adjacent arcs and an all-round turret bears through
+everything a weapon may fire through. The old `All` sentinel is gone: an all-round mount simply
+lists every firable arc.
 
-Code: `src/ForceSignal.Domain/Rules/CombatContracts.cs`, `firingArcs` in `main.tsx`.
+Data written by the old build still loads. `FiringArcJsonConverter` accepts the four-arc names for
+a single arc, and `WeaponMountDto.Arc` is kept as a read-only compatibility field that is expanded
+per mount: "Port" becomes both port arcs, "Starboard" both starboard arcs, "Aft" the two quarters
+either side of the blind spot, and "All" every firable arc.
+
+Code: `src/ForceSignal.Domain/Rules/CombatContracts.cs`, `FiringArcJsonConverter`,
+`NormalizeArcs`/`ExpandLegacyArc` in `InMemoryMatchService`, `firingArcs`/`firableArcs` in `main.tsx`.
 
 ---
 
-## Gap 3 — No aft blind spot
+## Gap 3 — No aft blind spot — FIXED 2026-08-01
 
 **Rules** (`Core/Fire Arcs.md`): in Full Thrust Light **no weapon may fire out of the AFT arc** -
 every weapon icon has that arc blacked in. Incoming fire can still come through it. (Fleet Book
 optionally lets all-round turrets fire aft on a turn with no main-drive thrust; PDS may always
 fire aft at fighters.)
 
-**App**: `Aft` is a selectable mount arc and a legal firing arc, with no restriction.
+**Was**: `Aft` was a selectable mount arc and a legal firing arc, with no restriction.
 
-**Why it matters**: the aft blind spot is what makes course and facing matter. Without it,
-manoeuvring for position is largely pointless.
+**Now**: the aft arc is refused at three layers. Mount normalization strips it from any mount that
+asks for it, the firing rules reject a solution whose target arc is aft regardless of the mount,
+and the weapon editor never offers it. The arc still exists in the enum because incoming fire can
+arrive through it and the bearing calculation has to be able to say "dead astern".
 
-Code: `FiringArc.Aft`, `allowedFiringArcs` in `main.tsx`, arc check in `FireWeapon`.
+Code: `FiringArcs.Firable`/`CanFireThrough`, `FullThrustLightFiringRules.Validate`,
+`firableArcs` in `main.tsx`.
 
 ---
 
-## Gap 4 — Arc bearing is declared, never verified against geometry
+## Gap 4 — Arc bearing is declared, never verified against geometry — FIXED 2026-08-01
 
 **Rules**: a weapon may only fire at a target that is in a valid arc *during the firing phase*.
 
-**App**: `FireWeapon` checks only that the declared arc matches the mount's arc
-(`weapon.Arc != FiringArc.All && request.Arc != weapon.Arc`). Nothing checks that the target
-actually lies in that arc relative to the attacker's course. A fore-only beam can hit a ship
-dead astern by declaring "Fore".
+**Was**: `FireWeapon` checked only that the declared arc matched the mount's own arc. Nothing
+checked that the target lay in that arc relative to the attacker's course, so a fore-only beam
+could hit a ship dead astern by declaring "Fore".
 
-**Why it matters**: both ships have map positions and the attacker has a course, so the true
-bearing is computable. As it stands the only thing enforcing arcs is player honesty, which
-defeats the purpose of having the app adjudicate.
+**Now**: the arc is geometry, not a declaration. `FiringArcs.Bearing` works out which arc the
+target sits in from the firing ship's course and the offset between the two ships, and that arc is
+what the mount is held to and what the shot records. The client measures the same bearing and shows
+it as a read-only readout instead of a picker, and disables Fire when the mount cannot bear.
 
-Code: `InMemoryMatchService.FireWeapon` line ~999.
+`FireWeaponRequest.Arc` is now optional. When supplied it is a cross-check: a disagreement is
+refused with a message naming the real bearing, which surfaces a client and a table that have
+drifted apart rather than silently firing. Ship positions are editable, so the table can be
+reconciled either way.
+
+Range is still declared by the player - see gap 14 - because the physical table remains the source
+of truth for distance. Arcs differ because an arc is discrete: there is no tolerance to apply, and
+the app already knows the course it computed during movement.
+
+Code: `FiringArcs.Bearing`, `BearingToTarget` and `FireWeapon` in `InMemoryMatchService`,
+`bearingArc`/`arcBlocker` in `main.tsx`.
 
 ---
 
@@ -281,8 +302,8 @@ Code: `main.tsx` contact card and pre-turn checklist.
 
 ## Suggested order of work to reach a playable match
 
-1. Threshold checks with hull rows (Gap 1) - biggest single fidelity win.
-2. Six 60 degree arcs, aft blind spot, and a real bearing check (Gaps 2, 3, 4).
+1. ~~Six 60 degree arcs, aft blind spot, and a real bearing check (Gaps 2, 3, 4).~~ Done.
+2. Threshold checks with hull rows (Gap 1) - biggest single remaining fidelity win.
 3. FCS gating and one target per firecon (Gap 5).
 4. Drift for unordered ships (Gap 7).
 5. Half-and-half course execution and rotation at rest (Gaps 8, 9).

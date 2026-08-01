@@ -48,6 +48,19 @@ public sealed class FullThrustLightFiringRules(Func<int>? rollDie = null) : IFir
             return FiringValidationResult.Failure($"{solution.Weapon.Name} is out of range.");
         }
 
+        // Every mount has the aft arc blacked out, so a target dead astern cannot be engaged at
+        // all - not by an all-round mount, not by anything.
+        if (!FiringArcs.CanFireThrough(solution.TargetArc))
+        {
+            return FiringValidationResult.Failure("No weapon may fire through the aft arc.");
+        }
+
+        if (!solution.Weapon.Arcs.Contains(solution.TargetArc))
+        {
+            return FiringValidationResult.Failure(
+                $"{solution.Weapon.Name} does not bear through the {FiringArcs.Describe(solution.TargetArc)} arc.");
+        }
+
         return FiringValidationResult.Success;
     }
 

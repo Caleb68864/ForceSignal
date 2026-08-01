@@ -15,7 +15,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         service.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4,
             StartX: 20, StartY: 24, ScreenRating: 1,
-            Weapons: [new WeaponMountDto(Guid.NewGuid(), "Class-3 Beam", 3, 24, FiringArc.All, AmmoMax: 2, AmmoUsed: 1)]));
+            Weapons: [new WeaponMountDto(Guid.NewGuid(), "Class-3 Beam", 3, 24, [.. FiringArcs.Firable], AmmoMax: 2, AmmoUsed: 1)]));
         var exported = service.GetSnapshot(owner.MatchId);
 
         var restored = new InMemoryMatchService().RestoreMatch(exported, savedAt: DateTimeOffset.UtcNow);
@@ -65,7 +65,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         var weaponId = Guid.NewGuid();
         var attacker = source.CreateShip(blueFleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24,
-            Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, FiringArc.All)])).Ships.Single(s => s.Name == "Valiant");
+            Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, [.. FiringArcs.Firable])])).Ships.Single(s => s.Name == "Valiant");
         var target = source.CreateShip(redFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken, "Crimson", "Destroyer", 4, 6, 9, 10, 1, StartX: 32, StartY: 24)).Ships.Single(s => s.Name == "Crimson");
         source.SetReady(owner.MatchId, owner.ParticipantToken, true);
@@ -77,7 +77,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         source.RevealOrder(owner.MatchId, new RevealOrderRequest(owner.ParticipantToken, attacker.Id, order, "b"));
         source.RevealOrder(owner.MatchId, new RevealOrderRequest(opponent.ParticipantToken, target.Id, drift, "r"));
         source.AdvanceTurn(owner.MatchId, owner.ParticipantToken);
-        source.FireWeapon(owner.MatchId, new FireWeaponRequest(owner.ParticipantToken, attacker.Id, target.Id, weaponId, 8, FiringArc.Fore));
+        source.FireWeapon(owner.MatchId, new FireWeaponRequest(owner.ParticipantToken, attacker.Id, target.Id, weaponId, 8));
         var exported = source.GetSnapshot(owner.MatchId);
 
         var service = new InMemoryMatchService();
@@ -99,7 +99,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
         var restoredAttacker = restored.Snapshot.Ships.Single(s => s.Name == "Valiant");
         var error = Assert.Throws<InvalidOperationException>(() =>
-            service.FireWeapon(restored.MatchId, new FireWeaponRequest(session.ParticipantToken, restoredAttacker.Id, restoredTarget.Id, weaponId, 8, FiringArc.Fore)));
+            service.FireWeapon(restored.MatchId, new FireWeaponRequest(session.ParticipantToken, restoredAttacker.Id, restoredTarget.Id, weaponId, 8)));
         Assert.Contains("already fired", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -359,8 +359,8 @@ public sealed class InMemoryMatchServiceRestoreTests
             owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24,
             Weapons:
             [
-                new WeaponMountDto(Guid.NewGuid(), "Class-3 Beam", 3, 24, FiringArc.All, AmmoMax: 2, AmmoUsed: 1),
-                new WeaponMountDto(Guid.NewGuid(), "Needle Missile", 2, 30, FiringArc.Fore, AmmoMax: 1),
+                new WeaponMountDto(Guid.NewGuid(), "Class-3 Beam", 3, 24, [.. FiringArcs.Firable], AmmoMax: 2, AmmoUsed: 1),
+                new WeaponMountDto(Guid.NewGuid(), "Needle Missile", 2, 30, [FiringArc.Fore], AmmoMax: 1),
             ]));
         var exported = service.GetSnapshot(owner.MatchId);
         var ship = exported.Ships.Single();

@@ -7,7 +7,7 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5225';
 const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
 
 type TurnDirection = 'None' | 'Port' | 'Starboard';
-type FiringArc = 'Fore' | 'Aft' | 'Port' | 'Starboard' | 'All';
+type FiringArc = 'Fore' | 'ForeStarboard' | 'AftStarboard' | 'Aft' | 'AftPort' | 'ForePort';
 type ShipIconKey = 'escort' | 'frigate' | 'destroyer' | 'cruiser' | 'carrier' | 'dreadnought' | 'fighter-group' | 'station';
 type FighterStatus = 'Docked' | 'Airborne' | 'Recovering';
 
@@ -71,7 +71,7 @@ type WeaponMount = {
   name: string;
   attackDice: number;
   maxRange: number;
-  arc: FiringArc;
+  arcs: FiringArc[];
   ammoMax: number;
   ammoUsed: number;
   reloadTurns: number;
@@ -243,7 +243,6 @@ type FiringDraft = {
   targetShipId: string;
   weaponId: string;
   range: number;
-  arc: FiringArc;
 };
 
 type DamageState = Pick<Ship, 'hullDamage' | 'armorDamage' | 'fireControlDamage' | 'driveDamage' | 'weaponDamage'>;
@@ -320,7 +319,7 @@ const defaultShipForm: ShipForm = {
     name: 'Class-2 Beam',
     attackDice: 2,
     maxRange: 24,
-    arc: 'Fore',
+    arcs: ['Fore'],
     ammoMax: 0,
     ammoUsed: 0,
     reloadTurns: 0,
@@ -346,34 +345,101 @@ const shipIconOptions: { key: ShipIconKey; label: string }[] = [
 
 const fighterStatuses: FighterStatus[] = ['Docked', 'Airborne', 'Recovering'];
 
+// Six sixty-degree arcs, clockwise from dead ahead.
+const firingArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'Aft', 'AftPort', 'ForePort'];
+// Every weapon has the aft arc blacked out, so only these five can ever be fired through.
+const firableArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'AftPort', 'ForePort'];
+const arcLabels: Record<FiringArc, string> = {
+  Fore: 'Fore',
+  ForeStarboard: 'Fore Starboard',
+  AftStarboard: 'Aft Starboard',
+  Aft: 'Aft',
+  AftPort: 'Aft Port',
+  ForePort: 'Fore Port',
+};
+const arcAbbreviations: Record<FiringArc, string> = {
+  Fore: 'F',
+  ForeStarboard: 'FS',
+  AftStarboard: 'AS',
+  Aft: 'A',
+  AftPort: 'AP',
+  ForePort: 'FP',
+};
+
+function arcLabel(arc: FiringArc) {
+  return arcLabels[arc] ?? arc;
+}
+
+function describeArcs(arcs: FiringArc[]) {
+  if (arcs.length === 0) {
+    return 'no arc';
+  }
+
+  return arcs.length === firableArcs.length
+    ? 'all round'
+    : arcs.map((arc) => arcAbbreviations[arc]).join('/');
+}
+
+/// Which arc a target bears in, from the firing ship's course and the offset between them.
+/// Mirrors the server: each arc spans two clock points and boundaries resolve clockwise.
+function bearingArc(ship: Ship, target?: Ship): FiringArc | null {
+  if (!target) {
+    return null;
+  }
+
+  const offsetX = target.positionX - ship.positionX;
+  const offsetY = target.positionY - ship.positionY;
+  if (offsetX === 0 && offsetY === 0) {
+    return 'Fore';
+  }
+
+  const bearing = Math.atan2(offsetX, -offsetY) * 180 / Math.PI;
+  const relative = ((bearing - ship.currentCourse * 30) % 360 + 360) % 360;
+  return firingArcs[Math.floor((relative / 30 + 1) / 2) % 6];
+}
+
+/// Why a mount cannot engage the target through the arc it actually bears in, if it cannot.
+function arcBlocker(ship: Ship, target?: Ship, weapon?: WeaponMount): string | null {
+  const arc = bearingArc(ship, target);
+  if (!arc || !weapon) {
+    return null;
+  }
+
+  if (arc === 'Aft') {
+    return 'Target is in the aft blind spot';
+  }
+
+  return weapon.arcs.includes(arc) ? null : `${weapon.name} does not bear ${arcLabel(arc)}`;
+}
+
 const shipPresets: { label: string; patch: Partial<ShipForm> }[] = [
   {
     label: 'Escort',
-    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, weapons: [weaponPreset('Class-1 Beam', 1, 12, 'Fore')] },
+    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, weapons: [weaponPreset('Class-1 Beam', 1, 12, ['Fore'])] },
   },
   {
     label: 'Frigate',
-    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, weapons: [weaponPreset('Class-2 Beam', 2, 24, 'Fore')] },
+    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
   },
   {
     label: 'Destroyer',
-    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, 'Fore')] },
+    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
   },
   {
     label: 'Cruiser',
-    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, 'Fore'), weaponPreset('Class-1 Beam', 1, 12, 'All')] },
+    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs])] },
   },
   {
     label: 'Carrier',
-    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, weapons: [weaponPreset('Fighter Bay', 3, 12, 'All')] },
+    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
   },
   {
     label: 'Fighters',
-    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, weapons: [weaponPreset('Fighter Attack', 3, 6, 'All')], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
+    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, weapons: [weaponPreset('Fighter Attack', 3, 6, ['Fore'])], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
   },
   {
     label: 'Station',
-    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, weapons: [weaponPreset('Heavy Battery', 3, 30, 'All')] },
+    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, weapons: [weaponPreset('Heavy Battery', 3, 30, [...firableArcs])] },
   },
 ];
 
@@ -1010,7 +1076,7 @@ function App() {
       targetShipId: draft.targetShipId,
       weaponId: draft.weaponId,
       range: draft.range,
-      arc: draft.arc,
+      arc: bearingArc(ship, snapshot?.ships.find((item) => item.id === draft.targetShipId)),
     });
     setSnapshot(fired);
     const target = fired.ships.find((item) => item.id === draft.targetShipId);
@@ -2128,12 +2194,30 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
               Range
               <input type="number" min="1" max="72" value={weapon.maxRange} onChange={(event) => onChange(updateWeapon(form, weapon.id, { maxRange: Number(event.target.value) }))} />
             </label>
-            <label>
-              Arc
-              <select value={weapon.arc} onChange={(event) => onChange(updateWeapon(form, weapon.id, { arc: event.target.value as FiringArc }))}>
-                {firingArcs.map((arc) => <option key={arc}>{arc}</option>)}
-              </select>
-            </label>
+            <div className="arc-toggles" role="group" aria-label={`${weapon.name} arcs`}>
+              <span className="label">Arcs</span>
+              <div className="arc-toggle-row">
+                {firableArcs.map((arc) => {
+                  const bears = weapon.arcs.includes(arc);
+                  return (
+                    <button
+                      key={arc}
+                      type="button"
+                      className={bears ? 'arc-toggle on' : 'arc-toggle'}
+                      aria-pressed={bears}
+                      title={arcLabel(arc)}
+                      onClick={() => onChange(updateWeapon(form, weapon.id, {
+                        arcs: bears
+                          ? weapon.arcs.filter((entry) => entry !== arc)
+                          : firableArcs.filter((entry) => entry === arc || weapon.arcs.includes(entry)),
+                      }))}
+                    >
+                      {arcAbbreviations[arc]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <label>
               Ammo
               <input type="number" min="0" max="99" value={weapon.ammoMax} onChange={(event) => onChange(updateWeapon(form, weapon.id, { ammoMax: Number(event.target.value), ammoUsed: Math.min(weapon.ammoUsed, Number(event.target.value)) }))} />
@@ -2450,21 +2534,17 @@ function PlayMap({
     const target = snapshot.ships.find((item) => item.id === (patch.targetShipId ?? current.targetShipId));
     const weapon = ship.weapons.find((item) => item.id === (patch.weaponId ?? current.weaponId)) ?? ship.weapons[0];
     const range = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : current.range;
-    const keepsArc = !patch.arc
-      && allowedFiringArcs(weapon).includes(current.arc)
-      && patch.weaponId === undefined
-      && patch.targetShipId === undefined;
     const next: FiringDraft = {
       ...current,
       ...patch,
       weaponId: weapon?.id ?? current.weaponId,
       targetShipId: target?.id ?? current.targetShipId,
       range: patch.range ?? range,
-      arc: patch.arc ?? (keepsArc ? current.arc : suggestFiringArc(ship, target, weapon)),
     };
     onFiringDraftChange(ship, next);
     if (target) {
-      setMapNotice(`${ship.name} solution: ${weapon?.name ?? 'weapon'} on ${target.name}, range ${next.range}, ${next.arc}`);
+      const arc = bearingArc(ship, target);
+      setMapNotice(`${ship.name} solution: ${weapon?.name ?? 'weapon'} on ${target.name}, range ${next.range}, bears ${arc ? arcLabel(arc) : 'unknown'}`);
     }
   }
 
@@ -3431,33 +3511,36 @@ function WeaponRangeOverlay({ ship, targets, tableWidth, tableDepth }: { ship: S
         const top = mapPercent(ship.positionY, tableDepth);
         const width = rangeDiameterPercent(weapon.maxRange, tableWidth);
         const height = rangeDiameterPercent(weapon.maxRange, tableDepth);
-        const arcAngle = weaponArcAngle(ship.currentCourse, weapon.arc);
+        const allRound = weapon.arcs.length >= firableArcs.length;
         return (
           <span
             key={weapon.id}
-            className={weapon.arc === 'All' ? 'weapon-range all' : 'weapon-range'}
+            className={allRound ? 'weapon-range all' : 'weapon-range'}
             style={{
               left: `${left}%`,
               top: `${top}%`,
               width: `${width}%`,
               height: `${height}%`,
               '--arc-index': index,
-              '--arc-angle': `${arcAngle}deg`,
+              '--arc-angle': `${weaponArcAngle(ship.currentCourse, weapon.arcs[0] ?? 'Fore')}deg`,
             } as CSSProperties}
           >
             <i className="weapon-range-band half" />
             <i className="weapon-range-band close" />
-            {weapon.arc !== 'All' ? (
-              <>
-                <i
-                  className="weapon-arc-wedge"
-                  style={{ transform: `translate(-50%, -50%) rotate(${arcAngle}deg)` }}
-                />
-                <i className="weapon-arc-spoke" />
-                <em className="weapon-arc-label">{weapon.arc} {weapon.maxRange}</em>
-              </>
+            {allRound ? (
+              <em className="weapon-arc-label all">All round {weapon.maxRange}</em>
             ) : (
-              <em className="weapon-arc-label all">All {weapon.maxRange}</em>
+              <>
+                {weapon.arcs.map((arc) => (
+                  <i
+                    key={arc}
+                    className="weapon-arc-wedge"
+                    style={{ transform: `translate(-50%, -50%) rotate(${weaponArcAngle(ship.currentCourse, arc)}deg)` }}
+                  />
+                ))}
+                <i className="weapon-arc-spoke" />
+                <em className="weapon-arc-label">{describeArcs(weapon.arcs)} {weapon.maxRange}</em>
+              </>
             )}
           </span>
         );
@@ -3546,16 +3629,19 @@ function MapFiringAssistant({
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
   const target = targetOptions.find((candidate) => candidate.id === draft.targetShipId) ?? targetOptions[0];
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : 0;
-  const allowedArcs = allowedFiringArcs(weapon);
+  const targetArc = bearingArc(ship, target);
+  const arcProblem = arcBlocker(ship, target, weapon);
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
-  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty;
+  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem;
   const firingNote = !weapon
     ? 'No weapon mounted'
     : !target
       ? 'No target selected'
-      : weaponSpent
+      : arcProblem
+        ? arcProblem
+        : weaponSpent
         ? 'Weapon spent'
         : ammoEmpty
           ? 'Ammo empty'
@@ -3586,17 +3672,16 @@ function MapFiringAssistant({
           })}
         </select>
       </label>
-      <label>
-        Arc
-        <select value={draft.arc} onChange={(event) => onChange({ arc: event.target.value as FiringArc })}>
-          {allowedArcs.map((arc) => <option key={arc}>{arc}</option>)}
-        </select>
-      </label>
+      <div className="bearing-readout">
+        <span className="label">Bearing</span>
+        <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
+        <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
+      </div>
       <label>
         Range
         <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: Number(event.target.value) })} />
       </label>
-      <button className="ghost" type="button" disabled={!target} onClick={() => onChange({ range: estimatedRange, arc: suggestFiringArc(ship, target, weapon) })}>Use Map Solution</button>
+      <button className="ghost" type="button" disabled={!target} onClick={() => onChange({ range: estimatedRange })}>Use Map Solution</button>
       <button type="button" disabled={!canFire} onClick={onFire}>Fire</button>
     </div>
   );
@@ -3663,15 +3748,22 @@ function FiringConsole({
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
   const target = targetOptions.find((candidate) => candidate.id === draft.targetShipId) ?? targetOptions[0];
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : null;
-  const allowedArcs = allowedFiringArcs(weapon);
+  const targetArc = bearingArc(ship, target);
+  const arcProblem = arcBlocker(ship, target, weapon);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
-  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange;
+  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem;
   const rangeStatus = weapon && estimatedRange
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
-  const fireStatus = weaponSpent ? `${weapon?.name} spent this turn.` : ammoEmpty ? `${weapon?.name} has no ammunition remaining.` : rangeStatus;
+  const fireStatus = arcProblem
+    ? `${arcProblem}.`
+    : weaponSpent
+      ? `${weapon?.name} spent this turn.`
+      : ammoEmpty
+        ? `${weapon?.name} has no ammunition remaining.`
+        : rangeStatus;
   const spentShot = weapon ? firingResults.find((result) => result.attackerShipId === ship.id && result.weaponId === weapon.id) : undefined;
 
   return (
@@ -3691,8 +3783,7 @@ function FiringConsole({
         <select
           value={draft.weaponId}
           onChange={(event) => {
-            const nextWeapon = ship.weapons.find((item) => item.id === event.target.value);
-            onChange({ weaponId: event.target.value, arc: nextWeapon?.arc ?? 'Fore' });
+            onChange({ weaponId: event.target.value });
           }}
         >
           {ship.weapons.map((mount) => {
@@ -3702,12 +3793,11 @@ function FiringConsole({
           })}
         </select>
       </label>
-      <label>
-        Arc
-        <select value={draft.arc} onChange={(event) => onChange({ arc: event.target.value as FiringArc })}>
-          {allowedArcs.map((arc) => <option key={arc}>{arc}</option>)}
-        </select>
-      </label>
+      <div className="bearing-readout">
+        <span className="label">Bearing</span>
+        <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
+        <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
+      </div>
       <label>
         Range
         <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: Number(event.target.value) })} />
@@ -4051,41 +4141,10 @@ function fighterEnduranceRange(ship: Ship) {
   return Math.max(1, Math.min(maxRange, velocityReach));
 }
 
+/// Screen angle of an arc's centreline: each arc sits two clock points from the last.
 function weaponArcAngle(course: number, arc: FiringArc) {
-  switch (arc) {
-    case 'Aft':
-      return courseAngle(wrapCourse(course + 6));
-    case 'Port':
-      return courseAngle(wrapCourse(course - 3));
-    case 'Starboard':
-      return courseAngle(wrapCourse(course + 3));
-    case 'Fore':
-    case 'All':
-    default:
-      return courseAngle(course);
-  }
-}
-
-function suggestFiringArc(ship: Ship, target?: Ship, weapon?: WeaponMount): FiringArc {
-  if (!target || !weapon) {
-    return weapon?.arc ?? 'Fore';
-  }
-
-  if (weapon.arc !== 'All') {
-    return weapon.arc;
-  }
-
-  const targetCourse = courseFromTablePoint(ship, target.positionX, target.positionY);
-  const clockwise = (targetCourse - ship.currentCourse + 12) % 12;
-  if (clockwise <= 1 || clockwise >= 11) {
-    return 'Fore';
-  }
-
-  if (clockwise >= 5 && clockwise <= 7) {
-    return 'Aft';
-  }
-
-  return clockwise < 6 ? 'Starboard' : 'Port';
+  const offset = Math.max(0, firingArcs.indexOf(arc)) * 2;
+  return courseAngle(wrapCourse(course + offset));
 }
 
 function normalizeShipIconKey(value: unknown, className?: string): ShipIconKey {
@@ -4331,22 +4390,18 @@ function nextShipName(name: string) {
   return `${match[1]}${Number(match[2]) + 1}`;
 }
 
-const firingArcs: FiringArc[] = ['Fore', 'Aft', 'Port', 'Starboard', 'All'];
-
 function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, FiringDraft>, ownedShipIds?: Set<string>): FiringDraft {
   const current = drafts[ship.id];
   const isTargetable = (candidate: Ship) => candidate.id !== ship.id && !candidate.isDestroyed;
   const target = ships.find((candidate) => candidate.id === current?.targetShipId && isTargetable(candidate))
     ?? firingTargetOptions(ship, ships, ownedShipIds)[0];
   const weapon = ship.weapons.find((mount) => mount.id === current?.weaponId) ?? ship.weapons[0];
-  const arcs = allowedFiringArcs(weapon);
   return {
     targetShipId: target?.id ?? '',
     weaponId: weapon?.id ?? '',
     // Default to the measured distance to the resolved target. A fixed default would let one
     // click on Fire resolve an attack at a range the table geometry does not support.
     range: Math.max(1, current?.range ?? (target ? Math.round(distanceBetweenShips(ship, target)) : 12)),
-    arc: current?.arc && arcs.includes(current.arc) ? current.arc : weapon?.arc ?? 'Fore',
   };
 }
 
@@ -4364,34 +4419,26 @@ function firingTargetOptions(ship: Ship, ships: Ship[], ownedShipIds?: Set<strin
     .map((entry) => entry.candidate);
 }
 
-function allowedFiringArcs(weapon?: WeaponMount): FiringArc[] {
-  if (!weapon || weapon.arc === 'All') {
-    return firingArcs;
-  }
-
-  return [weapon.arc];
-}
-
 function newWeaponMount(): WeaponMount {
   return {
     id: crypto.randomUUID(),
     name: 'Class-2 Beam',
     attackDice: 2,
     maxRange: 24,
-    arc: 'Fore',
+    arcs: ['Fore'],
     ammoMax: 0,
     ammoUsed: 0,
     reloadTurns: 0,
   };
 }
 
-function weaponPreset(name: string, attackDice: number, maxRange: number, arc: FiringArc, ammoMax = 0): WeaponMount {
+function weaponPreset(name: string, attackDice: number, maxRange: number, arcs: FiringArc[], ammoMax = 0): WeaponMount {
   return {
     id: crypto.randomUUID(),
     name,
     attackDice,
     maxRange,
-    arc,
+    arcs,
     ammoMax,
     ammoUsed: 0,
     reloadTurns: 0,
@@ -4411,17 +4458,47 @@ function normalizeWeaponMount(value: unknown): WeaponMount {
   }
 
   const record = value as Record<string, unknown>;
-  const arc = stringFrom(record.arc, 'Fore') as FiringArc;
   return {
     id: typeof record.id === 'string' && record.id ? record.id : crypto.randomUUID(),
     name: stringFrom(record.name, 'Class-2 Beam'),
     attackDice: wholeNumberFrom(record.attackDice ?? record.dice, 2, 1, 12),
     maxRange: wholeNumberFrom(record.maxRange ?? record.range, 24, 1, 72),
-    arc: firingArcs.includes(arc) ? arc : 'Fore',
+    arcs: normalizeArcs(record.arcs, record.arc),
     ammoMax: wholeNumberFrom(record.ammoMax ?? record.ammo, 0, 0, 99),
     ammoUsed: wholeNumberFrom(record.ammoUsed ?? record.used, 0, 0, 99),
     reloadTurns: wholeNumberFrom(record.reloadTurns ?? record.reload, 0, 0, 12),
   };
+}
+
+/// Resolves the arcs a mount bears through, accepting either a modern list or the four-arc
+/// name written by older exports: each old ninety-degree side arc becomes the two sixty-degree
+/// arcs on that side, and the aft arc becomes the two quarters either side of the blind spot.
+function normalizeArcs(arcs: unknown, legacyArc: unknown): FiringArc[] {
+  const listed = Array.isArray(arcs)
+    ? arcs.map((entry) => String(entry).trim()).filter((entry): entry is FiringArc => firingArcs.includes(entry as FiringArc))
+    : typeof arcs === 'string'
+      ? arcs.split(/[+,;]/).map((entry) => entry.trim()).filter((entry): entry is FiringArc => firingArcs.includes(entry as FiringArc))
+      : [];
+  const resolved = listed.length > 0 ? listed : expandLegacyArc(stringFrom(legacyArc, ''));
+  const firable = firableArcs.filter((arc) => resolved.includes(arc));
+  return firable.length > 0 ? firable : ['Fore'];
+}
+
+function expandLegacyArc(legacyArc: string): FiringArc[] {
+  switch (legacyArc.trim().toLowerCase()) {
+    case 'all':
+      return [...firableArcs];
+    case 'port':
+      return ['ForePort', 'AftPort'];
+    case 'starboard':
+      return ['ForeStarboard', 'AftStarboard'];
+    case 'aft':
+      return ['AftPort', 'AftStarboard'];
+    default: {
+      const match = firingArcs.find((arc) => arc.toLowerCase() === legacyArc.trim().toLowerCase().replaceAll(' ', ''));
+      return match && match !== 'Aft' ? [match] : ['Fore'];
+    }
+  }
 }
 
 function parseWeaponsCell(value: string): WeaponMount[] {
@@ -4430,8 +4507,10 @@ function parseWeaponsCell(value: string): WeaponMount[] {
   }
 
   return value.split(';').map((entry) => {
-    const [name, attackDice, maxRange, arc, ammoMax, ammoUsed, reloadTurns] = entry.split('|');
-    return normalizeWeaponMount({ name, attackDice, maxRange, arc, ammoMax, ammoUsed, reloadTurns });
+    const [name, attackDice, maxRange, arcs, ammoMax, ammoUsed, reloadTurns] = entry.split('|');
+    // The arcs cell holds one or more arc names joined by '+'; older files hold a single
+    // four-arc name here, which normalizeArcs expands.
+    return normalizeWeaponMount({ name, attackDice, maxRange, arcs, arc: arcs, ammoMax, ammoUsed, reloadTurns });
   });
 }
 
@@ -4580,7 +4659,7 @@ function fleetExportToCsv(fleet: FleetExport) {
       ship.fighterStatus,
       ship.homeCarrierName ?? '',
       String(ship.pointsValue ?? 0),
-      ship.weapons.map((weapon) => `${weapon.name}|${weapon.attackDice}|${weapon.maxRange}|${weapon.arc}|${weapon.ammoMax}|${weapon.ammoUsed}|${weapon.reloadTurns}`).join(';'),
+      ship.weapons.map((weapon) => `${weapon.name}|${weapon.attackDice}|${weapon.maxRange}|${weapon.arcs.join('+')}|${weapon.ammoMax}|${weapon.ammoUsed}|${weapon.reloadTurns}`).join(';'),
     ]),
   ];
 
