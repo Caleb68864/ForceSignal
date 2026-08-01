@@ -44,6 +44,7 @@ public sealed record CreateFleetRequest(string ParticipantToken, string Name, st
 /// <param name="FighterMaxRange">Maximum operating range from the fighter group's home carrier.</param>
 /// <param name="FighterStatus">Docked, Airborne, or Recovering status for fighter groups.</param>
 /// <param name="HomeCarrierShipId">Optional carrier ship that launched or owns the fighter group.</param>
+/// <param name="PointsValue">Nominal points value (NPV) recorded from the player's own design sheet.</param>
 public sealed record CreateShipRequest(
     string ParticipantToken,
     string Name,
@@ -62,7 +63,8 @@ public sealed record CreateShipRequest(
     int FighterEnduranceUsed = 0,
     int FighterMaxRange = 0,
     string? FighterStatus = null,
-    Guid? HomeCarrierShipId = null);
+    Guid? HomeCarrierShipId = null,
+    int PointsValue = 0);
 
 /// <summary>Updates editable ship profile, position, and equipment fields.</summary>
 public sealed record UpdateShipProfileRequest(
@@ -83,7 +85,8 @@ public sealed record UpdateShipProfileRequest(
     int FighterEnduranceUsed = 0,
     int FighterMaxRange = 0,
     string? FighterStatus = null,
-    Guid? HomeCarrierShipId = null);
+    Guid? HomeCarrierShipId = null,
+    int PointsValue = 0);
 
 /// <summary>Updates fighter launch/recovery and endurance tracking for a fighter group.</summary>
 public sealed record UpdateFighterOperationsRequest(
@@ -127,6 +130,11 @@ public sealed record UpdateOrdnanceMarkerRequest(
 
 /// <summary>Removes a launched ordnance or salvo marker from the table map.</summary>
 public sealed record RemoveOrdnanceMarkerRequest(string ParticipantToken);
+
+/// <summary>Sets the agreed points ceiling each player's fleets must fit inside. Zero means unlimited.</summary>
+/// <param name="ParticipantToken">Owner participant token.</param>
+/// <param name="PointsLimit">Points per player, or zero for no limit.</param>
+public sealed record UpdateMatchPointsLimitRequest(string ParticipantToken, int PointsLimit);
 
 /// <summary>Updates the physical table dimensions used by map planning.</summary>
 public sealed record UpdateMatchTableRequest(string ParticipantToken, int TableWidth, int TableDepth);
@@ -191,7 +199,8 @@ public sealed record MatchSnapshotDto(
     IReadOnlyList<FiringResultDto> FiringResults,
     IReadOnlyList<OrdnanceMarkerDto> OrdnanceMarkers,
     IReadOnlyList<MatchLogEntryDto> MatchLog,
-    long Version);
+    long Version,
+    int PointsLimit);
 
 /// <summary>Participant display and readiness state.</summary>
 public sealed record ParticipantDto(Guid Id, string DisplayName, string Role, bool IsReady, bool IsConnected);
@@ -225,7 +234,8 @@ public sealed record ShipDto(
     int FighterEnduranceUsed,
     int FighterMaxRange,
     string FighterStatus,
-    Guid? HomeCarrierShipId);
+    Guid? HomeCarrierShipId,
+    int PointsValue);
 
 /// <summary>Commit/reveal status for a ship order.</summary>
 public sealed record OrderStatusDto(Guid ShipId, Guid OwnerParticipantId, bool IsCommitted, bool IsRevealed, bool VerificationFailed);

@@ -18,6 +18,10 @@ ForceSignal should behave as a tabletop helper for in-person space fleet games. 
 - Players should be able to create fleets, assign fleet color/accent, and add ships.
 - Ships should support name, class, icon, thrust, velocity, course, starting position, hull, armor, screens, weapons, and fighter-specific settings.
 - Ship class presets should speed up data entry but remain editable.
+- Ships should carry a points value (NPV) taken from the player's own design sheet, and fleets should total it.
+- A player should be able to keep a device-local library of prebuilt fleets and bring one into any match.
+- The owner should be able to set an agreed points ceiling per player; an over-strength fleet should be blocked
+  from readying until it is trimmed or the owner changes the limit.
 - Ship cards should track damage, disabled drive/fire-control/weapon hits, screens, destroyed state, current movement, and weapon/ammo state.
 - Editing should feel like a ship profile workflow, not a crowded control dump.
 

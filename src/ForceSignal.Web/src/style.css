@@ -2603,3 +2603,58 @@ small,
 .contact-card-rows dd.hurt {
   color: var(--amber);
 }
+
+.points-readout {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  border: 1px solid #184a53;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  padding: 4px 8px;
+  background: rgba(1, 10, 13, 0.92);
+}
+
+.points-readout strong {
+  color: var(--amber);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.points-readout small {
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.fleet-library {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid rgba(71, 241, 255, 0.18);
+  padding-top: 8px;
+}
+
+.fleet-library-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #174a54;
+  padding: 6px 8px;
+  background: rgba(1, 9, 12, 0.7);
+}
+
+.fleet-library-row strong {
+  display: block;
+  color: var(--line-hot);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.fleet-library-row small {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}

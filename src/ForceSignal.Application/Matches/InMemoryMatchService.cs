@@ -41,6 +41,9 @@ public interface IMatchService
     /// <summary>Updates table dimensions.</summary>
     MatchSnapshotDto UpdateTable(Guid matchId, UpdateMatchTableRequest request);
 
+    /// <summary>Sets the agreed points ceiling per player. Zero means unlimited.</summary>
+    MatchSnapshotDto UpdatePointsLimit(Guid matchId, UpdateMatchPointsLimitRequest request);
+
     /// <summary>Creates a fleet in a match.</summary>
     MatchSnapshotDto CreateFleet(Guid matchId, CreateFleetRequest request);
 
@@ -215,7 +218,8 @@ public sealed class InMemoryMatchService : IMatchService
             {
                 TableWidth = Math.Clamp(snapshot.TableWidth, 24, 144),
                 TableDepth = Math.Clamp(snapshot.TableDepth, 24, 96),
-                TurnNumber = Math.Max(1, snapshot.TurnNumber)
+                TurnNumber = Math.Max(1, snapshot.TurnNumber),
+                PointsLimit = ClampPoints(snapshot.PointsLimit)
             };
             foreach (var seat in seats.Skip(1))
             {
@@ -265,6 +269,7 @@ public sealed class InMemoryMatchService : IMatchService
                     FighterEnduranceUsed = NormalizeFighterEnduranceUsed(ship.FighterEnduranceUsed, fighterEnduranceMax),
                     FighterMaxRange = NormalizeFighterMaxRange(ship.FighterMaxRange, iconKey, ship.ClassName),
                     FighterStatus = NormalizeFighterStatus(ship.FighterStatus, iconKey, ship.ClassName),
+                    PointsValue = ClampPoints(ship.PointsValue),
                 };
                 restoredShip.HullDamage = ClampDamage(ship.HullDamage, restoredShip.HullMax);
                 restoredShip.ArmorDamage = ClampDamage(ship.ArmorDamage, restoredShip.ArmorMax);
@@ -504,6 +509,15 @@ public sealed class InMemoryMatchService : IMatchService
         {
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, participantToken);
+            // An over-strength force cannot declare itself ready; the owner can raise or clear the
+            // limit when both sides agree to a mismatch.
+            var overBy = isReady ? PointsOverLimit(match, participant.Id) : 0;
+            if (overBy > 0)
+            {
+                throw new InvalidOperationException(
+                    $"{participant.DisplayName} is {overBy} points over the {match.PointsLimit} point limit. Trim the fleet or ask the owner to change the limit.");
+            }
+
             participant.IsReady = isReady;
             // A single-device local match (one admiral tracking the table) must be able to start,
             // so readiness gates on ships being present rather than on a second participant.
@@ -534,6 +548,29 @@ public sealed class InMemoryMatchService : IMatchService
             match.TableDepth = Math.Clamp(request.TableDepth, 24, 96);
             match.AddLog("Setup", match.Phase.ToString(), $"Table set to {match.TableWidth} x {match.TableDepth} inches.");
             match.Touch("TableUpdated");
+            return ToSnapshot(match);
+        }
+    }
+
+    public MatchSnapshotDto UpdatePointsLimit(Guid matchId, UpdateMatchPointsLimitRequest request)
+    {
+        lock (_gate)
+        {
+            var match = FindMatch(matchId);
+            var participant = FindParticipant(match, request.ParticipantToken);
+            if (participant.Role != "Owner")
+            {
+                throw new UnauthorizedAccessException("Only the owner can set the points limit.");
+            }
+
+            match.PointsLimit = ClampPoints(request.PointsLimit);
+            match.AddLog(
+                "Setup",
+                match.Phase.ToString(),
+                match.PointsLimit == 0
+                    ? "Points limit cleared: fleets may be any size."
+                    : $"Points limit set to {match.PointsLimit} per player.");
+            match.Touch("PointsLimitUpdated");
             return ToSnapshot(match);
         }
     }
@@ -596,6 +633,7 @@ public sealed class InMemoryMatchService : IMatchService
                 FighterMaxRange = NormalizeFighterMaxRange(request.FighterMaxRange, iconKey, request.ClassName),
                 FighterStatus = NormalizeFighterStatus(request.FighterStatus, iconKey, request.ClassName),
                 HomeCarrierShipId = ValidateCarrierId(match, request.HomeCarrierShipId),
+                PointsValue = ClampPoints(request.PointsValue),
             });
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, match.Ships[^1])} added to {fleet.Name}.");
             match.Touch("ShipCreated");
@@ -637,6 +675,7 @@ public sealed class InMemoryMatchService : IMatchService
             ship.FighterMaxRange = NormalizeFighterMaxRange(request.FighterMaxRange, ship.IconKey, ship.ClassName);
             ship.FighterStatus = NormalizeFighterStatus(request.FighterStatus, ship.IconKey, ship.ClassName);
             ship.HomeCarrierShipId = ValidateCarrierId(match, request.HomeCarrierShipId);
+            ship.PointsValue = ClampPoints(request.PointsValue);
             ship.HullDamage = ClampDamage(ship.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(ship.ArmorDamage, ship.ArmorMax);
             ship.DriveDamage = ClampDamage(ship.DriveDamage, ship.ThrustRating);
@@ -679,6 +718,7 @@ public sealed class InMemoryMatchService : IMatchService
                 FighterMaxRange = source.FighterMaxRange,
                 FighterStatus = source.FighterStatus,
                 HomeCarrierShipId = source.HomeCarrierShipId,
+                PointsValue = source.PointsValue,
             });
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, source)} duplicated as {copyName}.");
             match.Touch("ShipDuplicated");
@@ -1156,7 +1196,8 @@ public sealed class InMemoryMatchService : IMatchService
             s.FighterEnduranceUsed,
             s.FighterMaxRange,
             s.FighterStatus,
-            s.HomeCarrierShipId)).ToArray(),
+            s.HomeCarrierShipId,
+            s.PointsValue)).ToArray(),
         match.Ships.Select(s =>
         {
             match.Commitments.TryGetValue(s.Id, out var commitment);
@@ -1201,7 +1242,8 @@ public sealed class InMemoryMatchService : IMatchService
             o.MaxRange,
             o.Status)).ToArray(),
         match.MatchLog.Select(l => new MatchLogEntryDto(l.Sequence, l.Timestamp, l.TurnNumber, l.Phase, l.Category, l.Message)).ToArray(),
-        match.Version);
+        match.Version,
+        match.PointsLimit);
 
     private sealed class MatchState(Guid id, string joinCode, string name, ParticipantState owner)
     {
@@ -1212,6 +1254,7 @@ public sealed class InMemoryMatchService : IMatchService
         public int TurnNumber { get; set; } = 1;
         public int TableWidth { get; set; } = 72;
         public int TableDepth { get; set; } = 48;
+        public int PointsLimit { get; set; }
         public List<ParticipantState> Participants { get; } = [owner];
         public List<FleetState> Fleets { get; } = [];
         public List<ShipState> Ships { get; } = [];
@@ -1288,6 +1331,7 @@ public sealed class InMemoryMatchService : IMatchService
         public int FighterMaxRange { get; set; }
         public string FighterStatus { get; set; } = "Docked";
         public Guid? HomeCarrierShipId { get; set; }
+        public int PointsValue { get; set; }
     }
 
     private sealed class WeaponMountState(Guid id, string name, int attackDice, int maxRange, FiringArc arc, int ammoMax, int ammoUsed, int reloadTurns)
@@ -1338,6 +1382,21 @@ public sealed class InMemoryMatchService : IMatchService
         int HullDamageApplied);
 
     private sealed record MatchLogEntryState(long Sequence, DateTimeOffset Timestamp, int TurnNumber, string Phase, string Category, string Message);
+
+    private static int ClampPoints(int value) => Math.Clamp(value, 0, 99999);
+
+    /// <summary>Points a participant's fleets exceed the match limit by, or zero when inside it.</summary>
+    private static int PointsOverLimit(MatchState match, Guid participantId)
+    {
+        if (match.PointsLimit <= 0)
+        {
+            return 0;
+        }
+
+        var fleetIds = match.Fleets.Where(f => f.OwnerParticipantId == participantId).Select(f => f.Id).ToHashSet();
+        var total = match.Ships.Where(s => fleetIds.Contains(s.FleetId)).Sum(s => s.PointsValue);
+        return Math.Max(0, total - match.PointsLimit);
+    }
 
     private static bool IsDestroyed(ShipState ship) => ship.HullDamage >= ship.HullMax;
 

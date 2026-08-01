@@ -63,6 +63,7 @@ type Ship = {
   fighterMaxRange: number;
   fighterStatus: FighterStatus;
   homeCarrierShipId?: string | null;
+  pointsValue: number;
 };
 
 type WeaponMount = {
@@ -164,6 +165,7 @@ type MatchSnapshot = {
   ordnanceMarkers: OrdnanceMarker[];
   matchLog: MatchLogEntry[];
   version: number;
+  pointsLimit: number;
 };
 
 type Session = {
@@ -233,6 +235,7 @@ type ShipForm = {
   fighterMaxRange: number;
   fighterStatus: FighterStatus;
   homeCarrierShipId: string;
+  pointsValue: number;
 };
 
 type FiringDraft = {
@@ -268,6 +271,12 @@ type FleetExportShip = {
   fighterStatus: FighterStatus;
   homeCarrierShipId?: string | null;
   homeCarrierName?: string | null;
+  pointsValue: number;
+};
+
+type SavedFleet = {
+  savedAt: string;
+  fleet: FleetExport;
 };
 
 type FleetExport = {
@@ -288,6 +297,7 @@ class ApiRequestError extends Error {
 const sessionKey = 'forcesignal.session';
 const draftsKey = 'forcesignal.drafts';
 const snapshotBackupKey = 'forcesignal.snapshot-backup';
+const fleetLibraryKey = 'forcesignal.fleet-library';
 
 const defaultShipForm: ShipForm = {
   fleetName: 'Patrol Group',
@@ -319,6 +329,7 @@ const defaultShipForm: ShipForm = {
   fighterMaxRange: 0,
   fighterStatus: 'Docked',
   homeCarrierShipId: '',
+  pointsValue: 0,
 };
 
 const shipIconOptions: { key: ShipIconKey; label: string }[] = [
@@ -384,6 +395,8 @@ function App() {
   const [message, setMessage] = useState('Ready.');
   const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('offline');
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
+  const [fleetLibrary, setFleetLibrary] = useState<SavedFleet[]>(() => readJson<SavedFleet[]>(fleetLibraryKey) ?? []);
+  const [pointsLimitForm, setPointsLimitForm] = useState('0');
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const spentDraftTurnRef = useRef<string | null>(null);
@@ -391,6 +404,16 @@ function App() {
   useEffect(() => {
     localStorage.setItem(draftsKey, JSON.stringify(drafts));
   }, [drafts]);
+
+  useEffect(() => {
+    localStorage.setItem(fleetLibraryKey, JSON.stringify(fleetLibrary));
+  }, [fleetLibrary]);
+
+  useEffect(() => {
+    if (snapshot) {
+      setPointsLimitForm(String(snapshot.pointsLimit ?? 0));
+    }
+  }, [snapshot?.pointsLimit]);
 
   useEffect(() => {
     if (snapshot) {
@@ -484,6 +507,7 @@ function App() {
   );
   const activeFleet = ownedFleets.find((fleet) => fleet.id === activeFleetId) ?? ownedFleets[0];
   const activeFleetShipCount = ownedShips.filter((ship) => ship.fleetId === activeFleet?.id).length;
+  const activeFleetPoints = shipsPoints(ownedShips.filter((ship) => ship.fleetId === activeFleet?.id));
   const ownedShipIds = useMemo(() => new Set(ownedShips.map((ship) => ship.id)), [ownedShips]);
   const visibleOwnedShipIds = useMemo(() => (publicMode ? new Set<string>() : ownedShipIds), [publicMode, ownedShipIds]);
 
@@ -599,6 +623,7 @@ function App() {
       fighterMaxRange: shipForm.fighterMaxRange,
       fighterStatus: shipForm.fighterStatus,
       homeCarrierShipId: shipForm.homeCarrierShipId || null,
+      pointsValue: shipForm.pointsValue,
     });
     setSnapshot(created);
     setShipForm((current) => ({
@@ -638,8 +663,16 @@ function App() {
 
     const text = await file.text();
     const exportData = parseFleetExport(text, file.name, shipForm);
+    await createFleetFromExport(exportData);
+  }
+
+  async function createFleetFromExport(exportData: FleetExport) {
+    if (!session) {
+      return;
+    }
+
     if (exportData.ships.length === 0) {
-      throw new Error('Import file does not contain any ships.');
+      throw new Error('That fleet does not contain any ships.');
     }
 
     const knownFleetIds = new Set(snapshot?.fleets.map((fleet) => fleet.id) ?? []);
@@ -680,6 +713,7 @@ function App() {
         fighterMaxRange: ship.fighterMaxRange,
         fighterStatus: ship.fighterStatus,
         homeCarrierShipId: (carrierKey ? importedIdsByName.get(carrierKey) : null) ?? null,
+        pointsValue: ship.pointsValue,
       });
       for (const created of importedSnapshot.ships) {
         if (!knownShipIds.has(created.id)) {
@@ -691,7 +725,7 @@ function App() {
 
     setSnapshot(importedSnapshot);
     setActiveFleetId(fleet.id);
-    setMessage(`Imported ${exportData.ships.length} ship${exportData.ships.length === 1 ? '' : 's'} into ${exportData.name}.`);
+    setMessage(`Brought ${exportData.ships.length} ship${exportData.ships.length === 1 ? '' : 's'} (${fleetPoints(exportData)} pts) into ${exportData.name}.`);
   }
 
   async function markReady() {
@@ -863,6 +897,7 @@ function App() {
       fighterMaxRange: form.fighterMaxRange,
       fighterStatus: form.fighterStatus,
       homeCarrierShipId: form.homeCarrierShipId || null,
+      pointsValue: form.pointsValue,
     }));
     setEditingShipId(null);
     setMessage(`${form.name} updated.`);
@@ -978,6 +1013,47 @@ function App() {
     setSnapshot(fired);
     const target = fired.ships.find((item) => item.id === draft.targetShipId);
     setMessage(`${ship.name} fired at ${target?.name ?? 'target'} at range ${draft.range}.`);
+  }
+
+  async function updatePointsLimit() {
+    if (!session) {
+      return;
+    }
+
+    const limit = Math.max(0, Math.min(99999, Math.round(Number(pointsLimitForm) || 0)));
+    setSnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/points-limit`, {
+      participantToken: session.participantToken,
+      pointsLimit: limit,
+    }));
+    setMessage(limit === 0 ? 'Points limit cleared.' : `Points limit set to ${limit} per player.`);
+  }
+
+  function saveActiveFleetToLibrary() {
+    if (!activeFleet) {
+      setMessage('Create a fleet before saving it to the library.');
+      return;
+    }
+
+    const exportData = toFleetExport(activeFleet, ownedShips.filter((ship) => ship.fleetId === activeFleet.id));
+    if (exportData.ships.length === 0) {
+      setMessage('Add at least one ship before saving this fleet.');
+      return;
+    }
+
+    setFleetLibrary((current) => [
+      { savedAt: new Date().toISOString(), fleet: exportData },
+      ...current.filter((entry) => entry.fleet.name.toLowerCase() !== exportData.name.toLowerCase()),
+    ]);
+    setMessage(`Saved ${exportData.name} (${fleetPoints(exportData)} pts) to this device's library.`);
+  }
+
+  async function bringLibraryFleet(entry: SavedFleet) {
+    await createFleetFromExport(entry.fleet);
+  }
+
+  function removeLibraryFleet(entry: SavedFleet) {
+    setFleetLibrary((current) => current.filter((item) => item !== entry));
+    setMessage(`Removed ${entry.fleet.name} from the library.`);
   }
 
   async function updateTable() {
@@ -1206,6 +1282,27 @@ function App() {
               </div>
               <button className="ghost" onClick={() => updateTable().catch(showError(setMessage))}>Set Table</button>
             </div>
+            <div className="table-setup">
+              <span className="label">Points per player</span>
+              <div className="table-fields">
+                <label>
+                  Limit
+                  <input
+                    type="number"
+                    min="0"
+                    max="99999"
+                    value={pointsLimitForm}
+                    onChange={(event) => setPointsLimitForm(event.target.value)}
+                  />
+                </label>
+                <div className="points-readout">
+                  <strong>{shipsPoints(ownedShips)}</strong>
+                  <small>{(snapshot?.pointsLimit ?? 0) > 0 ? `of ${snapshot?.pointsLimit}` : 'no limit'}</small>
+                </div>
+              </div>
+              <button className="ghost" onClick={() => updatePointsLimit().catch(showError(setMessage))}>Set Limit</button>
+              <p className="privacy">0 means unlimited. Only the owner can change it, which is how both sides agree to a mismatch.</p>
+            </div>
             <div className="side-actions">
               <span className="label">Match commands</span>
               <button onClick={() => markReady().catch(showError(setMessage))}>Ready</button>
@@ -1282,12 +1379,13 @@ function App() {
                     <span className="label">Fleet transfer</span>
                     <div className="transfer-summary">
                       <strong>{activeFleetShipCount}</strong>
-                      <span>{activeFleetShipCount === 1 ? 'ship' : 'ships'} in {activeFleet?.name ?? 'this fleet'} ready for export</span>
+                      <span>{activeFleetShipCount === 1 ? 'ship' : 'ships'} in {activeFleet?.name ?? 'this fleet'} - {activeFleetPoints} pts{(snapshot?.pointsLimit ?? 0) > 0 ? ` of ${snapshot?.pointsLimit}` : ''}</span>
                     </div>
                     <div className="quick-actions">
                       <button className="ghost" onClick={() => exportOwnedFleet('json')}>Export JSON</button>
                       <button className="ghost" onClick={() => exportOwnedFleet('csv')}>Export CSV</button>
                     </div>
+                    <button className="ghost" onClick={saveActiveFleetToLibrary}>Save Fleet To Library</button>
                     <button onClick={() => fleetImportInputRef.current?.click()}>Import Fleet</button>
                     <input
                       ref={fleetImportInputRef}
@@ -1303,6 +1401,32 @@ function App() {
                       }}
                     />
                     <p className="privacy">Imports are for user-owned fleet data. Do not bundle official fleet lists, SSDs, logos, artwork, or copied rule text.</p>
+                    {fleetLibrary.length > 0 ? (
+                      <div className="fleet-library">
+                        <span className="label">Fleet library - this device</span>
+                        {fleetLibrary.map((entry) => {
+                          const points = fleetPoints(entry.fleet);
+                          const limit = snapshot?.pointsLimit ?? 0;
+                          return (
+                            <div className="fleet-library-row" key={`${entry.fleet.name}-${entry.savedAt}`}>
+                              <div>
+                                <strong>{entry.fleet.name}</strong>
+                                <small>
+                                  {entry.fleet.ships.length} {entry.fleet.ships.length === 1 ? 'ship' : 'ships'} - {points} pts
+                                  {limit > 0 && points > limit ? ` - ${points - limit} over` : ''}
+                                </small>
+                              </div>
+                              <div className="quick-actions">
+                                <button type="button" onClick={() => bringLibraryFleet(entry).catch(showError(setMessage))}>Bring</button>
+                                <button className="ghost" type="button" onClick={() => removeLibraryFleet(entry)}>Remove</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="privacy">Save a fleet to build a device library you can bring to any future match.</p>
+                    )}
                   </div>
                 </div>
               </section>
@@ -1892,6 +2016,10 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
         Screens
         <input type="number" min="0" max="3" value={form.screenRating} onChange={(event) => onChange({ ...form, screenRating: Number(event.target.value) })} />
       </label>
+      <label>
+        Points (NPV)
+        <input type="number" min="0" max="99999" value={form.pointsValue} onChange={(event) => onChange({ ...form, pointsValue: Number(event.target.value) })} />
+      </label>
       {isFighterGroupForm(form) ? (
         <>
           <label>
@@ -2002,6 +2130,7 @@ function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (form: Shi
     fighterMaxRange: ship.fighterMaxRange,
     fighterStatus: ship.fighterStatus,
     homeCarrierShipId: ship.homeCarrierShipId ?? '',
+    pointsValue: ship.pointsValue ?? 0,
   });
 
   return (
@@ -4117,6 +4246,15 @@ function clampMapViewport(viewport: { scale: number; x: number; y: number }) {
   };
 }
 
+/// Total NPV of a fleet export, the figure a points-limited match is measured against.
+function fleetPoints(fleet: FleetExport) {
+  return fleet.ships.reduce((sum, ship) => sum + (ship.pointsValue ?? 0), 0);
+}
+
+function shipsPoints(ships: Ship[]) {
+  return ships.reduce((sum, ship) => sum + (ship.pointsValue ?? 0), 0);
+}
+
 function carrierImportRank(ship: FleetExportShip) {
   return normalizeShipIconKey(ship.iconKey, ship.className) === 'carrier' ? 0 : 1;
 }
@@ -4261,6 +4399,7 @@ function toFleetExport(fleet: Fleet, ships: Ship[]): FleetExport {
       homeCarrierShipId: ship.homeCarrierShipId ?? null,
       // Ship ids are per-match, so carrier assignments only survive a transfer by name.
       homeCarrierName: ships.find((candidate) => candidate.id === ship.homeCarrierShipId)?.name ?? null,
+      pointsValue: ship.pointsValue ?? 0,
     })),
   };
 }
@@ -4295,6 +4434,7 @@ function parseFleetExport(text: string, fileName: string, fallback: ShipForm): F
       fighterMaxRange: getValue('fighterrange') || getValue('fightermaxrange'),
       fighterStatus: getValue('fighterstatus'),
       homeCarrierName: getValue('homecarriername') || getValue('homecarrier') || getValue('carrier'),
+      pointsValue: getValue('pointsvalue') || getValue('points') || getValue('npv'),
       weapons: parseWeaponsCell(getValue('weapons')),
     }, fallback);
   });
@@ -4351,12 +4491,13 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
     fighterStatus: normalizeFighterStatus(record.fighterStatus, fallback.fighterStatus),
     homeCarrierShipId: typeof record.homeCarrierShipId === 'string' ? record.homeCarrierShipId : null,
     homeCarrierName: typeof record.homeCarrierName === 'string' && record.homeCarrierName.trim() ? record.homeCarrierName.trim() : null,
+    pointsValue: wholeNumberFrom(record.pointsValue ?? record.points ?? record.npv, 0, 0, 99999),
   };
 }
 
 function fleetExportToCsv(fleet: FleetExport) {
   const rows = [
-    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'weapons'],
+    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
     ...fleet.ships.map((ship) => [
       fleet.fleetColor,
       ship.name,
@@ -4375,6 +4516,7 @@ function fleetExportToCsv(fleet: FleetExport) {
       String(ship.fighterMaxRange),
       ship.fighterStatus,
       ship.homeCarrierName ?? '',
+      String(ship.pointsValue ?? 0),
       ship.weapons.map((weapon) => `${weapon.name}|${weapon.attackDice}|${weapon.maxRange}|${weapon.arc}|${weapon.ammoMax}|${weapon.ammoUsed}|${weapon.reloadTurns}`).join(';'),
     ]),
   ];
@@ -4665,6 +4807,23 @@ function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set<string
       id: 'carrier-ops',
       text: `${airborneFighters.length} airborne/recovering fighter group${airborneFighters.length === 1 ? '' : 's'} to reconcile with carriers`,
       severity: 'warning',
+    });
+  }
+
+  if ((snapshot.pointsLimit ?? 0) > 0) {
+    const overStrength = snapshot.participants
+      .map((participant) => {
+        const fleetIds = new Set(snapshot.fleets.filter((fleet) => fleet.ownerParticipantId === participant.id).map((fleet) => fleet.id));
+        const total = snapshot.ships.filter((ship) => fleetIds.has(ship.fleetId)).reduce((sum, ship) => sum + (ship.pointsValue ?? 0), 0);
+        return { name: participant.displayName, over: total - snapshot.pointsLimit };
+      })
+      .filter((entry) => entry.over > 0);
+    items.push({
+      id: 'points',
+      text: overStrength.length === 0
+        ? `All fleets inside the ${snapshot.pointsLimit} point limit`
+        : overStrength.map((entry) => `${entry.name} is ${entry.over} over the ${snapshot.pointsLimit} point limit`).join('; '),
+      severity: overStrength.length === 0 ? 'ok' : 'blocker',
     });
   }
 

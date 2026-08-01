@@ -238,6 +238,23 @@ app.MapPost("/api/matches/{matchId:guid}/table", async (
     .Produces<MatchSnapshotDto>()
     .ProducesProblem(StatusCodes.Status400BadRequest);
 
+app.MapPost("/api/matches/{matchId:guid}/points-limit", async (
+    Guid matchId,
+    UpdateMatchPointsLimitRequest request,
+    IMatchService matches,
+    IHubContext<MatchHub> hub) =>
+{
+    var snapshot = matches.UpdatePointsLimit(matchId, request);
+    await NotifySnapshotChanged(hub, snapshot, "PointsLimitUpdated");
+    return Results.Ok(snapshot);
+})
+    .WithName("UpdateMatchPointsLimit")
+    .WithTags("Matches")
+    .WithSummary("Sets the agreed points ceiling per player. Zero means unlimited.")
+    .Produces<MatchSnapshotDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status403Forbidden);
+
 app.MapPost("/api/matches/{matchId:guid}/fleets", async (
     Guid matchId,
     CreateFleetRequest request,
