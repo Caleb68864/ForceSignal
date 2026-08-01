@@ -29,8 +29,11 @@ and are deferred, not forgotten.
 
 ## Later Production Options
 
-- [x] Browser/local snapshot recovery for tabletop use through local autosave and explicit snapshot export.
-- [ ] Durable PostgreSQL persistence for long-running online matches. Deferred until real-world tabletop testing proves what needs durable storage.
+- [x] Browser/local snapshot recovery for tabletop use through local autosave, explicit snapshot export, and full-state restore with seat claiming.
+- [ ] Durable PostgreSQL persistence for long-running online matches. Deferred until real-world
+      tabletop testing proves what needs durable storage. File-based restore now covers recovery
+      from an API restart, which lowers the urgency without removing the need: recovery is still
+      manual and depends on someone having saved a snapshot.
 - [x] Spectator/public table display with hidden information removed.
 - [ ] Reconnect-safe online play once the tabletop workflows are proven. The client half is in
       place: automatic reconnect re-establishes the match notification group, resyncs the

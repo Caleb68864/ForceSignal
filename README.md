@@ -28,6 +28,7 @@ Use your own legally obtained rules and fleet data. ForceSignal links outward to
 - Resolve ending velocity/course on the server.
 - Advance to the next turn.
 - Pick ship class icons and fleet accent colors for the tactical play map.
+- Restore a match from an exported snapshot backup and claim your original seat.
 
 The current persistence layer is intentionally in-memory so the first hidden-order workflow is easy to exercise. PostgreSQL/EF Core is the next hardening step.
 

@@ -28,6 +28,8 @@ ForceSignal should behave as a tabletop helper for in-person space fleet games. 
 - Match snapshot export should capture the whole current match state.
 - The join screen should allow exporting the last device backup for recovery.
 - After-action exports should summarize table size, fleets, ships, ordnance, and battle log entries.
+- A snapshot backup should restore a full match, with each player claiming their original seat.
+- Restoring a snapshot taken during order entry should reopen order entry and say that locked orders could not be recovered.
 
 ## Turn Flow
 
