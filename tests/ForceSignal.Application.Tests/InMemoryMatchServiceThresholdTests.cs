@@ -17,14 +17,15 @@ public sealed class InMemoryMatchServiceThresholdTests
         // same stream. A 6 never loses a system, so this isolates the check itself from its losses.
         var table = ThresholdTable.Build(rollDie: () => 6, targetHull: 12, targetScreens: 1);
 
-        var result = table.Fire();
+        table.Fire();
+        var result = table.CeaseFire();
 
         var target = result.Ships.Single(s => s.Id == table.TargetId);
         // Three 6s through level-1 screens is 6 damage, which completes two rows of a 12-box hull.
         Assert.Equal(6, target.HullDamage);
         Assert.Equal(2, target.HullRowsCompleted);
         Assert.Equal([3, 3, 3, 3], target.HullRows);
-        var check = Assert.Single(result.MatchLog.Where(entry => entry.Category == "Threshold"));
+        var check = Assert.Single(result.MatchLog, entry => entry.Category == "Threshold");
         Assert.Contains("completed hull row 2 of 4", check.Message, StringComparison.Ordinal);
         // Two rows in one attack: the second threshold, one point worse for the extra row.
         Assert.Contains("+1 rows in one attack", check.Message, StringComparison.Ordinal);
@@ -39,7 +40,8 @@ public sealed class InMemoryMatchServiceThresholdTests
         var faces = new Queue<int>([6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1]);
         var table = ThresholdTable.Build(rollDie: () => faces.Count > 0 ? faces.Dequeue() : 1, targetHull: 12, targetScreens: 2);
 
-        var result = table.Fire();
+        table.Fire();
+        var result = table.CeaseFire();
         var target = result.Ships.Single(s => s.Id == table.TargetId);
 
         // Screens, drives and the mount all fail their rolls. Each screen level is its own
@@ -48,7 +50,7 @@ public sealed class InMemoryMatchServiceThresholdTests
         Assert.Equal(0, target.FireControlMax - target.FireControlDamage);
         Assert.True(target.DriveDamage > 0);
         Assert.True(target.Weapons.All(weapon => weapon.IsDestroyed));
-        var check = Assert.Single(result.MatchLog.Where(entry => entry.Category == "Threshold"));
+        var check = Assert.Single(result.MatchLog, entry => entry.Category == "Threshold");
         Assert.Contains("drives", check.Message, StringComparison.Ordinal);
         Assert.Contains("last fire control lost", check.Message, StringComparison.Ordinal);
         Assert.Contains("screens down", check.Message, StringComparison.Ordinal);
@@ -61,7 +63,8 @@ public sealed class InMemoryMatchServiceThresholdTests
         // A single 4 through no screens is one point of damage: not enough to finish a row of three.
         var table = ThresholdTable.Build(rollDie: () => 4, targetHull: 12, targetScreens: 0, attackDice: 1);
 
-        var result = table.Fire();
+        table.Fire();
+        var result = table.CeaseFire();
 
         Assert.Equal(1, result.Ships.Single(s => s.Id == table.TargetId).HullDamage);
         Assert.DoesNotContain(result.MatchLog, entry => entry.Category == "Threshold");
@@ -73,7 +76,8 @@ public sealed class InMemoryMatchServiceThresholdTests
         // A 4-box hull dies to a single volley, and a dead ship rolls nothing.
         var table = ThresholdTable.Build(rollDie: () => 6, targetHull: 4, targetScreens: 0);
 
-        var result = table.Fire();
+        table.Fire();
+        var result = table.CeaseFire();
 
         Assert.True(result.Ships.Single(s => s.Id == table.TargetId).IsDestroyed);
         Assert.DoesNotContain(result.MatchLog, entry => entry.Category == "Threshold");
@@ -98,7 +102,8 @@ public sealed class InMemoryMatchServiceThresholdTests
         var faces = new Queue<int>([6, 6, 6, 1]);
         var table = ThresholdTable.Build(rollDie: () => faces.Count > 0 ? faces.Dequeue() : 6, targetHull: 12, targetScreens: 0);
 
-        var result = table.Fire();
+        table.Fire();
+        var result = table.CeaseFire();
         var target = result.Ships.Single(s => s.Id == table.TargetId);
 
         // The first drive hit halves thrust rather than killing it outright.
@@ -158,6 +163,10 @@ public sealed class InMemoryMatchServiceThresholdTests
 
         public MatchSnapshotDto Fire() =>
             Service.FireWeapon(MatchId, new FireWeaponRequest(OwnerToken, AttackerId, TargetId, WeaponId, 8));
+
+        /// <summary>Closes the attacker's volley, which is when its threshold checks roll.</summary>
+        public MatchSnapshotDto CeaseFire() =>
+            Service.CeaseFire(MatchId, new CeaseFireRequest(OwnerToken, AttackerId));
 
         public void KnockOutAttackerMount()
         {

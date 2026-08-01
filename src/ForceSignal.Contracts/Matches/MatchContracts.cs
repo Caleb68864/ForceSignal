@@ -45,6 +45,7 @@ public sealed record CreateFleetRequest(string ParticipantToken, string Name, st
 /// <param name="FighterStatus">Docked, Airborne, or Recovering status for fighter groups.</param>
 /// <param name="HomeCarrierShipId">Optional carrier ship that launched or owns the fighter group.</param>
 /// <param name="PointsValue">Nominal points value (NPV) recorded from the player's own design sheet.</param>
+/// <param name="FireControlMax">Fire control systems carried. Each directs fire at one target ship.</param>
 public sealed record CreateShipRequest(
     string ParticipantToken,
     string Name,
@@ -186,6 +187,14 @@ public sealed record FireWeaponRequest(
     int Range,
     FiringArc? Arc = null);
 
+/// <summary>
+/// Declares that a ship has finished firing for the turn, which is when its threshold checks are
+/// rolled. Switching to another ship or ending the firing phase does the same thing implicitly.
+/// </summary>
+/// <param name="ParticipantToken">Session token of the firing participant.</param>
+/// <param name="ShipId">The ship whose fire is complete.</param>
+public sealed record CeaseFireRequest(string ParticipantToken, Guid ShipId);
+
 /// <summary>Session details returned when a participant creates a match.</summary>
 public sealed record MatchCreatedResponse(Guid MatchId, string JoinCode, Guid ParticipantId, string ParticipantToken);
 
@@ -211,6 +220,7 @@ public sealed record MatchSnapshotDto(
     IReadOnlyList<FiringResultDto> FiringResults,
     IReadOnlyList<OrdnanceMarkerDto> OrdnanceMarkers,
     IReadOnlyList<MatchLogEntryDto> MatchLog,
+    Guid? FiringShipId,
     long Version,
     int PointsLimit);
 

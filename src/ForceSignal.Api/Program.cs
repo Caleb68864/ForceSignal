@@ -458,6 +458,23 @@ app.MapPost("/api/matches/{matchId:guid}/turns/current/fire", async (
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
+app.MapPost("/api/matches/{matchId:guid}/turns/current/cease-fire", async (
+    Guid matchId,
+    CeaseFireRequest request,
+    IMatchService matches,
+    IHubContext<MatchHub> hub) =>
+{
+    var snapshot = matches.CeaseFire(matchId, request);
+    await NotifySnapshotChanged(hub, snapshot, "FireCompleted");
+    return Results.Ok(snapshot);
+})
+    .WithName("CeaseFire")
+    .WithTags("Combat")
+    .WithSummary("Ends a ship's fire for the turn and rolls the threshold checks it earned.")
+    .Produces<MatchSnapshotDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
 app.MapPost("/api/matches/{matchId:guid}/turns/current/advance", async (
     Guid matchId,
     HttpRequest http,

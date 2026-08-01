@@ -172,6 +172,8 @@ type MatchSnapshot = {
   matchLog: MatchLogEntry[];
   version: number;
   pointsLimit: number;
+  // The ship part-way through its fire. Its threshold checks roll when the volley closes.
+  firingShipId?: string | null;
 };
 
 type Session = {
@@ -423,6 +425,30 @@ function bearingArc(ship: Ship, target?: Ship): FiringArc | null {
   const bearing = Math.atan2(offsetX, -offsetY) * 180 / Math.PI;
   const relative = ((bearing - ship.currentCourse * 30) % 360 + 360) % 360;
   return firingArcs[Math.floor((relative / 30 + 1) / 2) % 6];
+}
+
+/// Fire control systems still working. Each one holds a single target ship for the turn.
+function workingFireControl(ship: Ship) {
+  return Math.max(0, (ship.fireControlMax ?? 1) - ship.fireControlDamage);
+}
+
+/// Why fire control will not let this ship shoot at this target, if it will not.
+function fireControlBlocker(ship: Ship, target: Ship | undefined, firingResults: FiringResult[]): string | null {
+  const working = workingFireControl(ship);
+  if (working === 0) {
+    return `${ship.name} has no working fire control`;
+  }
+
+  if (!target) {
+    return null;
+  }
+
+  const engaged = new Set(firingResults.filter((result) => result.attackerShipId === ship.id).map((result) => result.targetShipId));
+  if (engaged.has(target.id) || engaged.size < working) {
+    return null;
+  }
+
+  return `Fire control is holding ${engaged.size} target${engaged.size === 1 ? '' : 's'} already`;
 }
 
 /// Why a mount cannot engage the target through the arc it actually bears in, if it cannot.
@@ -1111,6 +1137,19 @@ function App() {
     setSnapshot(fired);
     const target = fired.ships.find((item) => item.id === draft.targetShipId);
     setMessage(`${ship.name} fired at ${target?.name ?? 'target'} at range ${draft.range}.`);
+  }
+
+  async function ceaseFire(ship: Ship) {
+    if (!session) {
+      return;
+    }
+
+    const closed = await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/cease-fire`, {
+      participantToken: session.participantToken,
+      shipId: ship.id,
+    });
+    setSnapshot(closed);
+    setMessage(`${ship.name} finished firing. Any threshold checks it earned have been rolled.`);
   }
 
   async function updatePointsLimit() {
@@ -1843,6 +1882,8 @@ function App() {
                           firingResults={snapshot.firingResults}
                           onChange={(patch) => updateFiringDraft(ship.id, { ...firingDraft, ...patch })}
                           onFire={() => fireWeapon(ship, firingDraft).catch(showError(setMessage))}
+                          volleyOpen={snapshot.firingShipId === ship.id}
+                          onCeaseFire={() => ceaseFire(ship).catch(showError(setMessage))}
                         />
                       </>
                     ) : null}
@@ -1936,6 +1977,7 @@ function App() {
                 onUpdateOrdnance={(marker, patch) => updateOrdnanceMarker(marker, patch).catch(showError(setMessage))}
                 onRemoveOrdnance={(marker) => removeOrdnanceMarker(marker).catch(showError(setMessage))}
                 onFire={(ship, draft) => fireWeapon(ship, draft)}
+              onCeaseFire={(ship) => ceaseFire(ship)}
               />
             ) : null}
             {activeView === 'log' ? (
@@ -2341,6 +2383,7 @@ function PlayMap({
   onUpdateOrdnance,
   onRemoveOrdnance,
   onFire,
+  onCeaseFire,
 }: {
   snapshot: MatchSnapshot;
   ownedShipIds: Set<string>;
@@ -2357,6 +2400,7 @@ function PlayMap({
   onUpdateOrdnance: (marker: OrdnanceMarker, patch: Partial<OrdnanceMarker>) => void;
   onRemoveOrdnance: (marker: OrdnanceMarker) => void;
   onFire: (ship: Ship, draft: FiringDraft) => Promise<void>;
+  onCeaseFire: (ship: Ship) => Promise<void>;
 }) {
   const selectedShip = snapshot.ships.find((ship) => ship.id === focusedShipId)
     ?? snapshot.ships.find((ship) => ownedShipIds.has(ship.id) && !ship.isDestroyed)
@@ -3110,6 +3154,8 @@ function PlayMap({
                 firingResults={snapshot.firingResults}
                 onChange={(patch) => updateMapFiringDraft(selectedShip, patch)}
                 onFire={() => onFire(selectedShip, selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds)).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
+                volleyOpen={snapshot.firingShipId === selectedShip.id}
+                onCeaseFire={() => onCeaseFire(selectedShip).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
               />
             ) : null}
             {inspectorMode === 'fire' && selectedShip && ownedShipIds.has(selectedShip.id) ? (
@@ -3651,6 +3697,8 @@ function MapFiringAssistant({
   firingResults,
   onChange,
   onFire,
+  volleyOpen,
+  onCeaseFire,
 }: {
   ship: Ship;
   ships: Ship[];
@@ -3660,6 +3708,8 @@ function MapFiringAssistant({
   firingResults: FiringResult[];
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
+  volleyOpen: boolean;
+  onCeaseFire: () => void;
 }) {
   const targetOptions = firingTargetOptions(ship, ships, ownedShipIds);
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
@@ -3667,15 +3717,18 @@ function MapFiringAssistant({
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : 0;
   const targetArc = bearingArc(ship, target);
   const arcProblem = arcBlocker(ship, target, weapon);
+  const fireControlProblem = fireControlBlocker(ship, target, firingResults);
   const mountLost = Boolean(weapon?.isDestroyed);
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
-  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost;
+  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost && !fireControlProblem;
   const firingNote = !weapon
     ? 'No weapon mounted'
     : mountLost
       ? 'Mount knocked out'
+      : fireControlProblem
+        ? fireControlProblem
       : !target
       ? 'No target selected'
       : arcProblem
@@ -3715,6 +3768,7 @@ function MapFiringAssistant({
         <span className="label">Bearing</span>
         <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
+        <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
       </div>
       <label>
         Range
@@ -3722,6 +3776,9 @@ function MapFiringAssistant({
       </label>
       <button className="ghost" type="button" disabled={!target} onClick={() => onChange({ range: estimatedRange })}>Use Map Solution</button>
       <button type="button" disabled={!canFire} onClick={onFire}>Fire</button>
+      {volleyOpen ? (
+        <button className="ghost volley-close" type="button" onClick={onCeaseFire}>Done Firing</button>
+      ) : null}
     </div>
   );
 }
@@ -3773,6 +3830,8 @@ function FiringConsole({
   firingResults,
   onChange,
   onFire,
+  volleyOpen,
+  onCeaseFire,
 }: {
   ship: Ship;
   ships: Ship[];
@@ -3782,6 +3841,8 @@ function FiringConsole({
   firingResults: FiringResult[];
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
+  volleyOpen: boolean;
+  onCeaseFire: () => void;
 }) {
   const targetOptions = firingTargetOptions(ship, ships, ownedShipIds);
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
@@ -3789,16 +3850,19 @@ function FiringConsole({
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : null;
   const targetArc = bearingArc(ship, target);
   const arcProblem = arcBlocker(ship, target, weapon);
+  const fireControlProblem = fireControlBlocker(ship, target, firingResults);
   const mountLost = Boolean(weapon?.isDestroyed);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
-  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost;
+  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost && !fireControlProblem;
   const rangeStatus = weapon && estimatedRange
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
   const fireStatus = mountLost
     ? `${weapon?.name} was knocked out by a threshold check.`
+    : fireControlProblem
+    ? `${fireControlProblem}.`
     : arcProblem
     ? `${arcProblem}.`
     : weaponSpent
@@ -3839,6 +3903,7 @@ function FiringConsole({
         <span className="label">Bearing</span>
         <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
+        <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
       </div>
       <label>
         Range
@@ -3853,6 +3918,12 @@ function FiringConsole({
         Use Map Range
       </button>
       <button disabled={!canFire} onClick={onFire}>Fire</button>
+      {volleyOpen ? (
+        <button className="ghost volley-close" type="button" onClick={onCeaseFire}>Done Firing</button>
+      ) : null}
+      {volleyOpen ? (
+        <p className="constraint-line">Threshold checks roll when this ship finishes firing.</p>
+      ) : null}
       {spentShot ? (
         <p className="constraint-line dice-readout">
           Rolled {(spentShot.diceRolls ?? []).length > 0 ? (spentShot.diceRolls ?? []).join(', ') : 'no dice'}

@@ -38,8 +38,9 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
       by depth, one point worse per extra row torn through in a single attack. Losses bite: drives
       halve then die and limit what orders can be plotted, a knocked-out mount cannot fire, screens
       drop a level per generator. Checks are logged with their rolls, and the damage track marks the
-      row boundaries. Two deviations are recorded in `rules-fidelity-gaps.md`: the check resolves
-      per shot rather than per attacking ship, and losing every firecon does not stop fire yet.
+      row boundaries. The check waits for the firing ship to finish, so one volley earns one check
+      against the deepest row it reached - declared with "Done Firing", and closed automatically
+      when another ship fires or the phase ends.
 - [x] Six 60 degree fire arcs (gap 2). Fore, fore starboard, aft starboard, aft, aft port, fore
       port. A mount now bears through a *set* of arcs, so a battery covering three adjacent arcs or
       an all-round turret can both be transcribed. Fleets and snapshots written with the old four
@@ -49,13 +50,15 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
 - [x] Verify arc bearing against geometry (gap 4). The arc a target lies in is computed from the
       firing ship's course and the two positions, and the mount is held to it. An arc supplied by
       the client is treated as a cross-check and a disagreement names the real bearing.
-- [ ] Fire control gating (gap 5). Ships now carry a firecon count and threshold checks roll for
-      each one, but nothing gates on the result: losing all firecons should stop a ship firing, and
-      each working firecon should allow exactly one target that turn.
+- [x] Fire control gating (gap 5). A ship with no working firecon cannot fire at all, and each
+      working firecon holds one target ship for the turn - any mount may add to a target already
+      engaged, but a fresh one beyond the limit is refused. The console shows the count and the
+      reason before a shot is attempted.
 - [ ] Drift for unordered ships (gap 7). The rules let a ship with no written order continue on the
       same course and velocity; the app cannot advance the turn until every live ship is ordered.
 - [ ] Firing initiative and alternation (gap 6). Roll off, winner fires one ship completely, then
       alternate - with damage applied immediately. The app lets anyone fire anything at any time.
+      The per-ship volley now exists, so what is left is the initiative roll and enforcing turns.
 - [ ] Pulse torpedoes (gap 10), ordnance attack resolution (gap 11), and point defence (gap 13).
       FTL's second weapon is missing, ordnance markers drift but never attack, and nothing shoots
       at fighters or missiles.

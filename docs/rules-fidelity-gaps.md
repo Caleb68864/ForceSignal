@@ -38,14 +38,17 @@ weapon picker. Screens drop a level per generator lost. Every check is logged wi
 rolled and what it cost, and the damage track in the UI marks the row boundaries so the table can
 see where the next threshold sits.
 
-**Deviation - timing**: the rules resolve a threshold check after *all* fire from the attacking
-ship. ForceSignal resolves each mount as it is logged, so the check runs with the shot that
-finished the row. This only differs from the book when one ship's later shots would have pushed
-into a deeper row in the same volley. It follows from there being no ship-by-ship alternation yet
-(gap 6); revisit the timing when that lands.
+**Timing**: the check waits until the firing ship is done, as the rules require, so one volley
+earns one check against the deepest row it reached rather than a separate check per mount. Two
+mounts that tear through two rows together roll once at the second threshold, one point worse for
+the extra row - not a first-row check and then a second-row check.
 
-**Deviation - firecon effect**: losing every fire control system does not yet stop a ship firing.
-The loss is tracked and logged, and each firecon rolls its own die, but the gating is gap 5.
+A ship's fire ends when it says so ("Done Firing" in the console, `POST .../cease-fire`), and as a
+backstop when another ship opens fire or the firing phase ends, so a check is never left unrolled.
+The snapshot exposes `firingShipId` while a volley is open, and the console says a check is owed.
+
+**Known edge**: a match exported mid-volley and restored loses the pending check. The damage is in
+the snapshot; only the system-loss roll is skipped. Close the volley before exporting.
 
 Also fixed a wrong roadmap claim: "Damage detail: threshold checks" had been ticked before any
 threshold code existed.
@@ -126,21 +129,30 @@ Code: `FiringArcs.Bearing`, `BearingToTarget` and `FireWeapon` in `InMemoryMatch
 
 ---
 
-## Gap 5 — Fire control does nothing
+## Gap 5 — Fire control does nothing — FIXED 2026-08-01
 
 **Rules** (`Defenses/Fire Control System (FCS).md`): each functioning FCS lets a ship engage
 **one** target ship per turn; weapons split freely between targets but a single battery rolls
 all its dice at one target. A ship that loses **all** FCS may not fire at all, even with working
 weapons.
 
-**App**: a ship now has a firecon count (`FireControlMax`), threshold checks roll one die per
-working firecon, and losses are tracked and logged - but nothing gates on them. There is still no
-target limit, and a ship with every firecon dead fires normally.
+**Was**: `FireControlDamage` was tracked and logged but gated nothing. There was no firecon count,
+no target limit, and a ship with every firecon dead fired normally.
 
-**Why it matters**: FCS is the whole reason to shoot at a cruiser's sensors instead of its hull,
-and the target limit is what stops one ship spraying every mount at a different enemy.
+**Now**: a ship carries a firecon count, and firing checks it twice. With none working the shot is
+refused outright. Otherwise the ship may engage as many distinct target ships in a turn as it has
+working firecons; any mount may fire at a target already engaged, but a fresh target beyond the
+limit is refused with a message naming who the ship is already holding. Losing a firecon mid-turn
+tightens the limit immediately without dropping targets already engaged.
 
-Code: `InMemoryMatchService.FireWeapon`, `ShipState.FireControlDamage`.
+The console shows the working firecon count beside the bearing and disables Fire with the reason,
+so the limit is visible before a shot is attempted rather than only in an error.
+
+**Not covered**: defensive systems bypassing fire control (point defence has its own), and needle
+beams needing a firecon each. Both belong with the weapons that do not exist yet - gaps 10 and 13.
+
+Code: `FireWeapon` in `InMemoryMatchService`, `workingFireControl` / `fireControlBlocker` in
+`main.tsx`.
 
 ---
 
@@ -325,9 +337,9 @@ Code: `main.tsx` contact card and pre-turn checklist.
 
 1. ~~Six 60 degree arcs, aft blind spot, and a real bearing check (Gaps 2, 3, 4).~~ Done.
 2. ~~Threshold checks with hull rows (Gap 1).~~ Done.
-3. FCS gating and one target per firecon (Gap 5) - the firecon count and its threshold rolls are
-   in place, so this is now just the gating.
+3. ~~FCS gating and one target per firecon (Gap 5).~~ Done.
 4. Drift for unordered ships (Gap 7).
 5. Half-and-half course execution and rotation at rest (Gaps 8, 9).
-6. Firing initiative and alternation (Gap 6).
+6. Firing initiative and alternation (Gap 6). The per-ship volley is already modelled, so this is
+   now the initiative roll and the turn order on top of it.
 7. Pulse torpedoes, then ordnance resolution and PDS (Gaps 10, 11, 13).

@@ -2737,3 +2737,9 @@ small,
   padding: 10px;
   background: rgba(1, 9, 12, 0.72);
 }
+
+/* Closing a volley is what rolls its threshold checks, so the button reads as a step, not a cancel. */
+.volley-close {
+  border-color: var(--amber);
+  color: var(--amber);
+}

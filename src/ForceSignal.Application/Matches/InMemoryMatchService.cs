@@ -81,6 +81,9 @@ public interface IMatchService
     /// <summary>Resolves one weapon attack.</summary>
     MatchSnapshotDto FireWeapon(Guid matchId, FireWeaponRequest request);
 
+    /// <summary>Ends a ship's fire for the turn and rolls any threshold checks it earned.</summary>
+    MatchSnapshotDto CeaseFire(Guid matchId, CeaseFireRequest request);
+
     /// <summary>Advances match phase or starts the next turn.</summary>
     MatchSnapshotDto AdvanceTurn(Guid matchId, string participantToken);
 }
@@ -1007,6 +1010,27 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException($"{weapon.Name} has already fired this turn.");
             }
 
+            // Fire control directs the guns: with none left a ship cannot shoot at all, and each
+            // working system holds exactly one target ship for the turn.
+            var workingFireControl = Math.Max(0, attacker.FireControlMax - attacker.FireControlDamage);
+            if (workingFireControl == 0)
+            {
+                throw new InvalidOperationException($"{attacker.Name} has no working fire control and cannot fire.");
+            }
+
+            var engagedTargetIds = match.FiringResults
+                .Where(f => f.TurnNumber == match.TurnNumber && f.AttackerShipId == attacker.Id)
+                .Select(f => f.TargetShipId)
+                .Distinct()
+                .ToArray();
+            if (!engagedTargetIds.Contains(target.Id) && engagedTargetIds.Length >= workingFireControl)
+            {
+                var engagedNames = string.Join(", ", engagedTargetIds
+                    .Select(id => match.Ships.SingleOrDefault(s => s.Id == id)?.Name ?? "an unknown ship"));
+                throw new InvalidOperationException(
+                    $"{attacker.Name} has {workingFireControl} working fire control system{(workingFireControl == 1 ? string.Empty : "s")} and is already engaging {engagedNames}. Fire the rest of its weapons at {(workingFireControl == 1 ? "that target" : "those targets")}.");
+            }
+
             // Which arc the target sits in is geometry, not a choice: it follows from the firing
             // ship's course and where the two ships are on the table.
             var targetArc = BearingToTarget(attacker, target);
@@ -1028,9 +1052,22 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
             }
 
+            // A threshold check covers everything one ship fires, so the volley opens here and the
+            // rows it completes are measured from the hull as it stood before this ship started.
+            if (match.FiringShipId is { } previousAttacker && previousAttacker != attacker.Id)
+            {
+                ResolvePendingThresholds(match);
+            }
+
+            match.FiringShipId = attacker.Id;
             var result = _firingRules.Resolve(solution);
             var remainingDamage = result.Damage;
             var damageBefore = CaptureDamage(target);
+            if (!match.PendingThresholds.ContainsKey(target.Id))
+            {
+                match.PendingThresholds[target.Id] = target.HullDamage;
+            }
+
             var wasDestroyed = target.HullDamage >= target.HullMax;
             var armorBefore = target.ArmorDamage;
             target.ArmorDamage = ClampDamage(target.ArmorDamage + remainingDamage, target.ArmorMax);
@@ -1039,11 +1076,6 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var hullBefore = target.HullDamage;
             target.HullDamage = ClampDamage(target.HullDamage + remainingDamage, target.HullMax);
             var hullApplied = target.HullDamage - hullBefore;
-
-            // Completing a hull row makes every surviving system roll to stay alive. The rules time
-            // this after all fire from the attacking ship, but ForceSignal resolves each mount as it
-            // is logged, so the check runs with the shot that finished the row.
-            var thresholdNote = ResolveThresholds(match, target, hullBefore);
 
             var firingResult = new FiringResultState(
                 attacker.Id,
@@ -1082,7 +1114,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.AddLog(
                 "Fire",
                 match.Phase.ToString(),
-                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}{thresholdNote}");
+                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
             match.Touch("WeaponFired");
             return ToSnapshot(match);
         }
@@ -1101,6 +1133,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             if (match.Phase == MatchPhase.Firing)
             {
+                ResolvePendingThresholds(match);
                 match.TurnNumber++;
                 match.Phase = MatchPhase.OrderEntry;
                 match.Commitments.Clear();
@@ -1146,6 +1179,51 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.Touch("TurnAdvanced");
             return ToSnapshot(match);
         }
+    }
+
+    public MatchSnapshotDto CeaseFire(Guid matchId, CeaseFireRequest request)
+    {
+        lock (_gate)
+        {
+            var match = FindMatch(matchId);
+            var participant = FindParticipant(match, request.ParticipantToken);
+            if (match.Phase != MatchPhase.Firing)
+            {
+                throw new InvalidOperationException("Fire can only be closed out during the firing phase.");
+            }
+
+            var ship = FindOwnedShip(match, participant.Id, request.ShipId);
+            if (match.FiringShipId != ship.Id)
+            {
+                // Nothing owed: either the ship never fired, or its checks already rolled.
+                return ToSnapshot(match);
+            }
+
+            match.AddLog("Fire", match.Phase.ToString(), $"{DescribeShip(match, ship)} completed its fire for the turn.");
+            ResolvePendingThresholds(match);
+            match.Touch("FireCompleted");
+            return ToSnapshot(match);
+        }
+    }
+
+    /// <summary>
+    /// Rolls the threshold checks owed by the ship that has been firing, then closes the volley.
+    /// Called when a ship declares its fire complete, when another ship starts firing, and when
+    /// the firing phase ends, so a check is never left unrolled.
+    /// </summary>
+    private void ResolvePendingThresholds(MatchState match)
+    {
+        foreach (var (targetId, hullBefore) in match.PendingThresholds.ToArray())
+        {
+            var target = match.Ships.SingleOrDefault(s => s.Id == targetId);
+            if (target is not null)
+            {
+                ResolveThresholds(match, target, hullBefore);
+            }
+        }
+
+        match.PendingThresholds.Clear();
+        match.FiringShipId = null;
     }
 
     private MatchState FindMatch(Guid matchId) =>
@@ -1279,6 +1357,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             o.MaxRange,
             o.Status)).ToArray(),
         match.MatchLog.Select(l => new MatchLogEntryDto(l.Sequence, l.Timestamp, l.TurnNumber, l.Phase, l.Category, l.Message)).ToArray(),
+        match.FiringShipId,
         match.Version,
         match.PointsLimit);
 
@@ -1288,6 +1367,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public string JoinCode { get; } = joinCode;
         public string Name { get; } = name;
         public MatchPhase Phase { get; set; } = MatchPhase.FleetSetup;
+
+        /// <summary>The ship part-way through its fire, if any. Its threshold checks are still owed.</summary>
+        public Guid? FiringShipId { get; set; }
+
+        /// <summary>Hull damage each target had before the firing ship opened up, by target id.</summary>
+        public Dictionary<Guid, int> PendingThresholds { get; } = [];
         public int TurnNumber { get; set; } = 1;
         public int TableWidth { get; set; } = 72;
         public int TableDepth { get; set; } = 48;
@@ -1583,21 +1668,21 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     }
 
     /// <summary>
-    /// Rolls threshold checks for every hull row this damage completed, applies what was knocked
-    /// out, and returns a note for the fire log. A ship destroyed by the same damage rolls nothing.
+    /// Rolls the threshold check earned by a ship's fire against one target and applies what it
+    /// knocked out. A target destroyed by that fire rolls nothing.
     /// </summary>
-    private string ResolveThresholds(MatchState match, ShipState target, int hullBefore)
+    private void ResolveThresholds(MatchState match, ShipState target, int hullBefore)
     {
         if (IsDestroyed(target))
         {
-            return string.Empty;
+            return;
         }
 
         var rowsBefore = _thresholdRules.RowsCompleted(hullBefore, target.HullMax);
         var rowsAfter = _thresholdRules.RowsCompleted(target.HullDamage, target.HullMax);
         if (rowsAfter <= rowsBefore)
         {
-            return string.Empty;
+            return;
         }
 
         // One check against the deepest row reached, one point worse per extra row torn through.
@@ -1621,10 +1706,6 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             "Threshold",
             match.Phase.ToString(),
             $"{DescribeShip(match, target)} completed hull row {rowsAfter} of {_thresholdRules.HullRows(target.HullMax).Count}: {rowNote}, systems lost on {result.LostOn} or less, {rollNote}. {lossNote}.");
-
-        return losses.Count == 0
-            ? $" Threshold {result.Threshold} check passed."
-            : $" Threshold {result.Threshold}: {lossNote}.";
     }
 
     /// <summary>
