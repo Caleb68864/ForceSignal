@@ -10,7 +10,10 @@ ForceSignal is currently focused on being a session-based tabletop helper for in
 - [x] Table safety tools: end-of-turn checklist, unresolved fire reminders, fighter endurance reminders, quick undo, and log/snapshot export prompts.
 - [x] Measurement helpers: range bands, weapon arcs, fighter range rings, ordnance markers, and movement path preview with final position/course.
 - [x] Physical table workflow: print/export ship cards, compact tablet-friendly controls, public table display mode, and pass-and-play privacy.
-- [x] Damage detail: threshold checks, damage-control reminders, critical system hit markers, crippled/dead-in-space states.
+- [x] Damage detail: damage-control counters, critical system hit markers, and crippled/dead-in-space
+      reminders. This item previously also claimed threshold checks; it should not have. The app
+      tracks system damage as counters a player edits by hand - there is no hull-row threshold roll.
+      See `rules-fidelity-gaps.md` gap 1.
 
 ## Weapon Rule Fidelity
 
@@ -23,6 +26,32 @@ ForceSignal is currently focused on being a session-based tabletop helper for in
       removing dice - level 1 ignores 4s, level 2 caps every hit at one, level 3 scores only on
       a 6 - so a single-die mount can still hurt a screened ship. Every shot records the faces it
       rolled in the battle log and the firing console for table audit.
+
+## Play Blockers — Rules Fidelity
+
+Found by scanning the code against the GZG rules notes; each item is written up in full in
+`rules-fidelity-gaps.md`. The app targets Full Thrust Light, and these are the FTL mechanics
+that are missing or wrong, in the order they should be fixed to reach a real match.
+
+- [ ] Threshold checks (gap 1). Hull rows, then one die per surviving system when a row completes -
+      FTL kills a system on 1, then 1-2, then 1-3 by threshold, worst threshold only when an attack
+      crosses several rows. Without this, combat is a flat hull-point race and no system is ever
+      knocked out except by hand.
+- [ ] Six 60 degree fire arcs (gap 2). The app uses the superseded four 90 degree arcs, so a real
+      ship's firing coverage cannot be transcribed.
+- [ ] Aft blind spot (gap 3). FTL forbids any weapon firing out of the aft arc; the app allows it,
+      which removes most of the reason to manoeuvre.
+- [ ] Verify arc bearing against geometry (gap 4). Firing checks only that the declared arc matches
+      the mount, never that the target is actually in that arc relative to the attacker's course.
+- [ ] Fire control gating (gap 5). Losing all firecons should stop a ship firing, and each working
+      firecon should allow exactly one target that turn. Today firecon damage changes nothing.
+- [ ] Drift for unordered ships (gap 7). The rules let a ship with no written order continue on the
+      same course and velocity; the app cannot advance the turn until every live ship is ordered.
+- [ ] Firing initiative and alternation (gap 6). Roll off, winner fires one ship completely, then
+      alternate - with damage applied immediately. The app lets anyone fire anything at any time.
+- [ ] Pulse torpedoes (gap 10), ordnance attack resolution (gap 11), and point defence (gap 13).
+      FTL's second weapon is missing, ordnance markers drift but never attack, and nothing shoots
+      at fighters or missiles.
 
 ## Movement Rule Fidelity
 
