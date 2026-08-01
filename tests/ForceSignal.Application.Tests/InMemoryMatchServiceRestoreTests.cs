@@ -230,6 +230,34 @@ public sealed class InMemoryMatchServiceRestoreTests
     }
 
     [Fact]
+    public void JoinMatch_OnRestoredMatchWithUnclaimedSeats_DoesNotMintANewParticipant()
+    {
+        var source = new InMemoryMatchService();
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Join Source"));
+        source.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
+        var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        source.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
+
+        var service = new InMemoryMatchService();
+        var restored = service.RestoreMatch(source.GetSnapshot(owner.MatchId), null);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            service.JoinMatch(new JoinMatchRequest(restored.JoinCode, "Someone New")));
+        Assert.Contains("claim", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, service.GetSeats(restored.MatchId).Count);
+
+        // Once every seat is taken, the room behaves like any other and accepts joiners.
+        foreach (var seat in service.GetSeats(restored.MatchId))
+        {
+            service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+        }
+
+        var late = service.JoinMatch(new JoinMatchRequest(restored.JoinCode, "Someone New"));
+        Assert.False(string.IsNullOrWhiteSpace(late.ParticipantToken));
+        Assert.Equal(3, service.GetSeats(restored.MatchId).Count);
+    }
+
+    [Fact]
     public void RestoreMatch_RejectsUnusableSnapshots()
     {
         var service = new InMemoryMatchService();

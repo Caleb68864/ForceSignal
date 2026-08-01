@@ -120,6 +120,11 @@ public sealed class InMemoryMatchService : IMatchService
             }
 
             var match = _matches[matchId];
+            if (match.Participants.Any(p => !p.IsClaimed))
+            {
+                throw new InvalidOperationException("This match was restored from a backup. Claim your seat instead of joining.");
+            }
+
             var participant = ParticipantState.Create(NormalizeText(request.DisplayName, "Player"), "Player");
             match.Participants.Add(participant);
             match.AddLog("Setup", match.Phase.ToString(), $"{participant.DisplayName} joined the match.");
