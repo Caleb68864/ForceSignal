@@ -258,7 +258,7 @@ public sealed class InMemoryMatchService : IMatchService
                     ClampPosition(ship.PositionX, match.TableWidth),
                     ClampPosition(ship.PositionY, match.TableDepth),
                     Math.Clamp(ship.ScreenRating, 0, 3),
-                    NormalizeWeapons(ship.Weapons),
+                    NormalizeRestoredWeapons(ship.Weapons),
                     iconKey)
                 {
                     FighterEnduranceMax = fighterEnduranceMax,
@@ -1665,6 +1665,16 @@ public sealed class InMemoryMatchService : IMatchService
             }
         }
     }
+
+    /// <summary>
+    /// Normalizes weapons for a restore. NormalizeWeapons drops blank-named mounts, which is right
+    /// for a form row a user left empty but is silent data loss when recovering a fleet, so every
+    /// mount is kept and an unnamed one gets a placeholder name instead.
+    /// </summary>
+    private static WeaponMountState[] NormalizeRestoredWeapons(IReadOnlyList<WeaponMountDto>? weapons) =>
+        weapons is null or { Count: 0 }
+            ? NormalizeWeapons(weapons)
+            : NormalizeWeapons([.. weapons.Select(w => w with { Name = NormalizeText(w.Name, "Unnamed Mount") })]);
 
     private static WeaponMountState[] NormalizeWeapons(IReadOnlyList<WeaponMountDto>? weapons)
     {

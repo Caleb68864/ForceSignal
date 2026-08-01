@@ -350,6 +350,38 @@ public sealed class InMemoryMatchServiceRestoreTests
     }
 
     [Fact]
+    public void RestoreMatch_KeepsEveryWeaponMountEvenWhenAnEntryIsMalformed()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Weapon Source"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24,
+            Weapons:
+            [
+                new WeaponMountDto(Guid.NewGuid(), "Class-3 Beam", 3, 24, FiringArc.All, AmmoMax: 2, AmmoUsed: 1),
+                new WeaponMountDto(Guid.NewGuid(), "Needle Missile", 2, 30, FiringArc.Fore, AmmoMax: 1),
+            ]));
+        var exported = service.GetSnapshot(owner.MatchId);
+        var ship = exported.Ships.Single();
+
+        // A hand-edited file with a blank mount name must not disarm the ship.
+        var mangled = exported with
+        {
+            Ships = [ship with { Weapons = [ship.Weapons[0] with { Name = "   " }, ship.Weapons[1]] }],
+        };
+
+        var restored = new InMemoryMatchService().RestoreMatch(mangled, null).Snapshot;
+        var restoredShip = restored.Ships.Single();
+
+        Assert.Equal(2, restoredShip.Weapons.Count);
+        Assert.Equal("Unnamed Mount", restoredShip.Weapons[0].Name);
+        Assert.Equal(1, restoredShip.Weapons[0].AmmoUsed);
+        Assert.Equal(2, restoredShip.Weapons[0].AmmoMax);
+        Assert.Equal("Needle Missile", restoredShip.Weapons[1].Name);
+    }
+
+    [Fact]
     public void RestoreMatch_RejectsUnusableSnapshots()
     {
         var service = new InMemoryMatchService();
