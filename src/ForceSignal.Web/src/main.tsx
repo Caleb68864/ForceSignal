@@ -513,6 +513,12 @@ function App() {
       }
 
       const identity = await get<MatchIdentity>(`/api/matches/by-code/${encodeURIComponent(joinCode)}`);
+      if (!identity.hasUnclaimedSeats) {
+        // Someone took the last seat between the join attempt and this lookup.
+        setMessage(`Every seat in ${identity.joinCode} has been claimed. Ask the host to restore the backup again if you need a seat.`);
+        return;
+      }
+
       setPendingRestore({
         matchId: identity.matchId,
         joinCode: identity.joinCode,
