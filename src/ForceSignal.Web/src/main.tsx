@@ -135,6 +135,7 @@ type FiringResult = {
   damage: number;
   armorDamageApplied: number;
   hullDamageApplied: number;
+  diceRolls: number[];
 };
 
 type MatchLogEntry = {
@@ -3671,6 +3672,7 @@ function FiringConsole({
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
   const fireStatus = weaponSpent ? `${weapon?.name} spent this turn.` : ammoEmpty ? `${weapon?.name} has no ammunition remaining.` : rangeStatus;
+  const spentShot = weapon ? firingResults.find((result) => result.attackerShipId === ship.id && result.weaponId === weapon.id) : undefined;
 
   return (
     <div className="firing-console card-module" aria-label={`${ship.name} firing controls`}>
@@ -3719,6 +3721,13 @@ function FiringConsole({
         Use Map Range
       </button>
       <button disabled={!canFire} onClick={onFire}>Fire</button>
+      {spentShot ? (
+        <p className="constraint-line dice-readout">
+          Rolled {(spentShot.diceRolls ?? []).length > 0 ? (spentShot.diceRolls ?? []).join(', ') : 'no dice'}
+          {spentShot.screenReduction > 0 ? ` - screens stopped ${spentShot.screenReduction}` : ''}
+          {` for ${spentShot.damage} damage (${spentShot.armorDamageApplied} armor, ${spentShot.hullDamageApplied} hull).`}
+        </p>
+      ) : null}
     </div>
   );
 }

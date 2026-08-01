@@ -18,9 +18,11 @@ ForceSignal is currently focused on being a session-based tabletop helper for in
       beam rolls N dice at 0-12, N-1 at 12-24, N-2 at 24-36. The earlier profile dropped a die
       every 6mu, which made light mounts useless past close range. Range band labels follow the
       same 12mu bands.
-- [ ] Per-die damage rolls (1-3 miss, 4-5 one damage, 6 two damage) and screens downgrading dice
-      rather than subtracting them. The profile is deliberately deterministic for tabletop
-      bookkeeping; revisit only if the table wants the app to roll.
+- [x] Per-die damage rolls and screens that downgrade dice. The app rolls one die per remaining
+      class: 1-3 miss, 4-5 score one, 6 scores two. Screens downgrade the roll rather than
+      removing dice - level 1 ignores 4s, level 2 caps every hit at one, level 3 scores only on
+      a 6 - so a single-die mount can still hurt a screened ship. Every shot records the faces it
+      rolled in the battle log and the firing console for table audit.
 
 ## Movement Rule Fidelity
 

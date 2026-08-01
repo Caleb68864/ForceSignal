@@ -9,7 +9,8 @@ public sealed class InMemoryMatchServiceCombatTests
     [Fact]
     public void MatchFlow_WithTwoPlayersMultiTurnOrdersFiringAndDamage_WritesCompleteBattleRecord()
     {
-        var service = new InMemoryMatchService();
+        // Every die a 6 so the damage assertions are exact rather than lucky.
+        var service = new InMemoryMatchService(() => 6);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue Admiral", "Self Play Test", 72, 48));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red Admiral"));
         var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Squadron", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -85,7 +86,8 @@ public sealed class InMemoryMatchServiceCombatTests
     [Fact]
     public void FireWeapon_DuringFiringPhase_AppliesDamageAndWritesBattleLog()
     {
-        var service = new InMemoryMatchService();
+        // Every die a 6: a Class-3 beam rolls 3 dice, each scoring 2 through level-1 screens.
+        var service = new InMemoryMatchService(() => 6);
         var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Combat Test"));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -136,12 +138,15 @@ public sealed class InMemoryMatchServiceCombatTests
 
         var damagedTarget = result.Ships.Single(s => s.Id == target.Id);
         Assert.Equal(1, damagedTarget.ArmorDamage);
-        Assert.Equal(1, damagedTarget.HullDamage);
+        Assert.Equal(5, damagedTarget.HullDamage);
         Assert.Contains(result.MatchLog, entry => entry.Message.Contains("range 6", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.MatchLog, entry => entry.Message.Contains("rolled 6,6,6", StringComparison.Ordinal));
+        Assert.Contains(result.MatchLog, entry => entry.Message.Contains("vs screens 1", StringComparison.Ordinal));
         Assert.Contains(result.MatchLog, entry => entry.Category == "Snapshot");
         Assert.Contains(result.MatchLog, entry => entry.Category == "Fire" && entry.Timestamp != default);
-        Assert.Contains(result.FiringResults, firing => firing.Damage == 2 && firing.ArmorDamageApplied == 1 && firing.HullDamageApplied == 1);
-        Assert.Contains(result.FiringResults, firing => firing.RangeBand == "close");
+        // Three 6s through level-1 screens: 2 damage each, armor absorbs one then hull takes five.
+        Assert.Contains(result.FiringResults, firing => firing.Damage == 6 && firing.ArmorDamageApplied == 1 && firing.HullDamageApplied == 5);
+        Assert.Contains(result.FiringResults, firing => firing.RangeBand == "close" && firing.DiceRolls.Count == 3);
     }
 
     [Fact]

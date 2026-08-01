@@ -284,7 +284,8 @@ public sealed record FiringResultDto(
     int SystemPenalty,
     int Damage,
     int ArmorDamageApplied,
-    int HullDamageApplied);
+    int HullDamageApplied,
+    IReadOnlyList<int> DiceRolls);
 
 /// <summary>Launched ordnance or salvo marker tracked on the table map.</summary>
 public sealed record OrdnanceMarkerDto(

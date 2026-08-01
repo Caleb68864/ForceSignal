@@ -85,10 +85,11 @@ public interface IMatchService
 }
 
 /// <summary>In-memory implementation of match orchestration for local and early self-hosted play.</summary>
-public sealed class InMemoryMatchService : IMatchService
+/// <param name="rollDie">Die source for firing resolution, injectable so tests are deterministic.</param>
+public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchService
 {
     private readonly FullThrustLightCinematicRules _rules = new();
-    private readonly FullThrustLightFiringRules _firingRules = new();
+    private readonly FullThrustLightFiringRules _firingRules = new(rollDie);
     private readonly Sha256CommitmentService _commitments = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, MatchState> _matches = [];
@@ -342,7 +343,8 @@ public sealed class InMemoryMatchService : IMatchService
                     firing.SystemPenalty,
                     firing.Damage,
                     firing.ArmorDamageApplied,
-                    firing.HullDamageApplied));
+                    firing.HullDamageApplied,
+                    firing.DiceRolls ?? []));
             }
 
             var (phase, lockedOrdersDropped) = RestorePhase(snapshot.Phase);
@@ -490,7 +492,7 @@ public sealed class InMemoryMatchService : IMatchService
         _ => (MatchPhase.OrderEntry, false),
     };
 
-    private static IReadOnlyList<MatchSeatDto> BuildSeats(MatchState match) =>
+    private static MatchSeatDto[] BuildSeats(MatchState match) =>
         match.Participants.Select(p =>
         {
             var fleets = match.Fleets.Where(f => f.OwnerParticipantId == p.Id).ToArray();
@@ -1037,7 +1039,8 @@ public sealed class InMemoryMatchService : IMatchService
                 result.SystemPenalty,
                 result.Damage,
                 armorApplied,
-                hullApplied);
+                hullApplied,
+                result.DiceRolls);
             match.FiringResults.Add(firingResult);
             if (weapon.AmmoMax > 0)
             {
@@ -1046,10 +1049,19 @@ public sealed class InMemoryMatchService : IMatchService
 
             var destroyedNote = !wasDestroyed && target.HullDamage >= target.HullMax ? " Target destroyed." : string.Empty;
             var ammoNote = weapon.AmmoMax > 0 ? $" Ammo {weapon.AmmoUsed}/{weapon.AmmoMax}." : string.Empty;
+            var rollNote = result.DiceRolls.Count == 0
+                ? "no dice left to roll"
+                : $"rolled {string.Join(",", result.DiceRolls)}";
+            var screenNote = target.ScreenRating switch
+            {
+                > 0 when result.ScreenReduction > 0 => $" vs screens {target.ScreenRating} (-{result.ScreenReduction})",
+                > 0 => $" vs screens {target.ScreenRating}",
+                _ => string.Empty,
+            };
             match.AddLog(
                 "Fire",
                 match.Phase.ToString(),
-                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {request.Arc} arc at range {request.Range} ({firingResult.RangeBand}): {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
+                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {request.Arc} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
             match.Touch("WeaponFired");
             return ToSnapshot(match);
         }
@@ -1225,7 +1237,8 @@ public sealed class InMemoryMatchService : IMatchService
             f.SystemPenalty,
             f.Damage,
             f.ArmorDamageApplied,
-            f.HullDamageApplied)).ToArray(),
+            f.HullDamageApplied,
+            f.DiceRolls)).ToArray(),
         match.OrdnanceMarkers.Select(o => new OrdnanceMarkerDto(
             o.Id,
             o.OwnerParticipantId,
@@ -1379,7 +1392,8 @@ public sealed class InMemoryMatchService : IMatchService
         int SystemPenalty,
         int Damage,
         int ArmorDamageApplied,
-        int HullDamageApplied);
+        int HullDamageApplied,
+        IReadOnlyList<int> DiceRolls);
 
     private sealed record MatchLogEntryState(long Sequence, DateTimeOffset Timestamp, int TurnNumber, string Phase, string Category, string Message);
 

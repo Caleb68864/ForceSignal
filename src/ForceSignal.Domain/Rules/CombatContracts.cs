@@ -36,12 +36,19 @@ public sealed record FiringValidationResult(bool IsValid, IReadOnlyList<string> 
 }
 
 /// <summary>Resolved damage and modifiers for one weapon attack.</summary>
+/// <param name="RawDice">The mount's full dice count before range and system losses.</param>
+/// <param name="RangePenalty">Dice lost to range bands.</param>
+/// <param name="ScreenReduction">Damage points the target's screens prevented.</param>
+/// <param name="SystemPenalty">Dice lost to the attacker's weapon damage.</param>
+/// <param name="Damage">Damage scored after screens.</param>
+/// <param name="DiceRolls">Each die actually rolled, in order, so the table can audit the shot.</param>
 public sealed record FiringResult(
     int RawDice,
     int RangePenalty,
     int ScreenReduction,
     int SystemPenalty,
-    int Damage);
+    int Damage,
+    IReadOnlyList<int> DiceRolls);
 
 /// <summary>Validates and resolves firing attacks for a rules profile.</summary>
 public interface IFiringResolver

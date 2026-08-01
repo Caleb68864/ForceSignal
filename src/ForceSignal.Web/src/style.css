@@ -722,6 +722,12 @@ small,
   text-transform: uppercase;
 }
 
+/* The faces the app rolled for a spent mount, so the table can audit the shot. */
+.dice-readout {
+  color: var(--line-hot);
+  letter-spacing: 0.04em;
+}
+
 .quick-actions {
   grid-column: 1 / -1;
   display: grid;
