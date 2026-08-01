@@ -2658,3 +2658,20 @@ small,
   font-weight: 800;
   text-transform: uppercase;
 }
+
+.setup-fleet-controls {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
+.fleet-identity.new-fleet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+  border: 1px solid rgba(245, 199, 102, 0.4);
+  padding: 10px;
+  background: rgba(1, 9, 12, 0.72);
+}

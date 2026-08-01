@@ -17,10 +17,30 @@ public sealed class FullThrustLightFiringRulesTests
             AttackerWeaponDamage: 1));
 
         Assert.Equal(4, result.RawDice);
-        Assert.Equal(2, result.RangePenalty);
+        Assert.Equal(1, result.RangePenalty);
         Assert.Equal(1, result.ScreenReduction);
         Assert.Equal(1, result.SystemPenalty);
-        Assert.Equal(0, result.Damage);
+        Assert.Equal(1, result.Damage);
+    }
+
+    [Theory]
+    // A beam loses one die per full 12mu band, so band boundaries are inclusive.
+    [InlineData(1, 0)]
+    [InlineData(12, 0)]
+    [InlineData(13, 1)]
+    [InlineData(24, 1)]
+    [InlineData(25, 2)]
+    [InlineData(36, 2)]
+    public void Resolve_LosesOneDiePerTwelveUnitBand(int range, int expectedPenalty)
+    {
+        var result = _rules.Resolve(new FiringSolution(
+            new WeaponAttackProfile("Class-3 Beam", 3, 36, FiringArc.Fore),
+            range,
+            TargetScreenRating: 0,
+            AttackerWeaponDamage: 0));
+
+        Assert.Equal(expectedPenalty, result.RangePenalty);
+        Assert.Equal(3 - expectedPenalty, result.Damage);
     }
 
     [Fact]

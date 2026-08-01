@@ -397,6 +397,7 @@ function App() {
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
   const [fleetLibrary, setFleetLibrary] = useState<SavedFleet[]>(() => readJson<SavedFleet[]>(fleetLibraryKey) ?? []);
   const [pointsLimitForm, setPointsLimitForm] = useState('0');
+  const [newFleetForm, setNewFleetForm] = useState<{ name: string; faction: string; fleetColor: string } | null>(null);
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const spentDraftTurnRef = useRef<string | null>(null);
@@ -1028,6 +1029,29 @@ function App() {
     setMessage(limit === 0 ? 'Points limit cleared.' : `Points limit set to ${limit} per player.`);
   }
 
+  async function createAdditionalFleet() {
+    if (!session || !newFleetForm) {
+      return;
+    }
+
+    const knownFleetIds = new Set(snapshot?.fleets.map((fleet) => fleet.id) ?? []);
+    const created = await post<MatchSnapshot>(`/api/matches/${session.matchId}/fleets`, {
+      participantToken: session.participantToken,
+      name: newFleetForm.name,
+      faction: newFleetForm.faction,
+      fleetColor: newFleetForm.fleetColor,
+    });
+    const fleet = created.fleets.find((item) => !knownFleetIds.has(item.id) && item.ownerParticipantId === session.participantId);
+    if (!fleet) {
+      throw new Error('New fleet was not returned.');
+    }
+
+    setSnapshot(created);
+    setActiveFleetId(fleet.id);
+    setNewFleetForm(null);
+    setMessage(`${fleet.name} created. Ships you add now join this fleet.`);
+  }
+
   function saveActiveFleetToLibrary() {
     if (!activeFleet) {
       setMessage('Create a fleet before saving it to the library.');
@@ -1344,15 +1368,45 @@ function App() {
                     <h3>{activeFleet?.name ?? shipForm.fleetName}</h3>
                   </div>
                   <p>Add ships, tune stats, and move fleet files before marking ready.</p>
-                  {ownedFleets.length > 1 ? (
-                    <label className="active-fleet-select">
-                      Active fleet
-                      <select value={activeFleet?.id ?? ''} onChange={(event) => setActiveFleetId(event.target.value || null)}>
-                        {ownedFleets.map((fleet) => <option key={fleet.id} value={fleet.id}>{fleet.name}</option>)}
-                      </select>
-                    </label>
-                  ) : null}
+                  <div className="setup-fleet-controls">
+                    {ownedFleets.length > 1 ? (
+                      <label className="active-fleet-select">
+                        Active fleet
+                        <select value={activeFleet?.id ?? ''} onChange={(event) => setActiveFleetId(event.target.value || null)}>
+                          {ownedFleets.map((fleet) => <option key={fleet.id} value={fleet.id}>{fleet.name}</option>)}
+                        </select>
+                      </label>
+                    ) : null}
+                    {ownedFleets.length > 0 ? (
+                      <button
+                        className="ghost"
+                        type="button"
+                        onClick={() => setNewFleetForm(newFleetForm
+                          ? null
+                          : { name: `Fleet ${ownedFleets.length + 1}`, faction: shipForm.faction, fleetColor: shipForm.fleetColor })}
+                      >
+                        {newFleetForm ? 'Cancel New Fleet' : 'New Fleet'}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
+                {newFleetForm ? (
+                  <div className="fleet-identity new-fleet">
+                    <label>
+                      Fleet name
+                      <input value={newFleetForm.name} onChange={(event) => setNewFleetForm({ ...newFleetForm, name: event.target.value })} />
+                    </label>
+                    <label>
+                      Faction
+                      <input value={newFleetForm.faction} onChange={(event) => setNewFleetForm({ ...newFleetForm, faction: event.target.value })} />
+                    </label>
+                    <label>
+                      Fleet color
+                      <input type="color" value={newFleetForm.fleetColor} onChange={(event) => setNewFleetForm({ ...newFleetForm, fleetColor: event.target.value })} />
+                    </label>
+                    <button type="button" onClick={() => createAdditionalFleet().catch(showError(setMessage))}>Create Fleet</button>
+                  </div>
+                ) : null}
                 <div className="setup-grid">
                   <div className="shipyard">
                     <span className="label">Add ship</span>

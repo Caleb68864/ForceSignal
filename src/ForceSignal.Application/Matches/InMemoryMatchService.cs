@@ -1650,19 +1650,20 @@ public sealed class InMemoryMatchService : IMatchService
             _ => "Active",
         };
 
+    /// <summary>Names the 12mu dice band a shot falls in, matching the beam falloff.</summary>
     private static string RangeBand(int range, int maxRange)
     {
-        if (range <= 6)
+        if (range <= 12)
         {
             return "close";
         }
 
-        if (range <= 12)
+        if (range <= 24)
         {
             return "medium";
         }
 
-        if (range <= Math.Max(18, maxRange * 2 / 3))
+        if (range <= Math.Max(36, maxRange))
         {
             return "long";
         }

@@ -40,7 +40,9 @@ public sealed class FullThrustLightFiringRules : IFiringResolver
             throw new InvalidOperationException(string.Join(" ", validation.Errors));
         }
 
-        var rangePenalty = Math.Max(0, (solution.Range - 1) / 6);
+        // A beam loses one die per full 12mu band: Class N rolls N dice at 0-12, N-1 at 12-24,
+        // N-2 at 24-36. Range 12 is still the first band, so the -1 keeps the boundary inclusive.
+        var rangePenalty = Math.Max(0, (solution.Range - 1) / 12);
         var screenReduction = Math.Clamp(solution.TargetScreenRating, 0, 3);
         var systemPenalty = Math.Clamp(solution.AttackerWeaponDamage, 0, solution.Weapon.AttackDice);
         var damage = Math.Max(0, solution.Weapon.AttackDice - rangePenalty - screenReduction - systemPenalty);

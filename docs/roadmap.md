@@ -12,6 +12,16 @@ ForceSignal is currently focused on being a session-based tabletop helper for in
 - [x] Physical table workflow: print/export ship cards, compact tablet-friendly controls, public table display mode, and pass-and-play privacy.
 - [x] Damage detail: threshold checks, damage-control reminders, critical system hit markers, crippled/dead-in-space states.
 
+## Weapon Rule Fidelity
+
+- [x] Beam falloff matches the rulebook: a beam loses one die per full 12mu band, so a Class N
+      beam rolls N dice at 0-12, N-1 at 12-24, N-2 at 24-36. The earlier profile dropped a die
+      every 6mu, which made light mounts useless past close range. Range band labels follow the
+      same 12mu bands.
+- [ ] Per-die damage rolls (1-3 miss, 4-5 one damage, 6 two damage) and screens downgrading dice
+      rather than subtracting them. The profile is deliberately deterministic for tabletop
+      bookkeeping; revisit only if the table wants the app to roll.
+
 ## Movement Rule Fidelity
 
 The current profile is a deliberately simplified cinematic model. These two known
