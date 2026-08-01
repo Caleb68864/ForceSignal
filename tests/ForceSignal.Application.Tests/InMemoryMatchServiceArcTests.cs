@@ -98,9 +98,10 @@ public sealed class InMemoryMatchServiceArcTests
                 new WeaponMountDto(Guid.NewGuid(), "Stern Chaser", 1, 12) { Arc = "Aft" },
             ])).Ships.Single();
 
-        // Each old 90 degree side arc becomes the two 60 degree arcs on that side.
+        // Each old 90 degree side arc becomes the two 60 degree arcs on that side, listed in the
+        // canonical clockwise order rather than the order they were asked for.
         Assert.Equal(
-            [FiringArc.ForePort, FiringArc.AftPort],
+            [FiringArc.AftPort, FiringArc.ForePort],
             ship.Weapons.Single(w => w.Name == "Port Battery").Arcs);
         Assert.Equal(
             [FiringArc.ForeStarboard, FiringArc.AftStarboard],
@@ -109,7 +110,7 @@ public sealed class InMemoryMatchServiceArcTests
         Assert.Equal(FiringArcs.Firable, ship.Weapons.Single(w => w.Name == "Turret").Arcs);
         // The old aft arc becomes the two quarters either side of the blind spot.
         Assert.Equal(
-            [FiringArc.AftPort, FiringArc.AftStarboard],
+            [FiringArc.AftStarboard, FiringArc.AftPort],
             ship.Weapons.Single(w => w.Name == "Stern Chaser").Arcs);
     }
 

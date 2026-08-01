@@ -14,25 +14,45 @@ the table, and where the code lives.
 
 ---
 
-## Gap 1 — Threshold checks do not exist
+## Gap 1 — Threshold checks do not exist — FIXED 2026-08-01
 
 **Rules** (`Damage/Threshold Check.md`): each time accumulated damage completes a hull *row*,
 roll one die per surviving system. FTL kills a system on 1 at the first threshold, 1-2 at the
 second, 1-3 at the third. If one attack crosses several rows, roll only for the worst threshold
 reached and add 1 per extra row passed. Completing the fourth row destroys the ship.
 
-**App**: no threshold mechanic anywhere - the word does not appear in the source. Hull is a
-single counter (`HullDamage` / `HullMax`) with no rows, and `FireControlDamage`, `DriveDamage`,
-`WeaponDamage` only change when a player hand-edits them through the damage panel.
+**Was**: no threshold mechanic anywhere - the word did not appear in the source. Hull was a
+single counter with no rows, and system damage only changed when a player hand-edited it.
 
-**Why it matters**: this is the mechanism by which ships degrade in Full Thrust. Without it a
-battle is a flat hull-point race - no drives knocked out, no firecon lost, no reason to focus
-fire on a nearly-broken ship. It is the single largest divergence found.
+**Now**: the hull is a damage track of four rows, as even as the hull allows with the remainder
+weighted to the upper rows, so a 20-box hull is 5/5/5/5 and a 10-box hull is 3/3/2/2. When damage
+completes a row, every surviving system rolls a die: drives, each fire control system, each screen
+level, and each weapon mount. A system is knocked out on a 1 at the first threshold, 1-2 at the
+second, 1-3 at the third. An attack that tears through more than one row rolls once against the
+deepest row reached, one point worse per extra row. Completing the last row destroys the ship, so
+no check is rolled for it, and a ship killed by the same damage rolls nothing.
 
-**Note**: `docs/roadmap.md` currently lists "Damage detail: threshold checks" as complete.
-That claim is wrong; what exists is manual system-damage counters and reminder text.
+Losses bite. A drive hit halves thrust and a second knocks the drives out, which immediately
+limits what orders the ship can plot. A knocked-out mount cannot fire and is labelled in the
+weapon picker. Screens drop a level per generator lost. Every check is logged with the faces it
+rolled and what it cost, and the damage track in the UI marks the row boundaries so the table can
+see where the next threshold sits.
 
-Code: `InMemoryMatchService.FireWeapon` (damage application), `ShipState` hull fields.
+**Deviation - timing**: the rules resolve a threshold check after *all* fire from the attacking
+ship. ForceSignal resolves each mount as it is logged, so the check runs with the shot that
+finished the row. This only differs from the book when one ship's later shots would have pushed
+into a deeper row in the same volley. It follows from there being no ship-by-ship alternation yet
+(gap 6); revisit the timing when that lands.
+
+**Deviation - firecon effect**: losing every fire control system does not yet stop a ship firing.
+The loss is tracked and logged, and each firecon rolls its own die, but the gating is gap 5.
+
+Also fixed a wrong roadmap claim: "Damage detail: threshold checks" had been ticked before any
+threshold code existed.
+
+Code: `ThresholdContracts.cs`, `FullThrustLightThresholdRules`, `ResolveThresholds` /
+`SurvivingSystems` / `ApplySystemLoss` in `InMemoryMatchService`, `hullRowsOf` and `DamageMeter`
+in `main.tsx`.
 
 ---
 
@@ -113,8 +133,9 @@ Code: `FiringArcs.Bearing`, `BearingToTarget` and `FireWeapon` in `InMemoryMatch
 all its dice at one target. A ship that loses **all** FCS may not fire at all, even with working
 weapons.
 
-**App**: `FireControlDamage` is tracked and logged but never gates anything. There is no FCS
-count on a ship, no target limit, and a ship with every firecon dead fires normally.
+**App**: a ship now has a firecon count (`FireControlMax`), threshold checks roll one die per
+working firecon, and losses are tracked and logged - but nothing gates on them. There is still no
+target limit, and a ship with every firecon dead fires normally.
 
 **Why it matters**: FCS is the whole reason to shoot at a cruiser's sensors instead of its hull,
 and the target limit is what stops one ship spraying every mount at a different enemy.
@@ -303,8 +324,9 @@ Code: `main.tsx` contact card and pre-turn checklist.
 ## Suggested order of work to reach a playable match
 
 1. ~~Six 60 degree arcs, aft blind spot, and a real bearing check (Gaps 2, 3, 4).~~ Done.
-2. Threshold checks with hull rows (Gap 1) - biggest single remaining fidelity win.
-3. FCS gating and one target per firecon (Gap 5).
+2. ~~Threshold checks with hull rows (Gap 1).~~ Done.
+3. FCS gating and one target per firecon (Gap 5) - the firecon count and its threshold rolls are
+   in place, so this is now just the gating.
 4. Drift for unordered ships (Gap 7).
 5. Half-and-half course execution and rotation at rest (Gaps 8, 9).
 6. Firing initiative and alternation (Gap 6).

@@ -51,12 +51,16 @@ type Ship = {
   hullDamage: number;
   armorMax: number;
   armorDamage: number;
+  fireControlMax: number;
   fireControlDamage: number;
   driveDamage: number;
   weaponDamage: number;
   screenRating: number;
   weapons: WeaponMount[];
   isDestroyed: boolean;
+  // The hull damage track, as boxes per row. Completing a row triggers a threshold check.
+  hullRows?: number[];
+  hullRowsCompleted?: number;
   iconKey: ShipIconKey;
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -75,6 +79,7 @@ type WeaponMount = {
   ammoMax: number;
   ammoUsed: number;
   reloadTurns: number;
+  isDestroyed?: boolean;
 };
 
 type OrdnanceMarker = {
@@ -230,6 +235,7 @@ type ShipForm = {
   hullMax: number;
   armorMax: number;
   screenRating: number;
+  fireControlMax: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -264,6 +270,7 @@ type FleetExportShip = {
   hullMax: number;
   armorMax: number;
   screenRating: number;
+  fireControlMax: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -313,6 +320,7 @@ const defaultShipForm: ShipForm = {
   positionY: 24,
   hullMax: 12,
   armorMax: 4,
+  fireControlMax: 2,
   screenRating: 1,
   weapons: [{
     id: crypto.randomUUID(),
@@ -366,6 +374,25 @@ const arcAbbreviations: Record<FiringArc, string> = {
   ForePort: 'FP',
 };
 
+/// The hull damage track as boxes per row: four rows, remainder weighted to the upper rows.
+function hullRowsFor(hullMax: number): number[] {
+  if (hullMax <= 0) {
+    return [];
+  }
+
+  if (hullMax < 4) {
+    return Array.from({ length: hullMax }, () => 1);
+  }
+
+  const baseSize = Math.floor(hullMax / 4);
+  const remainder = hullMax % 4;
+  return Array.from({ length: 4 }, (_, index) => baseSize + (index < remainder ? 1 : 0));
+}
+
+function hullRowsOf(ship: Ship): number[] {
+  return ship.hullRows && ship.hullRows.length > 0 ? ship.hullRows : hullRowsFor(ship.hullMax);
+}
+
 function arcLabel(arc: FiringArc) {
   return arcLabels[arc] ?? arc;
 }
@@ -415,31 +442,31 @@ function arcBlocker(ship: Ship, target?: Ship, weapon?: WeaponMount): string | n
 const shipPresets: { label: string; patch: Partial<ShipForm> }[] = [
   {
     label: 'Escort',
-    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, weapons: [weaponPreset('Class-1 Beam', 1, 12, ['Fore'])] },
+    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, weapons: [weaponPreset('Class-1 Beam', 1, 12, ['Fore'])] },
   },
   {
     label: 'Frigate',
-    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
+    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, fireControlMax: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
   },
   {
     label: 'Destroyer',
-    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
+    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, fireControlMax: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
   },
   {
     label: 'Cruiser',
-    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs])] },
+    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, fireControlMax: 2, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs])] },
   },
   {
     label: 'Carrier',
-    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
+    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, fireControlMax: 2, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
   },
   {
     label: 'Fighters',
-    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, weapons: [weaponPreset('Fighter Attack', 3, 6, ['Fore'])], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
+    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, weapons: [weaponPreset('Fighter Attack', 3, 6, ['Fore'])], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
   },
   {
     label: 'Station',
-    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, weapons: [weaponPreset('Heavy Battery', 3, 30, [...firableArcs])] },
+    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, fireControlMax: 3, weapons: [weaponPreset('Heavy Battery', 3, 30, [...firableArcs])] },
   },
 ];
 
@@ -684,6 +711,7 @@ function App() {
       hullMax: shipForm.hullMax,
       armorMax: shipForm.armorMax,
       screenRating: shipForm.screenRating,
+      fireControlMax: shipForm.fireControlMax,
       weapons: shipForm.weapons,
       iconKey: shipForm.iconKey,
       fighterEnduranceMax: shipForm.fighterEnduranceMax,
@@ -774,6 +802,7 @@ function App() {
         hullMax: ship.hullMax,
         armorMax: ship.armorMax,
         screenRating: ship.screenRating,
+        fireControlMax: ship.fireControlMax ?? 1,
         weapons: ship.weapons,
         iconKey: ship.iconKey,
         fighterEnduranceMax: ship.fighterEnduranceMax,
@@ -958,6 +987,7 @@ function App() {
       positionX: form.positionX,
       positionY: form.positionY,
       screenRating: form.screenRating,
+      fireControlMax: form.fireControlMax,
       weapons: form.weapons,
       iconKey: form.iconKey,
       fighterEnduranceMax: form.fighterEnduranceMax,
@@ -1825,6 +1855,7 @@ function App() {
                             label="Hull"
                             value={ship.hullDamage}
                             max={ship.hullMax}
+                            rows={hullRowsOf(ship)}
                             onChange={(value) => updateDamage(ship, { hullDamage: value }).catch(showError(setMessage))}
                           />
                           <DamageControl
@@ -1836,7 +1867,7 @@ function App() {
                           <DamageControl
                             label="Firecon"
                             value={ship.fireControlDamage}
-                            max={6}
+                            max={ship.fireControlMax ?? 1}
                             onChange={(value) => updateDamage(ship, { fireControlDamage: value }).catch(showError(setMessage))}
                           />
                           <DamageControl
@@ -2137,6 +2168,10 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
         Screens
         <input type="number" min="0" max="3" value={form.screenRating} onChange={(event) => onChange({ ...form, screenRating: Number(event.target.value) })} />
       </label>
+      <label title="Each working fire control system directs fire at one target, and each rolls separately at a threshold check.">
+        Firecons
+        <input type="number" min="0" max="6" value={form.fireControlMax} onChange={(event) => onChange({ ...form, fireControlMax: Number(event.target.value) })} />
+      </label>
       <label>
         Points (NPV)
         <input type="number" min="0" max="99999" value={form.pointsValue} onChange={(event) => onChange({ ...form, pointsValue: Number(event.target.value) })} />
@@ -2263,6 +2298,7 @@ function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (form: Shi
     hullMax: ship.hullMax,
     armorMax: ship.armorMax,
     screenRating: ship.screenRating,
+    fireControlMax: ship.fireControlMax ?? 1,
     weapons: ship.weapons.length > 0 ? ship.weapons : [newWeaponMount()],
     fighterEnduranceMax: ship.fighterEnduranceMax,
     fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -3631,13 +3667,16 @@ function MapFiringAssistant({
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : 0;
   const targetArc = bearingArc(ship, target);
   const arcProblem = arcBlocker(ship, target, weapon);
+  const mountLost = Boolean(weapon?.isDestroyed);
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
-  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem;
+  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost;
   const firingNote = !weapon
     ? 'No weapon mounted'
-    : !target
+    : mountLost
+      ? 'Mount knocked out'
+      : !target
       ? 'No target selected'
       : arcProblem
         ? arcProblem
@@ -3668,7 +3707,7 @@ function MapFiringAssistant({
           {ship.weapons.map((mount) => {
             const spent = firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === mount.id);
             const ammo = mount.ammoMax > 0 ? ` · ammo ${mount.ammoUsed}/${mount.ammoMax}` : '';
-            return <option key={mount.id} value={mount.id}>{mount.name} · {mount.maxRange}{ammo}{spent ? ' · spent' : ''}</option>;
+            return <option key={mount.id} value={mount.id}>{mount.name} · {mount.maxRange}{ammo}{mount.isDestroyed ? ' · knocked out' : spent ? ' · spent' : ''}</option>;
           })}
         </select>
       </label>
@@ -3750,14 +3789,17 @@ function FiringConsole({
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : null;
   const targetArc = bearingArc(ship, target);
   const arcProblem = arcBlocker(ship, target, weapon);
+  const mountLost = Boolean(weapon?.isDestroyed);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
-  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem;
+  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost;
   const rangeStatus = weapon && estimatedRange
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
-  const fireStatus = arcProblem
+  const fireStatus = mountLost
+    ? `${weapon?.name} was knocked out by a threshold check.`
+    : arcProblem
     ? `${arcProblem}.`
     : weaponSpent
       ? `${weapon?.name} spent this turn.`
@@ -3789,7 +3831,7 @@ function FiringConsole({
           {ship.weapons.map((mount) => {
             const spent = firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === mount.id);
             const ammo = mount.ammoMax > 0 ? ` · ammo ${mount.ammoUsed}/${mount.ammoMax}` : '';
-            return <option key={mount.id} value={mount.id}>{mount.name} · {mount.attackDice}D/{mount.maxRange}{ammo}{spent ? ' · spent' : ''}</option>;
+            return <option key={mount.id} value={mount.id}>{mount.name} · {mount.attackDice}D/{mount.maxRange}{ammo}{mount.isDestroyed ? ' · knocked out' : spent ? ' · spent' : ''}</option>;
           })}
         </select>
       </label>
@@ -3935,10 +3977,10 @@ function CourseCompass({
   );
 }
 
-function DamageControl({ label, value, max, onChange }: { label: string; value: number; max: number; onChange: (value: number) => void }) {
+function DamageControl({ label, value, max, rows, onChange }: { label: string; value: number; max: number; rows?: number[]; onChange: (value: number) => void }) {
   return (
     <div className="damage-control">
-      <DamageMeter label={label} value={value} max={max} />
+      <DamageMeter label={label} value={value} max={max} rows={rows} />
       <div className="damage-buttons">
         <button type="button" onClick={() => onChange(Math.max(0, value - 1))}>-</button>
         <button type="button" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
@@ -3947,8 +3989,18 @@ function DamageControl({ label, value, max, onChange }: { label: string; value: 
   );
 }
 
-function DamageMeter({ label, value, max }: { label: string; value: number; max: number }) {
+function DamageMeter({ label, value, max, rows }: { label: string; value: number; max: number; rows?: number[] }) {
   const cells = Array.from({ length: max }, (_, index) => index < value);
+  // A row boundary is where a threshold check fires, so mark the last box of each row but the last.
+  const rowEnds = new Set<number>();
+  if (rows && rows.length > 1) {
+    let box = 0;
+    rows.slice(0, -1).forEach((row) => {
+      box += row;
+      rowEnds.add(box - 1);
+    });
+  }
+
   return (
     <div className="damage-meter">
       <div className="damage-meter-head">
@@ -3957,7 +4009,11 @@ function DamageMeter({ label, value, max }: { label: string; value: number; max:
       </div>
       <div className="damage-cells">
         {cells.map((isDamaged, index) => (
-          <span key={index} className={isDamaged ? 'damaged' : ''} />
+          <span
+            key={index}
+            className={`${isDamaged ? 'damaged' : ''}${rowEnds.has(index) ? ' row-end' : ''}`.trim()}
+            title={rowEnds.has(index) ? 'End of hull row - threshold check' : undefined}
+          />
         ))}
       </div>
     </div>
@@ -4464,6 +4520,7 @@ function normalizeWeaponMount(value: unknown): WeaponMount {
     attackDice: wholeNumberFrom(record.attackDice ?? record.dice, 2, 1, 12),
     maxRange: wholeNumberFrom(record.maxRange ?? record.range, 24, 1, 72),
     arcs: normalizeArcs(record.arcs, record.arc),
+    isDestroyed: record.isDestroyed === true || record.isDestroyed === 'true',
     ammoMax: wholeNumberFrom(record.ammoMax ?? record.ammo, 0, 0, 99),
     ammoUsed: wholeNumberFrom(record.ammoUsed ?? record.used, 0, 0, 99),
     reloadTurns: wholeNumberFrom(record.reloadTurns ?? record.reload, 0, 0, 12),
@@ -4507,10 +4564,10 @@ function parseWeaponsCell(value: string): WeaponMount[] {
   }
 
   return value.split(';').map((entry) => {
-    const [name, attackDice, maxRange, arcs, ammoMax, ammoUsed, reloadTurns] = entry.split('|');
+    const [name, attackDice, maxRange, arcs, ammoMax, ammoUsed, reloadTurns, destroyed] = entry.split('|');
     // The arcs cell holds one or more arc names joined by '+'; older files hold a single
     // four-arc name here, which normalizeArcs expands.
-    return normalizeWeaponMount({ name, attackDice, maxRange, arcs, arc: arcs, ammoMax, ammoUsed, reloadTurns });
+    return normalizeWeaponMount({ name, attackDice, maxRange, arcs, arc: arcs, ammoMax, ammoUsed, reloadTurns, isDestroyed: destroyed === 'out' });
   });
 }
 
@@ -4533,6 +4590,7 @@ function toFleetExport(fleet: Fleet, ships: Ship[]): FleetExport {
       hullMax: ship.hullMax,
       armorMax: ship.armorMax,
       screenRating: ship.screenRating,
+      fireControlMax: ship.fireControlMax ?? 1,
       weapons: ship.weapons,
       fighterEnduranceMax: ship.fighterEnduranceMax,
       fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -4571,6 +4629,7 @@ function parseFleetExport(text: string, fileName: string, fallback: ShipForm): F
       hullMax: getValue('hull') || getValue('hullboxes') || getValue('hullmax'),
       armorMax: getValue('armor') || getValue('armorboxes') || getValue('armormax'),
       screenRating: getValue('screens') || getValue('screenrating'),
+      fireControlMax: getValue('firecontrolmax') || getValue('firecons'),
       fighterEnduranceMax: getValue('fighterendurance') || getValue('fighterendurancemax'),
       fighterEnduranceUsed: getValue('fighterused') || getValue('fighterenduranceused'),
       fighterMaxRange: getValue('fighterrange') || getValue('fightermaxrange'),
@@ -4626,6 +4685,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
     hullMax: wholeNumberFrom(record.hullMax ?? record.hullBoxes ?? record.hull, fallback.hullMax, 1, 80),
     armorMax: wholeNumberFrom(record.armorMax ?? record.armorBoxes ?? record.armor, fallback.armorMax, 0, 40),
     screenRating: wholeNumberFrom(record.screenRating ?? record.screens, fallback.screenRating, 0, 3),
+    fireControlMax: wholeNumberFrom(record.fireControlMax ?? record.firecons, fallback.fireControlMax, 0, 6),
     weapons: Array.isArray(record.weapons) ? record.weapons.map(normalizeWeaponMount) : [newWeaponMount()],
     fighterEnduranceMax: wholeNumberFrom(record.fighterEnduranceMax ?? record.fighterEndurance, fallback.fighterEnduranceMax, 0, 24),
     fighterEnduranceUsed: wholeNumberFrom(record.fighterEnduranceUsed ?? record.fighterUsed, fallback.fighterEnduranceUsed, 0, 24),
@@ -4639,7 +4699,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
 
 function fleetExportToCsv(fleet: FleetExport) {
   const rows = [
-    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
+    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fireControlMax', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
     ...fleet.ships.map((ship) => [
       fleet.fleetColor,
       ship.name,
@@ -4653,13 +4713,14 @@ function fleetExportToCsv(fleet: FleetExport) {
       String(ship.hullMax),
       String(ship.armorMax),
       String(ship.screenRating),
+      String(ship.fireControlMax ?? 1),
       String(ship.fighterEnduranceMax),
       String(ship.fighterEnduranceUsed),
       String(ship.fighterMaxRange),
       ship.fighterStatus,
       ship.homeCarrierName ?? '',
       String(ship.pointsValue ?? 0),
-      ship.weapons.map((weapon) => `${weapon.name}|${weapon.attackDice}|${weapon.maxRange}|${weapon.arcs.join('+')}|${weapon.ammoMax}|${weapon.ammoUsed}|${weapon.reloadTurns}`).join(';'),
+      ship.weapons.map((weapon) => `${weapon.name}|${weapon.attackDice}|${weapon.maxRange}|${weapon.arcs.join('+')}|${weapon.ammoMax}|${weapon.ammoUsed}|${weapon.reloadTurns}|${weapon.isDestroyed ? 'out' : ''}`).join(';'),
     ]),
   ];
 

@@ -1,6 +1,7 @@
 using ForceSignal.Contracts.Matches;
 using ForceSignal.Domain.Rules;
 using ForceSignal.Modules.FullThrust.Combat;
+using ForceSignal.Modules.FullThrust.Damage;
 using ForceSignal.Modules.FullThrust.Movement;
 
 namespace ForceSignal.Application.Matches;
@@ -90,6 +91,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 {
     private readonly FullThrustLightCinematicRules _rules = new();
     private readonly FullThrustLightFiringRules _firingRules = new(rollDie);
+    private readonly FullThrustLightThresholdRules _thresholdRules = new(rollDie);
     private readonly Sha256CommitmentService _commitments = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, MatchState> _matches = [];
@@ -271,10 +273,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     FighterMaxRange = NormalizeFighterMaxRange(ship.FighterMaxRange, iconKey, ship.ClassName),
                     FighterStatus = NormalizeFighterStatus(ship.FighterStatus, iconKey, ship.ClassName),
                     PointsValue = ClampPoints(ship.PointsValue),
+                    FireControlMax = ClampFireControl(ship.FireControlMax),
                 };
                 restoredShip.HullDamage = ClampDamage(ship.HullDamage, restoredShip.HullMax);
                 restoredShip.ArmorDamage = ClampDamage(ship.ArmorDamage, restoredShip.ArmorMax);
-                restoredShip.FireControlDamage = ClampDamage(ship.FireControlDamage, 6);
+                restoredShip.FireControlDamage = ClampDamage(ship.FireControlDamage, restoredShip.FireControlMax);
                 restoredShip.DriveDamage = ClampDamage(ship.DriveDamage, restoredShip.ThrustRating);
                 restoredShip.WeaponDamage = ClampDamage(ship.WeaponDamage, 12);
                 match.Ships.Add(restoredShip);
@@ -636,6 +639,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 FighterStatus = NormalizeFighterStatus(request.FighterStatus, iconKey, request.ClassName),
                 HomeCarrierShipId = ValidateCarrierId(match, request.HomeCarrierShipId),
                 PointsValue = ClampPoints(request.PointsValue),
+                FireControlMax = ClampFireControl(request.FireControlMax),
             });
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, match.Ships[^1])} added to {fleet.Name}.");
             match.Touch("ShipCreated");
@@ -678,6 +682,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             ship.FighterStatus = NormalizeFighterStatus(request.FighterStatus, ship.IconKey, ship.ClassName);
             ship.HomeCarrierShipId = ValidateCarrierId(match, request.HomeCarrierShipId);
             ship.PointsValue = ClampPoints(request.PointsValue);
+            ship.FireControlMax = ClampFireControl(request.FireControlMax);
+            ship.FireControlDamage = ClampDamage(ship.FireControlDamage, ship.FireControlMax);
             ship.HullDamage = ClampDamage(ship.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(ship.ArmorDamage, ship.ArmorMax);
             ship.DriveDamage = ClampDamage(ship.DriveDamage, ship.ThrustRating);
@@ -712,7 +718,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 source.PositionX,
                 source.PositionY,
                 source.ScreenRating,
-                source.Weapons.Select(w => new WeaponMountState(Guid.NewGuid(), w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns)).ToList(),
+                source.Weapons.Select(w => new WeaponMountState(Guid.NewGuid(), w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns) { IsDestroyed = w.IsDestroyed }).ToList(),
                 source.IconKey)
             {
                 FighterEnduranceMax = source.FighterEnduranceMax,
@@ -741,7 +747,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var before = CaptureDamage(ship);
             ship.HullDamage = ClampDamage(request.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(request.ArmorDamage, ship.ArmorMax);
-            ship.FireControlDamage = ClampDamage(request.FireControlDamage, 6);
+            ship.FireControlDamage = ClampDamage(request.FireControlDamage, ship.FireControlMax);
             ship.DriveDamage = ClampDamage(request.DriveDamage, ship.ThrustRating);
             ship.WeaponDamage = ClampDamage(request.WeaponDamage, 12);
             match.AddLog("Damage", match.Phase.ToString(), $"{DescribeShip(match, ship)} damage record updated: {DescribeDamageDelta(before, CaptureDamage(ship))}.");
@@ -986,6 +992,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             var weapon = attacker.Weapons.SingleOrDefault(w => w.Id == request.WeaponId)
                 ?? throw new InvalidOperationException("Weapon mount was not found.");
+            if (weapon.IsDestroyed)
+            {
+                throw new InvalidOperationException($"{weapon.Name} was knocked out by a threshold check.");
+            }
+
             if (weapon.AmmoMax > 0 && weapon.AmmoUsed >= weapon.AmmoMax)
             {
                 throw new InvalidOperationException($"{weapon.Name} has no ammunition remaining.");
@@ -1029,6 +1040,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             target.HullDamage = ClampDamage(target.HullDamage + remainingDamage, target.HullMax);
             var hullApplied = target.HullDamage - hullBefore;
 
+            // Completing a hull row makes every surviving system roll to stay alive. The rules time
+            // this after all fire from the attacking ship, but ForceSignal resolves each mount as it
+            // is logged, so the check runs with the shot that finished the row.
+            var thresholdNote = ResolveThresholds(match, target, hullBefore);
+
             var firingResult = new FiringResultState(
                 attacker.Id,
                 target.Id,
@@ -1066,7 +1082,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.AddLog(
                 "Fire",
                 match.Phase.ToString(),
-                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
+                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}{thresholdNote}");
             match.Touch("WeaponFired");
             return ToSnapshot(match);
         }
@@ -1202,12 +1218,15 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.HullDamage,
             s.ArmorMax,
             s.ArmorDamage,
+            s.FireControlMax,
             s.FireControlDamage,
             s.DriveDamage,
             s.WeaponDamage,
             s.ScreenRating,
-            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns)).ToArray(),
+            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns, w.IsDestroyed)).ToArray(),
             s.HullDamage >= s.HullMax,
+            FullThrustLightThresholdRules.HullRowsFor(s.HullMax),
+            FullThrustLightThresholdRules.RowsCompletedFor(s.HullDamage, s.HullMax),
             s.IconKey,
             s.FighterEnduranceMax,
             s.FighterEnduranceUsed,
@@ -1338,6 +1357,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int HullDamage { get; set; }
         public int ArmorMax { get; set; } = armorMax;
         public int ArmorDamage { get; set; }
+        public int FireControlMax { get; set; } = 1;
         public int FireControlDamage { get; set; }
         public int DriveDamage { get; set; }
         public int WeaponDamage { get; set; }
@@ -1359,6 +1379,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int AttackDice { get; } = attackDice;
         public int MaxRange { get; } = maxRange;
         public IReadOnlyList<FiringArc> Arcs { get; } = arcs;
+        public bool IsDestroyed { get; set; }
         public int AmmoMax { get; } = ammoMax;
         public int AmmoUsed { get; set; } = ammoUsed;
         public int ReloadTurns { get; } = reloadTurns;
@@ -1401,6 +1422,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         IReadOnlyList<int> DiceRolls);
 
     private sealed record MatchLogEntryState(long Sequence, DateTimeOffset Timestamp, int TurnNumber, string Phase, string Category, string Message);
+
+    private static int ClampFireControl(int value) => Math.Clamp(value, 0, 6);
 
     private static int ClampPoints(int value) => Math.Clamp(value, 0, 99999);
 
@@ -1557,6 +1580,118 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
 
         return carrier.Id;
+    }
+
+    /// <summary>
+    /// Rolls threshold checks for every hull row this damage completed, applies what was knocked
+    /// out, and returns a note for the fire log. A ship destroyed by the same damage rolls nothing.
+    /// </summary>
+    private string ResolveThresholds(MatchState match, ShipState target, int hullBefore)
+    {
+        if (IsDestroyed(target))
+        {
+            return string.Empty;
+        }
+
+        var rowsBefore = _thresholdRules.RowsCompleted(hullBefore, target.HullMax);
+        var rowsAfter = _thresholdRules.RowsCompleted(target.HullDamage, target.HullMax);
+        if (rowsAfter <= rowsBefore)
+        {
+            return string.Empty;
+        }
+
+        // One check against the deepest row reached, one point worse per extra row torn through.
+        var threshold = Math.Min(rowsAfter, FullThrustLightThresholdRules.DeepestThreshold);
+        var extra = rowsAfter - rowsBefore - 1;
+        var systems = SurvivingSystems(target);
+        var result = _thresholdRules.Resolve(new ThresholdCheck(threshold, extra, systems));
+
+        var losses = new List<string>();
+        foreach (var system in result.Lost)
+        {
+            losses.Add(ApplySystemLoss(target, system));
+        }
+
+        var rollNote = result.Rolls.Count == 0
+            ? "no systems left to roll"
+            : $"rolled {string.Join(",", result.Rolls.Select(roll => roll.Die))}";
+        var lossNote = losses.Count == 0 ? "nothing knocked out" : string.Join(", ", losses);
+        var rowNote = extra > 0 ? $"threshold {result.Threshold} (+{extra} rows in one attack)" : $"threshold {result.Threshold}";
+        match.AddLog(
+            "Threshold",
+            match.Phase.ToString(),
+            $"{DescribeShip(match, target)} completed hull row {rowsAfter} of {_thresholdRules.HullRows(target.HullMax).Count}: {rowNote}, systems lost on {result.LostOn} or less, {rollNote}. {lossNote}.");
+
+        return losses.Count == 0
+            ? $" Threshold {result.Threshold} check passed."
+            : $" Threshold {result.Threshold}: {lossNote}.";
+    }
+
+    /// <summary>
+    /// Every system icon still working on a ship, one entry per die the threshold check will roll.
+    /// Drives count once: the first hit halves thrust and a second finishes them.
+    /// </summary>
+    private static List<ShipSystem> SurvivingSystems(ShipState ship)
+    {
+        var systems = new List<ShipSystem>();
+        if (ship.ThrustRating > 0 && ship.DriveDamage < ship.ThrustRating)
+        {
+            systems.Add(new ShipSystem(ShipSystemKind.Drive, "drives"));
+        }
+
+        for (var index = 0; index < ship.FireControlMax - ship.FireControlDamage; index++)
+        {
+            systems.Add(new ShipSystem(ShipSystemKind.FireControl, "fire control"));
+        }
+
+        // Each screen level is its own generator, so each rolls separately.
+        for (var level = 0; level < ship.ScreenRating; level++)
+        {
+            systems.Add(new ShipSystem(ShipSystemKind.Screen, "screen generator"));
+        }
+
+        systems.AddRange(ship.Weapons
+            .Where(weapon => !weapon.IsDestroyed)
+            .Select(weapon => new ShipSystem(ShipSystemKind.Weapon, weapon.Name, weapon.Id)));
+        return systems;
+    }
+
+    /// <summary>Applies one knocked-out system and describes it for the log.</summary>
+    private static string ApplySystemLoss(ShipState ship, ShipSystem system)
+    {
+        switch (system.Kind)
+        {
+            case ShipSystemKind.Drive:
+                // First hit cuts thrust in half; a second leaves the ship drifting.
+                var halved = (ship.ThrustRating + 1) / 2;
+                if (ship.DriveDamage < halved)
+                {
+                    ship.DriveDamage = halved;
+                    return $"drives cut to thrust {Math.Max(0, ship.ThrustRating - ship.DriveDamage)}";
+                }
+
+                ship.DriveDamage = ship.ThrustRating;
+                return "drives knocked out";
+            case ShipSystemKind.FireControl:
+                ship.FireControlDamage = Math.Min(ship.FireControlMax, ship.FireControlDamage + 1);
+                return ship.FireControlDamage >= ship.FireControlMax
+                    ? "last fire control lost"
+                    : "fire control lost";
+            case ShipSystemKind.Screen:
+                ship.ScreenRating = Math.Max(0, ship.ScreenRating - 1);
+                return ship.ScreenRating == 0 ? "screens down" : $"screens dropped to level {ship.ScreenRating}";
+            case ShipSystemKind.Weapon:
+                var mount = ship.Weapons.SingleOrDefault(weapon => weapon.Id == system.WeaponId);
+                if (mount is null)
+                {
+                    return system.Name;
+                }
+
+                mount.IsDestroyed = true;
+                return $"{mount.Name} knocked out";
+            default:
+                return system.Name;
+        }
     }
 
     /// <summary>The arc the target lies in, relative to the firing ship's nose.</summary>
@@ -1767,12 +1902,13 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     /// four-arc name is expanded. The aft arc is always removed, because every weapon has it
     /// blacked out, and a mount left with nothing is treated as bearing fore.
     /// </summary>
-    private static IReadOnlyList<FiringArc> NormalizeArcs(WeaponMountDto weapon)
+    private static FiringArc[] NormalizeArcs(WeaponMountDto weapon)
     {
         var arcs = weapon.Arcs is { Count: > 0 }
             ? weapon.Arcs
             : ExpandLegacyArc(weapon.Arc);
-        var firable = arcs.Where(FiringArcs.CanFireThrough).Distinct().ToArray();
+        // Keep the canonical clockwise order however the caller listed them.
+        var firable = FiringArcs.Firable.Where(arcs.Contains).ToArray();
         return firable.Length > 0 ? firable : [FiringArc.Fore];
     }
 
@@ -1817,7 +1953,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 NormalizeArcs(w),
                 Math.Clamp(w.AmmoMax, 0, 99),
                 Math.Clamp(w.AmmoUsed, 0, Math.Max(0, w.AmmoMax)),
-                Math.Clamp(w.ReloadTurns, 0, 12)))
+                Math.Clamp(w.ReloadTurns, 0, 12)) { IsDestroyed = w.IsDestroyed })
             .ToArray();
     }
 

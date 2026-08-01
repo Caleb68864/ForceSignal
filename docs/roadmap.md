@@ -33,10 +33,13 @@ Found by scanning the code against the GZG rules notes; each item is written up 
 `rules-fidelity-gaps.md`. The app targets Full Thrust Light, and these are the FTL mechanics
 that are missing or wrong, in the order they should be fixed to reach a real match.
 
-- [ ] Threshold checks (gap 1). Hull rows, then one die per surviving system when a row completes -
-      FTL kills a system on 1, then 1-2, then 1-3 by threshold, worst threshold only when an attack
-      crosses several rows. Without this, combat is a flat hull-point race and no system is ever
-      knocked out except by hand.
+- [x] Threshold checks (gap 1). The hull is four rows; completing one rolls a die per surviving
+      system - drives, each firecon, each screen level, each mount - lost on 1, then 1-2, then 1-3
+      by depth, one point worse per extra row torn through in a single attack. Losses bite: drives
+      halve then die and limit what orders can be plotted, a knocked-out mount cannot fire, screens
+      drop a level per generator. Checks are logged with their rolls, and the damage track marks the
+      row boundaries. Two deviations are recorded in `rules-fidelity-gaps.md`: the check resolves
+      per shot rather than per attacking ship, and losing every firecon does not stop fire yet.
 - [x] Six 60 degree fire arcs (gap 2). Fore, fore starboard, aft starboard, aft, aft port, fore
       port. A mount now bears through a *set* of arcs, so a battery covering three adjacent arcs or
       an all-round turret can both be transcribed. Fleets and snapshots written with the old four
@@ -46,8 +49,9 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
 - [x] Verify arc bearing against geometry (gap 4). The arc a target lies in is computed from the
       firing ship's course and the two positions, and the mount is held to it. An arc supplied by
       the client is treated as a cross-check and a disagreement names the real bearing.
-- [ ] Fire control gating (gap 5). Losing all firecons should stop a ship firing, and each working
-      firecon should allow exactly one target that turn. Today firecon damage changes nothing.
+- [ ] Fire control gating (gap 5). Ships now carry a firecon count and threshold checks roll for
+      each one, but nothing gates on the result: losing all firecons should stop a ship firing, and
+      each working firecon should allow exactly one target that turn.
 - [ ] Drift for unordered ships (gap 7). The rules let a ship with no written order continue on the
       same course and velocity; the app cannot advance the turn until every live ship is ordered.
 - [ ] Firing initiative and alternation (gap 6). Roll off, winner fires one ship completely, then

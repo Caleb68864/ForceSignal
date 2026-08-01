@@ -64,7 +64,8 @@ public sealed record CreateShipRequest(
     int FighterMaxRange = 0,
     string? FighterStatus = null,
     Guid? HomeCarrierShipId = null,
-    int PointsValue = 0);
+    int PointsValue = 0,
+    int FireControlMax = 1);
 
 /// <summary>Updates editable ship profile, position, and equipment fields.</summary>
 public sealed record UpdateShipProfileRequest(
@@ -86,7 +87,8 @@ public sealed record UpdateShipProfileRequest(
     int FighterMaxRange = 0,
     string? FighterStatus = null,
     Guid? HomeCarrierShipId = null,
-    int PointsValue = 0);
+    int PointsValue = 0,
+    int FireControlMax = 1);
 
 /// <summary>Updates fighter launch/recovery and endurance tracking for a fighter group.</summary>
 public sealed record UpdateFighterOperationsRequest(
@@ -233,12 +235,15 @@ public sealed record ShipDto(
     int HullDamage,
     int ArmorMax,
     int ArmorDamage,
+    int FireControlMax,
     int FireControlDamage,
     int DriveDamage,
     int WeaponDamage,
     int ScreenRating,
     IReadOnlyList<WeaponMountDto> Weapons,
     bool IsDestroyed,
+    IReadOnlyList<int> HullRows,
+    int HullRowsCompleted,
     string IconKey,
     int FighterEnduranceMax,
     int FighterEnduranceUsed,
@@ -279,6 +284,7 @@ public sealed record MovementResultDto(
 /// <param name="AmmoMax">Rounds carried, or zero for an unlimited beam mount.</param>
 /// <param name="AmmoUsed">Rounds already spent.</param>
 /// <param name="ReloadTurns">Turns needed to reload, for the table's own bookkeeping.</param>
+/// <param name="IsDestroyed">True once a threshold check has knocked this mount out.</param>
 public sealed record WeaponMountDto(
     Guid Id,
     string Name,
@@ -287,7 +293,8 @@ public sealed record WeaponMountDto(
     IReadOnlyList<FiringArc>? Arcs = null,
     int AmmoMax = 0,
     int AmmoUsed = 0,
-    int ReloadTurns = 0)
+    int ReloadTurns = 0,
+    bool IsDestroyed = false)
 {
     /// <summary>
     /// Compatibility field for data written before ForceSignal used six arcs. When
