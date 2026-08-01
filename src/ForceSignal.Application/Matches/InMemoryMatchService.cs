@@ -134,7 +134,7 @@ public sealed class InMemoryMatchService : IMatchService
         lock (_gate)
         {
             return _matches.TryGetValue(matchId, out var match)
-                && match.Participants.Any(p => p.Token == participantToken);
+                && match.Participants.Any(p => p.IsClaimed && p.Token == participantToken);
         }
     }
 
@@ -147,7 +147,7 @@ public sealed class InMemoryMatchService : IMatchService
                 return null;
             }
 
-            var participant = match.Participants.SingleOrDefault(p => p.Token == participantToken);
+            var participant = match.Participants.SingleOrDefault(p => p.IsClaimed && p.Token == participantToken);
             if (participant is null || participant.IsConnected == isConnected)
             {
                 return null;
@@ -741,7 +741,10 @@ public sealed class InMemoryMatchService : IMatchService
         _matches.TryGetValue(matchId, out var match) ? match : throw new InvalidOperationException("Match was not found.");
 
     private static ParticipantState FindParticipant(MatchState match, string token) =>
-        match.Participants.SingleOrDefault(p => p.Token == token) ?? throw new UnauthorizedAccessException("Participant token is invalid.");
+        string.IsNullOrWhiteSpace(token)
+            ? throw new UnauthorizedAccessException("Participant token is invalid.")
+            : match.Participants.SingleOrDefault(p => p.IsClaimed && p.Token == token)
+                ?? throw new UnauthorizedAccessException("Participant token is invalid.");
 
     private static ShipState FindOwnedShip(MatchState match, Guid participantId, Guid shipId)
     {
@@ -886,12 +889,15 @@ public sealed class InMemoryMatchService : IMatchService
     private sealed class ParticipantState
     {
         public Guid Id { get; init; }
-        public required string Token { get; init; }
+        public required string Token { get; set; }
         public required string DisplayName { get; init; }
         public required string Role { get; init; }
         public bool IsReady { get; set; }
         // False until a realtime hub connection joins the match group for this token.
         public bool IsConnected { get; set; }
+
+        /// <summary>A restored seat holds no token until a device claims it.</summary>
+        public bool IsClaimed => !string.IsNullOrWhiteSpace(Token);
 
         public static ParticipantState Create(string displayName, string role) => new()
         {
@@ -900,6 +906,17 @@ public sealed class InMemoryMatchService : IMatchService
             DisplayName = displayName,
             Role = role
         };
+
+        public static ParticipantState CreateSeat(Guid id, string displayName, string role, bool isReady) => new()
+        {
+            Id = id,
+            Token = string.Empty,
+            DisplayName = displayName,
+            Role = role,
+            IsReady = isReady
+        };
+
+        public string Claim() => Token = _commitmentSafeToken();
 
         private static string _commitmentSafeToken() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
     }
