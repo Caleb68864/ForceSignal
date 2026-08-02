@@ -10,7 +10,7 @@ ForceSignal is currently focused on being a session-based tabletop helper for in
 - [x] Table safety tools: end-of-turn checklist, unresolved fire reminders, fighter endurance reminders, quick undo, and log/snapshot export prompts.
 - [x] Measurement helpers: range bands, weapon arcs, fighter range rings, ordnance markers, and movement path preview with final position/course.
 - [x] Physical table workflow: print/export ship cards, compact tablet-friendly controls, public table display mode, and pass-and-play privacy.
-- [x] Damage detail: damage-control counters, critical system hit markers, and crippled/dead-in-space
+- [x] Damage detail: damage-control counters, critical system hit markers, and half-hull/dead-in-space
       reminders. This item previously also claimed threshold checks; it should not have. The app
       tracks system damage as counters a player edits by hand - there is no hull-row threshold roll.
       See `rules-fidelity-gaps.md` gap 1.
@@ -65,9 +65,16 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
 - [x] Pulse torpedoes (gap 10). A mount declares its kind, and a torpedo launcher rolls to hit -
       2+ inside 6mu, a point worse every 6mu, out to a 6 at 30 - then takes a damage die's face as
       damage. Screens do not reduce it. The console shows the number needed before the shot.
-- [ ] Ordnance attack resolution (gap 11) and point defence (gap 13). Salvo markers drift and expire
-      but never attack, and nothing shoots at fighters or missiles. These are interdependent, and
-      both are Fleet Book systems rather than FTL, so beam-and-torpedo matches play without them.
+- [x] Range cross-check (gap 14). The table still decides distance and a shot is never refused over
+      it, but a declared range that falls in a different band than the map measures - or is more than
+      half a band off - is flagged in the console before the shot and recorded in the log.
+- [x] Half hull is labelled a watch list rather than a rule (gap 15). Full Thrust has no crippled
+      state, so the app no longer implies one.
+- [ ] Ordnance attack resolution (gap 11), fighter group strength (gap 12), and point defence
+      (gap 13). Salvo markers drift and expire but never attack, fighter groups roll a fixed dice
+      count rather than one die per surviving fighter, and nothing shoots at fighters or missiles.
+      These are interdependent, and all are Fleet Book systems rather than FTL, so beam-and-torpedo
+      matches play without them.
 
 ## Movement Rule Fidelity
 

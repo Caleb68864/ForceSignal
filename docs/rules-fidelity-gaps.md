@@ -319,30 +319,40 @@ Code: none - system absent.
 
 ---
 
-## Gap 14 — Range is player-declared and never cross-checked
+## Gap 14 — Range is player-declared and never cross-checked — FIXED 2026-08-02
 
 **Rules**: measure to and from the centre of each model's stand.
 
-**App**: `FireWeaponRequest.Range` is typed by the player. The map offers "Use Map Range" but the
-server accepts whatever number arrives and validates it only against the mount's maximum.
+**Was**: the declared range was accepted with no comparison against the map at all.
 
-**Judgement**: defensible - the physical table is the source of truth, and that is this app's
-stated stance. But the server already knows both positions, so it could warn when a declared
-range disagrees with the map by more than a tolerance, which would catch transcription slips
-without overriding the table.
+**Now**: the range is still the player's to declare - the table remains the authority on distance and
+a shot is never refused over it - but a disagreement is said out loud. The check is tied to range
+*bands* rather than an arbitrary tolerance, because a band is what actually changes the dice: a beam
+loses one every 12mu and a torpedo's to-hit number worsens every 6mu. A declared range is flagged
+when it falls in a different band than the map measures, or when the two numbers are more than half a
+band apart, which usually means a mistyped range or a ship nobody dragged to where it really sits.
 
-Code: `InMemoryMatchService.FireWeapon`.
+The firing console says so before the shot, where it can still be fixed, and the shot records both
+the map range and whether they disagreed so the log entry survives into the after-action record.
+
+This is worth having precisely because arcs are now derived from map positions (gap 4): if the map is
+trusted to decide which arc a target is in, a silent disagreement about distance is an inconsistency.
+
+Code: `MapRangeBetween` / `RangeDisagreesWithMap` in `InMemoryMatchService`,
+`rangeDisagreesWithMap` in `main.tsx`.
 
 ---
 
-## Gap 15 — "Crippled at half hull" is an app invention
+## Gap 15 — "Crippled at half hull" is an app invention — FIXED 2026-08-02
 
 Full Thrust has no crippled state; ships fight at full effect until systems are knocked out by
 threshold checks, then die when the last hull box goes. The app flags ships at or past half hull
 as "crippled" in the contact card and the checklist.
 
-**Judgement**: harmless as a table aid, but it should be labelled as an app convenience rather
-than reading like a rule, so nobody plays a penalty that does not exist.
+**Now**: the word "crippled" is gone. The contact card reads "half hull" as a plain fact, and the
+checklist says "N ships at or past half hull (watch list, not a rule)" so nobody plays a penalty that
+does not exist. A ship still fights at full effect until a threshold check takes its systems, and
+dies when the last hull box goes.
 
 Code: `main.tsx` contact card and pre-turn checklist.
 

@@ -347,7 +347,9 @@ public sealed record FiringResultDto(
     IReadOnlyList<int> DiceRolls,
     WeaponKind WeaponKind = WeaponKind.Beam,
     int? ToHitNumber = null,
-    bool? IsHit = null);
+    bool? IsHit = null,
+    decimal MapRange = 0,
+    bool RangeDisagreed = false);
 
 /// <summary>Launched ordnance or salvo marker tracked on the table map.</summary>
 public sealed record OrdnanceMarkerDto(

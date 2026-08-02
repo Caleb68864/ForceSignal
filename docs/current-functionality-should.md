@@ -41,7 +41,7 @@ ForceSignal should behave as a tabletop helper for in-person space fleet games. 
 - Players should commit/reveal movement orders without exposing hidden order details too early.
 - Movement should respect current thrust limits, including multiple turns in one order.
 - The match log should record meaningful battle context: orders, movement, firing, damage, ordnance, fighter ops, table state, and turn transitions.
-- End-of-turn checklist should warn about unresolved fire, active ordnance, fighter endurance, carrier ops, crippled ships, disabled drives, and out-of-bounds ships.
+- End-of-turn checklist should warn about unresolved fire, active ordnance, fighter endurance, carrier ops, ships at or past half hull, disabled drives, and out-of-bounds ships. Half hull is a ForceSignal watch list, not a Full Thrust state, and should read that way.
 
 ## Play Map
 

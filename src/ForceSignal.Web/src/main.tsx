@@ -467,6 +467,16 @@ const weaponKinds: { key: WeaponKind; label: string; maxRange: number }[] = [
   { key: 'PulseTorpedo', label: 'Pulse torpedo', maxRange: 30 },
 ];
 
+/// Whether a declared range disagrees with the map enough to be worth saying: it sits in a
+/// different band, which changes the dice, or the two numbers are simply far apart. Mirrors the
+/// server, which logs the same disagreement but never refuses the shot - the table decides distance.
+function rangeDisagreesWithMap(declaredRange: number, mapRange: number, kind: WeaponKind) {
+  const bandWidth = kind === 'PulseTorpedo' ? 6 : 12;
+  const declaredBand = Math.floor(Math.max(0, declaredRange - 1) / bandWidth);
+  const mappedBand = Math.floor(Math.max(0, Math.ceil(mapRange) - 1) / bandWidth);
+  return declaredBand !== mappedBand || Math.abs(declaredRange - mapRange) > bandWidth / 2;
+}
+
 /// The die a pulse torpedo needs at this range: 2+ inside 6mu, a point worse every 6mu after.
 function torpedoToHitNumber(range: number) {
   return Math.min(6, Math.max(2, 2 + Math.floor((Math.max(1, range) - 1) / 6)));
@@ -3382,7 +3392,7 @@ function MapContactCard({
         </div>
         <div>
           <dt>Hull</dt>
-          <dd className={ship.hullDamage >= Math.ceil(ship.hullMax / 2) ? 'hurt' : ''}>{ship.hullDamage}/{ship.hullMax}{ship.hullDamage >= Math.ceil(ship.hullMax / 2) && !ship.isDestroyed ? ' · crippled' : ''}</dd>
+          <dd className={ship.hullDamage >= Math.ceil(ship.hullMax / 2) ? 'hurt' : ''}>{ship.hullDamage}/{ship.hullMax}{ship.hullDamage >= Math.ceil(ship.hullMax / 2) && !ship.isDestroyed ? ' · half hull' : ''}</dd>
         </div>
         <div>
           <dt>Armor</dt>
@@ -3952,6 +3962,11 @@ function FiringConsole({
   const rangeStatus = weapon && estimatedRange
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
+  // The table is the authority on distance, so a disagreement is said out loud, not enforced.
+  const rangeDoubt = Boolean(weapon) && Boolean(estimatedRange)
+    && rangeDisagreesWithMap(draft.range, estimatedRange!, weapon!.kind)
+    ? `Declared ${draft.range}, map measures ${estimatedRange}. The table decides; fix the range or the ship positions if that gap is wrong.`
+    : null;
   const fireStatus = turnProblem
     ? `${turnProblem}.`
     : mountLost
@@ -4017,6 +4032,7 @@ function FiringConsole({
       {canEndFire ? (
         <button className="ghost volley-close" type="button" onClick={onCeaseFire}>{volleyOpen ? 'Done Firing' : 'Hold Fire'}</button>
       ) : null}
+      {rangeDoubt ? <p className="constraint-line range-doubt">{rangeDoubt}</p> : null}
       {canEndFire ? (
         <p className="constraint-line">
           {volleyOpen
@@ -5244,11 +5260,14 @@ function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set<string
     });
   }
 
-  const crippled = liveShips.filter((ship) => ship.hullDamage >= Math.ceil(ship.hullMax / 2));
-  if (crippled.length > 0) {
+  // Full Thrust has no crippled state: a ship fights at full effect until a threshold check takes
+  // its systems, and dies when the last hull box goes. Half hull is a ForceSignal watch list, so it
+  // says so rather than reading like a rule.
+  const halfHull = liveShips.filter((ship) => ship.hullDamage >= Math.ceil(ship.hullMax / 2));
+  if (halfHull.length > 0) {
     items.push({
-      id: 'crippled',
-      text: `${crippled.length} ship${crippled.length === 1 ? '' : 's'} at or past half hull`,
+      id: 'half-hull',
+      text: `${halfHull.length} ship${halfHull.length === 1 ? '' : 's'} at or past half hull (watch list, not a rule)`,
       severity: 'warning',
     });
   }

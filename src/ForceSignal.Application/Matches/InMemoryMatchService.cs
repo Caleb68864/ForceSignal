@@ -359,7 +359,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     firing.DiceRolls ?? [],
                     firing.WeaponKind,
                     firing.ToHitNumber,
-                    firing.IsHit));
+                    firing.IsHit,
+                    firing.MapRange,
+                    firing.RangeDisagreed));
             }
 
             var (phase, lockedOrdersDropped) = RestorePhase(snapshot.Phase);
@@ -1190,6 +1192,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             target.HullDamage = ClampDamage(target.HullDamage + remainingDamage, target.HullMax);
             var hullApplied = target.HullDamage - hullBefore;
 
+            var mapRange = MapRangeBetween(attacker, target);
+            var rangeDisagreed = RangeDisagreesWithMap(request.Range, mapRange, weapon.Kind);
+
             var firingResult = new FiringResultState(
                 attacker.Id,
                 target.Id,
@@ -1209,7 +1214,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 result.DiceRolls,
                 weapon.Kind,
                 result.ToHitNumber,
-                result.IsHit);
+                result.IsHit,
+                mapRange,
+                rangeDisagreed);
             match.FiringResults.Add(firingResult);
             if (weapon.AmmoMax > 0)
             {
@@ -1239,6 +1246,14 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 "Fire",
                 match.Phase.ToString(),
                 $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
+            if (rangeDisagreed)
+            {
+                match.AddLog(
+                    "Range",
+                    match.Phase.ToString(),
+                    $"Range check: {DescribeShip(match, attacker)} declared {request.Range} to {DescribeShip(match, target)} but the map measures {mapRange:0.#}. The table decides, so the shot stands - correct the declared range or the ship positions if that gap is wrong.");
+            }
+
             match.Touch("WeaponFired");
             return ToSnapshot(match);
         }
@@ -1602,7 +1617,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             f.DiceRolls,
             f.WeaponKind,
             f.ToHitNumber,
-            f.IsHit)).ToArray(),
+            f.IsHit,
+            f.MapRange,
+            f.RangeDisagreed)).ToArray(),
         match.OrdnanceMarkers.Select(o => new OrdnanceMarkerDto(
             o.Id,
             o.OwnerParticipantId,
@@ -1781,7 +1798,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         IReadOnlyList<int> DiceRolls,
         WeaponKind WeaponKind,
         int? ToHitNumber,
-        bool? IsHit);
+        bool? IsHit,
+        decimal MapRange,
+        bool RangeDisagreed);
 
     private sealed record MatchLogEntryState(long Sequence, DateTimeOffset Timestamp, int TurnNumber, string Phase, string Category, string Message);
 
@@ -2050,6 +2069,34 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             default:
                 return system.Name;
         }
+    }
+
+    /// <summary>Distance between two ships on the map, rounded to a tenth of a unit.</summary>
+    private static decimal MapRangeBetween(ShipState attacker, ShipState target) =>
+        Math.Round((decimal)Math.Sqrt(
+            Math.Pow((double)(target.PositionX - attacker.PositionX), 2)
+            + Math.Pow((double)(target.PositionY - attacker.PositionY), 2)), 1);
+
+    /// <summary>
+    /// How wide a range band is for this weapon: a beam loses a die every 12mu, a torpedo's to-hit
+    /// number worsens every 6mu.
+    /// </summary>
+    private static int RangeBandWidth(WeaponKind kind) =>
+        kind == WeaponKind.PulseTorpedo ? FullThrustLightPulseTorpedoRules.BandWidth : 12;
+
+    /// <summary>
+    /// Whether a declared range disagrees with the map enough to be worth saying. The table is the
+    /// authority on distance, so this never refuses a shot - it flags the two cases a player would
+    /// want to know about: the declared range sits in a different band than the map, which changes
+    /// the dice, or the two numbers are simply far apart, which usually means a mistyped range or a
+    /// ship that was never dragged to where it actually sits.
+    /// </summary>
+    private static bool RangeDisagreesWithMap(int declaredRange, decimal mapRange, WeaponKind kind)
+    {
+        var bandWidth = RangeBandWidth(kind);
+        var declaredBand = Math.Max(0, declaredRange - 1) / bandWidth;
+        var mappedBand = (int)Math.Max(0, Math.Ceiling(mapRange) - 1) / bandWidth;
+        return declaredBand != mappedBand || Math.Abs(declaredRange - mapRange) > bandWidth / 2m;
     }
 
     /// <summary>The arc the target lies in, relative to the firing ship's nose.</summary>

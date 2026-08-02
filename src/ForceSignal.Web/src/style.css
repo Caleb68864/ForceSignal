@@ -2743,3 +2743,10 @@ small,
   border-color: var(--amber);
   color: var(--amber);
 }
+
+/* A declared range that disagrees with the map: said out loud, never enforced. */
+.range-doubt {
+  color: var(--amber);
+  text-transform: none;
+  letter-spacing: 0;
+}
