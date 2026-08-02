@@ -154,6 +154,13 @@ public sealed record UpdateShipDamageRequest(
     int DriveDamage,
     int WeaponDamage);
 
+/// <summary>
+/// Declares that a participant has finished plotting for the turn. Ships left without an order
+/// simply hold their course and speed, so a fleet does not need an order written for every hull.
+/// </summary>
+/// <param name="ParticipantToken">Session token of the participant who is done plotting.</param>
+public sealed record DeclareOrdersCompleteRequest(string ParticipantToken);
+
 /// <summary>Commits a hidden movement order by storing its salted hash.</summary>
 public sealed record CommitOrderRequest(
     string ParticipantToken,
@@ -225,7 +232,7 @@ public sealed record MatchSnapshotDto(
     int PointsLimit);
 
 /// <summary>Participant display and readiness state.</summary>
-public sealed record ParticipantDto(Guid Id, string DisplayName, string Role, bool IsReady, bool IsConnected);
+public sealed record ParticipantDto(Guid Id, string DisplayName, string Role, bool IsReady, bool IsConnected, bool OrdersComplete);
 
 /// <summary>Fleet display state and owner association.</summary>
 public sealed record FleetDto(Guid Id, Guid OwnerParticipantId, string Name, string? Faction, string FleetColor);

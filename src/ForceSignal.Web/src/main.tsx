@@ -27,6 +27,7 @@ type Participant = {
   role: string;
   isReady: boolean;
   isConnected: boolean;
+  ordersComplete?: boolean;
 };
 
 type Fleet = {
@@ -907,7 +908,10 @@ function App() {
     let latest = snapshot;
     const draftsToStore: Record<string, DraftOrder> = {};
     const unlockedShips = ownedShips.filter((ship) => (
-      !ship.isDestroyed && !latest.orderStatuses.find((status) => status.shipId === ship.id)?.isCommitted
+      !ship.isDestroyed
+      && !latest.orderStatuses.find((status) => status.shipId === ship.id)?.isCommitted
+      // A ship the player never plotted needs no order: it holds course and speed.
+      && Boolean(drafts[ship.id])
     ));
     for (const ship of unlockedShips) {
       const draft = drafts[ship.id] ?? createDraftOrder();
@@ -923,8 +927,20 @@ function App() {
     if (Object.keys(draftsToStore).length > 0) {
       setDrafts((current) => ({ ...current, ...draftsToStore }));
     }
+
+    // Saying "that is my plotting done" is what closes order entry. Ships without an order hold
+    // their course and speed rather than blocking the turn.
+    latest = await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/complete`, {
+      participantToken: session.participantToken,
+    });
     setSnapshot(latest);
-    setMessage(unlockedShips.length === 0 ? 'All friendly orders were already locked.' : `Locked ${unlockedShips.length} friendly orders.`);
+    const holding = ownedShips.filter((ship) => (
+      !ship.isDestroyed && !latest.orderStatuses.find((status) => status.shipId === ship.id)?.isCommitted
+    )).length;
+    const lockedNote = unlockedShips.length === 0 ? 'No new orders to lock' : `Locked ${unlockedShips.length} order${unlockedShips.length === 1 ? '' : 's'}`;
+    setMessage(holding === 0
+      ? `${lockedNote}. Plotting closed.`
+      : `${lockedNote}. Plotting closed; ${holding} ship${holding === 1 ? ' holds' : 's hold'} course and speed.`);
   }
 
   async function revealOwnedOrders() {
@@ -4218,14 +4234,52 @@ function distanceBetweenShips(source: Ship, target: Ship) {
   return Math.hypot(target.positionX - source.positionX, target.positionY - source.positionY);
 }
 
+/// The legs a plotted order will actually be flown as, mirroring the server: each plotted turn
+/// takes an equal share of the move and is made half at the start of its leg and half at the
+/// mid-point, with half rounded down. A straight line to the ending course would put the preview
+/// somewhere the ship never goes.
+function plannedSegments(currentCourse: number, endingVelocity: number, draft: DraftOrder): MovementSegment[] {
+  const maneuvers = turnManeuversForDraft(draft);
+  if (maneuvers.length === 0) {
+    return [{ course: currentCourse, distance: endingVelocity }];
+  }
+
+  const halfLeg = endingVelocity / (maneuvers.length * 2);
+  const segments: MovementSegment[] = [];
+  const addLeg = (course: number, distance: number) => {
+    const last = segments[segments.length - 1];
+    if (last && last.course === course) {
+      last.distance += distance;
+      return;
+    }
+
+    segments.push({ course, distance });
+  };
+
+  let course = currentCourse;
+  for (const maneuver of maneuvers) {
+    const sign = maneuver.direction === 'Port' ? -1 : 1;
+    const openingPivot = Math.floor(maneuver.steps / 2);
+    course = wrapCourse(course + sign * openingPivot);
+    addLeg(course, halfLeg);
+    course = wrapCourse(course + sign * (maneuver.steps - openingPivot));
+    addLeg(course, halfLeg);
+  }
+
+  return segments;
+}
+
 function estimateDraftEndpoint(ship: Ship, draft: DraftOrder, tableWidth: number, tableDepth: number): { x: number; y: number } {
   const endingVelocity = Math.max(0, ship.currentVelocity + draft.velocityDelta);
-  const endingCourse = previewCourse(ship.currentCourse, draft);
-  const radians = endingCourse * Math.PI / 6;
-  return {
-    x: Math.max(0, Math.min(tableWidth, ship.positionX + Math.sin(radians) * endingVelocity)),
-    y: Math.max(0, Math.min(tableDepth, ship.positionY - Math.cos(radians) * endingVelocity)),
-  };
+  let x = ship.positionX;
+  let y = ship.positionY;
+  for (const segment of plannedSegments(ship.currentCourse, endingVelocity, draft)) {
+    const radians = segment.course * Math.PI / 6;
+    x = Math.max(0, Math.min(tableWidth, x + Math.sin(radians) * segment.distance));
+    y = Math.max(0, Math.min(tableDepth, y - Math.cos(radians) * segment.distance));
+  }
+
+  return { x, y };
 }
 
 function rangeDiameterPercent(range: number, tableSize: number) {

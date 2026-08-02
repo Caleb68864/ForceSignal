@@ -424,6 +424,23 @@ app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/commit", async (
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
+app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/complete", async (
+    Guid matchId,
+    DeclareOrdersCompleteRequest request,
+    IMatchService matches,
+    IHubContext<MatchHub> hub) =>
+{
+    var snapshot = matches.DeclareOrdersComplete(matchId, request);
+    await NotifySnapshotChanged(hub, snapshot, "OrdersDeclaredComplete");
+    return Results.Ok(snapshot);
+})
+    .WithName("DeclareOrdersComplete")
+    .WithTags("Orders")
+    .WithSummary("Declares a participant has finished plotting; unordered ships hold course and speed.")
+    .Produces<MatchSnapshotDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
 app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/reveal", async (
     Guid matchId,
     RevealOrderRequest request,

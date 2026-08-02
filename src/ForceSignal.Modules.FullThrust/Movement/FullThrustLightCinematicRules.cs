@@ -67,10 +67,18 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
         var usesTurnManeuvers = order.TurnManeuvers is { Count: > 0 };
         var thrustSpent = Math.Abs(order.VelocityDelta) + totalTurnSteps;
         var turnCap = (int)Math.Ceiling(thrustRating / 2.0);
+        // A ship at rest may be rotated on the spot to any heading, spending no thrust and making
+        // no other move. It is the one turn that costs nothing and ignores the half-thrust cap.
+        var rotatingAtRest = shipState.Velocity == 0 && order.VelocityDelta == 0 && totalTurnSteps > 0;
 
-        if (thrustSpent > thrustRating)
+        if (!rotatingAtRest && thrustSpent > thrustRating)
         {
             errors.Add("Velocity change and turns cannot spend more than thrust rating.");
+        }
+
+        if (rotatingAtRest && totalTurnSteps > 12)
+        {
+            errors.Add("A rotation at rest cannot exceed a full circle.");
         }
 
         if (shipState.Velocity + order.VelocityDelta < 0)
@@ -88,7 +96,7 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
             errors.Add("A turn direction is required when turn steps are entered.");
         }
 
-        if (totalTurnSteps > turnCap)
+        if (!rotatingAtRest && totalTurnSteps > turnCap)
         {
             errors.Add("Turn points cannot exceed half thrust rounded up in the light cinematic profile.");
         }
@@ -102,21 +110,35 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A ship applies sideways thrust throughout its move, so a plotted turn is made half at the
+    /// start and half at the mid-point: pivot half the turn rounded down, run half the distance,
+    /// pivot the rest, run the rest. Rounding down is why a single-point turn happens entirely at
+    /// the mid-point. A plotted sequence of turns gives each one an equal share of the move and
+    /// splits it the same way.
+    /// </remarks>
     public MovementResult Resolve(ShipMovementState shipState, MovementOrder order)
     {
         var endingVelocity = shipState.Velocity + order.VelocityDelta;
         var maneuvers = NormalizeManeuvers(order);
         var course = shipState.Course;
         var segments = new List<MovementSegment>();
-        var segmentDistance = maneuvers.Count == 0 ? endingVelocity : endingVelocity / (decimal)(maneuvers.Count + 1);
 
-        segments.Add(new MovementSegment(course, segmentDistance));
+        if (maneuvers.Count == 0)
+        {
+            segments.Add(new MovementSegment(course, endingVelocity));
+            return new MovementResult(shipState.Velocity, shipState.Course, endingVelocity, course, segments);
+        }
 
+        var halfLeg = endingVelocity / (decimal)(maneuvers.Count * 2);
         foreach (var maneuver in maneuvers)
         {
-            var signedTurn = maneuver.Direction == TurnDirection.Port ? -maneuver.Steps : maneuver.Steps;
-            course = WrapCourse(course + signedTurn);
-            segments.Add(new MovementSegment(course, segmentDistance));
+            var sign = maneuver.Direction == TurnDirection.Port ? -1 : 1;
+            var openingPivot = maneuver.Steps / 2;
+            course = WrapCourse(course + (sign * openingPivot));
+            AddSegment(segments, course, halfLeg);
+            course = WrapCourse(course + (sign * (maneuver.Steps - openingPivot)));
+            AddSegment(segments, course, halfLeg);
         }
 
         return new MovementResult(
@@ -125,6 +147,22 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
             endingVelocity,
             course,
             segments);
+    }
+
+    /// <summary>
+    /// Appends a leg, extending the previous one when the course has not actually changed. A
+    /// single-point turn pivots nothing at the start, so without this the trail would carry a
+    /// needless kink-free split.
+    /// </summary>
+    private static void AddSegment(List<MovementSegment> segments, int course, decimal distance)
+    {
+        if (segments.Count > 0 && segments[^1].Course == course)
+        {
+            segments[^1] = segments[^1] with { Distance = segments[^1].Distance + distance };
+            return;
+        }
+
+        segments.Add(new MovementSegment(course, distance));
     }
 
     /// <summary>Wraps any course number onto the twelve-point course clock.</summary>

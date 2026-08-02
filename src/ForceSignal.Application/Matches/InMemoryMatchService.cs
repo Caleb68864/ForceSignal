@@ -72,6 +72,9 @@ public interface IMatchService
     /// <summary>Removes a launched ordnance marker.</summary>
     MatchSnapshotDto RemoveOrdnanceMarker(Guid markerId, RemoveOrdnanceMarkerRequest request);
 
+    /// <summary>Declares a participant has finished plotting, leaving unordered ships to hold course.</summary>
+    MatchSnapshotDto DeclareOrdersComplete(Guid matchId, DeclareOrdersCompleteRequest request);
+
     /// <summary>Commits a hidden movement order.</summary>
     MatchSnapshotDto CommitOrder(Guid matchId, CommitOrderRequest request);
 
@@ -868,6 +871,80 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
     }
 
+    public MatchSnapshotDto DeclareOrdersComplete(Guid matchId, DeclareOrdersCompleteRequest request)
+    {
+        lock (_gate)
+        {
+            var match = FindMatch(matchId);
+            var participant = FindParticipant(match, request.ParticipantToken);
+            if (match.Phase is not (MatchPhase.OrderEntry or MatchPhase.OrdersLocked))
+            {
+                throw new InvalidOperationException("Plotting can only be closed out during order entry.");
+            }
+
+            participant.OrdersComplete = true;
+            var drifting = DriftingShipIds(match, participant.Id).Count;
+            match.AddLog(
+                "Orders",
+                match.Phase.ToString(),
+                drifting == 0
+                    ? $"{participant.DisplayName} finished plotting."
+                    : $"{participant.DisplayName} finished plotting. {drifting} ship{(drifting == 1 ? " holds" : "s hold")} course and speed.");
+            AdvanceOrderEntryPhase(match);
+            match.Touch("OrdersDeclaredComplete");
+            return ToSnapshot(match);
+        }
+    }
+
+    /// <summary>
+    /// Live ships belonging to a participant with no order written this turn. They hold their
+    /// course and speed rather than sitting still.
+    /// </summary>
+    private static List<Guid> DriftingShipIds(MatchState match, Guid? ownerParticipantId = null) =>
+    [
+        .. LiveShipIds(match).Where(id =>
+        {
+            if (match.Commitments.ContainsKey(id))
+            {
+                return false;
+            }
+
+            if (ownerParticipantId is not { } owner)
+            {
+                return true;
+            }
+
+            var ship = match.Ships.Single(s => s.Id == id);
+            return match.Fleets.Single(f => f.Id == ship.FleetId).OwnerParticipantId == owner;
+        })
+    ];
+
+    /// <summary>
+    /// Moves order entry along once everyone with ships has finished plotting. With nothing locked
+    /// there is nothing to reveal, so the turn goes straight to movement.
+    /// </summary>
+    private static void AdvanceOrderEntryPhase(MatchState match)
+    {
+        var plotters = match.Participants
+            .Where(p => p.IsClaimed && match.Fleets.Any(f => f.OwnerParticipantId == p.Id
+                && match.Ships.Any(s => s.FleetId == f.Id && !IsDestroyed(s))))
+            .ToArray();
+        if (plotters.Length == 0 || !plotters.All(p => p.OrdersComplete))
+        {
+            return;
+        }
+
+        if (match.Commitments.Count == 0)
+        {
+            match.Phase = MatchPhase.Movement;
+            match.AddLog("Phase", match.Phase.ToString(), "No orders were written; every ship holds course and speed.");
+            return;
+        }
+
+        match.Phase = MatchPhase.OrdersLocked;
+        match.AddLog("Phase", match.Phase.ToString(), "All movement orders locked.");
+    }
+
     public MatchSnapshotDto CommitOrder(Guid matchId, CommitOrderRequest request)
     {
         lock (_gate)
@@ -907,6 +984,10 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             {
                 match.Phase = MatchPhase.OrdersLocked;
                 match.AddLog("Phase", match.Phase.ToString(), "All movement orders locked.");
+            }
+            else
+            {
+                AdvanceOrderEntryPhase(match);
             }
 
             match.Touch("OrderCommitted");
@@ -948,8 +1029,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     ? $"{DescribeShip(match, ship)} revealed dV {request.Order.VelocityDelta}, helm {DescribeTurnSequence(request.Order)}."
                     : $"{DescribeShip(match, ship)} reveal did not match its locked order. Re-lock and reveal again before movement.");
 
-            var liveShipIds = LiveShipIds(match);
-            if (liveShipIds.Count > 0 && liveShipIds.All(id => match.Commitments.TryGetValue(id, out var live) && live.IsRevealed))
+            // Only locked orders need revealing: a ship without one is holding course, and there is
+            // nothing hidden about that.
+            if (match.Commitments.Values.All(c => c.IsRevealed))
             {
                 match.Phase = MatchPhase.Movement;
                 match.AddLog("Phase", match.Phase.ToString(), "All movement orders revealed.");
@@ -1138,6 +1220,10 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 match.Phase = MatchPhase.OrderEntry;
                 match.Commitments.Clear();
                 match.FiringResults.Clear();
+                foreach (var plotter in match.Participants)
+                {
+                    plotter.OrdersComplete = false;
+                }
                 AdvanceOrdnanceMarkers(match);
                 AddFleetSummary(match, "End of firing phase");
                 AddShipStateSnapshot(match, "End of turn");
@@ -1170,6 +1256,20 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 (ship.PositionX, ship.PositionY) = EstimatePositionFromResult(ship.PositionX, ship.PositionY, commitment.Result, match.TableWidth, match.TableDepth);
                 var order = commitment.RevealedOrder!;
                 match.AddLog("Movement", match.Phase.ToString(), $"{DescribeShip(match, ship)} plotted dV {order.VelocityDelta}, helm {DescribeTurnSequence(order)}; moved v{startingVelocity}/c{startingCourse} to v{ship.CurrentVelocity}/c{ship.CurrentCourse}, position {startingX:0.#},{startingY:0.#} to {ship.PositionX:0.#},{ship.PositionY:0.#}.{PositionEdgeNote(ship, match)}");
+            }
+
+            // A ship with no order written keeps the course and speed it already had, and still
+            // travels its full velocity.
+            foreach (var shipId in DriftingShipIds(match))
+            {
+                var ship = match.Ships.Single(s => s.Id == shipId);
+                var startingX = ship.PositionX;
+                var startingY = ship.PositionY;
+                (ship.PositionX, ship.PositionY) = EstimatePosition(ship.PositionX, ship.PositionY, ship.CurrentVelocity, ship.CurrentCourse, match.TableWidth, match.TableDepth);
+                match.AddLog(
+                    "Movement",
+                    match.Phase.ToString(),
+                    $"{DescribeShip(match, ship)} had no order and held course: v{ship.CurrentVelocity}/c{ship.CurrentCourse}, position {startingX:0.#},{startingY:0.#} to {ship.PositionX:0.#},{ship.PositionY:0.#}.{PositionEdgeNote(ship, match)}");
             }
 
             match.Phase = MatchPhase.Firing;
@@ -1280,7 +1380,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         FullThrustLightCinematicRules.ProfileKey,
         match.TableWidth,
         match.TableDepth,
-        match.Participants.Select(p => new ParticipantDto(p.Id, p.DisplayName, p.Role, p.IsReady, p.IsConnected)).ToArray(),
+        match.Participants.Select(p => new ParticipantDto(p.Id, p.DisplayName, p.Role, p.IsReady, p.IsConnected, p.OrdersComplete)).ToArray(),
         match.Fleets.Select(f => new FleetDto(f.Id, f.OwnerParticipantId, f.Name, f.Faction, f.FleetColor)).ToArray(),
         match.Ships.Select(s => new ShipDto(
             s.Id,
@@ -1399,6 +1499,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public bool IsReady { get; set; }
         // False until a realtime hub connection joins the match group for this token.
         public bool IsConnected { get; set; }
+
+        /// <summary>True once this participant says its plotting is done for the turn.</summary>
+        public bool OrdersComplete { get; set; }
 
         /// <summary>A restored seat holds no token until a device claims it.</summary>
         public bool IsClaimed => !string.IsNullOrWhiteSpace(Token);
@@ -1801,9 +1904,14 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private static (decimal X, decimal Y) EstimatePosition(decimal x, decimal y, decimal distance, int course, int tableWidth, int tableDepth)
     {
         var radians = course * Math.PI / 6;
-        var nextX = x + (decimal)Math.Sin(radians) * distance;
-        var nextY = y - (decimal)Math.Cos(radians) * distance;
-        return (ClampPosition(nextX, tableWidth), ClampPosition(nextY, tableDepth));
+        var nextX = x + ((decimal)Math.Sin(radians) * distance);
+        var nextY = y - ((decimal)Math.Cos(radians) * distance);
+        // Round to a thousandth of a measurement unit. The sine of a straight-down course is not
+        // exactly zero in floating point, and without this the residue accumulates into positions
+        // that read as 20.000000000000001 on a table measured in whole units.
+        return (
+            ClampPosition(Math.Round(nextX, 3), tableWidth),
+            ClampPosition(Math.Round(nextY, 3), tableDepth));
     }
 
     private static void AdvanceOrdnanceMarkers(MatchState match)
