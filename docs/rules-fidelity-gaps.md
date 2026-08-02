@@ -421,7 +421,170 @@ Code: `main.tsx` contact card and pre-turn checklist.
 7. ~~Pulse torpedoes (Gap 10).~~ Done.
 8. ~~Ordnance attack resolution, fighter group strength, and point defence (Gaps 11, 12, 13).~~ Done.
 
-Every gap found in the original scan is now closed. What remains are the options recorded inside the
-entries above rather than gaps in the base game: area defence fire control, Class-1 beams as secondary
-point defence, fighter morale and dogfighting, and a rules-layer switch for the profiles that differ
-between FT2 and the Fleet Books.
+Every gap found in the original scan is now closed. A second scan then found more - see below.
+
+---
+
+# Second scan — 2026-08-02
+
+Re-read against the rules areas the first scan did not reach: carrier operations, anti-fighter
+defences, fighter-to-fighter combat, damage control, needle beams, and the remaining defensive
+systems. Six divergences, then a list of layers deliberately not built.
+
+Each was checked against the code, not inferred.
+
+---
+
+## Gap 16 — Main batteries can shoot fighter groups
+
+**Rules** (`Fighters/Anti-Fighter Defences.md`): "Main starship batteries cannot engage fighters."
+Only dedicated anti-fighter weapons - point defence in Fleet Book terms - and other fighters may fire
+at a fighter group.
+
+**App**: a fighter group is a ship record, so any beam or torpedo can name it as a target. Nothing in
+`FireWeapon` stops it: the only special case for a group as target is spending its endurance.
+
+**Why it matters**: this is the worst of the new findings, because it undoes two systems that were
+just built. A Class-3 beam wipes a six-fighter group in a volley or two, so carriers are worthless to
+fly against any beam fleet, and point defence - the actual counter, with its own fire control and its
+own kill table - is pointless because the batteries never needed it. It also makes fighters far more
+fragile than their 20-point cost assumes.
+
+Code: `InMemoryMatchService.FireWeapon` - no check on the target being a fighter group.
+
+---
+
+## Gap 17 — Fighter groups move like warships
+
+**Rules** (`Fighters/Fighter Groups.md`): a group needs no written movement orders, and neither its
+course nor its velocity is tracked. In the fighter movement phase you simply move any or all
+operational groups up to 12mu (FT2) or 24mu (Fleet Book 1) in any direction.
+
+**App**: a group is a ship with a thrust rating, a course and a velocity, plotted through the same
+hidden-order pipeline as a cruiser and held to the same half-thrust turn cap. Since unordered ships
+now hold course (gap 7), a group left unplotted drifts on a heading instead of being moved freely.
+
+**Why it matters**: fighters cannot be flown the way the rules intend. Repositioning a group costs
+thrust it should not have to spend, a group cannot reverse direction, and a strike cannot be walked
+onto a target that moved.
+
+Code: no fighter special-casing anywhere in the movement path.
+
+---
+
+## Gap 18 — Carrier launch and recovery are unrestricted
+
+**Rules** (`Fighters/Carriers & Fighter Bays.md`): a carrier launching or recovering may **not change
+course or velocity that turn** - the real cost of a launch. Fighters deploy at the halfway point of
+the carrier's move; recovery brings the group to the carrier at the end of its move. Each bay holds
+one six-fighter group. Launch caps are layer-dependent: Fleet Book 1 allows two groups a turn for true
+carriers and one for other ships, recovering one; Fleet Book 2 replaces that with one group per
+operational bay and recovery of half the bays.
+
+**App**: `FighterStatus` is Docked, Airborne or Recovering with nothing enforced. A carrier can launch
+while turning and accelerating, launch any number of groups, and recover as many as it likes. There is
+no bay count, so no capacity limit either.
+
+Code: `UpdateFighterOperations` - status, endurance and range only.
+
+---
+
+## Gap 19 — Fighter bays are not systems for a threshold check
+
+**Rules** (`Damage/Threshold Check.md`, `Fighters/Carriers & Fighter Bays.md`): fighter bays roll at a
+threshold like any other system, and a knocked-out bay loses the fighters still aboard it and can no
+longer recover fighters in flight - so a carrier can lose the ability to land its own air group.
+
+**App**: a threshold check rolls for drives, each fire control system, each screen level and each
+weapon mount. Bays do not exist as a system, so they never roll.
+
+Depends on gap 18: bays have to exist before they can be shot off.
+
+Code: `SurvivingSystems` in `InMemoryMatchService`, `ShipSystemKind` in `ThresholdContracts.cs`.
+
+---
+
+## Gap 20 — No damage control
+
+**Rules** (`Damage/Damage Control.md`): at the end of each turn, before the next turn's orders, damage
+control parties try to bring back systems lost to a threshold check. One party repairs on a 6; more
+parties on the same job lower the number needed, to a best case of 4+ with three; drives need two
+successes to come fully back; hull damage and needle-killed systems can never be repaired. Fleet Book
+ties the party count to crew factors, so it falls as the crew is killed.
+
+**App**: nothing. A system knocked out by a threshold check is gone for the game.
+
+**Why it matters**: this is the counterpart to the threshold checks just built, and its absence is now
+felt rather than theoretical. A cruiser that loses its firecons in turn two is a spectator for the rest
+of the game, and needle beams - if they arrive - would be strictly better than the rules intend, since
+their whole limit is that a needled system can be repaired.
+
+Code: none - system absent.
+
+---
+
+## Gap 21 — Needle beams are not modelled
+
+**Rules** (`Weapons/Needle Beams.md`): a precision weapon that does no structural damage. Range 9mu in
+FT2, 12mu in Fleet Book, one arc only. Nominate a system on the target and roll one die: a 6 knocks it
+out exactly as a failed threshold check would. Screens are ignored entirely. Each needle shot needs its
+own fire control unless several aim at the same system, and a firecon directing a needle may not fire
+anything else that turn. Fleet Book's enhanced version also does a point of hull damage on a 5 or 6 and
+ignores armour.
+
+**App**: `WeaponKind` is a beam or a pulse torpedo. There is no way to target a system.
+
+Worth noting because the machinery a needle needs - per-system knockout, per-mount destruction, firecon
+accounting - all exists now. The weapon is mostly wiring on top of it.
+
+Code: `WeaponKind` in `CombatContracts.cs`, resolver selection in `FireWeapon`.
+
+---
+
+## Gap 22 — Every hull gets four threshold rows
+
+**Rules** (`Damage/Hull Boxes & Damage.md`): Fleet Book splits every hull into four rows, which is what
+the app does. FT2 sizes the track by class instead: escorts get 2 rows and one threshold, cruisers 3
+rows and two, capitals 4 rows and three.
+
+**App**: always four rows, so a 6-box escort runs 2/2/1/1 and faces three checks where FT2 would give
+it one.
+
+**Judgement**: defensible - it is a real published convention, and it keeps small hulls interesting -
+but it was an unrecorded choice, which is worse than either answer. It belongs behind the same
+rules-layer switch as level-3 screens if an FT2 profile is ever added.
+
+Code: `FullThrustLightThresholdRules.RowCount`.
+
+---
+
+## Deliberately not built
+
+Recorded so a later scan does not re-find them as if they were oversights. All are optional layers or
+whole subsystems above the target profile, and none blocks a match.
+
+- **Fighter combat depth**: fighter-to-fighter attacks and dogfights, Fleet Book fighter screens
+  escorting a ship, group morale, pilot quality (aces and turkeys), specialised fighter types, and
+  scrambling a group when its carrier is attacked.
+- **Defensive systems**: area defence fire control, Class-1 beams standing in as secondary point
+  defence, reflex fields, cloaking fields, and ECM with the active/passive sensor rules it needs.
+- **Weapons**: spinal-mount nova cannon, wave guns, submunition packs, the heavier independent More
+  Thrust missiles, and mines - which the rules notes record as having costs but no published mechanics.
+- **Movement**: the optional vector system, and the rolling and manoeuvring-thruster rules that go with
+  it. ForceSignal is cinematic-only by design.
+- **Scenario and campaign layers**: FTL drives, boarding actions, ortillery, asteroids and terrain,
+  atmospheric operations, ground-combat interface, campaign and tournament rules.
+- **Reroll damage** (a Fleet Book option) stays absent, which is correct for the FTL and FT2 profiles.
+
+---
+
+## Suggested order for the second round
+
+1. Stop main batteries engaging fighter groups (gap 16). Small change, and it restores the point of
+   both fighters and point defence.
+2. Fighter group movement (gap 17), then carrier launch and recovery with bays as systems
+   (gaps 18, 19). Together these make carrier play work as written.
+3. Damage control (gap 20). The natural counterpart to threshold checks, and the biggest change to how
+   a long game feels.
+4. Needle beams (gap 21), which are mostly wiring over machinery that already exists.
+5. Record the four-row choice, or make it layer-dependent (gap 22).

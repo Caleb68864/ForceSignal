@@ -80,6 +80,26 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
       kills one, a 6 kills two and rolls again - with its own fire control, firing through any arc.
       Kills come off a fighter group before it attacks, and off a salvo before it strikes.
 
+## Second-Scan Rules Gaps
+
+A second pass over the rules areas the first scan did not reach - carrier operations, anti-fighter
+defences, damage control, needle beams - found six more divergences. Each is written up in full in
+`rules-fidelity-gaps.md`.
+
+- [ ] Main batteries can shoot fighter groups (gap 16). The rules let only anti-fighter weapons and
+      other fighters engage a group, so today a beam wipes a flight in a volley, carriers are
+      worthless against a beam fleet, and point defence has nothing to do. The worst of the six.
+- [ ] Fighter groups move like warships (gap 17). A group should need no orders and move up to 12mu
+      (24 under Fleet Book) in any direction; instead it is plotted with course, velocity and thrust.
+- [ ] Carrier launch and recovery are unrestricted (gap 18). A launching or recovering carrier may not
+      change course or velocity, launch rates are capped by bays, and each bay holds one group.
+- [ ] Fighter bays are not threshold systems (gap 19). A lost bay should cost capacity and the ability
+      to land fighters. Needs bays to exist first.
+- [ ] No damage control (gap 20). Threshold losses are permanent, so a ship that loses its firecons
+      early is a spectator. The counterpart to the checks themselves.
+- [ ] Needle beams (gap 21). Mostly wiring over the per-system knockout machinery that now exists.
+- [ ] Record or make layer-dependent the choice to give every hull four threshold rows (gap 22).
+
 ## Movement Rule Fidelity
 
 - [x] Free rotation at rest: a ship at velocity 0 that makes no other move rotates to any heading
