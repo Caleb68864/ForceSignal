@@ -7,6 +7,8 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5225';
 const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
 
 type TurnDirection = 'None' | 'Port' | 'Starboard';
+type WeaponKind = 'Beam' | 'PulseTorpedo';
+
 type FiringArc = 'Fore' | 'ForeStarboard' | 'AftStarboard' | 'Aft' | 'AftPort' | 'ForePort';
 type ShipIconKey = 'escort' | 'frigate' | 'destroyer' | 'cruiser' | 'carrier' | 'dreadnought' | 'fighter-group' | 'station';
 type FighterStatus = 'Docked' | 'Airborne' | 'Recovering';
@@ -81,6 +83,7 @@ type WeaponMount = {
   ammoUsed: number;
   reloadTurns: number;
   isDestroyed?: boolean;
+  kind: WeaponKind;
 };
 
 type OrdnanceMarker = {
@@ -142,6 +145,9 @@ type FiringResult = {
   armorDamageApplied: number;
   hullDamageApplied: number;
   diceRolls: number[];
+  weaponKind?: WeaponKind;
+  toHitNumber?: number | null;
+  isHit?: boolean | null;
 };
 
 type MatchLogEntry = {
@@ -334,6 +340,7 @@ const defaultShipForm: ShipForm = {
     attackDice: 2,
     maxRange: 24,
     arcs: ['Fore'],
+    kind: 'Beam',
     ammoMax: 0,
     ammoUsed: 0,
     reloadTurns: 0,
@@ -455,6 +462,16 @@ function firingTurnBlocker(ship: Ship, snapshot: MatchSnapshot, participantId: s
   return null;
 }
 
+const weaponKinds: { key: WeaponKind; label: string; maxRange: number }[] = [
+  { key: 'Beam', label: 'Beam battery', maxRange: 36 },
+  { key: 'PulseTorpedo', label: 'Pulse torpedo', maxRange: 30 },
+];
+
+/// The die a pulse torpedo needs at this range: 2+ inside 6mu, a point worse every 6mu after.
+function torpedoToHitNumber(range: number) {
+  return Math.min(6, Math.max(2, 2 + Math.floor((Math.max(1, range) - 1) / 6)));
+}
+
 /// Fire control systems still working. Each one holds a single target ship for the turn.
 function workingFireControl(ship: Ship) {
   return Math.max(0, (ship.fireControlMax ?? 1) - ship.fireControlDamage);
@@ -508,7 +525,7 @@ const shipPresets: { label: string; patch: Partial<ShipForm> }[] = [
   },
   {
     label: 'Cruiser',
-    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, fireControlMax: 2, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs])] },
+    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, fireControlMax: 2, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs]), weaponPreset('Torpedo Tube', 1, 30, ['Fore'], 0, 'PulseTorpedo')] },
   },
   {
     label: 'Carrier',
@@ -2309,7 +2326,25 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
               <input value={weapon.name} onChange={(event) => onChange(updateWeapon(form, weapon.id, { name: event.target.value }))} />
             </label>
             <label>
-              Dice
+              Type
+              <select
+                value={weapon.kind}
+                onChange={(event) => {
+                  const kind = event.target.value as WeaponKind;
+                  const preset = weaponKinds.find((option) => option.key === kind);
+                  onChange(updateWeapon(form, weapon.id, {
+                    kind,
+                    // A torpedo fires one shot and reaches 30mu, so keep the numbers sane on switch.
+                    attackDice: kind === 'PulseTorpedo' ? 1 : weapon.attackDice,
+                    maxRange: Math.min(weapon.maxRange, preset?.maxRange ?? weapon.maxRange),
+                  }));
+                }}
+              >
+                {weaponKinds.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+              </select>
+            </label>
+            <label>
+              {weapon.kind === 'PulseTorpedo' ? 'Tubes' : 'Dice'}
               <input type="number" min="1" max="12" value={weapon.attackDice} onChange={(event) => onChange(updateWeapon(form, weapon.id, { attackDice: Number(event.target.value) }))} />
             </label>
             <label>
@@ -3822,6 +3857,7 @@ function MapFiringAssistant({
         <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
         <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
+        {weapon?.kind === 'PulseTorpedo' ? <small>needs {torpedoToHitNumber(draft.range)}+ to hit</small> : null}
       </div>
       <label>
         Range
@@ -3963,6 +3999,7 @@ function FiringConsole({
         <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
         <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
+        {weapon?.kind === 'PulseTorpedo' ? <small>needs {torpedoToHitNumber(draft.range)}+ to hit</small> : null}
       </div>
       <label>
         Range
@@ -3989,8 +4026,10 @@ function FiringConsole({
       ) : null}
       {spentShot ? (
         <p className="constraint-line dice-readout">
-          Rolled {(spentShot.diceRolls ?? []).length > 0 ? (spentShot.diceRolls ?? []).join(', ') : 'no dice'}
-          {spentShot.screenReduction > 0 ? ` - screens stopped ${spentShot.screenReduction}` : ''}
+          {spentShot.weaponKind === 'PulseTorpedo'
+            ? `Needed ${spentShot.toHitNumber}+, rolled ${(spentShot.diceRolls ?? []).join(', ')}${spentShot.isHit ? '' : ' and missed'}`
+            : `Rolled ${(spentShot.diceRolls ?? []).length > 0 ? (spentShot.diceRolls ?? []).join(', ') : 'no dice'}`}
+          {spentShot.weaponKind !== 'PulseTorpedo' && spentShot.screenReduction > 0 ? ` - screens stopped ${spentShot.screenReduction}` : ''}
           {` for ${spentShot.damage} damage (${spentShot.armorDamageApplied} armor, ${spentShot.hullDamageApplied} hull).`}
         </p>
       ) : null}
@@ -4654,19 +4693,21 @@ function newWeaponMount(): WeaponMount {
     attackDice: 2,
     maxRange: 24,
     arcs: ['Fore'],
+    kind: 'Beam',
     ammoMax: 0,
     ammoUsed: 0,
     reloadTurns: 0,
   };
 }
 
-function weaponPreset(name: string, attackDice: number, maxRange: number, arcs: FiringArc[], ammoMax = 0): WeaponMount {
+function weaponPreset(name: string, attackDice: number, maxRange: number, arcs: FiringArc[], ammoMax = 0, kind: WeaponKind = 'Beam'): WeaponMount {
   return {
     id: crypto.randomUUID(),
     name,
     attackDice,
     maxRange,
     arcs,
+    kind,
     ammoMax,
     ammoUsed: 0,
     reloadTurns: 0,
@@ -4693,6 +4734,7 @@ function normalizeWeaponMount(value: unknown): WeaponMount {
     maxRange: wholeNumberFrom(record.maxRange ?? record.range, 24, 1, 72),
     arcs: normalizeArcs(record.arcs, record.arc),
     isDestroyed: record.isDestroyed === true || record.isDestroyed === 'true',
+    kind: stringFrom(record.kind, 'Beam') === 'PulseTorpedo' ? 'PulseTorpedo' : 'Beam',
     ammoMax: wholeNumberFrom(record.ammoMax ?? record.ammo, 0, 0, 99),
     ammoUsed: wholeNumberFrom(record.ammoUsed ?? record.used, 0, 0, 99),
     reloadTurns: wholeNumberFrom(record.reloadTurns ?? record.reload, 0, 0, 12),
@@ -4736,10 +4778,10 @@ function parseWeaponsCell(value: string): WeaponMount[] {
   }
 
   return value.split(';').map((entry) => {
-    const [name, attackDice, maxRange, arcs, ammoMax, ammoUsed, reloadTurns, destroyed] = entry.split('|');
+    const [name, attackDice, maxRange, arcs, ammoMax, ammoUsed, reloadTurns, destroyed, kind] = entry.split('|');
     // The arcs cell holds one or more arc names joined by '+'; older files hold a single
     // four-arc name here, which normalizeArcs expands.
-    return normalizeWeaponMount({ name, attackDice, maxRange, arcs, arc: arcs, ammoMax, ammoUsed, reloadTurns, isDestroyed: destroyed === 'out' });
+    return normalizeWeaponMount({ name, attackDice, maxRange, arcs, arc: arcs, ammoMax, ammoUsed, reloadTurns, isDestroyed: destroyed === 'out', kind });
   });
 }
 
@@ -4892,7 +4934,7 @@ function fleetExportToCsv(fleet: FleetExport) {
       ship.fighterStatus,
       ship.homeCarrierName ?? '',
       String(ship.pointsValue ?? 0),
-      ship.weapons.map((weapon) => `${weapon.name}|${weapon.attackDice}|${weapon.maxRange}|${weapon.arcs.join('+')}|${weapon.ammoMax}|${weapon.ammoUsed}|${weapon.reloadTurns}|${weapon.isDestroyed ? 'out' : ''}`).join(';'),
+      ship.weapons.map((weapon) => `${weapon.name}|${weapon.attackDice}|${weapon.maxRange}|${weapon.arcs.join('+')}|${weapon.ammoMax}|${weapon.ammoUsed}|${weapon.reloadTurns}|${weapon.isDestroyed ? 'out' : ''}|${weapon.kind}`).join(';'),
     ]),
   ];
 

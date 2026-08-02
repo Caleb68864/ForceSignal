@@ -250,19 +250,27 @@ Code: `FullThrustLightCinematicRules.Validate`.
 
 ---
 
-## Gap 10 — Pulse torpedoes are not modelled
+## Gap 10 — Pulse torpedoes are not modelled — FIXED 2026-08-02
 
 **Rules** (`Weapons/Pulse Torpedoes.md`): FTL's second weapon. Range 30mu. Roll to hit by 6mu
 band - 2+ at 0-6, 3+ at 6-12, 4+ at 12-18, 5+ at 18-24, 6 at 24-30 - then roll 1D6 for damage.
 **Screens do not reduce it.**
 
-**App**: every mount is a beam resolved through `FullThrustLightFiringRules`. There is no to-hit
-step, no per-weapon-type damage model, and screens apply to everything.
+**Was**: every mount was a beam. There was no to-hit step, no per-weapon-type damage model, and
+screens applied to everything - which made screens strictly better than the rules allow.
 
-**Why it matters**: FTL ships are pre-set generic designs that carry pulse torpedoes. Without
-them, half of FTL's weapon list is missing and screens are strictly better than they should be.
+**Now**: a mount declares its kind, and a pulse torpedo launcher resolves through its own rules: one
+roll to hit against a number that worsens every 6mu - 2+ inside 6, out to a 6 at 30 - and then, on a
+hit, a die whose face is the damage. Screens do not touch it, which the log says explicitly on a hit
+so nobody wonders why a screened ship took six points. Range beyond 30mu is refused, and arcs and the
+aft blind spot apply exactly as they do to a beam.
 
-Code: `IFiringResolver` / `FullThrustLightFiringRules` (single hard-wired beam profile).
+The firing console shows the number a tube needs at the plotted range before the shot, and the
+after-shot readout reports what it needed and rolled. The cruiser preset carries a tube alongside its
+beams, so the weapon is reachable without hand-building a ship.
+
+Code: `FullThrustLightPulseTorpedoRules`, `WeaponKind` in `CombatContracts.cs`, resolver selection in
+`InMemoryMatchService.FireWeapon`, `torpedoToHitNumber` in `main.tsx`.
 
 ---
 
@@ -367,6 +375,8 @@ Code: `main.tsx` contact card and pre-turn checklist.
 4. ~~Drift for unordered ships (Gap 7).~~ Done.
 5. ~~Half-and-half course execution and rotation at rest (Gaps 8, 9).~~ Done.
 6. ~~Firing initiative and alternation (Gap 6).~~ Done.
-7. Pulse torpedoes, then ordnance resolution and PDS (Gaps 10, 11, 13). All that is left of the
-   play blockers: the mechanics of a match are in place, but half of FTL's weapon list and every
-   defensive system against fighters and missiles are still missing.
+7. ~~Pulse torpedoes (Gap 10).~~ Done.
+8. Ordnance attack resolution and point defence (Gaps 11, 13) - the last of the play blockers, and
+   interdependent: markers that never attack and nothing that shoots at fighters or missiles. Both
+   are Fleet Book systems rather than FTL, so a match using only beams and torpedoes is now
+   playable without them.

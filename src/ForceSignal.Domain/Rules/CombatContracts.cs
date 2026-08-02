@@ -103,12 +103,28 @@ public static class FiringArcs
     }
 }
 
+/// <summary>What sort of weapon a mount is, which decides how its fire is resolved.</summary>
+public enum WeaponKind
+{
+    /// <summary>A beam battery: one die per class, downgraded by screens.</summary>
+    Beam,
+
+    /// <summary>A pulse torpedo launcher: roll to hit by range band, then roll for damage.</summary>
+    PulseTorpedo
+}
+
 /// <summary>Rules profile for one weapon mount.</summary>
 /// <param name="Name">Mount name as printed on the ship record.</param>
 /// <param name="AttackDice">Dice the mount rolls at its closest range band.</param>
 /// <param name="MaxRange">Longest range the mount can reach, in mu.</param>
 /// <param name="Arcs">Arcs the mount bears through. A mount may bear through several.</param>
-public sealed record WeaponAttackProfile(string Name, int AttackDice, int MaxRange, IReadOnlyList<FiringArc> Arcs);
+/// <param name="Kind">What sort of weapon this is.</param>
+public sealed record WeaponAttackProfile(
+    string Name,
+    int AttackDice,
+    int MaxRange,
+    IReadOnlyList<FiringArc> Arcs,
+    WeaponKind Kind = WeaponKind.Beam);
 
 /// <summary>Inputs needed to validate and resolve a firing attack.</summary>
 /// <param name="Weapon">The mount being fired.</param>
@@ -140,13 +156,19 @@ public sealed record FiringValidationResult(bool IsValid, IReadOnlyList<string> 
 /// <param name="SystemPenalty">Dice lost to the attacker's weapon damage.</param>
 /// <param name="Damage">Damage scored after screens.</param>
 /// <param name="DiceRolls">Each die actually rolled, in order, so the table can audit the shot.</param>
+/// <param name="ToHitNumber">
+/// For a weapon that rolls to hit, the number it needed. Null for weapons that score per die.
+/// </param>
+/// <param name="IsHit">Whether a to-hit roll landed. Null for weapons that score per die.</param>
 public sealed record FiringResult(
     int RawDice,
     int RangePenalty,
     int ScreenReduction,
     int SystemPenalty,
     int Damage,
-    IReadOnlyList<int> DiceRolls);
+    IReadOnlyList<int> DiceRolls,
+    int? ToHitNumber = null,
+    bool? IsHit = null);
 
 /// <summary>Validates and resolves firing attacks for a rules profile.</summary>
 public interface IFiringResolver

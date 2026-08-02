@@ -62,9 +62,12 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
       and mid-volley ship swaps are refused, holding fire spends a ship's turn, and players with
       nothing left to fire are skipped. Damage still lands as it is rolled, so a ship can lose its
       guns before its own turn arrives.
-- [ ] Pulse torpedoes (gap 10), ordnance attack resolution (gap 11), and point defence (gap 13).
-      FTL's second weapon is missing, ordnance markers drift but never attack, and nothing shoots
-      at fighters or missiles.
+- [x] Pulse torpedoes (gap 10). A mount declares its kind, and a torpedo launcher rolls to hit -
+      2+ inside 6mu, a point worse every 6mu, out to a 6 at 30 - then takes a damage die's face as
+      damage. Screens do not reduce it. The console shows the number needed before the shot.
+- [ ] Ordnance attack resolution (gap 11) and point defence (gap 13). Salvo markers drift and expire
+      but never attack, and nothing shoots at fighters or missiles. These are interdependent, and
+      both are Fleet Book systems rather than FTL, so beam-and-torpedo matches play without them.
 
 ## Movement Rule Fidelity
 

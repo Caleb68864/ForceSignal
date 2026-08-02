@@ -97,6 +97,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 {
     private readonly FullThrustLightCinematicRules _rules = new();
     private readonly FullThrustLightFiringRules _firingRules = new(rollDie);
+    private readonly FullThrustLightPulseTorpedoRules _torpedoRules = new(rollDie);
     private readonly FullThrustLightThresholdRules _thresholdRules = new(rollDie);
     // The firing initiative die-off is the service's own roll rather than any rules module's.
     private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
@@ -355,7 +356,10 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     firing.Damage,
                     firing.ArmorDamageApplied,
                     firing.HullDamageApplied,
-                    firing.DiceRolls ?? []));
+                    firing.DiceRolls ?? [],
+                    firing.WeaponKind,
+                    firing.ToHitNumber,
+                    firing.IsHit));
             }
 
             var (phase, lockedOrdersDropped) = RestorePhase(snapshot.Phase);
@@ -732,7 +736,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 source.PositionX,
                 source.PositionY,
                 source.ScreenRating,
-                source.Weapons.Select(w => new WeaponMountState(Guid.NewGuid(), w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns) { IsDestroyed = w.IsDestroyed }).ToList(),
+                source.Weapons.Select(w => new WeaponMountState(Guid.NewGuid(), w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns, w.Kind) { IsDestroyed = w.IsDestroyed }).ToList(),
                 source.IconKey)
             {
                 FighterEnduranceMax = source.FighterEnduranceMax,
@@ -1154,19 +1158,22 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             }
 
             var solution = new FiringSolution(
-                new WeaponAttackProfile(weapon.Name, weapon.AttackDice, weapon.MaxRange, weapon.Arcs),
+                new WeaponAttackProfile(weapon.Name, weapon.AttackDice, weapon.MaxRange, weapon.Arcs, weapon.Kind),
                 request.Range,
                 target.ScreenRating,
                 attacker.WeaponDamage,
                 targetArc);
-            var validation = _firingRules.Validate(solution);
+            // A pulse torpedo rolls to hit and then for damage, and screens do not touch it, so it
+            // resolves through its own rules rather than the beam table.
+            IFiringResolver resolver = weapon.Kind == WeaponKind.PulseTorpedo ? _torpedoRules : _firingRules;
+            var validation = resolver.Validate(solution);
             if (!validation.IsValid)
             {
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
             }
 
             match.FiringShipId = attacker.Id;
-            var result = _firingRules.Resolve(solution);
+            var result = resolver.Resolve(solution);
             var remainingDamage = result.Damage;
             var damageBefore = CaptureDamage(target);
             if (!match.PendingThresholds.ContainsKey(target.Id))
@@ -1199,7 +1206,10 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 result.Damage,
                 armorApplied,
                 hullApplied,
-                result.DiceRolls);
+                result.DiceRolls,
+                weapon.Kind,
+                result.ToHitNumber,
+                result.IsHit);
             match.FiringResults.Add(firingResult);
             if (weapon.AmmoMax > 0)
             {
@@ -1208,15 +1218,23 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             var destroyedNote = !wasDestroyed && target.HullDamage >= target.HullMax ? " Target destroyed." : string.Empty;
             var ammoNote = weapon.AmmoMax > 0 ? $" Ammo {weapon.AmmoUsed}/{weapon.AmmoMax}." : string.Empty;
-            var rollNote = result.DiceRolls.Count == 0
-                ? "no dice left to roll"
-                : $"rolled {string.Join(",", result.DiceRolls)}";
-            var screenNote = target.ScreenRating switch
-            {
-                > 0 when result.ScreenReduction > 0 => $" vs screens {target.ScreenRating} (-{result.ScreenReduction})",
-                > 0 => $" vs screens {target.ScreenRating}",
-                _ => string.Empty,
-            };
+            var rollNote = weapon.Kind == WeaponKind.PulseTorpedo
+                ? result.IsHit == true
+                    ? $"needed {result.ToHitNumber}+, rolled {result.DiceRolls[0]}, damage die {result.DiceRolls[^1]}"
+                    : $"needed {result.ToHitNumber}+, rolled {result.DiceRolls[0]} and missed"
+                : result.DiceRolls.Count == 0
+                    ? "no dice left to roll"
+                    : $"rolled {string.Join(",", result.DiceRolls)}";
+            var screenNote = weapon.Kind == WeaponKind.PulseTorpedo
+                // Screens do not degrade a torpedo. Say so on a hit, where a reader might otherwise
+                // wonder why a screened ship took the full damage, and stay quiet on a miss.
+                ? target.ScreenRating > 0 && result.IsHit == true ? " ignoring screens" : string.Empty
+                : target.ScreenRating switch
+                {
+                    > 0 when result.ScreenReduction > 0 => $" vs screens {target.ScreenRating} (-{result.ScreenReduction})",
+                    > 0 => $" vs screens {target.ScreenRating}",
+                    _ => string.Empty,
+                };
             match.AddLog(
                 "Fire",
                 match.Phase.ToString(),
@@ -1542,7 +1560,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.DriveDamage,
             s.WeaponDamage,
             s.ScreenRating,
-            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns, w.IsDestroyed)).ToArray(),
+            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns, w.IsDestroyed, w.Kind)).ToArray(),
             s.HullDamage >= s.HullMax,
             FullThrustLightThresholdRules.HullRowsFor(s.HullMax),
             FullThrustLightThresholdRules.RowsCompletedFor(s.HullDamage, s.HullMax),
@@ -1581,7 +1599,10 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             f.Damage,
             f.ArmorDamageApplied,
             f.HullDamageApplied,
-            f.DiceRolls)).ToArray(),
+            f.DiceRolls,
+            f.WeaponKind,
+            f.ToHitNumber,
+            f.IsHit)).ToArray(),
         match.OrdnanceMarkers.Select(o => new OrdnanceMarkerDto(
             o.Id,
             o.OwnerParticipantId,
@@ -1709,7 +1730,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int PointsValue { get; set; }
     }
 
-    private sealed class WeaponMountState(Guid id, string name, int attackDice, int maxRange, IReadOnlyList<FiringArc> arcs, int ammoMax, int ammoUsed, int reloadTurns)
+    private sealed class WeaponMountState(Guid id, string name, int attackDice, int maxRange, IReadOnlyList<FiringArc> arcs, int ammoMax, int ammoUsed, int reloadTurns, WeaponKind kind = WeaponKind.Beam)
     {
         public Guid Id { get; } = id;
         public string Name { get; } = name;
@@ -1717,6 +1738,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int MaxRange { get; } = maxRange;
         public IReadOnlyList<FiringArc> Arcs { get; } = arcs;
         public bool IsDestroyed { get; set; }
+        public WeaponKind Kind { get; } = kind;
         public int AmmoMax { get; } = ammoMax;
         public int AmmoUsed { get; set; } = ammoUsed;
         public int ReloadTurns { get; } = reloadTurns;
@@ -1756,7 +1778,10 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         int Damage,
         int ArmorDamageApplied,
         int HullDamageApplied,
-        IReadOnlyList<int> DiceRolls);
+        IReadOnlyList<int> DiceRolls,
+        WeaponKind WeaponKind,
+        int? ToHitNumber,
+        bool? IsHit);
 
     private sealed record MatchLogEntryState(long Sequence, DateTimeOffset Timestamp, int TurnNumber, string Phase, string Category, string Message);
 
@@ -2277,7 +2302,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         {
             return
             [
-                new WeaponMountState(Guid.NewGuid(), "Class-2 Beam", 2, 24, [FiringArc.Fore], 0, 0, 0)
+                new WeaponMountState(Guid.NewGuid(), "Class-2 Beam", 2, 24, [FiringArc.Fore], 0, 0, 0, WeaponKind.Beam)
             ];
         }
 
@@ -2291,7 +2316,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 NormalizeArcs(w),
                 Math.Clamp(w.AmmoMax, 0, 99),
                 Math.Clamp(w.AmmoUsed, 0, Math.Max(0, w.AmmoMax)),
-                Math.Clamp(w.ReloadTurns, 0, 12)) { IsDestroyed = w.IsDestroyed })
+                Math.Clamp(w.ReloadTurns, 0, 12),
+                w.Kind) { IsDestroyed = w.IsDestroyed })
             .ToArray();
     }
 

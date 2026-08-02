@@ -304,6 +304,7 @@ public sealed record MovementResultDto(
 /// <param name="AmmoUsed">Rounds already spent.</param>
 /// <param name="ReloadTurns">Turns needed to reload, for the table's own bookkeeping.</param>
 /// <param name="IsDestroyed">True once a threshold check has knocked this mount out.</param>
+/// <param name="Kind">Beam battery or pulse torpedo launcher. Defaults to a beam.</param>
 public sealed record WeaponMountDto(
     Guid Id,
     string Name,
@@ -313,7 +314,8 @@ public sealed record WeaponMountDto(
     int AmmoMax = 0,
     int AmmoUsed = 0,
     int ReloadTurns = 0,
-    bool IsDestroyed = false)
+    bool IsDestroyed = false,
+    WeaponKind Kind = WeaponKind.Beam)
 {
     /// <summary>
     /// Compatibility field for data written before ForceSignal used six arcs. When
@@ -342,7 +344,10 @@ public sealed record FiringResultDto(
     int Damage,
     int ArmorDamageApplied,
     int HullDamageApplied,
-    IReadOnlyList<int> DiceRolls);
+    IReadOnlyList<int> DiceRolls,
+    WeaponKind WeaponKind = WeaponKind.Beam,
+    int? ToHitNumber = null,
+    bool? IsHit = null);
 
 /// <summary>Launched ordnance or salvo marker tracked on the table map.</summary>
 public sealed record OrdnanceMarkerDto(
