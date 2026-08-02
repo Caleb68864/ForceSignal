@@ -56,6 +56,7 @@ type Ship = {
   armorDamage: number;
   fireControlMax: number;
   fireControlDamage: number;
+  pointDefenseSystems?: number;
   driveDamage: number;
   weaponDamage: number;
   screenRating: number;
@@ -248,6 +249,7 @@ type ShipForm = {
   armorMax: number;
   screenRating: number;
   fireControlMax: number;
+  pointDefenseSystems: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -283,6 +285,7 @@ type FleetExportShip = {
   armorMax: number;
   screenRating: number;
   fireControlMax: number;
+  pointDefenseSystems: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -333,6 +336,7 @@ const defaultShipForm: ShipForm = {
   hullMax: 12,
   armorMax: 4,
   fireControlMax: 2,
+  pointDefenseSystems: 1,
   screenRating: 1,
   weapons: [{
     id: crypto.randomUUID(),
@@ -523,31 +527,31 @@ function arcBlocker(ship: Ship, target?: Ship, weapon?: WeaponMount): string | n
 const shipPresets: { label: string; patch: Partial<ShipForm> }[] = [
   {
     label: 'Escort',
-    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, weapons: [weaponPreset('Class-1 Beam', 1, 12, ['Fore'])] },
+    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 0, weapons: [weaponPreset('Class-1 Beam', 1, 12, ['Fore'])] },
   },
   {
     label: 'Frigate',
-    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, fireControlMax: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
+    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
   },
   {
     label: 'Destroyer',
-    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, fireControlMax: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
+    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, fireControlMax: 1, pointDefenseSystems: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
   },
   {
     label: 'Cruiser',
-    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, fireControlMax: 2, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs]), weaponPreset('Torpedo Tube', 1, 30, ['Fore'], 0, 'PulseTorpedo')] },
+    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 2, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs]), weaponPreset('Torpedo Tube', 1, 30, ['Fore'], 0, 'PulseTorpedo')] },
   },
   {
     label: 'Carrier',
-    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, fireControlMax: 2, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
+    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 3, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
   },
   {
     label: 'Fighters',
-    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, weapons: [weaponPreset('Fighter Attack', 3, 6, ['Fore'])], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
+    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 0, weapons: [weaponPreset('Fighter Attack', 3, 6, ['Fore'])], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
   },
   {
     label: 'Station',
-    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, fireControlMax: 3, weapons: [weaponPreset('Heavy Battery', 3, 30, [...firableArcs])] },
+    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, fireControlMax: 3, pointDefenseSystems: 4, weapons: [weaponPreset('Heavy Battery', 3, 30, [...firableArcs])] },
   },
 ];
 
@@ -793,6 +797,7 @@ function App() {
       armorMax: shipForm.armorMax,
       screenRating: shipForm.screenRating,
       fireControlMax: shipForm.fireControlMax,
+      pointDefenseSystems: shipForm.pointDefenseSystems,
       weapons: shipForm.weapons,
       iconKey: shipForm.iconKey,
       fighterEnduranceMax: shipForm.fighterEnduranceMax,
@@ -884,6 +889,7 @@ function App() {
         armorMax: ship.armorMax,
         screenRating: ship.screenRating,
         fireControlMax: ship.fireControlMax ?? 1,
+        pointDefenseSystems: ship.pointDefenseSystems ?? 0,
         weapons: ship.weapons,
         iconKey: ship.iconKey,
         fighterEnduranceMax: ship.fighterEnduranceMax,
@@ -1084,6 +1090,7 @@ function App() {
       positionY: form.positionY,
       screenRating: form.screenRating,
       fireControlMax: form.fireControlMax,
+      pointDefenseSystems: form.pointDefenseSystems,
       weapons: form.weapons,
       iconKey: form.iconKey,
       fighterEnduranceMax: form.fighterEnduranceMax,
@@ -2286,6 +2293,10 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
         Firecons
         <input type="number" min="0" max="6" value={form.fireControlMax} onChange={(event) => onChange({ ...form, fireControlMax: Number(event.target.value) })} />
       </label>
+      <label title="Point defence turrets: each rolls a die at fighters and missiles inside 6mu, and they carry their own fire control.">
+        Point defence
+        <input type="number" min="0" max="12" value={form.pointDefenseSystems} onChange={(event) => onChange({ ...form, pointDefenseSystems: Number(event.target.value) })} />
+      </label>
       <label>
         Points (NPV)
         <input type="number" min="0" max="99999" value={form.pointsValue} onChange={(event) => onChange({ ...form, pointsValue: Number(event.target.value) })} />
@@ -2431,6 +2442,7 @@ function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (form: Shi
     armorMax: ship.armorMax,
     screenRating: ship.screenRating,
     fireControlMax: ship.fireControlMax ?? 1,
+    pointDefenseSystems: ship.pointDefenseSystems ?? 0,
     weapons: ship.weapons.length > 0 ? ship.weapons : [newWeaponMount()],
     fighterEnduranceMax: ship.fighterEnduranceMax,
     fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -3627,10 +3639,14 @@ function OrdnanceLaunchPanel({
         Endurance
         <input type="number" min="0" max="24" value={draft.enduranceRemaining} onChange={(event) => setDraft({ ...draft, enduranceRemaining: Number(event.target.value) })} />
       </label>
-      <label>
-        Dice
-        <input type="number" min="0" max="24" value={draft.attackDice} onChange={(event) => setDraft({ ...draft, attackDice: Number(event.target.value) })} />
+      <label title="How far this launcher can throw a salvo: 24 for a standard load, 36 for extended range.">
+        Reach
+        <input type="number" min="1" max="120" value={draft.maxRange} onChange={(event) => setDraft({ ...draft, maxRange: Number(event.target.value) })} />
       </label>
+      <p className="privacy">
+        A salvo is aimed at a point, not a ship. It launches on the firing ship and can be dragged to its
+        point of aim within that reach; after movement it strikes the closest enemy within 6.
+      </p>
       <button type="button" onClick={() => onLaunch({
         ...draft,
         targetShipId: draft.targetShipId || null,
@@ -4821,6 +4837,7 @@ function toFleetExport(fleet: Fleet, ships: Ship[]): FleetExport {
       armorMax: ship.armorMax,
       screenRating: ship.screenRating,
       fireControlMax: ship.fireControlMax ?? 1,
+      pointDefenseSystems: ship.pointDefenseSystems ?? 0,
       weapons: ship.weapons,
       fighterEnduranceMax: ship.fighterEnduranceMax,
       fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -4860,6 +4877,7 @@ function parseFleetExport(text: string, fileName: string, fallback: ShipForm): F
       armorMax: getValue('armor') || getValue('armorboxes') || getValue('armormax'),
       screenRating: getValue('screens') || getValue('screenrating'),
       fireControlMax: getValue('firecontrolmax') || getValue('firecons'),
+      pointDefenseSystems: getValue('pointdefensesystems') || getValue('pds'),
       fighterEnduranceMax: getValue('fighterendurance') || getValue('fighterendurancemax'),
       fighterEnduranceUsed: getValue('fighterused') || getValue('fighterenduranceused'),
       fighterMaxRange: getValue('fighterrange') || getValue('fightermaxrange'),
@@ -4916,6 +4934,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
     armorMax: wholeNumberFrom(record.armorMax ?? record.armorBoxes ?? record.armor, fallback.armorMax, 0, 40),
     screenRating: wholeNumberFrom(record.screenRating ?? record.screens, fallback.screenRating, 0, 3),
     fireControlMax: wholeNumberFrom(record.fireControlMax ?? record.firecons, fallback.fireControlMax, 0, 6),
+    pointDefenseSystems: wholeNumberFrom(record.pointDefenseSystems ?? record.pds, fallback.pointDefenseSystems, 0, 12),
     weapons: Array.isArray(record.weapons) ? record.weapons.map(normalizeWeaponMount) : [newWeaponMount()],
     fighterEnduranceMax: wholeNumberFrom(record.fighterEnduranceMax ?? record.fighterEndurance, fallback.fighterEnduranceMax, 0, 24),
     fighterEnduranceUsed: wholeNumberFrom(record.fighterEnduranceUsed ?? record.fighterUsed, fallback.fighterEnduranceUsed, 0, 24),
@@ -4929,7 +4948,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
 
 function fleetExportToCsv(fleet: FleetExport) {
   const rows = [
-    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fireControlMax', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
+    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fireControlMax', 'pointDefenseSystems', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
     ...fleet.ships.map((ship) => [
       fleet.fleetColor,
       ship.name,
@@ -4944,6 +4963,7 @@ function fleetExportToCsv(fleet: FleetExport) {
       String(ship.armorMax),
       String(ship.screenRating),
       String(ship.fireControlMax ?? 1),
+      String(ship.pointDefenseSystems ?? 0),
       String(ship.fighterEnduranceMax),
       String(ship.fighterEnduranceUsed),
       String(ship.fighterMaxRange),

@@ -172,7 +172,9 @@ public sealed class ApiDocumentationAndReadinessTests
 
         using var markerResponse = await client.PostAsJsonAsync(
             $"/api/matches/{session.MatchId}/ordnance",
-            new CreateOrdnanceMarkerRequest(session.ParticipantToken, "Alpha Salvo", "Missile", fighter.Id, carrier.Id, 18, 24, 1, 12, 2, 3, 24));
+            // The launching ship sits at the table origin here, so the point of aim has to be
+            // inside the 24 a standard salvo can throw.
+            new CreateOrdnanceMarkerRequest(session.ParticipantToken, "Alpha Salvo", "Missile", fighter.Id, carrier.Id, 12, 16, 1, 12, 2, 3, 24));
         markerResponse.EnsureSuccessStatusCode();
         var markerSnapshot = await markerResponse.Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
         var marker = Assert.Single(markerSnapshot!.OrdnanceMarkers);

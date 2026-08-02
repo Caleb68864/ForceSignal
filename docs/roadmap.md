@@ -70,11 +70,15 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
       half a band off - is flagged in the console before the shot and recorded in the log.
 - [x] Half hull is labelled a watch list rather than a rule (gap 15). Full Thrust has no crippled
       state, so the app no longer implies one.
-- [ ] Ordnance attack resolution (gap 11), fighter group strength (gap 12), and point defence
-      (gap 13). Salvo markers drift and expire but never attack, fighter groups roll a fixed dice
-      count rather than one die per surviving fighter, and nothing shoots at fighters or missiles.
-      These are interdependent, and all are Fleet Book systems rather than FTL, so beam-and-torpedo
-      matches play without them.
+- [x] Ordnance attack resolution (gap 11). A salvo is thrown at a point of aim within the launcher's
+      reach and strikes at the end of movement: one die for how many of its six missiles arrive, point
+      defence shooting some down, then a die per survivor whose face is its damage. Screens do not
+      reduce it and armour halves it, and the damage can fill a hull row like any other.
+- [x] Fighter group strength (gap 12). A group rolls one die per surviving fighter, loses dice as its
+      aircraft die, and spends a turn of endurance automatically for any turn it is in combat.
+- [x] Point defence (gap 13). Each system rolls a die at fighters and missiles inside 6mu - 4 or 5
+      kills one, a 6 kills two and rolls again - with its own fire control, firing through any arc.
+      Kills come off a fighter group before it attacks, and off a salvo before it strikes.
 
 ## Movement Rule Fidelity
 

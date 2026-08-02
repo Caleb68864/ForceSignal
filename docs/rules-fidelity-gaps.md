@@ -274,48 +274,81 @@ Code: `FullThrustLightPulseTorpedoRules`, `WeaponKind` in `CombatContracts.cs`, 
 
 ---
 
-## Gap 11 — Ordnance markers never attack
+## Gap 11 — Ordnance markers never attack — FIXED 2026-08-02
 
 **Rules** (`Weapons/Salvo Missile Systems.md`): a salvo is announced in the fighter-movement
 phase and a counter placed at the point of aim; after movement, if an enemy is within 6" the
 salvo attacks it. One D6 sets how many of the 6 missiles arrive, PDS and screening fighters
 intercept, then each survivor rolls a D6 for damage. Screens do not reduce it; armour halves it.
 
-**App**: ordnance markers carry `AttackDice`, `MaxRange` and `Speed`, drift each turn, and expire
-when endurance hits zero. They never resolve an attack against anything.
+**Was**: markers drifted and expired but never resolved an attack, so they were a visual aid and a
+missile-heavy fleet was unplayable.
 
-**Why it matters**: markers are currently a visual aid only. Any missile-heavy fleet is
-unplayable without resolution, and armour/screen interaction is what makes missiles worth buying.
+**Now**: a salvo is thrown at a point of aim, and the launch is refused if that point is past the
+launcher's reach - 24mu for a standard load, 36 for extended range. After the ships have moved, and
+before anyone opens fire, every salvo on the table resolves: one die says how many of its six missiles
+arrived, the target's point defence shoots some down, and each survivor rolls a die whose face is its
+damage - so a six is six points, far past a beam die's two. A salvo with nothing inside 6mu of its
+point of aim is wasted and says so.
 
-Code: `AdvanceOrdnanceMarkers` in `InMemoryMatchService`.
+Screens do not reduce a salvo at all. Armour *halves* it rather than absorbing it: half the total,
+rounded up, goes on armour and the remainder straight to the hull even while armour boxes stand. And
+because the damage lands like any other, a salvo can fill a hull row and set off a threshold check -
+which is exactly what happened in the live check, where a salvo's damage cost the target a screen
+generator before the fighters arrived.
+
+Code: `FullThrustSalvoMissileRules`, `ResolveSalvoMissiles` / `ApplyMissileDamage` in
+`InMemoryMatchService`, launch reach in `CreateOrdnanceMarker`.
 
 ---
 
-## Gap 12 — Fighter attacks use a generic mount, not per-fighter dice
+## Gap 12 — Fighter attacks use a generic mount, not per-fighter dice — FIXED 2026-08-02
 
 **Rules** (`Fighters/Fighter Attacks.md`, `Fighter Groups.md`): a group is 1-6 fighters, moves up
 to 12mu in any direction with no written orders, and attacks a ship within **6mu in the
 fighters' fore arc**, rolling **one die per surviving fighter**, scored like beam fire, with
 screens applying. Attacked or attacking spends one endurance for the turn.
 
-**App**: a fighter group is a ship with `FighterEnduranceMax/Used`, `FighterMaxRange` and a status,
-and its attack is an ordinary weapon mount with a fixed dice count. Group strength does not fall
-as fighters die, the 6mu fore-arc restriction is not enforced, and endurance is spent manually.
+**Was**: a group's attack was an ordinary mount with a fixed dice count. Strength never fell as
+fighters died, and endurance was spent by hand.
 
-Code: fighter fields on `ShipState`, `UpdateFighterOperations`.
+**Now**: a group rolls one die per *surviving* fighter. A group's hull boxes stand for its aircraft,
+so losses come straight off its dice - a six-strong flight that loses four rolls two next time. The
+6mu reach and the fore arc come from the mount and are enforced by the same firing path as any beam,
+screens still protect the target from fighter fire, and a group with no fighters left cannot attack.
+
+Endurance is spent automatically: one turn per turn of combat, whether the group attacks or is
+attacked, counted once however much fighting happens in that turn. A group that has spent its last
+turn of endurance is refused and told to go home and rearm.
+
+Code: `SurvivingFighters` / `EffectiveAttackDice` / `SpendFighterEndurance` in `InMemoryMatchService`.
 
 ---
 
-## Gap 13 — No anti-fighter or point defence fire
+## Gap 13 — No anti-fighter or point defence fire — FIXED 2026-08-02
 
 **Rules** (`Defenses/Point Defence System (PDS).md`): main batteries cannot engage fighters.
 Ships mount PDS with their own fire control (bypassing FCS), 6" range, 1D6 per system - 1-3
 nothing, 4-5 kills one, 6 kills two. Fleet Book adds a reroll on 6, and Class-1 beams may act as
 secondary point defence instead of firing offensively.
 
-**App**: no PDS concept, so nothing stops a fighter strike and nothing intercepts ordnance.
+**Was**: no point defence at all, so a fighter strike or a salvo was unopposed.
 
-Code: none - system absent.
+**Now**: a ship carries a number of point defence systems, each rolling a die against fighters and
+missiles alike - 1 to 3 does nothing, a 4 or 5 kills one, a 6 kills two and rolls again, chaining
+while the sixes last. They have their own fire control, so they do not draw on the ship's firecons,
+they reach 6mu, and they may fire through the aft arc.
+
+An incoming fighter strike is met on the way in: kills come off the group's strength before its
+surviving fighters roll, and a strike that is wiped out never attacks at all. A salvo is intercepted
+the same way before its survivors roll damage. Allocation is declared before the dice, so kills past
+the size of the threat are wasted and the log says how many were thrown away.
+
+**Not covered**: area defence fire control, which would let a ship defend another within 6mu; and
+Class-1 beams standing in as secondary point defence, which needs an interlock against firing them
+offensively the same turn. Both are options on top of the base system.
+
+Code: `FullThrustPointDefenseRules`, `ResolvePointDefenseAgainstFighters` in `InMemoryMatchService`.
 
 ---
 
@@ -386,7 +419,9 @@ Code: `main.tsx` contact card and pre-turn checklist.
 5. ~~Half-and-half course execution and rotation at rest (Gaps 8, 9).~~ Done.
 6. ~~Firing initiative and alternation (Gap 6).~~ Done.
 7. ~~Pulse torpedoes (Gap 10).~~ Done.
-8. Ordnance attack resolution and point defence (Gaps 11, 13) - the last of the play blockers, and
-   interdependent: markers that never attack and nothing that shoots at fighters or missiles. Both
-   are Fleet Book systems rather than FTL, so a match using only beams and torpedoes is now
-   playable without them.
+8. ~~Ordnance attack resolution, fighter group strength, and point defence (Gaps 11, 12, 13).~~ Done.
+
+Every gap found in the original scan is now closed. What remains are the options recorded inside the
+entries above rather than gaps in the base game: area defence fire control, Class-1 beams as secondary
+point defence, fighter morale and dogfighting, and a rules-layer switch for the profiles that differ
+between FT2 and the Fleet Books.

@@ -45,7 +45,8 @@ public sealed record CreateFleetRequest(string ParticipantToken, string Name, st
 /// <param name="FighterStatus">Docked, Airborne, or Recovering status for fighter groups.</param>
 /// <param name="HomeCarrierShipId">Optional carrier ship that launched or owns the fighter group.</param>
 /// <param name="PointsValue">Nominal points value (NPV) recorded from the player's own design sheet.</param>
-/// <param name="FireControlMax">Fire control systems carried. Each directs fire at one target ship.</param>
+/// <param name="FireControlMax">Fire control systems carried. Each directs fire at one target.</param>
+/// <param name="PointDefenseSystems">Point defence systems carried, for shooting down fighters and missiles.</param>
 public sealed record CreateShipRequest(
     string ParticipantToken,
     string Name,
@@ -66,7 +67,8 @@ public sealed record CreateShipRequest(
     string? FighterStatus = null,
     Guid? HomeCarrierShipId = null,
     int PointsValue = 0,
-    int FireControlMax = 1);
+    int FireControlMax = 1,
+    int PointDefenseSystems = 0);
 
 /// <summary>Updates editable ship profile, position, and equipment fields.</summary>
 public sealed record UpdateShipProfileRequest(
@@ -89,7 +91,8 @@ public sealed record UpdateShipProfileRequest(
     string? FighterStatus = null,
     Guid? HomeCarrierShipId = null,
     int PointsValue = 0,
-    int FireControlMax = 1);
+    int FireControlMax = 1,
+    int PointDefenseSystems = 0);
 
 /// <summary>Updates fighter launch/recovery and endurance tracking for a fighter group.</summary>
 public sealed record UpdateFighterOperationsRequest(
@@ -256,6 +259,7 @@ public sealed record ShipDto(
     int ArmorDamage,
     int FireControlMax,
     int FireControlDamage,
+    int PointDefenseSystems,
     int DriveDamage,
     int WeaponDamage,
     int ScreenRating,

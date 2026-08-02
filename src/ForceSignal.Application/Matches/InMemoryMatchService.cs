@@ -3,6 +3,7 @@ using ForceSignal.Domain.Rules;
 using ForceSignal.Modules.FullThrust.Combat;
 using ForceSignal.Modules.FullThrust.Damage;
 using ForceSignal.Modules.FullThrust.Movement;
+using ForceSignal.Modules.FullThrust.Ordnance;
 
 namespace ForceSignal.Application.Matches;
 
@@ -99,6 +100,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private readonly FullThrustLightFiringRules _firingRules = new(rollDie);
     private readonly FullThrustLightPulseTorpedoRules _torpedoRules = new(rollDie);
     private readonly FullThrustLightThresholdRules _thresholdRules = new(rollDie);
+    private readonly FullThrustPointDefenseRules _pointDefenseRules = new(rollDie);
+    private readonly FullThrustSalvoMissileRules _salvoRules = new(rollDie);
     // The firing initiative die-off is the service's own roll rather than any rules module's.
     private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
     private readonly Sha256CommitmentService _commitments = new();
@@ -283,6 +286,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     FighterStatus = NormalizeFighterStatus(ship.FighterStatus, iconKey, ship.ClassName),
                     PointsValue = ClampPoints(ship.PointsValue),
                     FireControlMax = ClampFireControl(ship.FireControlMax),
+                    PointDefenseSystems = ClampPointDefense(ship.PointDefenseSystems),
                 };
                 restoredShip.HullDamage = ClampDamage(ship.HullDamage, restoredShip.HullMax);
                 restoredShip.ArmorDamage = ClampDamage(ship.ArmorDamage, restoredShip.ArmorMax);
@@ -660,6 +664,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 HomeCarrierShipId = ValidateCarrierId(match, request.HomeCarrierShipId),
                 PointsValue = ClampPoints(request.PointsValue),
                 FireControlMax = ClampFireControl(request.FireControlMax),
+                PointDefenseSystems = ClampPointDefense(request.PointDefenseSystems),
             });
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, match.Ships[^1])} added to {fleet.Name}.");
             match.Touch("ShipCreated");
@@ -703,6 +708,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             ship.HomeCarrierShipId = ValidateCarrierId(match, request.HomeCarrierShipId);
             ship.PointsValue = ClampPoints(request.PointsValue);
             ship.FireControlMax = ClampFireControl(request.FireControlMax);
+            ship.PointDefenseSystems = ClampPointDefense(request.PointDefenseSystems);
             ship.FireControlDamage = ClampDamage(ship.FireControlDamage, ship.FireControlMax);
             ship.HullDamage = ClampDamage(ship.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(ship.ArmorDamage, ship.ArmorMax);
@@ -745,6 +751,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 FighterEnduranceUsed = source.FighterEnduranceUsed,
                 FighterMaxRange = source.FighterMaxRange,
                 FighterStatus = source.FighterStatus,
+                PointDefenseSystems = source.PointDefenseSystems,
                 HomeCarrierShipId = source.HomeCarrierShipId,
                 PointsValue = source.PointsValue,
             });
@@ -817,6 +824,21 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var target = request.TargetShipId is Guid targetId
                 ? match.Ships.SingleOrDefault(s => s.Id == targetId) ?? throw new InvalidOperationException("Target ship was not found.")
                 : null;
+
+            // A salvo is thrown at a point of aim within the launcher's reach - 24mu for a standard
+            // salvo, 36 for extended range - so the placement is checked against the firing ship.
+            var launchReach = Math.Clamp(request.MaxRange <= 0 ? 24 : request.MaxRange, 1, 120);
+            if (source is not null && IsSalvoMarkerType(request.MarkerType))
+            {
+                var aimRange = Math.Sqrt(
+                    Math.Pow((double)(ClampPosition(request.PositionX, match.TableWidth) - source.PositionX), 2)
+                    + Math.Pow((double)(ClampPosition(request.PositionY, match.TableDepth) - source.PositionY), 2));
+                if (aimRange > launchReach)
+                {
+                    throw new InvalidOperationException(
+                        $"That point of aim is {aimRange:0.#} from {source.Name}, past the {launchReach} this salvo can reach.");
+                }
+            }
 
             var marker = new OrdnanceMarkerState(
                 Guid.NewGuid(),
@@ -1129,6 +1151,20 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException($"{busy?.Name ?? "Another ship"} is still firing. Finish its fire before starting another ship.");
             }
 
+            if (IsFighterGroupShip(attacker))
+            {
+                if (SurvivingFighters(attacker) == 0)
+                {
+                    throw new InvalidOperationException($"{attacker.Name} has no fighters left to attack with.");
+                }
+
+                if (attacker.FighterEnduranceMax > 0 && attacker.FighterEnduranceUsed >= attacker.FighterEnduranceMax
+                    && !AlreadyInCombatThisTurn(match, attacker.Id))
+                {
+                    throw new InvalidOperationException($"{attacker.Name} is out of combat endurance and must return to rearm before it attacks again.");
+                }
+            }
+
             // Fire control directs the guns: with none left a ship cannot shoot at all, and each
             // working system holds exactly one target ship for the turn.
             var workingFireControl = Math.Max(0, attacker.FireControlMax - attacker.FireControlDamage);
@@ -1160,7 +1196,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             }
 
             var solution = new FiringSolution(
-                new WeaponAttackProfile(weapon.Name, weapon.AttackDice, weapon.MaxRange, weapon.Arcs, weapon.Kind),
+                new WeaponAttackProfile(weapon.Name, EffectiveAttackDice(attacker, weapon), weapon.MaxRange, weapon.Arcs, weapon.Kind),
                 request.Range,
                 target.ScreenRating,
                 attacker.WeaponDamage,
@@ -1175,6 +1211,31 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             }
 
             match.FiringShipId = attacker.Id;
+
+            // A fighter strike is met by the target's close-in fire on the way in, and whatever is
+            // shot down never gets to roll. Endurance is spent by both sides of the engagement.
+            if (IsFighterGroupShip(attacker))
+            {
+                SpendFighterEndurance(match, attacker);
+                ResolvePointDefenseAgainstFighters(match, attacker, target, request.Range);
+                if (SurvivingFighters(attacker) == 0)
+                {
+                    match.AddLog("Fire", match.Phase.ToString(), $"{DescribeShip(match, attacker)} was wiped out by point defence before it could attack.");
+                    match.Touch("FighterStrikeStopped");
+                    return ToSnapshot(match);
+                }
+
+                // Rebuild the solution: the group rolls one die per fighter still flying.
+                solution = solution with
+                {
+                    Weapon = solution.Weapon with { AttackDice = SurvivingFighters(attacker) },
+                };
+            }
+            else if (IsFighterGroupShip(target))
+            {
+                SpendFighterEndurance(match, target);
+            }
+
             var result = resolver.Resolve(solution);
             var remainingDamage = result.Damage;
             var damageBefore = CaptureDamage(target);
@@ -1330,6 +1391,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     match.Phase.ToString(),
                     $"{DescribeShip(match, ship)} had no order and held course: v{ship.CurrentVelocity}/c{ship.CurrentCourse}, position {startingX:0.#},{startingY:0.#} to {ship.PositionX:0.#},{ship.PositionY:0.#}.{PositionEdgeNote(ship, match)}");
             }
+
+            // Salvo missiles strike at the end of movement, before anyone opens fire.
+            ResolveSalvoMissiles(match);
 
             match.Phase = MatchPhase.Firing;
             match.AddLog("Phase", match.Phase.ToString(), $"Turn {match.TurnNumber} firing phase opened.");
@@ -1572,6 +1636,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.ArmorDamage,
             s.FireControlMax,
             s.FireControlDamage,
+            s.PointDefenseSystems,
             s.DriveDamage,
             s.WeaponDamage,
             s.ScreenRating,
@@ -1734,6 +1799,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int ArmorDamage { get; set; }
         public int FireControlMax { get; set; } = 1;
         public int FireControlDamage { get; set; }
+        public int PointDefenseSystems { get; set; }
         public int DriveDamage { get; set; }
         public int WeaponDamage { get; set; }
         public int ScreenRating { get; set; } = screenRating;
@@ -1805,6 +1871,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private sealed record MatchLogEntryState(long Sequence, DateTimeOffset Timestamp, int TurnNumber, string Phase, string Category, string Message);
 
     private static int ClampFireControl(int value) => Math.Clamp(value, 0, 6);
+
+    private static int ClampPointDefense(int value) => Math.Clamp(value, 0, 12);
 
     private static int ClampPoints(int value) => Math.Clamp(value, 0, 99999);
 
@@ -2097,6 +2165,156 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         var declaredBand = Math.Max(0, declaredRange - 1) / bandWidth;
         var mappedBand = (int)Math.Max(0, Math.Ceiling(mapRange) - 1) / bandWidth;
         return declaredBand != mappedBand || Math.Abs(declaredRange - mapRange) > bandWidth / 2m;
+    }
+
+    /// <summary>
+    /// The target's point defence firing at an incoming fighter group. Kills come straight off the
+    /// group's strength. Point defence reaches 6mu and may fire through the aft arc, so nothing but
+    /// distance limits it.
+    /// </summary>
+    private void ResolvePointDefenseAgainstFighters(MatchState match, ShipState fighters, ShipState target, int range)
+    {
+        if (target.PointDefenseSystems <= 0 || range > _pointDefenseRules.Range)
+        {
+            return;
+        }
+
+        var incoming = SurvivingFighters(fighters);
+        var defense = _pointDefenseRules.Resolve(target.PointDefenseSystems, incoming);
+        if (defense.Kills > 0)
+        {
+            fighters.HullDamage = ClampDamage(fighters.HullDamage + defense.Kills, fighters.HullMax);
+        }
+
+        var overkillNote = defense.Overkill > 0 ? $" {defense.Overkill} kill(s) wasted." : string.Empty;
+        match.AddLog(
+            "PointDefense",
+            match.Phase.ToString(),
+            $"{DescribeShip(match, target)} point defence fired at {DescribeShip(match, fighters)} at range {range}: rolled {string.Join(",", defense.Rolls)} and shot down {defense.Kills} of {incoming} fighter(s).{overkillNote}");
+    }
+
+    /// <summary>
+    /// Resolves every salvo counter on the table now that the ships have finished moving. A salvo
+    /// attacks the closest enemy within its attack radius of the point of aim, and is wasted if
+    /// nothing is in reach.
+    /// </summary>
+    private void ResolveSalvoMissiles(MatchState match)
+    {
+        foreach (var marker in match.OrdnanceMarkers.Where(IsActiveSalvo).ToArray())
+        {
+            var target = match.Ships
+                .Where(ship => !IsDestroyed(ship)
+                    && match.Fleets.Single(f => f.Id == ship.FleetId).OwnerParticipantId != marker.OwnerParticipantId)
+                .Select(ship => (Ship: ship, Range: DistanceToMarker(marker, ship)))
+                .Where(entry => entry.Range <= _salvoRules.AttackRadius)
+                .OrderBy(entry => entry.Range)
+                .Select(entry => entry.Ship)
+                .FirstOrDefault();
+
+            if (target is null)
+            {
+                marker.Status = "Expired";
+                match.AddLog(
+                    "Ordnance",
+                    match.Phase.ToString(),
+                    $"{marker.Name} found nothing within {_salvoRules.AttackRadius} of its point of aim and was wasted.");
+                continue;
+            }
+
+            var attack = _salvoRules.Resolve(target.PointDefenseSystems);
+            var damageBefore = CaptureDamage(target);
+            var hullBefore = target.HullDamage;
+            var (armorApplied, hullApplied) = ApplyMissileDamage(target, attack.Damage);
+            marker.Status = "Resolved";
+
+            var defenseNote = target.PointDefenseSystems > 0
+                ? $" Point defence rolled {string.Join(",", attack.PointDefense.Rolls)} and stopped {attack.PointDefense.Kills}."
+                : " The target had no point defence.";
+            match.AddLog(
+                "Ordnance",
+                match.Phase.ToString(),
+                $"{marker.Name} struck {DescribeShip(match, target)}: {attack.MissilesArriving} of {attack.MissilesLaunched} missiles arrived on a {attack.ArrivalRoll}.{defenseNote} {attack.MissilesSurviving} got through rolling {(attack.DamageRolls.Count == 0 ? "nothing" : string.Join(",", attack.DamageRolls))} for {attack.Damage} damage ({armorApplied} armor, {hullApplied} hull), ignoring screens. Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.");
+
+            // A salvo can finish a hull row like any other damage, so the check is owed at once -
+            // there is no firing ship whose volley could still be open.
+            ResolveThresholds(match, target, hullBefore);
+        }
+    }
+
+    private static bool IsActiveSalvo(OrdnanceMarkerState marker) =>
+        marker.Status == "Active" && IsSalvoMarkerType(marker.MarkerType);
+
+    /// <summary>Whether a marker type names something that attacks as a salvo of missiles.</summary>
+    private static bool IsSalvoMarkerType(string? markerType) =>
+        markerType is not null
+        && (markerType.Contains("salvo", StringComparison.OrdinalIgnoreCase)
+            || markerType.Contains("missile", StringComparison.OrdinalIgnoreCase));
+
+    private static decimal DistanceToMarker(OrdnanceMarkerState marker, ShipState ship) =>
+        (decimal)Math.Sqrt(
+            Math.Pow((double)(ship.PositionX - marker.PositionX), 2)
+            + Math.Pow((double)(ship.PositionY - marker.PositionY), 2));
+
+    /// <summary>
+    /// Missile damage splits differently from a beam's: armour takes half, rounded up, and the rest
+    /// goes straight to the hull even when armour boxes are still standing. Armour reduces a salvo
+    /// rather than stopping it.
+    /// </summary>
+    private static (int ArmorApplied, int HullApplied) ApplyMissileDamage(ShipState target, int damage)
+    {
+        if (damage <= 0)
+        {
+            return (0, 0);
+        }
+
+        var armorRemaining = Math.Max(0, target.ArmorMax - target.ArmorDamage);
+        var armorShare = armorRemaining > 0 ? Math.Min(armorRemaining, (damage + 1) / 2) : 0;
+        var armorBefore = target.ArmorDamage;
+        target.ArmorDamage = ClampDamage(target.ArmorDamage + armorShare, target.ArmorMax);
+        var armorApplied = target.ArmorDamage - armorBefore;
+
+        var hullBefore = target.HullDamage;
+        target.HullDamage = ClampDamage(target.HullDamage + (damage - armorApplied), target.HullMax);
+        return (armorApplied, target.HullDamage - hullBefore);
+    }
+
+    /// <summary>True when this ship record stands for a group of fighters rather than a hull.</summary>
+    private static bool IsFighterGroupShip(ShipState ship) => IsFighterGroup(ship.IconKey, ship.ClassName);
+
+    /// <summary>
+    /// Fighters still flying in a group. A group's hull boxes stand for its aircraft, so losses come
+    /// straight off the number of dice it rolls.
+    /// </summary>
+    private static int SurvivingFighters(ShipState ship) => Math.Max(0, ship.HullMax - ship.HullDamage);
+
+    /// <summary>
+    /// Dice a mount actually rolls. A group rolls one die per surviving fighter rather than a fixed
+    /// count, so it weakens as it is shot up.
+    /// </summary>
+    private static int EffectiveAttackDice(ShipState ship, WeaponMountState weapon) =>
+        IsFighterGroupShip(ship) ? SurvivingFighters(ship) : weapon.AttackDice;
+
+    /// <summary>
+    /// Whether a fighter group has already been in combat this turn, either shooting or being shot
+    /// at. Endurance is spent once per active turn however much fighting happens in it.
+    /// </summary>
+    private static bool AlreadyInCombatThisTurn(MatchState match, Guid shipId) =>
+        match.FiringResults.Any(f => f.TurnNumber == match.TurnNumber
+            && (f.AttackerShipId == shipId || f.TargetShipId == shipId));
+
+    /// <summary>Spends a turn of combat endurance for a fighter group that has just been engaged.</summary>
+    private static void SpendFighterEndurance(MatchState match, ShipState ship)
+    {
+        if (!IsFighterGroupShip(ship) || ship.FighterEnduranceMax <= 0 || AlreadyInCombatThisTurn(match, ship.Id))
+        {
+            return;
+        }
+
+        ship.FighterEnduranceUsed = Math.Min(ship.FighterEnduranceMax, ship.FighterEnduranceUsed + 1);
+        match.AddLog(
+            "Fighters",
+            match.Phase.ToString(),
+            $"{DescribeShip(match, ship)} spent a turn of endurance in combat: {ship.FighterEnduranceUsed}/{ship.FighterEnduranceMax} used.");
     }
 
     /// <summary>The arc the target lies in, relative to the firing ship's nose.</summary>
