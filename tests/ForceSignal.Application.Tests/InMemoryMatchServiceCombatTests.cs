@@ -156,7 +156,8 @@ public sealed class InMemoryMatchServiceCombatTests
     [Fact]
     public void FireWeapon_RejectsSameMountTwiceInOneTurn()
     {
-        var service = new InMemoryMatchService();
+        // A constant die ties the firing initiative, which falls to the owner by seating order.
+        var service = new InMemoryMatchService(() => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Duplicate Fire Test"));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -206,7 +207,8 @@ public sealed class InMemoryMatchServiceCombatTests
     [Fact]
     public void FireWeapon_WithLimitedAmmo_TracksAmmoAndRejectsEmptyMountAcrossTurns()
     {
-        var service = new InMemoryMatchService();
+        // A constant die ties the firing initiative, which falls to the owner by seating order.
+        var service = new InMemoryMatchService(() => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Ammo Test"));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

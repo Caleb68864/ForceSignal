@@ -98,6 +98,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private readonly FullThrustLightCinematicRules _rules = new();
     private readonly FullThrustLightFiringRules _firingRules = new(rollDie);
     private readonly FullThrustLightThresholdRules _thresholdRules = new(rollDie);
+    // The firing initiative die-off is the service's own roll rather than any rules module's.
+    private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
     private readonly Sha256CommitmentService _commitments = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, MatchState> _matches = [];
@@ -358,6 +360,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             var (phase, lockedOrdersDropped) = RestorePhase(snapshot.Phase);
             match.Phase = phase;
+            if (match.Phase == MatchPhase.Firing)
+            {
+                // An exported snapshot carries no firing turn order, so settle one for the restored
+                // phase rather than leaving nobody able to shoot.
+                RollFiringInitiative(match);
+            }
             RestoreRevealedCommitments(match, snapshot, phase, shipIdMap);
 
             var savedNote = savedAt is null ? "an exported snapshot" : $"a snapshot saved {savedAt:u}";
@@ -1092,6 +1100,29 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException($"{weapon.Name} has already fired this turn.");
             }
 
+            // A restored match arrives mid-phase with no turn order, so settle one before checking it.
+            if (match.FiringParticipantId is null)
+            {
+                RollFiringInitiative(match);
+            }
+
+            if (match.ActivatedShipIds.Contains(attacker.Id))
+            {
+                throw new InvalidOperationException($"{attacker.Name} has already taken its turn to fire.");
+            }
+
+            if (match.FiringParticipantId != participant.Id)
+            {
+                var holder = match.Participants.SingleOrDefault(p => p.Id == match.FiringParticipantId);
+                throw new InvalidOperationException($"It is {holder?.DisplayName ?? "the other player"}'s turn to fire.");
+            }
+
+            if (match.FiringShipId is { } firingShipId && firingShipId != attacker.Id)
+            {
+                var busy = match.Ships.SingleOrDefault(s => s.Id == firingShipId);
+                throw new InvalidOperationException($"{busy?.Name ?? "Another ship"} is still firing. Finish its fire before starting another ship.");
+            }
+
             // Fire control directs the guns: with none left a ship cannot shoot at all, and each
             // working system holds exactly one target ship for the turn.
             var workingFireControl = Math.Max(0, attacker.FireControlMax - attacker.FireControlDamage);
@@ -1132,13 +1163,6 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             if (!validation.IsValid)
             {
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
-            }
-
-            // A threshold check covers everything one ship fires, so the volley opens here and the
-            // rows it completes are measured from the hull as it stood before this ship started.
-            if (match.FiringShipId is { } previousAttacker && previousAttacker != attacker.Id)
-            {
-                ResolvePendingThresholds(match);
             }
 
             match.FiringShipId = attacker.Id;
@@ -1216,6 +1240,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             if (match.Phase == MatchPhase.Firing)
             {
                 ResolvePendingThresholds(match);
+                match.FiringParticipantId = null;
+                match.ActivatedShipIds.Clear();
                 match.TurnNumber++;
                 match.Phase = MatchPhase.OrderEntry;
                 match.Commitments.Clear();
@@ -1274,6 +1300,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             match.Phase = MatchPhase.Firing;
             match.AddLog("Phase", match.Phase.ToString(), $"Turn {match.TurnNumber} firing phase opened.");
+            match.ActivatedShipIds.Clear();
+            RollFiringInitiative(match);
             AddShipStateSnapshot(match, "Start of firing phase");
             AddNoFireTelemetry(match);
             match.Touch("TurnAdvanced");
@@ -1293,17 +1321,130 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             }
 
             var ship = FindOwnedShip(match, participant.Id, request.ShipId);
-            if (match.FiringShipId != ship.Id)
+            if (match.ActivatedShipIds.Contains(ship.Id))
             {
-                // Nothing owed: either the ship never fired, or its checks already rolled.
-                return ToSnapshot(match);
+                throw new InvalidOperationException($"{ship.Name} has already taken its turn to fire.");
             }
 
-            match.AddLog("Fire", match.Phase.ToString(), $"{DescribeShip(match, ship)} completed its fire for the turn.");
+            if (match.FiringParticipantId != participant.Id)
+            {
+                var holder = match.Participants.SingleOrDefault(p => p.Id == match.FiringParticipantId);
+                throw new InvalidOperationException($"It is {holder?.DisplayName ?? "the other player"}'s turn to fire.");
+            }
+
+            if (match.FiringShipId is { } firingShipId && firingShipId != ship.Id)
+            {
+                var busy = match.Ships.SingleOrDefault(s => s.Id == firingShipId);
+                throw new InvalidOperationException($"{busy?.Name ?? "Another ship"} is still firing. Finish its fire first.");
+            }
+
+            var fired = match.FiringShipId == ship.Id;
+            match.ActivatedShipIds.Add(ship.Id);
+            match.AddLog(
+                "Fire",
+                match.Phase.ToString(),
+                fired
+                    ? $"{DescribeShip(match, ship)} completed its fire for the turn."
+                    : $"{DescribeShip(match, ship)} held its fire.");
             ResolvePendingThresholds(match);
+            PassFiringInitiative(match, participant.Id);
             match.Touch("FireCompleted");
             return ToSnapshot(match);
         }
+    }
+
+    /// <summary>
+    /// Opens the firing phase with a die-off. Every player with a ship on the table rolls, highest
+    /// takes the initiative, and ties are re-rolled. The winner fires one ship, then the players
+    /// alternate a ship at a time.
+    /// </summary>
+    private void RollFiringInitiative(MatchState match)
+    {
+        var contenders = match.Participants
+            .Where(p => p.IsClaimed && match.Ships.Any(s => !IsDestroyed(s)
+                && match.Fleets.Single(f => f.Id == s.FleetId).OwnerParticipantId == p.Id))
+            .ToArray();
+        if (contenders.Length == 0)
+        {
+            match.FiringParticipantId = null;
+            return;
+        }
+
+        if (contenders.Length == 1)
+        {
+            match.FiringParticipantId = contenders[0].Id;
+            return;
+        }
+
+        // Re-roll ties a few times. The bound is a safety net against a die source that always
+        // returns the same face, not a rules limit.
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var rolls = contenders
+                .Select(p => (Participant: p, Roll: Math.Clamp(_rollDie(), 1, 6)))
+                .ToArray();
+            var best = rolls.Max(entry => entry.Roll);
+            var leaders = rolls.Where(entry => entry.Roll == best).ToArray();
+            match.AddLog(
+                "Initiative",
+                match.Phase.ToString(),
+                $"Firing initiative: {string.Join(", ", rolls.Select(entry => $"{entry.Participant.DisplayName} rolled {entry.Roll}"))}."
+                    + (leaders.Length == 1
+                        ? $" {leaders[0].Participant.DisplayName} fires first."
+                        : " Tied, rolling again."));
+            if (leaders.Length == 1)
+            {
+                match.FiringParticipantId = leaders[0].Participant.Id;
+                return;
+            }
+        }
+
+        match.FiringParticipantId = contenders[0].Id;
+        match.AddLog("Initiative", match.Phase.ToString(), $"Initiative stayed tied; {contenders[0].DisplayName} fires first by seating order.");
+    }
+
+    /// <summary>True when a ship could still take a turn to fire this phase.</summary>
+    private static bool CanTakeFiringTurn(MatchState match, ShipState ship) =>
+        !IsDestroyed(ship)
+        && !match.ActivatedShipIds.Contains(ship.Id)
+        && ship.FireControlMax - ship.FireControlDamage > 0
+        && ship.Weapons.Any(weapon => !weapon.IsDestroyed
+            && (weapon.AmmoMax == 0 || weapon.AmmoUsed < weapon.AmmoMax)
+            && !match.FiringResults.Any(f => f.TurnNumber == match.TurnNumber && f.AttackerShipId == ship.Id && f.WeaponId == weapon.Id));
+
+    /// <summary>Participants who still have a ship that could fire.</summary>
+    private static ParticipantState[] ParticipantsWithFireLeft(MatchState match) =>
+        [.. match.Participants.Where(p => p.IsClaimed && match.Ships.Any(s =>
+            match.Fleets.Single(f => f.Id == s.FleetId).OwnerParticipantId == p.Id && CanTakeFiringTurn(match, s)))];
+
+    /// <summary>
+    /// Hands the initiative to the next player with a ship left to fire, wrapping around the seating
+    /// order. A single player keeps it and simply activates another ship.
+    /// </summary>
+    private static void PassFiringInitiative(MatchState match, Guid currentParticipantId)
+    {
+        var eligible = ParticipantsWithFireLeft(match);
+        if (eligible.Length == 0)
+        {
+            match.FiringParticipantId = null;
+            match.AddLog("Initiative", match.Phase.ToString(), "Every ship has fired or has nothing left to fire with.");
+            return;
+        }
+
+        var order = match.Participants.Where(p => p.IsClaimed).ToArray();
+        var startIndex = Array.FindIndex(order, p => p.Id == currentParticipantId);
+        for (var step = 1; step <= order.Length; step++)
+        {
+            var candidate = order[(startIndex + step) % order.Length];
+            if (eligible.Any(p => p.Id == candidate.Id))
+            {
+                match.FiringParticipantId = candidate.Id;
+                match.AddLog("Initiative", match.Phase.ToString(), $"{candidate.DisplayName} fires next.");
+                return;
+            }
+        }
+
+        match.FiringParticipantId = eligible[0].Id;
     }
 
     /// <summary>
@@ -1458,6 +1599,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             o.Status)).ToArray(),
         match.MatchLog.Select(l => new MatchLogEntryDto(l.Sequence, l.Timestamp, l.TurnNumber, l.Phase, l.Category, l.Message)).ToArray(),
         match.FiringShipId,
+        match.FiringParticipantId,
+        [.. match.ActivatedShipIds],
         match.Version,
         match.PointsLimit);
 
@@ -1470,6 +1613,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
         /// <summary>The ship part-way through its fire, if any. Its threshold checks are still owed.</summary>
         public Guid? FiringShipId { get; set; }
+
+        /// <summary>Whose turn it is to pick a ship and fire it. Null outside the firing phase.</summary>
+        public Guid? FiringParticipantId { get; set; }
+
+        /// <summary>Ships that have already taken their turn to fire this phase.</summary>
+        public HashSet<Guid> ActivatedShipIds { get; } = [];
 
         /// <summary>Hull damage each target had before the firing ship opened up, by target id.</summary>
         public Dictionary<Guid, int> PendingThresholds { get; } = [];

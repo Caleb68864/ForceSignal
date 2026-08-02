@@ -100,16 +100,45 @@ public sealed class InMemoryMatchServiceFireControlTests
     }
 
     [Fact]
-    public void FireWeapon_FromASecondShipClosesTheFirstShipsVolley()
+    public void FireWeapon_FromASecondShipIsRefusedWhileTheFirstIsStillFiring()
     {
+        // A player fires one ship at a time: the guns cannot swap mid-volley.
         var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 6, targetHull: 20, secondAttacker: true);
+        table.Fire(table.FirstMount, table.PrimaryTargetId);
+
+        var error = Assert.Throws<InvalidOperationException>(table.FireFromSecondShip);
+
+        Assert.Contains("is still firing", error.Message, StringComparison.Ordinal);
+        Assert.Equal(table.AttackerId, table.Service.GetSnapshot(table.MatchId).FiringShipId);
+    }
+
+    [Fact]
+    public void CeaseFire_HandsTheNextTurnToTheOtherPlayer()
+    {
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 6, targetHull: 20);
+        var opening = table.Service.GetSnapshot(table.MatchId);
+        Assert.NotNull(opening.FiringParticipantId);
 
         table.Fire(table.FirstMount, table.PrimaryTargetId);
-        var result = table.FireFromSecondShip();
+        var closed = table.CeaseFire();
 
-        // The first ship's checks rolled as soon as another ship opened up.
-        Assert.Contains(result.MatchLog, entry => entry.Category == "Threshold");
-        Assert.Equal(table.SecondAttackerId, result.FiringShipId);
+        // The ship has had its activation and the initiative has moved on.
+        Assert.Contains(table.AttackerId, closed.ActivatedShipIds);
+        Assert.NotEqual(opening.FiringParticipantId, closed.FiringParticipantId);
+        var error = Assert.Throws<InvalidOperationException>(() => table.Fire(table.SecondMount, table.PrimaryTargetId));
+        Assert.Contains("turn to fire", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CeaseFire_TwiceForTheSameShipIsRefused()
+    {
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 6, targetHull: 20);
+        table.Fire(table.FirstMount, table.PrimaryTargetId);
+        table.CeaseFire();
+
+        var error = Assert.Throws<InvalidOperationException>(() => table.CeaseFire());
+
+        Assert.Contains("already taken its turn", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

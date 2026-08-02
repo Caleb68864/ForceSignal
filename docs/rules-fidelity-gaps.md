@@ -156,71 +156,97 @@ Code: `FireWeapon` in `InMemoryMatchService`, `workingFireControl` / `fireContro
 
 ---
 
-## Gap 6 — No firing initiative or ship-by-ship alternation
+## Gap 6 — No firing initiative or ship-by-ship alternation — FIXED 2026-08-02
 
 **Rules** (`Core/Initiative.md`, `Core/Sequence of Play.md`): the firing phase opens with an
 initiative roll. The winner picks **one** ship and resolves **all** of its fire; the opponent
 then picks one ship and fires it fully; play alternates one ship at a time. Damage applies
 immediately, so a ship can be destroyed or lose weapons **before it fires back**.
 
-**App**: the Firing phase is open - either player may fire any weapon on any ship at any time,
-in any order. Destroyed ships are correctly barred from firing, but nothing sequences who
-shoots when.
+**Was**: the firing phase was open - either player could fire any weapon on any ship at any time,
+in any order, so whoever tapped the screen faster got the advantage.
 
-**Why it matters**: initiative plus immediate damage is the tactical core of the fire phase.
-Without ordering, "kill it before it shoots" - the main reason target priority exists - cannot
-happen, and in practice whoever taps the screen faster gets the advantage.
+**Now**: the phase opens with a die-off. Every player with a ship on the table rolls, the highest
+takes the initiative, ties are re-rolled, and the rolls go in the log. The holder picks one ship and
+fires all of it; firing out of turn is refused by name, and so is swapping to another ship while one
+is mid-volley. Finishing that ship ("Done Firing") rolls its threshold checks and passes the turn,
+and declining to fire at all ("Hold Fire") spends the ship's turn the same way. Play alternates a
+ship at a time, skipping a player with nothing left to fire, until every ship has had its turn.
 
-Code: `InMemoryMatchService.FireWeapon`, `MatchPhase.Firing`.
+Because damage lands as it is rolled, a ship really can lose its guns - or its life - before its own
+turn comes round, which is the point of the sequence.
+
+The console shows whose turn it is and disables Fire with the reason, so the ordering is visible
+rather than only enforced at the API.
+
+**Known edge**: an exported snapshot carries no turn order, so a restored firing phase rolls a fresh
+die-off rather than resuming the old one.
+
+Code: `RollFiringInitiative` / `PassFiringInitiative` / `CanTakeFiringTurn` in
+`InMemoryMatchService`, `firingTurnBlocker` in `main.tsx`.
 
 ---
 
-## Gap 7 — A ship with no written order blocks the turn instead of drifting
+## Gap 7 — A ship with no written order blocks the turn instead of drifting — FIXED 2026-08-02
 
 **Rules** (`Movement/Movement Orders.md`): "No order = no change" - a ship with no order written,
 or given impossible orders, simply continues on the **same course and velocity**. It still moves
 its full velocity.
 
-**App**: the turn cannot advance until *every* live ship has a locked and revealed order.
-`CommitOrder` only reaches `OrdersLocked` when all live ship ids have commitments, and
-`RevealOrder` only reaches `Movement` when all of them are revealed. A ship left unordered
-deadlocks the turn rather than drifting.
+**Was**: the turn could not advance until every live ship had a locked and revealed order, so a
+ship left unordered deadlocked the turn. The client hid this by fabricating a hold order for every
+unplotted hull.
 
-**Why it matters**: with a dozen hulls on the table, most ships each turn are simply holding
-course. The rules let you write nothing for those; the app demands an explicit order for every
-one, every turn.
+**Now**: plotting closes when each player says it is done, and a ship with no order written holds
+the course and speed it already had - still travelling its full velocity, and logged as having held
+course. Reveal only covers orders that were actually locked, and if nobody wrote anything the turn
+goes straight to movement. The client's fleet lock commits only the ships the player actually
+plotted and then declares, so a fleet needs orders only for the ships it is steering.
 
-Code: `CommitOrder` and `RevealOrder` gates, `AdvanceTurn` movement loop.
+Code: `DeclareOrdersComplete` / `DriftingShipIds` / `AdvanceOrderEntryPhase` in
+`InMemoryMatchService`, `lockOwnedOrders` in `main.tsx`.
 
 ---
 
-## Gap 8 — Course change is not split half at the start and half at the mid-point
+## Gap 8 — Course change is not split half at the start and half at the mid-point — FIXED 2026-08-02
 
 **Rules** (`Movement/Making Course Changes.md`): pivot half the total turn rounded **down**, move
 half the velocity, pivot the remainder, move the rest. A 1-point turn therefore happens entirely
 at the mid-point.
 
-**App**: `FullThrustLightCinematicRules.Resolve` emits a full-length first segment on the
-*starting* course, then pivots the whole turn, then moves the rest. For a 3-point turn at
-velocity 10 from course 3, the rules run 5mu on course 2 then 5mu on course 12; the app runs
-5mu on course 3 then 5mu on course 12. Final heading matches, **final position does not**.
+**Was**: the resolver ran a full-length first leg on the *starting* course, then pivoted the whole
+turn at once. The heading came out right but by way of a path the ship never flew, so the final
+position was wrong - and position drives range, which drives dice.
 
-**Why it matters**: position drives range, and range drives dice. This was already on the
-roadmap as deferred; it should be treated as a play blocker rather than cosmetic.
+**Now**: both of the rulebook's worked examples come out right. A three-point turn at velocity 10
+from course 3 pivots one point to course 2, runs 5, pivots two to course 12, runs 5. A single-point
+turn at velocity 14 runs 7 on the original heading, then turns, then runs 7. A plotted sequence of
+turns - a ForceSignal extension on top of the rules - gives each turn an equal share of the move and
+splits it the same way, and legs that share a heading are merged so the trail carries no needless
+kinks. The client's plotted-endpoint preview walks the same legs, so the preview matches the result.
 
-Code: `src/ForceSignal.Modules.FullThrust/Movement/FullThrustLightCinematicRules.cs`.
+Positions are also rounded to a thousandth of a unit: the sine of a straight-down course is not
+exactly zero in floating point, and the residue was accumulating into coordinates like
+20.000000000000001.
+
+Code: `FullThrustLightCinematicRules.Resolve`, `EstimatePosition` in `InMemoryMatchService`,
+`plannedSegments` in `main.tsx`.
 
 ---
 
-## Gap 9 — A stationary ship cannot rotate on the spot
+## Gap 9 — A stationary ship cannot rotate on the spot — FIXED 2026-08-02
 
 **Rules** (`Movement/Cinematic Movement.md`): a ship at velocity 0 may be rotated on the spot to
 any course, spending no thrust and making no other move.
 
-**App**: every turn costs thrust and is capped at half thrust, so a stopped hull or a thrust-0
-station can never change facing.
+**Was**: every turn cost thrust and was capped at half thrust, so a stopped hull - or a thrust-0
+station at any time - could never change facing.
 
-Already on the roadmap. Code: `FullThrustLightCinematicRules.Validate`.
+**Now**: a ship at velocity 0 that makes no other move may rotate to any heading for free, ignoring
+both the thrust cost and the half-thrust cap. Getting under way is still a manoeuvre and still has
+to fit inside the thrust rating, and a rotation beyond a full circle is refused as nonsense.
+
+Code: `FullThrustLightCinematicRules.Validate`.
 
 ---
 
@@ -338,8 +364,9 @@ Code: `main.tsx` contact card and pre-turn checklist.
 1. ~~Six 60 degree arcs, aft blind spot, and a real bearing check (Gaps 2, 3, 4).~~ Done.
 2. ~~Threshold checks with hull rows (Gap 1).~~ Done.
 3. ~~FCS gating and one target per firecon (Gap 5).~~ Done.
-4. Drift for unordered ships (Gap 7).
-5. Half-and-half course execution and rotation at rest (Gaps 8, 9).
-6. Firing initiative and alternation (Gap 6). The per-ship volley is already modelled, so this is
-   now the initiative roll and the turn order on top of it.
-7. Pulse torpedoes, then ordnance resolution and PDS (Gaps 10, 11, 13).
+4. ~~Drift for unordered ships (Gap 7).~~ Done.
+5. ~~Half-and-half course execution and rotation at rest (Gaps 8, 9).~~ Done.
+6. ~~Firing initiative and alternation (Gap 6).~~ Done.
+7. Pulse torpedoes, then ordnance resolution and PDS (Gaps 10, 11, 13). All that is left of the
+   play blockers: the mechanics of a match are in place, but half of FTL's weapon list and every
+   defensive system against fighters and missiles are still missing.

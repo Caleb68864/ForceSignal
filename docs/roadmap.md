@@ -54,29 +54,27 @@ that are missing or wrong, in the order they should be fixed to reach a real mat
       working firecon holds one target ship for the turn - any mount may add to a target already
       engaged, but a fresh one beyond the limit is refused. The console shows the count and the
       reason before a shot is attempted.
-- [ ] Drift for unordered ships (gap 7). The rules let a ship with no written order continue on the
-      same course and velocity; the app cannot advance the turn until every live ship is ordered.
-- [ ] Firing initiative and alternation (gap 6). Roll off, winner fires one ship completely, then
-      alternate - with damage applied immediately. The app lets anyone fire anything at any time.
-      The per-ship volley now exists, so what is left is the initiative roll and enforcing turns.
+- [x] Drift for unordered ships (gap 7). Plotting closes when each player says it is done, and a
+      ship with no order holds its course and speed while still travelling its full velocity. Reveal
+      covers only what was actually locked, and a turn nobody plotted goes straight to movement.
+- [x] Firing initiative and alternation (gap 6). The firing phase opens with a logged die-off, the
+      winner fires one ship completely, and play then alternates a ship at a time - out-of-turn fire
+      and mid-volley ship swaps are refused, holding fire spends a ship's turn, and players with
+      nothing left to fire are skipped. Damage still lands as it is rolled, so a ship can lose its
+      guns before its own turn arrives.
 - [ ] Pulse torpedoes (gap 10), ordnance attack resolution (gap 11), and point defence (gap 13).
       FTL's second weapon is missing, ordnance markers drift but never attack, and nothing shoots
       at fighters or missiles.
 
 ## Movement Rule Fidelity
 
-The current profile is a deliberately simplified cinematic model. These two known
-divergences were identified while converging the app against `current-functionality-should.md`
-and are deferred, not forgotten.
-
-- [ ] Free rotation at rest: a stationary ship should be able to turn to any facing without
-      spending thrust. Today every turn costs thrust and is capped at half thrust, so a
-      thrust-0 station or a stopped hull can never change facing at all.
-- [ ] Split course changes across the move: a plotted turn should pivot half at the start and
-      the remainder at the mid-point, moving half the velocity between the two pivots. The
-      resolver currently divides the move into equal segments and pivots between them, which
-      approximates the same shape but puts ships on a slightly different path and changes
-      where the movement trail bends.
+- [x] Free rotation at rest: a ship at velocity 0 that makes no other move rotates to any heading
+      for free, ignoring the thrust cost and the half-thrust cap, so a thrust-0 station can come
+      about. Getting under way still costs thrust as usual.
+- [x] Split course changes across the move: a plotted turn pivots half at the start, rounded down,
+      and the remainder at the mid-point, running half the velocity between the two pivots - which
+      is what puts the ship where the rulebook's worked examples say it ends up. A plotted sequence
+      of turns takes an equal share of the move each and splits the same way.
 
 ## Later Production Options
 

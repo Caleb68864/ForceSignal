@@ -228,6 +228,8 @@ public sealed record MatchSnapshotDto(
     IReadOnlyList<OrdnanceMarkerDto> OrdnanceMarkers,
     IReadOnlyList<MatchLogEntryDto> MatchLog,
     Guid? FiringShipId,
+    Guid? FiringParticipantId,
+    IReadOnlyList<Guid> ActivatedShipIds,
     long Version,
     int PointsLimit);
 

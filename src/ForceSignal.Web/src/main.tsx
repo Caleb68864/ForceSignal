@@ -175,6 +175,9 @@ type MatchSnapshot = {
   pointsLimit: number;
   // The ship part-way through its fire. Its threshold checks roll when the volley closes.
   firingShipId?: string | null;
+  // Whose turn it is to pick a ship and fire it, and which ships have already had their turn.
+  firingParticipantId?: string | null;
+  activatedShipIds?: string[];
 };
 
 type Session = {
@@ -426,6 +429,30 @@ function bearingArc(ship: Ship, target?: Ship): FiringArc | null {
   const bearing = Math.atan2(offsetX, -offsetY) * 180 / Math.PI;
   const relative = ((bearing - ship.currentCourse * 30) % 360 + 360) % 360;
   return firingArcs[Math.floor((relative / 30 + 1) / 2) % 6];
+}
+
+/// Why the firing order will not let this ship shoot right now, if it will not. The winner of the
+/// die-off fires one ship completely, then the players alternate a ship at a time.
+function firingTurnBlocker(ship: Ship, snapshot: MatchSnapshot, participantId: string): string | null {
+  if ((snapshot.activatedShipIds ?? []).includes(ship.id)) {
+    return `${ship.name} has already had its turn to fire`;
+  }
+
+  if (!snapshot.firingParticipantId) {
+    return 'Every ship has fired this turn';
+  }
+
+  if (snapshot.firingParticipantId !== participantId) {
+    const holder = snapshot.participants.find((participant) => participant.id === snapshot.firingParticipantId);
+    return `It is ${holder?.displayName ?? 'the other player'}'s turn to fire`;
+  }
+
+  if (snapshot.firingShipId && snapshot.firingShipId !== ship.id) {
+    const busy = snapshot.ships.find((candidate) => candidate.id === snapshot.firingShipId);
+    return `${busy?.name ?? 'Another ship'} is still firing`;
+  }
+
+  return null;
 }
 
 /// Fire control systems still working. Each one holds a single target ship for the turn.
@@ -1899,6 +1926,8 @@ function App() {
                           onChange={(patch) => updateFiringDraft(ship.id, { ...firingDraft, ...patch })}
                           onFire={() => fireWeapon(ship, firingDraft).catch(showError(setMessage))}
                           volleyOpen={snapshot.firingShipId === ship.id}
+                          turnProblem={firingTurnBlocker(ship, snapshot, session.participantId)}
+                          canEndFire={snapshot.firingParticipantId === session.participantId && !(snapshot.activatedShipIds ?? []).includes(ship.id)}
                           onCeaseFire={() => ceaseFire(ship).catch(showError(setMessage))}
                         />
                       </>
@@ -3171,6 +3200,8 @@ function PlayMap({
                 onChange={(patch) => updateMapFiringDraft(selectedShip, patch)}
                 onFire={() => onFire(selectedShip, selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds)).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
                 volleyOpen={snapshot.firingShipId === selectedShip.id}
+                turnProblem={firingTurnBlocker(selectedShip, snapshot, ownerParticipantId ?? '')}
+                canEndFire={Boolean(ownerParticipantId) && snapshot.firingParticipantId === ownerParticipantId && !(snapshot.activatedShipIds ?? []).includes(selectedShip.id)}
                 onCeaseFire={() => onCeaseFire(selectedShip).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
               />
             ) : null}
@@ -3714,6 +3745,8 @@ function MapFiringAssistant({
   onChange,
   onFire,
   volleyOpen,
+  turnProblem,
+  canEndFire,
   onCeaseFire,
 }: {
   ship: Ship;
@@ -3725,6 +3758,8 @@ function MapFiringAssistant({
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
   volleyOpen: boolean;
+  turnProblem: string | null;
+  canEndFire: boolean;
   onCeaseFire: () => void;
 }) {
   const targetOptions = firingTargetOptions(ship, ships, ownedShipIds);
@@ -3738,8 +3773,10 @@ function MapFiringAssistant({
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
-  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost && !fireControlProblem;
-  const firingNote = !weapon
+  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost && !fireControlProblem && !turnProblem;
+  const firingNote = turnProblem
+    ? turnProblem
+    : !weapon
     ? 'No weapon mounted'
     : mountLost
       ? 'Mount knocked out'
@@ -3792,8 +3829,8 @@ function MapFiringAssistant({
       </label>
       <button className="ghost" type="button" disabled={!target} onClick={() => onChange({ range: estimatedRange })}>Use Map Solution</button>
       <button type="button" disabled={!canFire} onClick={onFire}>Fire</button>
-      {volleyOpen ? (
-        <button className="ghost volley-close" type="button" onClick={onCeaseFire}>Done Firing</button>
+      {canEndFire ? (
+        <button className="ghost volley-close" type="button" onClick={onCeaseFire}>{volleyOpen ? 'Done Firing' : 'Hold Fire'}</button>
       ) : null}
     </div>
   );
@@ -3847,6 +3884,8 @@ function FiringConsole({
   onChange,
   onFire,
   volleyOpen,
+  turnProblem,
+  canEndFire,
   onCeaseFire,
 }: {
   ship: Ship;
@@ -3858,6 +3897,8 @@ function FiringConsole({
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
   volleyOpen: boolean;
+  turnProblem: string | null;
+  canEndFire: boolean;
   onCeaseFire: () => void;
 }) {
   const targetOptions = firingTargetOptions(ship, ships, ownedShipIds);
@@ -3871,11 +3912,13 @@ function FiringConsole({
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
-  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost && !fireControlProblem;
+  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost && !fireControlProblem && !turnProblem;
   const rangeStatus = weapon && estimatedRange
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
-  const fireStatus = mountLost
+  const fireStatus = turnProblem
+    ? `${turnProblem}.`
+    : mountLost
     ? `${weapon?.name} was knocked out by a threshold check.`
     : fireControlProblem
     ? `${fireControlProblem}.`
@@ -3934,11 +3977,15 @@ function FiringConsole({
         Use Map Range
       </button>
       <button disabled={!canFire} onClick={onFire}>Fire</button>
-      {volleyOpen ? (
-        <button className="ghost volley-close" type="button" onClick={onCeaseFire}>Done Firing</button>
+      {canEndFire ? (
+        <button className="ghost volley-close" type="button" onClick={onCeaseFire}>{volleyOpen ? 'Done Firing' : 'Hold Fire'}</button>
       ) : null}
-      {volleyOpen ? (
-        <p className="constraint-line">Threshold checks roll when this ship finishes firing.</p>
+      {canEndFire ? (
+        <p className="constraint-line">
+          {volleyOpen
+            ? 'Finishing rolls the threshold checks this fire earned and passes the turn.'
+            : 'Holding fire uses this turn to fire and passes to the other player.'}
+        </p>
       ) : null}
       {spentShot ? (
         <p className="constraint-line dice-readout">
