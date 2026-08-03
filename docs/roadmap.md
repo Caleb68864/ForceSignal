@@ -106,8 +106,10 @@ defences, damage control, needle beams - found six more divergences. Each is wri
 
 ### Follow-ups the second round created
 
-- [ ] Record an undamaged value for screens and fighter bays, so damage control can restore them.
-- [ ] Mark systems killed by a needle beam as beyond repair, which is the weapon's real limit.
+- [x] Screens and fighter bays record what the ship was built with plus what has been shot away, so
+      damage control can restore them and the table still sees what is actually generating.
+- [x] Needle-beam losses are permanent. A needled system is cut out rather than broken, tracked per
+      system and held against the repairable total, and a needled mount is labelled as such.
 - [ ] A rules-layer switch for the FT2-versus-Fleet-Book differences now piling up: threshold rows,
       level-3 screens, the 12mu fighter move, carrier launch rates, and enhanced needles.
 

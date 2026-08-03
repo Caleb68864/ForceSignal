@@ -152,15 +152,42 @@ public sealed class InMemoryMatchServiceRepairTests
     }
 
     [Fact]
+    public void AttemptRepairs_BringsAScreenGeneratorBackOnline()
+    {
+        // Screens record what the ship was built with, so there is a level to restore toward.
+        var table = RepairTable.Build();
+        table.BreakScreens();
+        table.Dice.Script(6);
+
+        var result = table.Repair(new RepairJobDto(ShipSystemKind.Screen, null, 1));
+
+        Assert.Equal(0, table.ShipIn(result).ScreenDamage);
+    }
+
+    [Fact]
     public void AttemptRepairs_RefusesWorkThatIsBeyondDamageControl()
     {
         var table = RepairTable.Build();
         table.BreakFireControl();
 
         var error = Assert.Throws<InvalidOperationException>(() => table.Repair(
-            new RepairJobDto(ShipSystemKind.Screen, null, 1)));
+            new RepairJobDto(ShipSystemKind.DamageControlParty, null, 1)));
 
-        Assert.Contains("cannot be repaired by damage control", error.Message, StringComparison.Ordinal);
+        Assert.Contains("never come back", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AttemptRepairs_RefusesAMountANeedleBeamCutOut()
+    {
+        // A needle does not break a system, it cuts it out - which is the weapon's real limit, since
+        // anything a threshold check takes can be jury-rigged back.
+        var table = RepairTable.Build();
+        table.NeedleTheMount();
+
+        var error = Assert.Throws<InvalidOperationException>(() => table.Repair(
+            new RepairJobDto(ShipSystemKind.Weapon, table.MountId, 1)));
+
+        Assert.Contains("beyond damage control", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -184,7 +211,9 @@ public sealed class InMemoryMatchServiceRepairTests
         string OwnerToken,
         string OpponentToken,
         Guid ShipId,
-        Guid MountId)
+        Guid MountId,
+        Guid EnemyId,
+        Guid EnemyNeedleId)
     {
         public static RepairTable Build(int parties = 2)
         {
@@ -201,18 +230,21 @@ public sealed class InMemoryMatchServiceRepairTests
             var ship = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Patchwork", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: 12, HullMax: 20, ArmorMax: 0,
-                StartX: 20, StartY: 40, FireControlMax: 2,
+                StartX: 20, StartY: 40, ScreenRating: 1, FireControlMax: 2,
                 Weapons: [new WeaponMountDto(mountId, "Class-3 Beam", 3, 36, [FiringArc.Fore])],
                 DamageControlParties: parties)).Ships.Single(s => s.Name == "Patchwork");
-            service.CreateShip(redFleet.Id, new CreateShipRequest(
+            var enemyNeedleId = Guid.NewGuid();
+            var enemy = service.CreateShip(redFleet.Id, new CreateShipRequest(
                 opponent.ParticipantToken, "Mark", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: 6, HullMax: 20, ArmorMax: 0,
-                StartX: 20, StartY: 20));
+                StartX: 20, StartY: 34, FireControlMax: 2,
+                Weapons: [new WeaponMountDto(enemyNeedleId, "Needle Beam", 1, 9, [FiringArc.Fore], Kind: WeaponKind.NeedleBeam)]))
+                .Ships.Single(s => s.Name == "Mark");
 
             service.SetReady(owner.MatchId, owner.ParticipantToken, true);
             service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
 
-            return new RepairTable(service, dice, owner.MatchId, owner.ParticipantToken, opponent.ParticipantToken, ship.Id, mountId);
+            return new RepairTable(service, dice, owner.MatchId, owner.ParticipantToken, opponent.ParticipantToken, ship.Id, mountId, enemy.Id, enemyNeedleId);
         }
 
         public ShipDto Ship() => Service.GetSnapshot(MatchId).Ships.Single(s => s.Id == ShipId);
@@ -224,6 +256,33 @@ public sealed class InMemoryMatchServiceRepairTests
 
         /// <summary>Knocks out one fire control system by hand, as a threshold check would.</summary>
         public void BreakFireControl() => SetDamage(fireControl: 1);
+
+        /// <summary>Shoots a screen generator away by hand.</summary>
+        public void BreakScreens()
+        {
+            var ship = Ship();
+            Service.UpdateShipDamage(ShipId, new UpdateShipDamageRequest(
+                OwnerToken, ship.HullDamage, ship.ArmorDamage, ship.FireControlDamage,
+                ship.DriveDamage, ship.WeaponDamage, ScreenDamage: 1));
+        }
+
+        /// <summary>Has a needle beam cut the mount out, which puts it past repair.</summary>
+        public void NeedleTheMount()
+        {
+            var firing = IntoFiringPhase();
+            if (firing.FiringParticipantId != firing.Participants.Single(p => p.Role != "Owner").Id)
+            {
+                // Hand the turn over so the needle ship can shoot.
+                Service.CeaseFire(MatchId, new CeaseFireRequest(OwnerToken, ShipId));
+            }
+
+            Dice.Script(6);
+            Service.FireWeapon(MatchId, new FireWeaponRequest(
+                OpponentToken, EnemyId, ShipId, EnemyNeedleId, 6,
+                TargetSystem: ShipSystemKind.Weapon, TargetSystemWeaponId: MountId));
+            Service.CeaseFire(MatchId, new CeaseFireRequest(OpponentToken, EnemyId));
+            Service.AdvanceTurn(MatchId, OwnerToken);
+        }
 
         public void KillDrives() => SetDamage(drive: 4);
 
@@ -256,11 +315,11 @@ public sealed class InMemoryMatchServiceRepairTests
             Service.AdvanceTurn(MatchId, OwnerToken);
         }
 
-        public void IntoFiringPhase()
+        public MatchSnapshotDto IntoFiringPhase()
         {
             Service.DeclareOrdersComplete(MatchId, new DeclareOrdersCompleteRequest(OwnerToken));
             Service.DeclareOrdersComplete(MatchId, new DeclareOrdersCompleteRequest(OpponentToken));
-            Service.AdvanceTurn(MatchId, OwnerToken);
+            return Service.AdvanceTurn(MatchId, OwnerToken);
         }
     }
 }

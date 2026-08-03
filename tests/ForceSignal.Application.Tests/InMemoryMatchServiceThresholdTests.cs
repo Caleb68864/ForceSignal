@@ -45,8 +45,9 @@ public sealed class InMemoryMatchServiceThresholdTests
         var target = result.Ships.Single(s => s.Id == table.TargetId);
 
         // Screens, drives and the mount all fail their rolls. Each screen level is its own
-        // generator, so a pair of 1s takes both down.
-        Assert.Equal(0, target.ScreenRating);
+        // generator, so a pair of 1s takes both down - the rating still says what it was built with.
+        Assert.Equal(2, target.ScreenRating);
+        Assert.Equal(2, target.ScreenDamage);
         Assert.Equal(0, target.FireControlMax - target.FireControlDamage);
         Assert.True(target.DriveDamage > 0);
         Assert.True(target.Weapons.All(weapon => weapon.IsDestroyed));

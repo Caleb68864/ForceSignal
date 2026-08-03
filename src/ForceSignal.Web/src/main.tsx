@@ -58,10 +58,12 @@ type Ship = {
   fireControlDamage: number;
   pointDefenseSystems?: number;
   fighterBays?: number;
+  fighterBayDamage?: number;
   damageControlParties?: number;
   driveDamage: number;
   weaponDamage: number;
   screenRating: number;
+  screenDamage?: number;
   weapons: WeaponMount[];
   isDestroyed: boolean;
   // The hull damage track, as boxes per row. Completing a row triggers a threshold check.
@@ -86,6 +88,7 @@ type WeaponMount = {
   ammoUsed: number;
   reloadTurns: number;
   isDestroyed?: boolean;
+  isNeedleKilled?: boolean;
   kind: WeaponKind;
 };
 
@@ -497,6 +500,12 @@ function rangeDisagreesWithMap(declaredRange: number, mapRange: number, kind: We
 /// The die a pulse torpedo needs at this range: 2+ inside 6mu, a point worse every 6mu after.
 function torpedoToHitNumber(range: number) {
   return Math.min(6, Math.max(2, 2 + Math.floor((Math.max(1, range) - 1) / 6)));
+}
+
+/// Screen levels still generating, after whatever has been shot away. The rating a ship carries is
+/// what it was built with, so anything shown to the table has to subtract the damage.
+function effectiveScreens(ship: Ship) {
+  return Math.max(0, ship.screenRating - (ship.screenDamage ?? 0));
 }
 
 /// Fire control systems still working. Each one holds a single target ship for the turn.
@@ -1805,7 +1814,7 @@ function App() {
                       {status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
                       {ship.hullDamage > 0 || ship.armorDamage > 0 ? <span className="warn">Damage recorded</span> : <span>Undamaged</span>}
                       {ship.fireControlDamage + ship.driveDamage + ship.weaponDamage > 0 ? <span className="danger">Systems degraded</span> : null}
-                      {ship.screenRating > 0 ? <span>Screens {ship.screenRating}</span> : null}
+                      {effectiveScreens(ship) > 0 ? <span>Screens {effectiveScreens(ship)}</span> : null}
                     </div>
 
                     {canEdit ? (
@@ -1851,7 +1860,7 @@ function App() {
                       </div>
                       <div>
                         <span className="label">Screens</span>
-                        <strong>{ship.screenRating}</strong>
+                        <strong>{effectiveScreens(ship)}</strong>
                       </div>
                       <div>
                         <span className="label">Pos</span>
@@ -3383,7 +3392,7 @@ function PlayMap({
             </div>
             <div>
               <span className="label">Screens</span>
-              <strong>{selectedShip.screenRating}</strong>
+              <strong>{effectiveScreens(selectedShip)}</strong>
             </div>
           </div>
         </div>
@@ -3469,7 +3478,7 @@ function MapContactCard({
         </div>
         <div>
           <dt>Armor</dt>
-          <dd>{ship.armorDamage}/{ship.armorMax}{ship.screenRating > 0 ? ` · screens ${ship.screenRating}` : ''}</dd>
+          <dd>{ship.armorDamage}/{ship.armorMax}{effectiveScreens(ship) > 0 ? ` · screens ${effectiveScreens(ship)}` : ''}</dd>
         </div>
         <div>
           <dt>Systems</dt>
@@ -4082,7 +4091,8 @@ function FiringConsole({
           {ship.weapons.map((mount) => {
             const spent = firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === mount.id);
             const ammo = mount.ammoMax > 0 ? ` · ammo ${mount.ammoUsed}/${mount.ammoMax}` : '';
-            return <option key={mount.id} value={mount.id}>{mount.name} · {mount.attackDice}D/{mount.maxRange}{ammo}{mount.isDestroyed ? ' · knocked out' : spent ? ' · spent' : ''}</option>;
+            const lostNote = mount.isDestroyed ? mount.isNeedleKilled ? ' · needled, beyond repair' : ' · knocked out' : spent ? ' · spent' : '';
+            return <option key={mount.id} value={mount.id}>{mount.name} · {mount.attackDice}D/{mount.maxRange}{ammo}{lostNote}</option>;
           })}
         </select>
       </label>
@@ -5068,7 +5078,7 @@ function matchLogToCsv(snapshot: MatchSnapshot) {
     ...snapshot.ships.map((ship) => [
       'ship',
       ship.name,
-      `pos ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)}, V${ship.currentVelocity}/C${ship.currentCourse}, hull ${ship.hullDamage}/${ship.hullMax}, armor ${ship.armorDamage}/${ship.armorMax}, screens ${ship.screenRating}${ship.isDestroyed ? ', destroyed' : ''}`,
+      `pos ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)}, V${ship.currentVelocity}/C${ship.currentCourse}, hull ${ship.hullDamage}/${ship.hullMax}, armor ${ship.armorDamage}/${ship.armorMax}, screens ${effectiveScreens(ship)}${ship.isDestroyed ? ', destroyed' : ''}`,
     ]),
     ...(snapshot.ordnanceMarkers ?? []).map((marker) => [
       'ordnance',

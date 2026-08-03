@@ -161,7 +161,9 @@ public sealed record UpdateShipDamageRequest(
     int ArmorDamage,
     int FireControlDamage,
     int DriveDamage,
-    int WeaponDamage);
+    int WeaponDamage,
+    int ScreenDamage = 0,
+    int FighterBayDamage = 0);
 
 /// <summary>
 /// Declares that a participant has finished plotting for the turn. Ships left without an order
@@ -297,10 +299,12 @@ public sealed record ShipDto(
     int FireControlDamage,
     int PointDefenseSystems,
     int FighterBays,
+    int FighterBayDamage,
     int DamageControlParties,
     int DriveDamage,
     int WeaponDamage,
     int ScreenRating,
+    int ScreenDamage,
     IReadOnlyList<WeaponMountDto> Weapons,
     bool IsDestroyed,
     IReadOnlyList<int> HullRows,
@@ -346,6 +350,9 @@ public sealed record MovementResultDto(
 /// <param name="AmmoUsed">Rounds already spent.</param>
 /// <param name="ReloadTurns">Turns needed to reload, for the table's own bookkeeping.</param>
 /// <param name="IsDestroyed">True once a threshold check has knocked this mount out.</param>
+/// <param name="IsNeedleKilled">
+/// True when a needle beam took this mount. Needled systems are beyond damage control.
+/// </param>
 /// <param name="Kind">Beam battery or pulse torpedo launcher. Defaults to a beam.</param>
 public sealed record WeaponMountDto(
     Guid Id,
@@ -357,7 +364,8 @@ public sealed record WeaponMountDto(
     int AmmoUsed = 0,
     int ReloadTurns = 0,
     bool IsDestroyed = false,
-    WeaponKind Kind = WeaponKind.Beam)
+    WeaponKind Kind = WeaponKind.Beam,
+    bool IsNeedleKilled = false)
 {
     /// <summary>
     /// Compatibility field for data written before ForceSignal used six arcs. When

@@ -301,6 +301,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 restoredShip.HullDamage = ClampDamage(ship.HullDamage, restoredShip.HullMax);
                 restoredShip.ArmorDamage = ClampDamage(ship.ArmorDamage, restoredShip.ArmorMax);
                 restoredShip.FireControlDamage = ClampDamage(ship.FireControlDamage, restoredShip.FireControlMax);
+                restoredShip.ScreenDamage = ClampDamage(ship.ScreenDamage, restoredShip.ScreenRating);
+                restoredShip.FighterBayDamage = ClampDamage(ship.FighterBayDamage, restoredShip.FighterBays);
                 restoredShip.DriveDamage = ClampDamage(ship.DriveDamage, restoredShip.ThrustRating);
                 restoredShip.WeaponDamage = ClampDamage(ship.WeaponDamage, 12);
                 match.Ships.Add(restoredShip);
@@ -791,6 +793,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             ship.HullDamage = ClampDamage(request.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(request.ArmorDamage, ship.ArmorMax);
             ship.FireControlDamage = ClampDamage(request.FireControlDamage, ship.FireControlMax);
+            ship.ScreenDamage = ClampDamage(request.ScreenDamage, ship.ScreenRating);
+            ship.FighterBayDamage = ClampDamage(request.FighterBayDamage, ship.FighterBays);
             ship.DriveDamage = ClampDamage(request.DriveDamage, ship.ThrustRating);
             ship.WeaponDamage = ClampDamage(request.WeaponDamage, 12);
             match.AddLog("Damage", match.Phase.ToString(), $"{DescribeShip(match, ship)} damage record updated: {DescribeDamageDelta(before, CaptureDamage(ship))}.");
@@ -1014,18 +1018,17 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         switch (job.Kind)
         {
             case ShipSystemKind.FireControl:
-                if (ship.FireControlDamage <= 0)
-                {
-                    throw new InvalidOperationException($"{ship.Name} has no fire control to repair.");
-                }
-
+                RequireRepairable(ship, ship.FireControlDamage, ship.NeedledFireControl, "fire control");
                 return new RepairJob(job.Kind, null, parties);
             case ShipSystemKind.Drive:
-                if (ship.DriveDamage <= 0)
-                {
-                    throw new InvalidOperationException($"{ship.Name} has no drive damage to repair.");
-                }
-
+                // Drives are lost in two steps, so the needled steps count against the same ladder.
+                RequireRepairable(ship, ship.DriveDamage > 0 ? ship.DriveDamage >= ship.ThrustRating ? 2 : 1 : 0, ship.NeedledDrives, "drive damage");
+                return new RepairJob(job.Kind, null, parties);
+            case ShipSystemKind.Screen:
+                RequireRepairable(ship, ship.ScreenDamage, ship.NeedledScreens, "screen damage");
+                return new RepairJob(job.Kind, null, parties);
+            case ShipSystemKind.FighterBay:
+                RequireRepairable(ship, ship.FighterBayDamage, ship.NeedledBays, "bay damage");
                 return new RepairJob(job.Kind, null, parties);
             case ShipSystemKind.Weapon:
                 var mount = ship.Weapons.SingleOrDefault(weapon => weapon.Id == job.WeaponId)
@@ -1035,10 +1038,32 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     throw new InvalidOperationException($"{mount.Name} is already working.");
                 }
 
+                if (mount.IsNeedleKilled)
+                {
+                    throw new InvalidOperationException($"{mount.Name} was cut out by a needle beam and is beyond damage control.");
+                }
+
                 return new RepairJob(job.Kind, mount.Id, parties);
             default:
                 throw new InvalidOperationException(
-                    $"{job.Kind} cannot be repaired by damage control in ForceSignal yet - fire control, weapon mounts and drives can.");
+                    $"{job.Kind} cannot be repaired by damage control: hull damage and lost parties never come back.");
+        }
+    }
+
+    /// <summary>
+    /// Refuses a job with nothing left to fix. Needle-beam losses count against the total, because a
+    /// needled system is cut out rather than broken and no party can jury-rig it back.
+    /// </summary>
+    private static void RequireRepairable(ShipState ship, int damage, int needled, string what)
+    {
+        if (damage <= 0)
+        {
+            throw new InvalidOperationException($"{ship.Name} has no {what} to repair.");
+        }
+
+        if (damage - needled <= 0)
+        {
+            throw new InvalidOperationException($"{ship.Name} lost its {what} to needle fire, which is beyond damage control.");
         }
     }
 
@@ -1046,6 +1071,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         ShipSystemKind.FireControl => "fire control",
         ShipSystemKind.Drive => "drives",
+        ShipSystemKind.Screen => "screens",
+        ShipSystemKind.FighterBay => "fighter bay",
         ShipSystemKind.Weapon => ship.Weapons.SingleOrDefault(weapon => weapon.Id == job.WeaponId)?.Name ?? "weapon mount",
         _ => job.Kind.ToString(),
     };
@@ -1057,6 +1084,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         {
             case ShipSystemKind.FireControl:
                 ship.FireControlDamage = Math.Max(0, ship.FireControlDamage - 1);
+                break;
+            case ShipSystemKind.Screen:
+                ship.ScreenDamage = Math.Max(0, ship.ScreenDamage - 1);
+                break;
+            case ShipSystemKind.FighterBay:
+                ship.FighterBayDamage = Math.Max(0, ship.FighterBayDamage - 1);
                 break;
             case ShipSystemKind.Drive:
                 // One success on dead drives gets half the thrust back; a second clears the rest.
@@ -1179,7 +1212,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             throw new InvalidOperationException($"{carrier.Name} is gone; {group.Name} has nowhere to land.");
         }
 
-        if (carrier.FighterBays <= 0)
+        if (EffectiveBays(carrier) <= 0)
         {
             throw new InvalidOperationException($"{carrier.Name} has no working fighter bays.");
         }
@@ -1238,10 +1271,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 && IsFighterGroupShip(candidate)
                 && candidate.FighterStatus == "Docked"
                 && !IsDestroyed(candidate));
-            if (docked >= carrier.FighterBays)
+            var bays = EffectiveBays(carrier);
+            if (docked >= bays)
             {
                 throw new InvalidOperationException(
-                    $"{carrier.Name} has {carrier.FighterBays} bay{(carrier.FighterBays == 1 ? string.Empty : "s")} and they are full.");
+                    $"{carrier.Name} has {bays} bay{(bays == 1 ? string.Empty : "s")} and they are full.");
             }
 
             group.PositionX = carrier.PositionX;
@@ -1589,7 +1623,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var solution = new FiringSolution(
                 new WeaponAttackProfile(weapon.Name, EffectiveAttackDice(attacker, weapon), weapon.MaxRange, weapon.Arcs, weapon.Kind),
                 request.Range,
-                target.ScreenRating,
+                EffectiveScreens(target),
                 attacker.WeaponDamage,
                 targetArc);
             // A pulse torpedo rolls to hit and then for damage, and screens do not touch it, so it
@@ -1692,7 +1726,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             if (needleTarget is not null)
             {
                 needleNote = result.IsHit == true
-                    ? $" {ApplySystemLoss(match, target, needleTarget)}"
+                    ? $" {ApplySystemLoss(match, target, needleTarget, fromNeedle: true)}"
                     : " nothing hit";
             }
 
@@ -1708,11 +1742,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var screenNote = weapon.Kind == WeaponKind.PulseTorpedo
                 // Screens do not degrade a torpedo. Say so on a hit, where a reader might otherwise
                 // wonder why a screened ship took the full damage, and stay quiet on a miss.
-                ? target.ScreenRating > 0 && result.IsHit == true ? " ignoring screens" : string.Empty
-                : target.ScreenRating switch
+                ? EffectiveScreens(target) > 0 && result.IsHit == true ? " ignoring screens" : string.Empty
+                : EffectiveScreens(target) switch
                 {
-                    > 0 when result.ScreenReduction > 0 => $" vs screens {target.ScreenRating} (-{result.ScreenReduction})",
-                    > 0 => $" vs screens {target.ScreenRating}",
+                    > 0 when result.ScreenReduction > 0 => $" vs screens {EffectiveScreens(target)} (-{result.ScreenReduction})",
+                    > 0 => $" vs screens {EffectiveScreens(target)}",
                     _ => string.Empty,
                 };
             match.AddLog(
@@ -2053,11 +2087,13 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.FireControlDamage,
             s.PointDefenseSystems,
             s.FighterBays,
+            s.FighterBayDamage,
             s.DamageControlParties,
             s.DriveDamage,
             s.WeaponDamage,
             s.ScreenRating,
-            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns, w.IsDestroyed, w.Kind)).ToArray(),
+            s.ScreenDamage,
+            s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns, w.IsDestroyed, w.Kind, w.IsNeedleKilled)).ToArray(),
             s.HullDamage >= s.HullMax,
             FullThrustLightThresholdRules.HullRowsFor(s.HullMax),
             FullThrustLightThresholdRules.RowsCompletedFor(s.HullDamage, s.HullMax),
@@ -2230,7 +2266,19 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int DamageControlParties { get; set; }
         public int DriveDamage { get; set; }
         public int WeaponDamage { get; set; }
+        /// <summary>Screen levels the ship was built with. Losses are counted separately.</summary>
         public int ScreenRating { get; set; } = screenRating;
+        public int ScreenDamage { get; set; }
+        public int FighterBayDamage { get; set; }
+
+        /// <summary>
+        /// Losses a needle beam inflicted, which damage control can never undo. Counted per system so
+        /// a ship that lost one firecon to a threshold and another to a needle can repair exactly one.
+        /// </summary>
+        public int NeedledFireControl { get; set; }
+        public int NeedledDrives { get; set; }
+        public int NeedledScreens { get; set; }
+        public int NeedledBays { get; set; }
         public List<WeaponMountState> Weapons { get; } = [.. weapons];
         public string IconKey { get; set; } = iconKey;
         public int FighterEnduranceMax { get; set; }
@@ -2249,6 +2297,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int MaxRange { get; } = maxRange;
         public IReadOnlyList<FiringArc> Arcs { get; } = arcs;
         public bool IsDestroyed { get; set; }
+        public bool IsNeedleKilled { get; set; }
         public WeaponKind Kind { get; } = kind;
         public int AmmoMax { get; } = ammoMax;
         public int AmmoUsed { get; set; } = ammoUsed;
@@ -2540,12 +2589,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
 
         // Each screen level is its own generator, so each rolls separately.
-        for (var level = 0; level < ship.ScreenRating; level++)
+        for (var level = 0; level < EffectiveScreens(ship); level++)
         {
             systems.Add(new ShipSystem(ShipSystemKind.Screen, "screen generator"));
         }
 
-        for (var bay = 0; bay < ship.FighterBays; bay++)
+        for (var bay = 0; bay < EffectiveBays(ship); bay++)
         {
             systems.Add(new ShipSystem(ShipSystemKind.FighterBay, "fighter bay"));
         }
@@ -2562,13 +2611,18 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     }
 
     /// <summary>Applies one knocked-out system and describes it for the log.</summary>
-    private static string ApplySystemLoss(MatchState match, ShipState ship, ShipSystem system)
+    private static string ApplySystemLoss(MatchState match, ShipState ship, ShipSystem system, bool fromNeedle = false)
     {
         switch (system.Kind)
         {
             case ShipSystemKind.Drive:
                 // First hit cuts thrust in half; a second leaves the ship drifting.
                 var halved = (ship.ThrustRating + 1) / 2;
+                if (fromNeedle)
+                {
+                    ship.NeedledDrives++;
+                }
+
                 if (ship.DriveDamage < halved)
                 {
                     ship.DriveDamage = halved;
@@ -2579,17 +2633,32 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 return "drives knocked out";
             case ShipSystemKind.FireControl:
                 ship.FireControlDamage = Math.Min(ship.FireControlMax, ship.FireControlDamage + 1);
+                if (fromNeedle)
+                {
+                    ship.NeedledFireControl++;
+                }
+
                 return ship.FireControlDamage >= ship.FireControlMax
                     ? "last fire control lost"
                     : "fire control lost";
             case ShipSystemKind.Screen:
-                ship.ScreenRating = Math.Max(0, ship.ScreenRating - 1);
-                return ship.ScreenRating == 0 ? "screens down" : $"screens dropped to level {ship.ScreenRating}";
+                ship.ScreenDamage = Math.Min(ship.ScreenRating, ship.ScreenDamage + 1);
+                if (fromNeedle)
+                {
+                    ship.NeedledScreens++;
+                }
+
+                return EffectiveScreens(ship) == 0 ? "screens down" : $"screens dropped to level {EffectiveScreens(ship)}";
             case ShipSystemKind.DamageControlParty:
                 ship.DamageControlParties = Math.Max(0, ship.DamageControlParties - 1);
                 return "damage control party lost";
             case ShipSystemKind.FighterBay:
-                ship.FighterBays = Math.Max(0, ship.FighterBays - 1);
+                ship.FighterBayDamage = Math.Min(ship.FighterBays, ship.FighterBayDamage + 1);
+                if (fromNeedle)
+                {
+                    ship.NeedledBays++;
+                }
+
                 // A bay takes whatever was still sitting in it.
                 var stranded = match.Ships.FirstOrDefault(candidate => candidate.HomeCarrierShipId == ship.Id
                     && IsFighterGroupShip(candidate)
@@ -2610,6 +2679,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 }
 
                 mount.IsDestroyed = true;
+                mount.IsNeedleKilled = mount.IsNeedleKilled || fromNeedle;
                 return $"{mount.Name} knocked out";
             default:
                 return system.Name;
@@ -2754,6 +2824,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         target.HullDamage = ClampDamage(target.HullDamage + (damage - armorApplied), target.HullMax);
         return (armorApplied, target.HullDamage - hullBefore);
     }
+
+    /// <summary>Screen levels still generating, after whatever has been shot away.</summary>
+    private static int EffectiveScreens(ShipState ship) => Math.Max(0, ship.ScreenRating - ship.ScreenDamage);
+
+    /// <summary>Fighter bays still working.</summary>
+    private static int EffectiveBays(ShipState ship) => Math.Max(0, ship.FighterBays - ship.FighterBayDamage);
 
     /// <summary>True when this ship record stands for a group of fighters rather than a hull.</summary>
     private static bool IsFighterGroupShip(ShipState ship) => IsFighterGroup(ship.IconKey, ship.ClassName);
@@ -2953,7 +3029,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.AddLog(
                 "Snapshot",
                 match.Phase.ToString(),
-                $"{label}: {DescribeShip(match, ship)} pos {ship.PositionX:0.#},{ship.PositionY:0.#} on {match.TableWidth}x{match.TableDepth}, v{ship.CurrentVelocity}/c{ship.CurrentCourse}, hull {ship.HullDamage}/{ship.HullMax}, armor {ship.ArmorDamage}/{ship.ArmorMax}, screens {ship.ScreenRating}, {destroyed}.");
+                $"{label}: {DescribeShip(match, ship)} pos {ship.PositionX:0.#},{ship.PositionY:0.#} on {match.TableWidth}x{match.TableDepth}, v{ship.CurrentVelocity}/c{ship.CurrentCourse}, hull {ship.HullDamage}/{ship.HullMax}, armor {ship.ArmorDamage}/{ship.ArmorMax}, screens {EffectiveScreens(ship)}, {destroyed}.");
         }
     }
 

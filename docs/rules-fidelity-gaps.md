@@ -558,11 +558,10 @@ Drives come back the way they were lost: one success on dead drives restores hal
 clears the rest. Parties themselves roll at threshold checks, and a party that dies stays dead - it is
 not something another party can fix.
 
-**Not covered**: screens and fighter bays are not repairable, because ForceSignal records their current
-level rather than what they started at, so there is nothing to restore toward. Adding an undamaged value
-for each would fix it and is the obvious follow-up. Hull damage is never repairable, which is correct,
-and neither is anything a needle beam took - which is a rule ForceSignal does not yet distinguish, so a
-needled system can currently be repaired like any other.
+Screens and fighter bays are repairable too: both now record what the ship was built with alongside what
+has been shot away, so there is a level to restore toward. Hull damage is never repairable, which is
+correct, and neither is anything a needle beam cut out - needled losses are counted per system and held
+against the repairable total, so a needle's kill is permanent the way the rules intend.
 
 Code: `FullThrustDamageControlRules`, `AttemptRepairs` / `PlanRepair` / `ApplyRepair` in
 `InMemoryMatchService`, `POST /api/ships/{id}/repair`.
@@ -589,6 +588,10 @@ The fire control interlock is enforced: a needle needs a firecon to itself, and 
 nothing else that turn. A ship with one firecon may fire its needle and then nothing else; a ship with
 two can fire a needle and still engage one target with its batteries. A shot at a system the target does
 not have, or one that is already knocked out, is refused rather than wasted.
+
+A needled system is beyond damage control, which is the weapon's real limit and the reason it is worth
+its short reach: anything a threshold check takes can be jury-rigged back, and anything a needle cuts out
+cannot.
 
 **Not covered**: the Fleet Book enhanced needle, which reaches 12mu, adds a point of hull damage on a 5
 or 6, and ignores armour. That is a layer switch rather than a correction.

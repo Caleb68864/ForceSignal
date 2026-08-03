@@ -152,7 +152,9 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
         var result = table.ShootTheCarrierIntoAThreshold();
 
         var carrier = result.Ships.Single(ship => ship.Id == table.CarrierId);
-        Assert.Equal(0, carrier.FighterBays);
+        // The bay count is what the ship was built with; the loss shows as damage against it.
+        Assert.Equal(1, carrier.FighterBays);
+        Assert.Equal(1, carrier.FighterBayDamage);
         Assert.True(result.Ships.Single(ship => ship.Id == table.GroupId).IsDestroyed);
         Assert.Contains(result.MatchLog, entry => entry.Category == "Threshold"
             && entry.Message.Contains("fighter bay destroyed with Hawk Flight aboard", StringComparison.Ordinal));
