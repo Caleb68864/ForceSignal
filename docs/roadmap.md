@@ -97,10 +97,19 @@ defences, damage control, needle beams - found six more divergences. Each is wri
       host groups by having bays rather than by being carrier-classed.
 - [x] Fighter bays are threshold systems (gap 19). Each bay rolls its own die, and a bay knocked out
       costs capacity and takes any group still sitting in it.
-- [ ] No damage control (gap 20). Threshold losses are permanent, so a ship that loses its firecons
-      early is a spectator. The counterpart to the checks themselves.
-- [ ] Needle beams (gap 21). Mostly wiring over the per-system knockout machinery that now exists.
-- [ ] Record or make layer-dependent the choice to give every hull four threshold rows (gap 22).
+- [x] Damage control (gap 20). Parties work between turns: one repairs on a 6, three on a job need 4 or
+      better, and they roll once between them. Drives come back in halves. Parties die at thresholds and
+      stay dead. Screens and bays are not yet repairable - see the follow-ups below.
+- [x] Needle beams (gap 21). Name a system, roll one die, and a 6 takes it - no hull damage, screens
+      ignored, 9mu reach, and a firecon tied up that can direct nothing else that turn.
+- [x] Recorded the four-row threshold choice (gap 22), with the reasoning where the constant lives.
+
+### Follow-ups the second round created
+
+- [ ] Record an undamaged value for screens and fighter bays, so damage control can restore them.
+- [ ] Mark systems killed by a needle beam as beyond repair, which is the weapon's real limit.
+- [ ] A rules-layer switch for the FT2-versus-Fleet-Book differences now piling up: threshold rows,
+      level-3 screens, the 12mu fighter move, carrier launch rates, and enhanced needles.
 
 ## Movement Rule Fidelity
 

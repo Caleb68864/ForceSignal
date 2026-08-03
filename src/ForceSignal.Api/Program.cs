@@ -305,6 +305,23 @@ app.MapPost("/api/ships/{shipId:guid}/damage", async (
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
+app.MapPost("/api/ships/{shipId:guid}/repair", async (
+    Guid shipId,
+    AttemptRepairsRequest request,
+    IMatchService matches,
+    IHubContext<MatchHub> hub) =>
+{
+    var snapshot = matches.AttemptRepairs(shipId, request);
+    await NotifySnapshotChanged(hub, snapshot, "RepairsAttempted");
+    return Results.Ok(snapshot);
+})
+    .WithName("AttemptRepairs")
+    .WithTags("Damage")
+    .WithSummary("Puts a ship's damage control parties to work on systems lost to threshold checks.")
+    .Produces<MatchSnapshotDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
 app.MapPost("/api/ships/{shipId:guid}/fighter-ops", async (
     Guid shipId,
     UpdateFighterOperationsRequest request,

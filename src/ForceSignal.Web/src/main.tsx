@@ -7,7 +7,7 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5225';
 const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
 
 type TurnDirection = 'None' | 'Port' | 'Starboard';
-type WeaponKind = 'Beam' | 'PulseTorpedo';
+type WeaponKind = 'Beam' | 'PulseTorpedo' | 'NeedleBeam';
 
 type FiringArc = 'Fore' | 'ForeStarboard' | 'AftStarboard' | 'Aft' | 'AftPort' | 'ForePort';
 type ShipIconKey = 'escort' | 'frigate' | 'destroyer' | 'cruiser' | 'carrier' | 'dreadnought' | 'fighter-group' | 'station';
@@ -58,6 +58,7 @@ type Ship = {
   fireControlDamage: number;
   pointDefenseSystems?: number;
   fighterBays?: number;
+  damageControlParties?: number;
   driveDamage: number;
   weaponDamage: number;
   screenRating: number;
@@ -252,6 +253,7 @@ type ShipForm = {
   fireControlMax: number;
   pointDefenseSystems: number;
   fighterBays: number;
+  damageControlParties: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -289,6 +291,7 @@ type FleetExportShip = {
   fireControlMax: number;
   pointDefenseSystems: number;
   fighterBays: number;
+  damageControlParties: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -341,6 +344,7 @@ const defaultShipForm: ShipForm = {
   fireControlMax: 2,
   pointDefenseSystems: 1,
   fighterBays: 0,
+  damageControlParties: 2,
   screenRating: 1,
   weapons: [{
     id: crypto.randomUUID(),
@@ -477,6 +481,7 @@ function firingTurnBlocker(ship: Ship, snapshot: MatchSnapshot, participantId: s
 const weaponKinds: { key: WeaponKind; label: string; maxRange: number }[] = [
   { key: 'Beam', label: 'Beam battery', maxRange: 36 },
   { key: 'PulseTorpedo', label: 'Pulse torpedo', maxRange: 30 },
+  { key: 'NeedleBeam', label: 'Needle beam', maxRange: 9 },
 ];
 
 /// Whether a declared range disagrees with the map enough to be worth saying: it sits in a
@@ -807,6 +812,7 @@ function App() {
       fireControlMax: shipForm.fireControlMax,
       pointDefenseSystems: shipForm.pointDefenseSystems,
       fighterBays: shipForm.fighterBays,
+      damageControlParties: shipForm.damageControlParties,
       weapons: shipForm.weapons,
       iconKey: shipForm.iconKey,
       fighterEnduranceMax: shipForm.fighterEnduranceMax,
@@ -900,6 +906,7 @@ function App() {
         fireControlMax: ship.fireControlMax ?? 1,
         pointDefenseSystems: ship.pointDefenseSystems ?? 0,
         fighterBays: ship.fighterBays ?? 0,
+        damageControlParties: ship.damageControlParties ?? 0,
         weapons: ship.weapons,
         iconKey: ship.iconKey,
         fighterEnduranceMax: ship.fighterEnduranceMax,
@@ -1102,6 +1109,7 @@ function App() {
       fireControlMax: form.fireControlMax,
       pointDefenseSystems: form.pointDefenseSystems,
       fighterBays: form.fighterBays,
+      damageControlParties: form.damageControlParties,
       weapons: form.weapons,
       iconKey: form.iconKey,
       fighterEnduranceMax: form.fighterEnduranceMax,
@@ -2328,6 +2336,10 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
         Fighter bays
         <input type="number" min="0" max="12" value={form.fighterBays} onChange={(event) => onChange({ ...form, fighterBays: Number(event.target.value) })} />
       </label>
+      <label title="Damage control parties. Between turns they roll to bring back systems lost to a threshold check: one repairs on a 6, and up to three on the same job need only 4 or better.">
+        Damage control
+        <input type="number" min="0" max="12" value={form.damageControlParties} onChange={(event) => onChange({ ...form, damageControlParties: Number(event.target.value) })} />
+      </label>
       <label>
         Points (NPV)
         <input type="number" min="0" max="99999" value={form.pointsValue} onChange={(event) => onChange({ ...form, pointsValue: Number(event.target.value) })} />
@@ -2475,6 +2487,7 @@ function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (form: Shi
     fireControlMax: ship.fireControlMax ?? 1,
     pointDefenseSystems: ship.pointDefenseSystems ?? 0,
     fighterBays: ship.fighterBays ?? 0,
+    damageControlParties: ship.damageControlParties ?? 0,
     weapons: ship.weapons.length > 0 ? ship.weapons : [newWeaponMount()],
     fighterEnduranceMax: ship.fighterEnduranceMax,
     fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -4818,7 +4831,7 @@ function normalizeWeaponMount(value: unknown): WeaponMount {
     maxRange: wholeNumberFrom(record.maxRange ?? record.range, 24, 1, 72),
     arcs: normalizeArcs(record.arcs, record.arc),
     isDestroyed: record.isDestroyed === true || record.isDestroyed === 'true',
-    kind: stringFrom(record.kind, 'Beam') === 'PulseTorpedo' ? 'PulseTorpedo' : 'Beam',
+    kind: normalizeWeaponKind(record.kind),
     ammoMax: wholeNumberFrom(record.ammoMax ?? record.ammo, 0, 0, 99),
     ammoUsed: wholeNumberFrom(record.ammoUsed ?? record.used, 0, 0, 99),
     reloadTurns: wholeNumberFrom(record.reloadTurns ?? record.reload, 0, 0, 12),
@@ -4828,6 +4841,11 @@ function normalizeWeaponMount(value: unknown): WeaponMount {
 /// Resolves the arcs a mount bears through, accepting either a modern list or the four-arc
 /// name written by older exports: each old ninety-degree side arc becomes the two sixty-degree
 /// arcs on that side, and the aft arc becomes the two quarters either side of the blind spot.
+function normalizeWeaponKind(value: unknown): WeaponKind {
+  const kind = stringFrom(value, 'Beam');
+  return weaponKinds.some((option) => option.key === kind) ? kind as WeaponKind : 'Beam';
+}
+
 function normalizeArcs(arcs: unknown, legacyArc: unknown): FiringArc[] {
   const listed = Array.isArray(arcs)
     ? arcs.map((entry) => String(entry).trim()).filter((entry): entry is FiringArc => firingArcs.includes(entry as FiringArc))
@@ -4891,6 +4909,7 @@ function toFleetExport(fleet: Fleet, ships: Ship[]): FleetExport {
       fireControlMax: ship.fireControlMax ?? 1,
       pointDefenseSystems: ship.pointDefenseSystems ?? 0,
       fighterBays: ship.fighterBays ?? 0,
+      damageControlParties: ship.damageControlParties ?? 0,
       weapons: ship.weapons,
       fighterEnduranceMax: ship.fighterEnduranceMax,
       fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -4932,6 +4951,7 @@ function parseFleetExport(text: string, fileName: string, fallback: ShipForm): F
       fireControlMax: getValue('firecontrolmax') || getValue('firecons'),
       pointDefenseSystems: getValue('pointdefensesystems') || getValue('pds'),
       fighterBays: getValue('fighterbays') || getValue('bays'),
+      damageControlParties: getValue('damagecontrolparties') || getValue('dcp'),
       fighterEnduranceMax: getValue('fighterendurance') || getValue('fighterendurancemax'),
       fighterEnduranceUsed: getValue('fighterused') || getValue('fighterenduranceused'),
       fighterMaxRange: getValue('fighterrange') || getValue('fightermaxrange'),
@@ -4990,6 +5010,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
     fireControlMax: wholeNumberFrom(record.fireControlMax ?? record.firecons, fallback.fireControlMax, 0, 6),
     pointDefenseSystems: wholeNumberFrom(record.pointDefenseSystems ?? record.pds, fallback.pointDefenseSystems, 0, 12),
     fighterBays: wholeNumberFrom(record.fighterBays ?? record.bays, fallback.fighterBays, 0, 12),
+    damageControlParties: wholeNumberFrom(record.damageControlParties ?? record.dcp, fallback.damageControlParties, 0, 12),
     weapons: Array.isArray(record.weapons) ? record.weapons.map(normalizeWeaponMount) : [newWeaponMount()],
     fighterEnduranceMax: wholeNumberFrom(record.fighterEnduranceMax ?? record.fighterEndurance, fallback.fighterEnduranceMax, 0, 24),
     fighterEnduranceUsed: wholeNumberFrom(record.fighterEnduranceUsed ?? record.fighterUsed, fallback.fighterEnduranceUsed, 0, 24),
@@ -5003,7 +5024,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
 
 function fleetExportToCsv(fleet: FleetExport) {
   const rows = [
-    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fireControlMax', 'pointDefenseSystems', 'fighterBays', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
+    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fireControlMax', 'pointDefenseSystems', 'fighterBays', 'damageControlParties', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
     ...fleet.ships.map((ship) => [
       fleet.fleetColor,
       ship.name,
@@ -5020,6 +5041,7 @@ function fleetExportToCsv(fleet: FleetExport) {
       String(ship.fireControlMax ?? 1),
       String(ship.pointDefenseSystems ?? 0),
       String(ship.fighterBays ?? 0),
+      String(ship.damageControlParties ?? 0),
       String(ship.fighterEnduranceMax),
       String(ship.fighterEnduranceUsed),
       String(ship.fighterMaxRange),

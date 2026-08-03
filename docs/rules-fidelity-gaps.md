@@ -537,7 +537,7 @@ Code: `ShipSystemKind.FighterBay`, `SurvivingSystems` / `ApplySystemLoss` in `In
 
 ---
 
-## Gap 20 — No damage control
+## Gap 20 — No damage control — FIXED 2026-08-02
 
 **Rules** (`Damage/Damage Control.md`): at the end of each turn, before the next turn's orders, damage
 control parties try to bring back systems lost to a threshold check. One party repairs on a 6; more
@@ -545,18 +545,31 @@ parties on the same job lower the number needed, to a best case of 4+ with three
 successes to come fully back; hull damage and needle-killed systems can never be repaired. Fleet Book
 ties the party count to crew factors, so it falls as the crew is killed.
 
-**App**: nothing. A system knocked out by a threshold check is gone for the game.
+**Was**: nothing. A system knocked out by a threshold check was gone for the game, so a cruiser that
+lost its firecons on turn two was a spectator.
 
-**Why it matters**: this is the counterpart to the threshold checks just built, and its absence is now
-felt rather than theoretical. A cruiser that loses its firecons in turn two is a spectator for the rest
-of the game, and needle beams - if they arrive - would be strictly better than the rules intend, since
-their whole limit is that a needled system can be repaired.
+**Now**: a ship carries damage control parties, and between turns - while orders are being written -
+they can be put to work. One party brings a system back on a 6; each further party on the same job
+lowers the number needed, to 4 or better with three, and all the parties on a job make a single roll
+between them. A failure can be tried again next turn. Every job is validated before a single die is
+rolled, so a bad assignment cannot half-run and waste the turn.
 
-Code: none - system absent.
+Drives come back the way they were lost: one success on dead drives restores half the thrust, a second
+clears the rest. Parties themselves roll at threshold checks, and a party that dies stays dead - it is
+not something another party can fix.
+
+**Not covered**: screens and fighter bays are not repairable, because ForceSignal records their current
+level rather than what they started at, so there is nothing to restore toward. Adding an undamaged value
+for each would fix it and is the obvious follow-up. Hull damage is never repairable, which is correct,
+and neither is anything a needle beam took - which is a rule ForceSignal does not yet distinguish, so a
+needled system can currently be repaired like any other.
+
+Code: `FullThrustDamageControlRules`, `AttemptRepairs` / `PlanRepair` / `ApplyRepair` in
+`InMemoryMatchService`, `POST /api/ships/{id}/repair`.
 
 ---
 
-## Gap 21 — Needle beams are not modelled
+## Gap 21 — Needle beams are not modelled — FIXED 2026-08-02
 
 **Rules** (`Weapons/Needle Beams.md`): a precision weapon that does no structural damage. Range 9mu in
 FT2, 12mu in Fleet Book, one arc only. Nominate a system on the target and roll one die: a 6 knocks it
@@ -565,16 +578,26 @@ own fire control unless several aim at the same system, and a firecon directing 
 anything else that turn. Fleet Book's enhanced version also does a point of hull damage on a 5 or 6 and
 ignores armour.
 
-**App**: `WeaponKind` is a beam or a pulse torpedo. There is no way to target a system.
+**Was**: mounts were beams or torpedoes, with no way to shoot at a system.
 
-Worth noting because the machinery a needle needs - per-system knockout, per-mount destruction, firecon
-accounting - all exists now. The weapon is mostly wiring on top of it.
+**Now**: a needle beam names one system on the target and rolls a single die. A 6 takes that system out
+exactly as a failed threshold check would; anything less does nothing at all. There is no hull damage
+either way, and screens are ignored because there is no damage for them to degrade. Reach is 9mu and the
+mount's arcs apply as usual.
 
-Code: `WeaponKind` in `CombatContracts.cs`, resolver selection in `FireWeapon`.
+The fire control interlock is enforced: a needle needs a firecon to itself, and that firecon can direct
+nothing else that turn. A ship with one firecon may fire its needle and then nothing else; a ship with
+two can fire a needle and still engage one target with its batteries. A shot at a system the target does
+not have, or one that is already knocked out, is refused rather than wasted.
+
+**Not covered**: the Fleet Book enhanced needle, which reaches 12mu, adds a point of hull damage on a 5
+or 6, and ignores armour. That is a layer switch rather than a correction.
+
+Code: `FullThrustNeedleBeamRules`, `PlanNeedleShot` and the firecon accounting in `FireWeapon`.
 
 ---
 
-## Gap 22 — Every hull gets four threshold rows
+## Gap 22 — Every hull gets four threshold rows — RECORDED 2026-08-02
 
 **Rules** (`Damage/Hull Boxes & Damage.md`): Fleet Book splits every hull into four rows, which is what
 the app does. FT2 sizes the track by class instead: escorts get 2 rows and one threshold, cruisers 3
@@ -583,9 +606,10 @@ rows and two, capitals 4 rows and three.
 **App**: always four rows, so a 6-box escort runs 2/2/1/1 and faces three checks where FT2 would give
 it one.
 
-**Judgement**: defensible - it is a real published convention, and it keeps small hulls interesting -
-but it was an unrecorded choice, which is worse than either answer. It belongs behind the same
-rules-layer switch as level-3 screens if an FT2 profile is ever added.
+**Judgement**: kept, and now written down where it belongs rather than only here. Four rows is a real
+published convention, and it keeps a small hull under threshold pressure instead of dying with its
+systems intact. `FullThrustLightThresholdRules.RowCount` carries the reasoning, and the choice belongs
+behind the same rules-layer switch as level-3 screens if an FT2 profile is ever added.
 
 Code: `FullThrustLightThresholdRules.RowCount`.
 
@@ -615,7 +639,12 @@ whole subsystems above the target profile, and none blocks a match.
 
 1. ~~Stop main batteries engaging fighter groups (gap 16).~~ Done.
 2. ~~Fighter group movement, carrier launch and recovery, and bays as systems (gaps 17, 18, 19).~~ Done.
-3. Damage control (gap 20). The natural counterpart to threshold checks, and the biggest change to how
-   a long game feels.
-4. Needle beams (gap 21), which are mostly wiring over machinery that already exists.
-5. Record the four-row choice, or make it layer-dependent (gap 22).
+3. ~~Damage control (gap 20).~~ Done.
+4. ~~Needle beams (gap 21).~~ Done.
+5. ~~Record the four-row choice (gap 22).~~ Done.
+
+Both scans are closed. What is left is the "deliberately not built" list above, plus three follow-ups
+the second round created: an undamaged value for screens and bays so damage control can restore them,
+marking needle-killed systems as unrepairable, and a rules-layer switch for the FT2-versus-Fleet-Book
+differences (threshold rows, level-3 screens, fighter move allowance, carrier launch rates, enhanced
+needles).

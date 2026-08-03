@@ -19,7 +19,13 @@ public enum ShipSystemKind
     /// One fighter bay. Losing it costs the carrier a group's worth of capacity, and any group
     /// still aboard goes with it.
     /// </summary>
-    FighterBay
+    FighterBay,
+
+    /// <summary>
+    /// A damage control party. Losing one costs the ship a repair crew for good: a dead party is not
+    /// something another party can fix.
+    /// </summary>
+    DamageControlParty
 }
 
 /// <summary>One surviving system icon that rolls when a hull row is completed.</summary>

@@ -73,6 +73,9 @@ public interface IMatchService
     /// <summary>Removes a launched ordnance marker.</summary>
     MatchSnapshotDto RemoveOrdnanceMarker(Guid markerId, RemoveOrdnanceMarkerRequest request);
 
+    /// <summary>Puts a ship's damage control parties to work on systems lost to threshold checks.</summary>
+    MatchSnapshotDto AttemptRepairs(Guid shipId, AttemptRepairsRequest request);
+
     /// <summary>Flies a fighter group up to its move allowance in any direction.</summary>
     MatchSnapshotDto MoveFighterGroup(Guid matchId, MoveFighterGroupRequest request);
 
@@ -102,7 +105,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private readonly FullThrustLightCinematicRules _rules = new();
     private readonly FullThrustLightFiringRules _firingRules = new(rollDie);
     private readonly FullThrustLightPulseTorpedoRules _torpedoRules = new(rollDie);
+    private readonly FullThrustNeedleBeamRules _needleRules = new(rollDie);
     private readonly FullThrustLightThresholdRules _thresholdRules = new(rollDie);
+    private readonly FullThrustDamageControlRules _repairRules = new(rollDie);
     private readonly FullThrustPointDefenseRules _pointDefenseRules = new(rollDie);
     private readonly FullThrustSalvoMissileRules _salvoRules = new(rollDie);
     // The firing initiative die-off is the service's own roll rather than any rules module's.
@@ -291,6 +296,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     FireControlMax = ClampFireControl(ship.FireControlMax),
                     PointDefenseSystems = ClampPointDefense(ship.PointDefenseSystems),
                     FighterBays = ClampFighterBays(ship.FighterBays),
+                    DamageControlParties = ClampDamageControl(ship.DamageControlParties),
                 };
                 restoredShip.HullDamage = ClampDamage(ship.HullDamage, restoredShip.HullMax);
                 restoredShip.ArmorDamage = ClampDamage(ship.ArmorDamage, restoredShip.ArmorMax);
@@ -670,6 +676,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 FireControlMax = ClampFireControl(request.FireControlMax),
                 PointDefenseSystems = ClampPointDefense(request.PointDefenseSystems),
                 FighterBays = ClampFighterBays(request.FighterBays),
+                DamageControlParties = ClampDamageControl(request.DamageControlParties),
             });
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, match.Ships[^1])} added to {fleet.Name}.");
             match.Touch("ShipCreated");
@@ -715,6 +722,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             ship.FireControlMax = ClampFireControl(request.FireControlMax);
             ship.PointDefenseSystems = ClampPointDefense(request.PointDefenseSystems);
             ship.FighterBays = ClampFighterBays(request.FighterBays);
+            ship.DamageControlParties = ClampDamageControl(request.DamageControlParties);
             ship.FireControlDamage = ClampDamage(ship.FireControlDamage, ship.FireControlMax);
             ship.HullDamage = ClampDamage(ship.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(ship.ArmorDamage, ship.ArmorMax);
@@ -759,6 +767,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 FighterStatus = source.FighterStatus,
                 PointDefenseSystems = source.PointDefenseSystems,
                 FighterBays = source.FighterBays,
+                DamageControlParties = source.DamageControlParties,
                 HomeCarrierShipId = source.HomeCarrierShipId,
                 PointsValue = source.PointsValue,
             });
@@ -924,6 +933,149 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
     }
 
+    public MatchSnapshotDto AttemptRepairs(Guid shipId, AttemptRepairsRequest request)
+    {
+        lock (_gate)
+        {
+            var match = _matches.Values.SingleOrDefault(m => m.Ships.Any(s => s.Id == shipId))
+                ?? throw new InvalidOperationException("Ship was not found.");
+            var participant = FindParticipant(match, request.ParticipantToken);
+            var ship = FindOwnedShip(match, participant.Id, shipId);
+            if (match.Phase is not (MatchPhase.OrderEntry or MatchPhase.OrdersLocked))
+            {
+                throw new InvalidOperationException("Damage control works between turns, while orders are being written.");
+            }
+
+            if (IsDestroyed(ship))
+            {
+                throw new InvalidOperationException($"{ship.Name} is a wreck.");
+            }
+
+            if (match.RepairedShipIds.Contains(ship.Id))
+            {
+                throw new InvalidOperationException($"{ship.Name} has already worked its damage control this turn.");
+            }
+
+            var jobs = request.Jobs ?? [];
+            if (jobs.Count == 0)
+            {
+                throw new InvalidOperationException("No repair jobs were assigned.");
+            }
+
+            if (ship.DamageControlParties <= 0)
+            {
+                throw new InvalidOperationException($"{ship.Name} has no damage control parties left.");
+            }
+
+            var assigned = jobs.Sum(job => Math.Max(1, job.Parties));
+            if (assigned > ship.DamageControlParties)
+            {
+                throw new InvalidOperationException(
+                    $"{ship.Name} has {ship.DamageControlParties} damage control part{(ship.DamageControlParties == 1 ? "y" : "ies")} and {assigned} were assigned.");
+            }
+
+            // Every job is checked before a single die is rolled, so a bad assignment cannot half-run.
+            var planned = jobs.Select(job => PlanRepair(ship, job)).ToArray();
+
+            var outcomes = new List<string>();
+            foreach (var job in planned)
+            {
+                var attempt = _repairRules.Resolve(job);
+                var name = DescribeRepairTarget(ship, job);
+                if (attempt.IsRepaired)
+                {
+                    ApplyRepair(ship, job);
+                    outcomes.Add($"{name} back online (needed {attempt.Needed}, rolled {attempt.Roll})");
+                }
+                else
+                {
+                    outcomes.Add($"{name} still down (needed {attempt.Needed}, rolled {attempt.Roll})");
+                }
+            }
+
+            match.RepairedShipIds.Add(ship.Id);
+            match.AddLog(
+                "Repair",
+                match.Phase.ToString(),
+                $"{DescribeShip(match, ship)} damage control: {string.Join("; ", outcomes)}.");
+            match.Touch("RepairsAttempted");
+            return ToSnapshot(match);
+        }
+    }
+
+    /// <summary>
+    /// Turns a requested job into one the rules can roll, refusing anything that is not actually
+    /// broken. Hull damage and lost damage control parties are never repairable, and screens and
+    /// fighter bays are not yet, because ForceSignal does not record what they started at.
+    /// </summary>
+    private RepairJob PlanRepair(ShipState ship, RepairJobDto job)
+    {
+        var parties = Math.Clamp(job.Parties <= 0 ? 1 : job.Parties, 1, _repairRules.MaxPartiesPerJob);
+        switch (job.Kind)
+        {
+            case ShipSystemKind.FireControl:
+                if (ship.FireControlDamage <= 0)
+                {
+                    throw new InvalidOperationException($"{ship.Name} has no fire control to repair.");
+                }
+
+                return new RepairJob(job.Kind, null, parties);
+            case ShipSystemKind.Drive:
+                if (ship.DriveDamage <= 0)
+                {
+                    throw new InvalidOperationException($"{ship.Name} has no drive damage to repair.");
+                }
+
+                return new RepairJob(job.Kind, null, parties);
+            case ShipSystemKind.Weapon:
+                var mount = ship.Weapons.SingleOrDefault(weapon => weapon.Id == job.WeaponId)
+                    ?? throw new InvalidOperationException("That weapon mount was not found.");
+                if (!mount.IsDestroyed)
+                {
+                    throw new InvalidOperationException($"{mount.Name} is already working.");
+                }
+
+                return new RepairJob(job.Kind, mount.Id, parties);
+            default:
+                throw new InvalidOperationException(
+                    $"{job.Kind} cannot be repaired by damage control in ForceSignal yet - fire control, weapon mounts and drives can.");
+        }
+    }
+
+    private static string DescribeRepairTarget(ShipState ship, RepairJob job) => job.Kind switch
+    {
+        ShipSystemKind.FireControl => "fire control",
+        ShipSystemKind.Drive => "drives",
+        ShipSystemKind.Weapon => ship.Weapons.SingleOrDefault(weapon => weapon.Id == job.WeaponId)?.Name ?? "weapon mount",
+        _ => job.Kind.ToString(),
+    };
+
+    /// <summary>Brings one system back. Drives come back in halves, as they were lost.</summary>
+    private static void ApplyRepair(ShipState ship, RepairJob job)
+    {
+        switch (job.Kind)
+        {
+            case ShipSystemKind.FireControl:
+                ship.FireControlDamage = Math.Max(0, ship.FireControlDamage - 1);
+                break;
+            case ShipSystemKind.Drive:
+                // One success on dead drives gets half the thrust back; a second clears the rest.
+                var halved = (ship.ThrustRating + 1) / 2;
+                ship.DriveDamage = ship.DriveDamage > halved ? halved : 0;
+                break;
+            case ShipSystemKind.Weapon:
+                var mount = ship.Weapons.SingleOrDefault(weapon => weapon.Id == job.WeaponId);
+                if (mount is not null)
+                {
+                    mount.IsDestroyed = false;
+                }
+
+                break;
+            default:
+                break;
+        }
+    }
+
     public MatchSnapshotDto MoveFighterGroup(Guid matchId, MoveFighterGroupRequest request)
     {
         lock (_gate)
@@ -980,6 +1132,29 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.Touch("FighterGroupMoved");
             return ToSnapshot(match);
         }
+    }
+
+    /// <summary>
+    /// Works out which system a needle beam is sniping at, refusing a shot at something the target
+    /// does not have. Hull boxes and dead systems are not on the menu: a needle takes a working system.
+    /// </summary>
+    private static ShipSystem PlanNeedleShot(ShipState target, ShipSystemKind? kind, Guid? weaponId)
+    {
+        if (kind is null)
+        {
+            throw new InvalidOperationException("A needle beam has to name the system it is shooting at.");
+        }
+
+        var candidates = SurvivingSystems(target);
+        if (kind == ShipSystemKind.Weapon)
+        {
+            var mount = candidates.FirstOrDefault(system => system.Kind == ShipSystemKind.Weapon && system.WeaponId == weaponId)
+                ?? throw new InvalidOperationException("That mount is not on the target, or is already knocked out.");
+            return mount;
+        }
+
+        return candidates.FirstOrDefault(system => system.Kind == kind)
+            ?? throw new InvalidOperationException($"{target.Name} has no working {kind} for a needle to take.");
     }
 
     /// <summary>
@@ -1369,12 +1544,32 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException($"{attacker.Name} has no working fire control and cannot fire.");
             }
 
-            var engagedTargetIds = match.FiringResults
+            var shotsThisTurn = match.FiringResults
                 .Where(f => f.TurnNumber == match.TurnNumber && f.AttackerShipId == attacker.Id)
+                .ToArray();
+            // A needle beam needs a fire control system all to itself, and that firecon cannot direct
+            // anything else this turn, so each needle shot spends one outright.
+            var needlesFired = shotsThisTurn.Count(f => f.WeaponKind == WeaponKind.NeedleBeam);
+            var engagedTargetIds = shotsThisTurn
+                .Where(f => f.WeaponKind != WeaponKind.NeedleBeam)
                 .Select(f => f.TargetShipId)
                 .Distinct()
                 .ToArray();
-            if (!engagedTargetIds.Contains(target.Id) && engagedTargetIds.Length >= workingFireControl)
+            if (weapon.Kind == WeaponKind.NeedleBeam)
+            {
+                if (needlesFired + engagedTargetIds.Length >= workingFireControl)
+                {
+                    throw new InvalidOperationException(
+                        $"{attacker.Name} has no fire control free to direct {weapon.Name}: a needle beam needs one of its own.");
+                }
+            }
+            else if (needlesFired > 0 && engagedTargetIds.Length + needlesFired >= workingFireControl
+                && !engagedTargetIds.Contains(target.Id))
+            {
+                throw new InvalidOperationException(
+                    $"{attacker.Name} has its fire control tied up directing needle fire this turn.");
+            }
+            else if (!engagedTargetIds.Contains(target.Id) && engagedTargetIds.Length + needlesFired >= workingFireControl)
             {
                 var engagedNames = string.Join(", ", engagedTargetIds
                     .Select(id => match.Ships.SingleOrDefault(s => s.Id == id)?.Name ?? "an unknown ship"));
@@ -1399,7 +1594,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 targetArc);
             // A pulse torpedo rolls to hit and then for damage, and screens do not touch it, so it
             // resolves through its own rules rather than the beam table.
-            IFiringResolver resolver = weapon.Kind == WeaponKind.PulseTorpedo ? _torpedoRules : _firingRules;
+            IFiringResolver resolver = weapon.Kind switch
+            {
+                WeaponKind.PulseTorpedo => _torpedoRules,
+                WeaponKind.NeedleBeam => _needleRules,
+                _ => _firingRules,
+            };
             var validation = resolver.Validate(solution);
             if (!validation.IsValid)
             {
@@ -1431,6 +1631,12 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             {
                 SpendFighterEndurance(match, target);
             }
+
+            // A needle names its system up front, and the shot only makes sense if that system is
+            // there to take.
+            var needleTarget = weapon.Kind == WeaponKind.NeedleBeam
+                ? PlanNeedleShot(target, request.TargetSystem, request.TargetSystemWeaponId)
+                : null;
 
             var result = resolver.Resolve(solution);
             var remainingDamage = result.Damage;
@@ -1482,7 +1688,17 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             var destroyedNote = !wasDestroyed && target.HullDamage >= target.HullMax ? " Target destroyed." : string.Empty;
             var ammoNote = weapon.AmmoMax > 0 ? $" Ammo {weapon.AmmoUsed}/{weapon.AmmoMax}." : string.Empty;
-            var rollNote = weapon.Kind == WeaponKind.PulseTorpedo
+            var needleNote = string.Empty;
+            if (needleTarget is not null)
+            {
+                needleNote = result.IsHit == true
+                    ? $" {ApplySystemLoss(match, target, needleTarget)}"
+                    : " nothing hit";
+            }
+
+            var rollNote = weapon.Kind == WeaponKind.NeedleBeam
+                ? $"needed {result.ToHitNumber}, rolled {result.DiceRolls[0]} at the {needleTarget?.Name ?? "target"}:{needleNote}"
+                : weapon.Kind == WeaponKind.PulseTorpedo
                 ? result.IsHit == true
                     ? $"needed {result.ToHitNumber}+, rolled {result.DiceRolls[0]}, damage die {result.DiceRolls[^1]}"
                     : $"needed {result.ToHitNumber}+, rolled {result.DiceRolls[0]} and missed"
@@ -1538,6 +1754,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 match.FiringResults.Clear();
                 match.MovedFighterGroupIds.Clear();
                 match.CarrierOperationsThisTurn.Clear();
+                match.RepairedShipIds.Clear();
                 foreach (var plotter in match.Participants)
                 {
                     plotter.OrdersComplete = false;
@@ -1836,6 +2053,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.FireControlDamage,
             s.PointDefenseSystems,
             s.FighterBays,
+            s.DamageControlParties,
             s.DriveDamage,
             s.WeaponDamage,
             s.ScreenRating,
@@ -1928,6 +2146,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         /// <summary>Groups each carrier has launched or recovered this turn, by carrier id.</summary>
         public Dictionary<Guid, int> CarrierOperationsThisTurn { get; } = [];
 
+        /// <summary>Ships whose damage control has already worked this turn.</summary>
+        public HashSet<Guid> RepairedShipIds { get; } = [];
+
         /// <summary>Hull damage each target had before the firing ship opened up, by target id.</summary>
         public Dictionary<Guid, int> PendingThresholds { get; } = [];
         public int TurnNumber { get; set; } = 1;
@@ -2006,6 +2227,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int FireControlDamage { get; set; }
         public int PointDefenseSystems { get; set; }
         public int FighterBays { get; set; }
+        public int DamageControlParties { get; set; }
         public int DriveDamage { get; set; }
         public int WeaponDamage { get; set; }
         public int ScreenRating { get; set; } = screenRating;
@@ -2081,6 +2303,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private static int ClampPointDefense(int value) => Math.Clamp(value, 0, 12);
 
     private static int ClampFighterBays(int value) => Math.Clamp(value, 0, 12);
+
+    private static int ClampDamageControl(int value) => Math.Clamp(value, 0, 12);
 
     private static int ClampPoints(int value) => Math.Clamp(value, 0, 99999);
 
@@ -2326,6 +2550,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             systems.Add(new ShipSystem(ShipSystemKind.FighterBay, "fighter bay"));
         }
 
+        for (var party = 0; party < ship.DamageControlParties; party++)
+        {
+            systems.Add(new ShipSystem(ShipSystemKind.DamageControlParty, "damage control party"));
+        }
+
         systems.AddRange(ship.Weapons
             .Where(weapon => !weapon.IsDestroyed)
             .Select(weapon => new ShipSystem(ShipSystemKind.Weapon, weapon.Name, weapon.Id)));
@@ -2356,6 +2585,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             case ShipSystemKind.Screen:
                 ship.ScreenRating = Math.Max(0, ship.ScreenRating - 1);
                 return ship.ScreenRating == 0 ? "screens down" : $"screens dropped to level {ship.ScreenRating}";
+            case ShipSystemKind.DamageControlParty:
+                ship.DamageControlParties = Math.Max(0, ship.DamageControlParties - 1);
+                return "damage control party lost";
             case ShipSystemKind.FighterBay:
                 ship.FighterBays = Math.Max(0, ship.FighterBays - 1);
                 // A bay takes whatever was still sitting in it.

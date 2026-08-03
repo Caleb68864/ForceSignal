@@ -110,7 +110,13 @@ public enum WeaponKind
     Beam,
 
     /// <summary>A pulse torpedo launcher: roll to hit by range band, then roll for damage.</summary>
-    PulseTorpedo
+    PulseTorpedo,
+
+    /// <summary>
+    /// A needle beam: nominate one system on the target and roll a single die. A 6 knocks it out and
+    /// nothing else happens - no hull damage, and screens have nothing to degrade.
+    /// </summary>
+    NeedleBeam
 }
 
 /// <summary>Rules profile for one weapon mount.</summary>

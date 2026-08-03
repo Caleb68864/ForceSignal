@@ -12,7 +12,16 @@ namespace ForceSignal.Modules.FullThrust.Damage;
 /// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
 public sealed class FullThrustLightThresholdRules(Func<int>? rollDie = null) : IThresholdResolver
 {
-    /// <summary>Rows in a hull damage track. The fourth row ending is the ship's destruction.</summary>
+    /// <summary>
+    /// Rows in a hull damage track. The fourth row ending is the ship's destruction.
+    /// </summary>
+    /// <remarks>
+    /// Four rows for every hull is the Fleet Book convention. FT2 instead sizes the track by class -
+    /// escorts get two rows and one threshold, cruisers three and two, capitals four and three - so a
+    /// small hull here faces three checks where FT2 would give it one. That is a deliberate choice:
+    /// it keeps a light hull under threshold pressure rather than dying with its systems intact. It
+    /// belongs behind a rules-layer switch alongside level-3 screens if an FT2 profile is ever added.
+    /// </remarks>
     public const int RowCount = 4;
 
     /// <summary>Deepest row that still rolls a check. Completing the last row destroys the ship.</summary>

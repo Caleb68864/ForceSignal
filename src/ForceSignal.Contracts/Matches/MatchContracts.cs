@@ -48,6 +48,7 @@ public sealed record CreateFleetRequest(string ParticipantToken, string Name, st
 /// <param name="FireControlMax">Fire control systems carried. Each directs fire at one target.</param>
 /// <param name="PointDefenseSystems">Point defence systems carried, for shooting down fighters and missiles.</param>
 /// <param name="FighterBays">Fighter bays carried. Each holds one group and can launch or recover it.</param>
+/// <param name="DamageControlParties">Damage control parties aboard, for repairing systems between turns.</param>
 public sealed record CreateShipRequest(
     string ParticipantToken,
     string Name,
@@ -70,7 +71,8 @@ public sealed record CreateShipRequest(
     int PointsValue = 0,
     int FireControlMax = 1,
     int PointDefenseSystems = 0,
-    int FighterBays = 0);
+    int FighterBays = 0,
+    int DamageControlParties = 0);
 
 /// <summary>Updates editable ship profile, position, and equipment fields.</summary>
 public sealed record UpdateShipProfileRequest(
@@ -95,7 +97,8 @@ public sealed record UpdateShipProfileRequest(
     int PointsValue = 0,
     int FireControlMax = 1,
     int PointDefenseSystems = 0,
-    int FighterBays = 0);
+    int FighterBays = 0,
+    int DamageControlParties = 0);
 
 /// <summary>Updates fighter launch/recovery and endurance tracking for a fighter group.</summary>
 public sealed record UpdateFighterOperationsRequest(
@@ -177,6 +180,20 @@ public sealed record DeclareOrdersCompleteRequest(string ParticipantToken);
 /// <param name="PositionY">Where the group is going, down the table.</param>
 public sealed record MoveFighterGroupRequest(string ParticipantToken, Guid ShipId, decimal PositionX, decimal PositionY);
 
+/// <summary>One system a damage control party is being put to work on.</summary>
+/// <param name="Kind">The sort of system: fire control, a weapon mount, or the drives.</param>
+/// <param name="WeaponId">Which mount, when the job is a weapon.</param>
+/// <param name="Parties">Parties assigned. Three is as many as can usefully work one job.</param>
+public sealed record RepairJobDto(ShipSystemKind Kind, Guid? WeaponId, int Parties);
+
+/// <summary>
+/// Puts a ship's damage control parties to work on systems lost to threshold checks. Jobs are all
+/// assigned before anything is rolled, and a job that fails can be tried again next turn.
+/// </summary>
+/// <param name="ParticipantToken">Session token of the ship's owner.</param>
+/// <param name="Jobs">The jobs to attempt this turn.</param>
+public sealed record AttemptRepairsRequest(string ParticipantToken, IReadOnlyList<RepairJobDto> Jobs);
+
 /// <summary>Commits a hidden movement order by storing its salted hash.</summary>
 public sealed record CommitOrderRequest(
     string ParticipantToken,
@@ -202,13 +219,19 @@ public sealed record RevealOrderRequest(
 /// two ships' positions and the firing ship's course; when this is supplied it must agree, which
 /// catches a client and a table that have drifted apart.
 /// </param>
+/// <param name="TargetSystem">
+/// For a needle beam, the system being sniped at. Ignored by every other weapon.
+/// </param>
+/// <param name="TargetSystemWeaponId">Which of the target's mounts, when sniping a weapon.</param>
 public sealed record FireWeaponRequest(
     string ParticipantToken,
     Guid AttackerShipId,
     Guid TargetShipId,
     Guid WeaponId,
     int Range,
-    FiringArc? Arc = null);
+    FiringArc? Arc = null,
+    ShipSystemKind? TargetSystem = null,
+    Guid? TargetSystemWeaponId = null);
 
 /// <summary>
 /// Declares that a ship has finished firing for the turn, which is when its threshold checks are
@@ -274,6 +297,7 @@ public sealed record ShipDto(
     int FireControlDamage,
     int PointDefenseSystems,
     int FighterBays,
+    int DamageControlParties,
     int DriveDamage,
     int WeaponDamage,
     int ScreenRating,
