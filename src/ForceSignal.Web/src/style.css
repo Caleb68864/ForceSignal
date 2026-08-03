@@ -2750,3 +2750,19 @@ small,
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* One repairable system and the parties put on it. */
+.repair-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.repair-row strong {
+  min-width: 16px;
+  text-align: center;
+  color: var(--line-hot);
+}

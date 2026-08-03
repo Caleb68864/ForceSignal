@@ -270,6 +270,9 @@ type FiringDraft = {
   targetShipId: string;
   weaponId: string;
   range: number;
+  // A needle beam names one system on the target; every other weapon ignores this.
+  targetSystem?: string;
+  targetSystemWeaponId?: string;
 };
 
 type DamageState = Pick<Ship, 'hullDamage' | 'armorDamage' | 'fireControlDamage' | 'driveDamage' | 'weaponDamage'>;
@@ -500,6 +503,39 @@ function rangeDisagreesWithMap(declaredRange: number, mapRange: number, kind: We
 /// The die a pulse torpedo needs at this range: 2+ inside 6mu, a point worse every 6mu after.
 function torpedoToHitNumber(range: number) {
   return Math.min(6, Math.max(2, 2 + Math.floor((Math.max(1, range) - 1) / 6)));
+}
+
+/// The systems a needle beam could snipe on a target: only ones still working, since a needle takes a
+/// live system rather than finishing a dead one.
+function needleTargets(target?: Ship): { key: string; label: string; kind: string; weaponId?: string }[] {
+  if (!target) {
+    return [];
+  }
+
+  const options: { key: string; label: string; kind: string; weaponId?: string }[] = [];
+  if ((target.fireControlMax ?? 1) - target.fireControlDamage > 0) {
+    options.push({ key: 'firecon', label: 'Fire control', kind: 'FireControl' });
+  }
+
+  if (target.thrustRating > 0 && target.driveDamage < target.thrustRating) {
+    options.push({ key: 'drive', label: 'Drives', kind: 'Drive' });
+  }
+
+  if (effectiveScreens(target) > 0) {
+    options.push({ key: 'screen', label: 'Screen generator', kind: 'Screen' });
+  }
+
+  if ((target.fighterBays ?? 0) - (target.fighterBayDamage ?? 0) > 0) {
+    options.push({ key: 'bay', label: 'Fighter bay', kind: 'FighterBay' });
+  }
+
+  for (const mount of target.weapons) {
+    if (!mount.isDestroyed) {
+      options.push({ key: `mount-${mount.id}`, label: mount.name, kind: 'Weapon', weaponId: mount.id });
+    }
+  }
+
+  return options;
 }
 
 /// Screen levels still generating, after whatever has been shot away. The rating a ship carries is
@@ -1238,10 +1274,26 @@ function App() {
       weaponId: draft.weaponId,
       range: draft.range,
       arc: bearingArc(ship, snapshot?.ships.find((item) => item.id === draft.targetShipId)),
+      targetSystem: draft.targetSystem ?? null,
+      targetSystemWeaponId: draft.targetSystemWeaponId ?? null,
     });
     setSnapshot(fired);
     const target = fired.ships.find((item) => item.id === draft.targetShipId);
     setMessage(`${ship.name} fired at ${target?.name ?? 'target'} at range ${draft.range}.`);
+  }
+
+  async function attemptRepairs(ship: Ship, jobs: RepairJob[]) {
+    if (!session || jobs.length === 0) {
+      return;
+    }
+
+    const repaired = await post<MatchSnapshot>(`/api/ships/${ship.id}/repair`, {
+      participantToken: session.participantToken,
+      jobs: jobs.map((job) => ({ kind: job.kind, weaponId: job.weaponId ?? null, parties: job.parties })),
+    });
+    setSnapshot(repaired);
+    const note = repaired.matchLog.find((entry) => entry.category === 'Repair');
+    setMessage(note?.message ?? `${ship.name} worked its damage control.`);
   }
 
   async function moveFighterGroup(ship: Ship, x: number, y: number) {
@@ -2055,6 +2107,12 @@ function App() {
                             <button className="ghost" type="button" disabled={!damageUndo} onClick={() => undoLastDamage().catch(showError(setMessage))}>Undo Damage</button>
                           </div>
                         </div>
+                        {snapshot.phase === 'OrderEntry' || snapshot.phase === 'OrdersLocked' ? (
+                          <DamageControlPanel
+                            ship={ship}
+                            onRepair={(jobs) => attemptRepairs(ship, jobs).catch(showError(setMessage))}
+                          />
+                        ) : null}
                       </>
                     ) : null}
                     {!canEdit ? (
@@ -3901,11 +3959,14 @@ function MapFiringAssistant({
   const arcProblem = arcBlocker(ship, target, weapon);
   const fireControlProblem = fireControlBlocker(ship, target, firingResults);
   const mountLost = Boolean(weapon?.isDestroyed);
+  const needsSystem = weapon?.kind === 'NeedleBeam' && !draft.targetSystem;
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
-  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost && !fireControlProblem && !turnProblem;
-  const firingNote = turnProblem
+  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost && !fireControlProblem && !turnProblem && !needsSystem;
+  const firingNote = needsSystem
+    ? 'Name the system this needle is aimed at'
+    : turnProblem
     ? turnProblem
     : !weapon
     ? 'No weapon mounted'
@@ -3954,7 +4015,25 @@ function MapFiringAssistant({
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
         <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
         {weapon?.kind === 'PulseTorpedo' ? <small>needs {torpedoToHitNumber(draft.range)}+ to hit</small> : null}
+        {weapon?.kind === 'NeedleBeam' ? <small>takes a system on a 6</small> : null}
       </div>
+      {weapon?.kind === 'NeedleBeam' ? (
+        <label>
+          Aim at
+          <select
+            value={draft.targetSystem ? `${draft.targetSystem}:${draft.targetSystemWeaponId ?? ''}` : ''}
+            onChange={(event) => {
+              const [kind, weaponId] = event.target.value.split(':');
+              onChange({ targetSystem: kind || undefined, targetSystemWeaponId: weaponId || undefined });
+            }}
+          >
+            <option value="">Pick a system</option>
+            {needleTargets(target).map((option) => (
+              <option key={option.key} value={`${option.kind}:${option.weaponId ?? ''}`}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label>
         Range
         <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: Number(event.target.value) })} />
@@ -4041,10 +4120,11 @@ function FiringConsole({
   const arcProblem = arcBlocker(ship, target, weapon);
   const fireControlProblem = fireControlBlocker(ship, target, firingResults);
   const mountLost = Boolean(weapon?.isDestroyed);
+  const needsSystem = weapon?.kind === 'NeedleBeam' && !draft.targetSystem;
   const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
   const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
   const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
-  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost && !fireControlProblem && !turnProblem;
+  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost && !fireControlProblem && !turnProblem && !needsSystem;
   const rangeStatus = weapon && estimatedRange
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
@@ -4053,7 +4133,9 @@ function FiringConsole({
     && rangeDisagreesWithMap(draft.range, estimatedRange!, weapon!.kind)
     ? `Declared ${draft.range}, map measures ${estimatedRange}. The table decides; fix the range or the ship positions if that gap is wrong.`
     : null;
-  const fireStatus = turnProblem
+  const fireStatus = needsSystem
+    ? 'Name the system this needle is aimed at.'
+    : turnProblem
     ? `${turnProblem}.`
     : mountLost
     ? `${weapon?.name} was knocked out by a threshold check.`
@@ -4102,7 +4184,25 @@ function FiringConsole({
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
         <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
         {weapon?.kind === 'PulseTorpedo' ? <small>needs {torpedoToHitNumber(draft.range)}+ to hit</small> : null}
+        {weapon?.kind === 'NeedleBeam' ? <small>takes a system on a 6</small> : null}
       </div>
+      {weapon?.kind === 'NeedleBeam' ? (
+        <label>
+          Aim at
+          <select
+            value={draft.targetSystem ? `${draft.targetSystem}:${draft.targetSystemWeaponId ?? ''}` : ''}
+            onChange={(event) => {
+              const [kind, weaponId] = event.target.value.split(':');
+              onChange({ targetSystem: kind || undefined, targetSystemWeaponId: weaponId || undefined });
+            }}
+          >
+            <option value="">Pick a system</option>
+            {needleTargets(target).map((option) => (
+              <option key={option.key} value={`${option.kind}:${option.weaponId ?? ''}`}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label>
         Range
         <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: Number(event.target.value) })} />
@@ -4129,11 +4229,11 @@ function FiringConsole({
       ) : null}
       {spentShot ? (
         <p className="constraint-line dice-readout">
-          {spentShot.weaponKind === 'PulseTorpedo'
-            ? `Needed ${spentShot.toHitNumber}+, rolled ${(spentShot.diceRolls ?? []).join(', ')}${spentShot.isHit ? '' : ' and missed'}`
-            : `Rolled ${(spentShot.diceRolls ?? []).length > 0 ? (spentShot.diceRolls ?? []).join(', ') : 'no dice'}`}
-          {spentShot.weaponKind !== 'PulseTorpedo' && spentShot.screenReduction > 0 ? ` - screens stopped ${spentShot.screenReduction}` : ''}
-          {` for ${spentShot.damage} damage (${spentShot.armorDamageApplied} armor, ${spentShot.hullDamageApplied} hull).`}
+          {spentShot.weaponKind === 'NeedleBeam'
+            ? `Needed ${spentShot.toHitNumber}, rolled ${(spentShot.diceRolls ?? []).join(', ')}: ${spentShot.isHit ? 'system cut out.' : 'nothing hit.'}`
+            : spentShot.weaponKind === 'PulseTorpedo'
+              ? `Needed ${spentShot.toHitNumber}+, rolled ${(spentShot.diceRolls ?? []).join(', ')}${spentShot.isHit ? '' : ' and missed'} for ${spentShot.damage} damage (${spentShot.armorDamageApplied} armor, ${spentShot.hullDamageApplied} hull).`
+              : `Rolled ${(spentShot.diceRolls ?? []).length > 0 ? (spentShot.diceRolls ?? []).join(', ') : 'no dice'}${spentShot.screenReduction > 0 ? ` - screens stopped ${spentShot.screenReduction}` : ''} for ${spentShot.damage} damage (${spentShot.armorDamageApplied} armor, ${spentShot.hullDamageApplied} hull).`}
         </p>
       ) : null}
     </div>
@@ -4249,6 +4349,107 @@ function CourseCompass({
         </span>
       </div>
       <p className="helm-hint">{canEdit ? 'Drag, tap, or use left/right arrows.' : 'Opponent helm is read-only.'}</p>
+    </div>
+  );
+}
+
+/// One job a damage control party can be put on.
+type RepairJob = { kind: string; weaponId?: string | null; parties: number };
+
+/// Systems on a ship that damage control could actually bring back. Hull damage and dead parties are
+/// never on the list, and neither is anything a needle beam cut out.
+function repairableSystems(ship: Ship): { key: string; label: string; kind: string; weaponId?: string }[] {
+  const jobs: { key: string; label: string; kind: string; weaponId?: string }[] = [];
+  if (ship.fireControlDamage > 0) {
+    jobs.push({ key: 'firecon', label: 'Fire control', kind: 'FireControl' });
+  }
+
+  if (ship.driveDamage > 0) {
+    jobs.push({ key: 'drive', label: 'Drives', kind: 'Drive' });
+  }
+
+  if ((ship.screenDamage ?? 0) > 0) {
+    jobs.push({ key: 'screen', label: 'Screen generator', kind: 'Screen' });
+  }
+
+  if ((ship.fighterBayDamage ?? 0) > 0) {
+    jobs.push({ key: 'bay', label: 'Fighter bay', kind: 'FighterBay' });
+  }
+
+  for (const mount of ship.weapons) {
+    if (mount.isDestroyed && !mount.isNeedleKilled) {
+      jobs.push({ key: `mount-${mount.id}`, label: mount.name, kind: 'Weapon', weaponId: mount.id });
+    }
+  }
+
+  return jobs;
+}
+
+/// Damage control between turns: put parties on jobs, then run them. One party repairs on a 6 and each
+/// extra on the same job lowers the number needed, so three on one job is the best odds available.
+function DamageControlPanel({ ship, onRepair }: { ship: Ship; onRepair: (jobs: RepairJob[]) => void }) {
+  const [assignments, setAssignments] = useState<Record<string, number>>({});
+  const parties = ship.damageControlParties ?? 0;
+  const jobs = repairableSystems(ship);
+  const spent = Object.values(assignments).reduce((total, count) => total + count, 0);
+  const needleLosses = ship.weapons.filter((mount) => mount.isNeedleKilled).length;
+
+  if (parties === 0) {
+    return (
+      <div className="damage-grid card-module">
+        <span className="label module-title">Damage control parties</span>
+        <p className="privacy">No parties left aboard{needleLosses > 0 ? ', and needled systems could not be repaired anyway' : ''}.</p>
+      </div>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <div className="damage-grid card-module">
+        <span className="label module-title">Damage control parties</span>
+        <p className="privacy">
+          {parties} part{parties === 1 ? 'y' : 'ies'} standing by; nothing repairable is down
+          {needleLosses > 0 ? `. ${needleLosses} needled system${needleLosses === 1 ? '' : 's'} beyond help` : ''}.
+        </p>
+      </div>
+    );
+  }
+
+  const step = (key: string, delta: number) => setAssignments((current) => {
+    const next = Math.max(0, Math.min(3, (current[key] ?? 0) + delta));
+    const others = Object.entries(current).reduce((total, [id, count]) => id === key ? total : total + count, 0);
+    return others + next > parties ? current : { ...current, [key]: next };
+  });
+
+  return (
+    <div className="damage-grid card-module" aria-label={`${ship.name} damage control`}>
+      <span className="label module-title">Damage control parties</span>
+      <p className="privacy">{spent} of {parties} assigned. One party repairs on a 6; three on one job need 4 or better.</p>
+      {jobs.map((job) => (
+        <div className="repair-row" key={job.key}>
+          <span>{job.label}</span>
+          <div className="quick-actions">
+            <button className="ghost" type="button" onClick={() => step(job.key, -1)}>-</button>
+            <strong>{assignments[job.key] ?? 0}</strong>
+            <button className="ghost" type="button" onClick={() => step(job.key, 1)}>+</button>
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        disabled={spent === 0}
+        onClick={() => {
+          onRepair(jobs
+            .filter((job) => (assignments[job.key] ?? 0) > 0)
+            .map((job) => ({ kind: job.kind, weaponId: job.weaponId, parties: assignments[job.key] })));
+          setAssignments({});
+        }}
+      >
+        Run Damage Control
+      </button>
+      {needleLosses > 0 ? (
+        <p className="privacy">{needleLosses} system{needleLosses === 1 ? '' : 's'} cut out by needle fire cannot be repaired.</p>
+      ) : null}
     </div>
   );
 }
@@ -4766,12 +4967,20 @@ function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, Firing
   const target = ships.find((candidate) => candidate.id === current?.targetShipId && isTargetable(candidate))
     ?? firingTargetOptions(ship, ships, ownedShipIds)[0];
   const weapon = ship.weapons.find((mount) => mount.id === current?.weaponId) ?? ship.weapons[0];
+  // A nomination only means anything for a needle, and only while it is still aimed at a system the
+  // target actually has, so it is dropped the moment either stops being true.
+  const keepsNomination = weapon?.kind === 'NeedleBeam'
+    && Boolean(current?.targetSystem)
+    && needleTargets(target).some((option) => option.kind === current?.targetSystem
+      && (option.weaponId ?? undefined) === (current?.targetSystemWeaponId ?? undefined));
   return {
     targetShipId: target?.id ?? '',
     weaponId: weapon?.id ?? '',
     // Default to the measured distance to the resolved target. A fixed default would let one
     // click on Fire resolve an attack at a range the table geometry does not support.
     range: Math.max(1, current?.range ?? (target ? Math.round(distanceBetweenShips(ship, target)) : 12)),
+    targetSystem: keepsNomination ? current?.targetSystem : undefined,
+    targetSystemWeaponId: keepsNomination ? current?.targetSystemWeaponId : undefined,
   };
 }
 
