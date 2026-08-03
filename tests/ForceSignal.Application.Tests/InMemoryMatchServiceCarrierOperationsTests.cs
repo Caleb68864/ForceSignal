@@ -172,6 +172,8 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
         Guid EnemyId,
         Guid EnemyMount)
     {
+        private static readonly string[] GroupNames = ["Hawk Flight", "Kite Flight", "Gull Flight"];
+
         public static CarrierTable Build(
             int bays = 2,
             bool secondGroup = false,
@@ -197,7 +199,7 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
                 FighterBays: bays)).Ships.Single(s => s.Name == "Home Plate");
 
             var groupIds = new List<Guid>();
-            foreach (var name in new[] { "Hawk Flight", "Kite Flight", "Gull Flight" }.Take(1 + (secondGroup ? 1 : 0) + (thirdGroup ? 1 : 0)))
+            foreach (var name in GroupNames.Take(1 + (secondGroup ? 1 : 0) + (thirdGroup ? 1 : 0)))
             {
                 groupIds.Add(service.CreateShip(blueFleet.Id, new CreateShipRequest(
                     owner.ParticipantToken, name, "Fighter Group", 6,
