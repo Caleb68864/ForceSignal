@@ -11,7 +11,11 @@ namespace ForceSignal.Modules.FullThrust.Combat;
 /// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
 public sealed class FullThrustNeedleBeamRules(Func<int>? rollDie = null) : IFiringResolver
 {
-    /// <summary>Longest reach of a needle beam, in mu.</summary>
+    /// <summary>
+    /// Longest reach of a needle beam under the light cinematic layer, in mu. The Fleet Book's enhanced
+    /// needle reaches further, so the mount's own range is what this honours - the caller clamps it to
+    /// whatever the match's rules layer allows.
+    /// </summary>
     public const int MaximumRange = 9;
 
     /// <summary>The roll that knocks the nominated system out.</summary>
@@ -27,7 +31,7 @@ public sealed class FullThrustNeedleBeamRules(Func<int>? rollDie = null) : IFiri
             return FiringValidationResult.Failure("Firing range must be greater than zero.");
         }
 
-        var reach = Math.Min(solution.Weapon.MaxRange <= 0 ? MaximumRange : solution.Weapon.MaxRange, MaximumRange);
+        var reach = solution.Weapon.MaxRange <= 0 ? MaximumRange : solution.Weapon.MaxRange;
         if (solution.Range > reach)
         {
             return FiringValidationResult.Failure($"{solution.Weapon.Name} is out of range.");

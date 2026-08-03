@@ -185,6 +185,8 @@ type MatchSnapshot = {
   matchLog: MatchLogEntry[];
   version: number;
   pointsLimit: number;
+  // Which layer of the rules this match is played under. The layers replace parts of one another.
+  rulesLayer?: string;
   // The ship part-way through its fire. Its threshold checks roll when the volley closes.
   firingShipId?: string | null;
   // Whose turn it is to pick a ship and fire it, and which ships have already had their turn.
@@ -1324,6 +1326,20 @@ function App() {
     setMessage(`${ship.name} finished firing. Any threshold checks it earned have been rolled.`);
   }
 
+  async function updateRulesLayer(layer: string) {
+    if (!session) {
+      return;
+    }
+
+    const switched = await post<MatchSnapshot>(`/api/matches/${session.matchId}/rules-layer`, {
+      participantToken: session.participantToken,
+      rulesLayer: layer,
+    });
+    setSnapshot(switched);
+    setMessage(switched.matchLog.find((entry) => entry.message.startsWith('Rules layer set'))?.message
+      ?? `Rules layer set to ${layer}.`);
+  }
+
   async function updatePointsLimit() {
     if (!session) {
       return;
@@ -1615,6 +1631,26 @@ function App() {
               <button className="ghost" onClick={() => updateTable().catch(showError(setMessage))}>Set Table</button>
             </div>
             <div className="table-setup">
+              <span className="label">Rules layer</span>
+              <div className="table-fields">
+                <label>
+                  Layer
+                  <select
+                    value={snapshot?.rulesLayer ?? 'LightCinematic'}
+                    disabled={snapshot?.phase !== 'FleetSetup'}
+                    onChange={(event) => updateRulesLayer(event.target.value).catch(showError(setMessage))}
+                  >
+                    <option value="LightCinematic">Light / 2nd edition</option>
+                    <option value="FleetBook">Fleet Book</option>
+                  </select>
+                </label>
+              </div>
+              <p className="privacy">
+                Settled during fleet setup. The Fleet Book layer drops level-three screens, flies fighter
+                groups 24 instead of 12, and reaches 12 with a needle beam instead of 9.
+              </p>
+            </div>
+            <div className="table-setup">
               <span className="label">Points per player</span>
               <div className="table-fields">
                 <label>
@@ -1734,7 +1770,11 @@ function App() {
                         </label>
                       </div>
                     ) : null}
-                    <ShipProfileFields form={shipForm} onChange={setShipForm} />
+                    <ShipProfileFields
+                      form={shipForm}
+                      onChange={setShipForm}
+                      maxScreenLevel={snapshot?.rulesLayer === 'FleetBook' ? 2 : 3}
+                    />
                     <button onClick={() => createShipFromForm().catch(showError(setMessage))}>Add Ship</button>
                   </div>
                   <div className="fleet-transfer">
@@ -2323,7 +2363,7 @@ function shipIconPath(iconKey: ShipIconKey) {
   }
 }
 
-function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form: ShipForm) => void }) {
+function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form: ShipForm; onChange: (form: ShipForm) => void; maxScreenLevel?: number }) {
   return (
     <div className="profile-fields">
       <div className="preset-strip">
@@ -2389,7 +2429,7 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
       </label>
       <label>
         Screens
-        <input type="number" min="0" max="3" value={form.screenRating} onChange={(event) => onChange({ ...form, screenRating: Number(event.target.value) })} />
+        <input type="number" min="0" max={maxScreenLevel} value={form.screenRating} onChange={(event) => onChange({ ...form, screenRating: Number(event.target.value) })} />
       </label>
       <label title="Each working fire control system directs fire at one target, and each rolls separately at a threshold check.">
         Firecons

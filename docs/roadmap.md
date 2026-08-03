@@ -110,8 +110,13 @@ defences, damage control, needle beams - found six more divergences. Each is wri
       damage control can restore them and the table still sees what is actually generating.
 - [x] Needle-beam losses are permanent. A needled system is cut out rather than broken, tracked per
       system and held against the repairable total, and a needled mount is labelled as such.
-- [ ] A rules-layer switch for the FT2-versus-Fleet-Book differences now piling up: threshold rows,
-      level-3 screens, the 12mu fighter move, carrier launch rates, and enhanced needles.
+- [x] A rules-layer switch. A match is played under one layer, settled during fleet setup and carried
+      in the snapshot, and the numbers that differ follow from it: the Fleet Book layer caps screens at
+      level two, flies fighter groups 24mu instead of 12, and reaches 12mu with a needle instead of 9.
+      Switching down brings existing screens with it. Three differences are named in the profile's
+      documentation but not yet wired, because each needs rules work of its own rather than a number:
+      threshold rows by class, Fleet Book carrier launch rates, and the enhanced needle's hull damage
+      and reroll rules.
 
 ## Movement Rule Fidelity
 

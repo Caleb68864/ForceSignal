@@ -609,10 +609,13 @@ rows and two, capitals 4 rows and three.
 **App**: always four rows, so a 6-box escort runs 2/2/1/1 and faces three checks where FT2 would give
 it one.
 
-**Judgement**: kept, and now written down where it belongs rather than only here. Four rows is a real
+**Judgement**: kept, and written down where it belongs rather than only here. Four rows is a real
 published convention, and it keeps a small hull under threshold pressure instead of dying with its
-systems intact. `FullThrustLightThresholdRules.RowCount` carries the reasoning, and the choice belongs
-behind the same rules-layer switch as level-3 screens if an FT2 profile is ever added.
+systems intact. `FullThrustLightThresholdRules.RowCount` carries the reasoning.
+
+A rules-layer switch now exists (`RulesProfile`), so this is where by-class rows would go. It is not
+wired yet because it needs a class-to-rows mapping and ForceSignal's ship class is free text, which
+makes the mapping a guess rather than a lookup - so it stays a documented choice for now.
 
 Code: `FullThrustLightThresholdRules.RowCount`.
 
@@ -646,8 +649,19 @@ whole subsystems above the target profile, and none blocks a match.
 4. ~~Needle beams (gap 21).~~ Done.
 5. ~~Record the four-row choice (gap 22).~~ Done.
 
-Both scans are closed. What is left is the "deliberately not built" list above, plus three follow-ups
-the second round created: an undamaged value for screens and bays so damage control can restore them,
-marking needle-killed systems as unrepairable, and a rules-layer switch for the FT2-versus-Fleet-Book
-differences (threshold rows, level-3 screens, fighter move allowance, carrier launch rates, enhanced
-needles).
+Both scans are closed, and so are the three follow-ups the second round created: screens and bays now
+record an undamaged value so damage control can restore them, needle-killed systems are permanent, and a
+rules-layer switch carries the FT2-versus-Fleet-Book differences.
+
+What remains is the "deliberately not built" list above, plus three layer differences that the switch
+names but does not yet act on, because each needs rules work rather than a number:
+
+- **Threshold rows by class** (FT2: escorts two rows, cruisers three, capitals four). Needs a
+  class-to-rows mapping, and ship class here is free text.
+- **Fleet Book carrier launch rates** (one group per operational bay, recovery of half the bays, plus the
+  optional turnaround roll) instead of the two-and-one currently enforced.
+- **The enhanced needle beam**: a point of hull damage on a 5 or 6, and armour ignored.
+
+And one thing worth doing before any of them: play a full game. Everything above is verified by tests and
+by driving the API and the browser, but no two-device match has been played end to end since the turn
+structure changed.

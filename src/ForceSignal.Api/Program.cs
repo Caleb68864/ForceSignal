@@ -238,6 +238,24 @@ app.MapPost("/api/matches/{matchId:guid}/table", async (
     .Produces<MatchSnapshotDto>()
     .ProducesProblem(StatusCodes.Status400BadRequest);
 
+app.MapPost("/api/matches/{matchId:guid}/rules-layer", async (
+    Guid matchId,
+    UpdateRulesLayerRequest request,
+    IMatchService matches,
+    IHubContext<MatchHub> hub) =>
+{
+    var snapshot = matches.UpdateRulesLayer(matchId, request);
+    await NotifySnapshotChanged(hub, snapshot, "RulesLayerChanged");
+    return Results.Ok(snapshot);
+})
+    .WithName("UpdateRulesLayer")
+    .WithTags("Matches")
+    .WithSummary("Switches the rules layer the match is played under, during fleet setup.")
+    .Produces<MatchSnapshotDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status403Forbidden)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
 app.MapPost("/api/matches/{matchId:guid}/points-limit", async (
     Guid matchId,
     UpdateMatchPointsLimitRequest request,

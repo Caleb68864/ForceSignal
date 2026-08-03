@@ -43,6 +43,9 @@ public interface IMatchService
     /// <summary>Updates table dimensions.</summary>
     MatchSnapshotDto UpdateTable(Guid matchId, UpdateMatchTableRequest request);
 
+    /// <summary>Switches the rules layer the match is played under.</summary>
+    MatchSnapshotDto UpdateRulesLayer(Guid matchId, UpdateRulesLayerRequest request);
+
     /// <summary>Sets the agreed points ceiling per player. Zero means unlimited.</summary>
     MatchSnapshotDto UpdatePointsLimit(Guid matchId, UpdateMatchPointsLimitRequest request);
 
@@ -126,6 +129,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var joinCode = CreateJoinCode();
             var match = new MatchState(matchId, joinCode, NormalizeText(request.MatchName, "Space Fleet Match"), participant)
             {
+                Rules = RulesProfile.Parse(request.RulesLayer),
                 TableWidth = Math.Clamp(request.TableWidth, 24, 144),
                 TableDepth = Math.Clamp(request.TableDepth, 24, 96)
             };
@@ -239,6 +243,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             var match = new MatchState(matchId, joinCode, NormalizeText(snapshot.Name, "Space Fleet Match"), seats[0])
             {
+                Rules = RulesProfile.Parse(snapshot.RulesLayer),
                 TableWidth = Math.Clamp(snapshot.TableWidth, 24, 144),
                 TableDepth = Math.Clamp(snapshot.TableDepth, 24, 96),
                 TurnNumber = Math.Max(1, snapshot.TurnNumber),
@@ -284,7 +289,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     Math.Clamp(ship.ArmorMax, 0, 40),
                     ClampPosition(ship.PositionX, match.TableWidth),
                     ClampPosition(ship.PositionY, match.TableDepth),
-                    Math.Clamp(ship.ScreenRating, 0, 3),
+                    Math.Clamp(ship.ScreenRating, 0, match.Rules.MaxScreenLevel),
                     NormalizeRestoredWeapons(ship.Weapons),
                     iconKey)
                 {
@@ -593,6 +598,40 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
     }
 
+    public MatchSnapshotDto UpdateRulesLayer(Guid matchId, UpdateRulesLayerRequest request)
+    {
+        lock (_gate)
+        {
+            var match = FindMatch(matchId);
+            var participant = FindParticipant(match, request.ParticipantToken);
+            if (participant.Role != "Owner")
+            {
+                throw new UnauthorizedAccessException("Only the owner can change the rules layer.");
+            }
+
+            if (match.Phase != MatchPhase.FleetSetup)
+            {
+                throw new InvalidOperationException("The rules layer is settled during fleet setup, before a shot is fired.");
+            }
+
+            match.Rules = RulesProfile.Parse(request.RulesLayer);
+            // Screens above the new layer's ceiling come down with it, so no ship keeps a level the
+            // layer does not have.
+            foreach (var ship in match.Ships)
+            {
+                ship.ScreenRating = Math.Min(ship.ScreenRating, match.Rules.MaxScreenLevel);
+                ship.ScreenDamage = ClampDamage(ship.ScreenDamage, ship.ScreenRating);
+            }
+
+            match.AddLog(
+                "Setup",
+                match.Phase.ToString(),
+                $"Rules layer set to {match.Rules.Layer}: screens up to level {match.Rules.MaxScreenLevel}, fighter groups fly {match.Rules.FighterMoveAllowance}, needle beams reach {match.Rules.NeedleBeamRange}.");
+            match.Touch("RulesLayerChanged");
+            return ToSnapshot(match);
+        }
+    }
+
     public MatchSnapshotDto UpdatePointsLimit(Guid matchId, UpdateMatchPointsLimitRequest request)
     {
         lock (_gate)
@@ -665,7 +704,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 Math.Clamp(request.ArmorMax, 0, 40),
                 ClampPosition(request.StartX, match.TableWidth),
                 ClampPosition(request.StartY, match.TableDepth),
-                Math.Clamp(request.ScreenRating, 0, 3),
+                Math.Clamp(request.ScreenRating, 0, match.Rules.MaxScreenLevel),
                 NormalizeWeapons(request.Weapons),
                 iconKey)
             {
@@ -711,7 +750,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             ship.ArmorMax = Math.Clamp(request.ArmorMax, 0, 40);
             ship.PositionX = ClampPosition(request.PositionX, match.TableWidth);
             ship.PositionY = ClampPosition(request.PositionY, match.TableDepth);
-            ship.ScreenRating = Math.Clamp(request.ScreenRating, 0, 3);
+            ship.ScreenRating = Math.Clamp(request.ScreenRating, 0, match.Rules.MaxScreenLevel);
             ship.IconKey = NormalizeIconKey(request.IconKey, request.ClassName);
             ship.Weapons.Clear();
             ship.Weapons.AddRange(NormalizeWeapons(request.Weapons));
@@ -1141,10 +1180,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var distance = Math.Round((decimal)Math.Sqrt(
                 Math.Pow((double)(destinationX - group.PositionX), 2)
                 + Math.Pow((double)(destinationY - group.PositionY), 2)), 1);
-            if (distance > FighterMoveAllowance)
+            var allowance = match.Rules.FighterMoveAllowance;
+            if (distance > allowance)
             {
                 throw new InvalidOperationException(
-                    $"That is {distance:0.#} away, past the {FighterMoveAllowance} {group.Name} can fly in a turn.");
+                    $"That is {distance:0.#} away, past the {allowance} {group.Name} can fly in a turn.");
             }
 
             var startingX = group.PositionX;
@@ -1260,7 +1300,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var reach = Math.Sqrt(
                 Math.Pow((double)(group.PositionX - carrier.PositionX), 2)
                 + Math.Pow((double)(group.PositionY - carrier.PositionY), 2));
-            if (reach > FighterMoveAllowance)
+            if (reach > match.Rules.FighterMoveAllowance)
             {
                 throw new InvalidOperationException(
                     $"{group.Name} is {reach:0.#} from {carrier.Name}, too far to make the rendezvous this turn.");
@@ -1620,8 +1660,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     $"{target.Name} bears {FiringArcs.Describe(targetArc)} of {attacker.Name}, not {FiringArcs.Describe(declaredArc)}. Fix the ship positions if the table disagrees.");
             }
 
+            var reach = weapon.Kind == WeaponKind.NeedleBeam
+                ? Math.Min(weapon.MaxRange, match.Rules.NeedleBeamRange)
+                : weapon.MaxRange;
             var solution = new FiringSolution(
-                new WeaponAttackProfile(weapon.Name, EffectiveAttackDice(attacker, weapon), weapon.MaxRange, weapon.Arcs, weapon.Kind),
+                new WeaponAttackProfile(weapon.Name, EffectiveAttackDice(attacker, weapon), reach, weapon.Arcs, weapon.Kind),
                 request.Range,
                 EffectiveScreens(target),
                 attacker.WeaponDamage,
@@ -2065,6 +2108,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         match.Phase.ToString(),
         match.TurnNumber,
         FullThrustLightCinematicRules.ProfileKey,
+        match.Rules.Layer.ToString(),
         match.TableWidth,
         match.TableDepth,
         match.Participants.Select(p => new ParticipantDto(p.Id, p.DisplayName, p.Role, p.IsReady, p.IsConnected, p.OrdersComplete)).ToArray(),
@@ -2166,6 +2210,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public string JoinCode { get; } = joinCode;
         public string Name { get; } = name;
         public MatchPhase Phase { get; set; } = MatchPhase.FleetSetup;
+
+        /// <summary>The layer of the rules this match is played under.</summary>
+        public RulesProfile Rules { get; set; } = RulesProfile.LightCinematic;
 
         /// <summary>The ship part-way through its fire, if any. Its threshold checks are still owed.</summary>
         public Guid? FiringShipId { get; set; }
@@ -2374,12 +2421,6 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
     /// <summary>Thrust actually available for plotting after drive damage.</summary>
     private static int UsableThrust(ShipState ship) => Math.Max(0, ship.ThrustRating - ship.DriveDamage);
-
-    /// <summary>
-    /// How far a fighter group may move in a turn. A group is not flown on course and velocity: it
-    /// goes anywhere inside this radius, which is why it needs no written order.
-    /// </summary>
-    public const int FighterMoveAllowance = 12;
 
     /// <summary>
     /// Ships that are flown by written order. Fighter groups are moved by hand instead, so they never

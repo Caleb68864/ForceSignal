@@ -7,7 +7,21 @@ namespace ForceSignal.Contracts.Matches;
 /// <param name="MatchName">Optional human-readable match name.</param>
 /// <param name="TableWidth">Table width in play units.</param>
 /// <param name="TableDepth">Table depth in play units.</param>
-public sealed record CreateMatchRequest(string DisplayName, string? MatchName, int TableWidth = 72, int TableDepth = 48);
+/// <param name="RulesLayer">
+/// Which layer of the rules to play under: "LightCinematic" (the default) or "FleetBook". The layers
+/// replace parts of one another, so a match settles on one.
+/// </param>
+public sealed record CreateMatchRequest(
+    string DisplayName,
+    string? MatchName,
+    int TableWidth = 72,
+    int TableDepth = 48,
+    string? RulesLayer = null);
+
+/// <summary>Switches the rules layer a match is played under.</summary>
+/// <param name="ParticipantToken">Owner participant token.</param>
+/// <param name="RulesLayer">The layer to play under.</param>
+public sealed record UpdateRulesLayerRequest(string ParticipantToken, string RulesLayer);
 
 /// <summary>Joins an existing match by room code.</summary>
 /// <param name="JoinCode">Memorable room code shown by the host.</param>
@@ -257,6 +271,7 @@ public sealed record MatchSnapshotDto(
     string Phase,
     int TurnNumber,
     string RulesProfileKey,
+    string RulesLayer,
     int TableWidth,
     int TableDepth,
     IReadOnlyList<ParticipantDto> Participants,
