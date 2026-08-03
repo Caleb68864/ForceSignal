@@ -91,10 +91,12 @@ defences, damage control, needle beams - found six more divergences. Each is wri
 - [x] Fighter groups are flown, not plotted (gap 17). A group moves to any point within 12mu once a
       turn, in any direction, ending up facing the way it flew. It takes no orders, never holds up
       plotting, and never drifts.
-- [ ] Carrier launch and recovery are unrestricted (gap 18). A launching or recovering carrier may not
-      change course or velocity, launch rates are capped by bays, and each bay holds one group.
-- [ ] Fighter bays are not threshold systems (gap 19). A lost bay should cost capacity and the ability
-      to land fighters. Needs bays to exist first.
+- [x] Carrier launch and recovery follow the rules (gap 18). A carrier must hold course and speed to
+      launch or recover, works two groups a turn if it is a true carrier and one otherwise, deploys a
+      group onto itself, and refuses a rendezvous the group cannot reach or a deck that is full. Ships
+      host groups by having bays rather than by being carrier-classed.
+- [x] Fighter bays are threshold systems (gap 19). Each bay rolls its own die, and a bay knocked out
+      costs capacity and takes any group still sitting in it.
 - [ ] No damage control (gap 20). Threshold losses are permanent, so a ship that loses its firecons
       early is a spectator. The counterpart to the checks themselves.
 - [ ] Needle beams (gap 21). Mostly wiring over the per-system knockout machinery that now exists.

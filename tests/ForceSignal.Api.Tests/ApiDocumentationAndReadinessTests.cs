@@ -134,7 +134,8 @@ public sealed class ApiDocumentationAndReadinessTests
 
         using var carrierResponse = await client.PostAsJsonAsync(
             $"/api/fleets/{fleet.Id}/ships",
-            new CreateShipRequest(session.ParticipantToken, "Home Plate", "Carrier", 4, 6, 1, 14, 4, IconKey: "carrier"));
+            // A carrier needs a bay before it can put anything in the air.
+            new CreateShipRequest(session.ParticipantToken, "Home Plate", "Carrier", 4, 6, 1, 14, 4, IconKey: "carrier", FighterBays: 2));
         var carrierSnapshot = await carrierResponse.Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
         var carrier = carrierSnapshot!.Ships.Single(ship => ship.IconKey == "carrier");
 

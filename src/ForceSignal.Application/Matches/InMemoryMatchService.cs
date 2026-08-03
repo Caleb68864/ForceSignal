@@ -290,6 +290,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                     PointsValue = ClampPoints(ship.PointsValue),
                     FireControlMax = ClampFireControl(ship.FireControlMax),
                     PointDefenseSystems = ClampPointDefense(ship.PointDefenseSystems),
+                    FighterBays = ClampFighterBays(ship.FighterBays),
                 };
                 restoredShip.HullDamage = ClampDamage(ship.HullDamage, restoredShip.HullMax);
                 restoredShip.ArmorDamage = ClampDamage(ship.ArmorDamage, restoredShip.ArmorMax);
@@ -668,6 +669,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 PointsValue = ClampPoints(request.PointsValue),
                 FireControlMax = ClampFireControl(request.FireControlMax),
                 PointDefenseSystems = ClampPointDefense(request.PointDefenseSystems),
+                FighterBays = ClampFighterBays(request.FighterBays),
             });
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, match.Ships[^1])} added to {fleet.Name}.");
             match.Touch("ShipCreated");
@@ -712,6 +714,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             ship.PointsValue = ClampPoints(request.PointsValue);
             ship.FireControlMax = ClampFireControl(request.FireControlMax);
             ship.PointDefenseSystems = ClampPointDefense(request.PointDefenseSystems);
+            ship.FighterBays = ClampFighterBays(request.FighterBays);
             ship.FireControlDamage = ClampDamage(ship.FireControlDamage, ship.FireControlMax);
             ship.HullDamage = ClampDamage(ship.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(ship.ArmorDamage, ship.ArmorMax);
@@ -755,6 +758,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 FighterMaxRange = source.FighterMaxRange,
                 FighterStatus = source.FighterStatus,
                 PointDefenseSystems = source.PointDefenseSystems,
+                FighterBays = source.FighterBays,
                 HomeCarrierShipId = source.HomeCarrierShipId,
                 PointsValue = source.PointsValue,
             });
@@ -797,6 +801,16 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             if (!IsFighterGroup(ship.IconKey, ship.ClassName))
             {
                 throw new InvalidOperationException("Fighter operations can only be tracked on fighter groups.");
+            }
+
+            // Launching or recovering is a carrier operation with rules attached, so a status change
+            // that means either one is checked before anything is written.
+            var nextStatus = NormalizeFighterStatus(request.FighterStatus, ship.IconKey, ship.ClassName);
+            var isLaunch = ship.FighterStatus == "Docked" && nextStatus != "Docked";
+            var isRecovery = ship.FighterStatus != "Docked" && nextStatus == "Docked";
+            if (isLaunch || isRecovery)
+            {
+                ResolveCarrierOperation(match, ship, request.HomeCarrierShipId, isLaunch);
             }
 
             ship.FighterEnduranceMax = NormalizeFighterEnduranceMax(request.FighterEnduranceMax, ship.IconKey, ship.ClassName);
@@ -966,6 +980,106 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.Touch("FighterGroupMoved");
             return ToSnapshot(match);
         }
+    }
+
+    /// <summary>
+    /// Checks and books a launch or a recovery. A carrier doing either must hold course and speed for
+    /// the turn, may only work so many groups a turn, and only has room for as many groups as it has
+    /// bays left. On success the group is placed on the carrier: a launch deploys from it, and a
+    /// recovery has the group meet it.
+    /// </summary>
+    private static void ResolveCarrierOperation(MatchState match, ShipState group, Guid? requestedCarrierId, bool isLaunch)
+    {
+        var carrierId = requestedCarrierId ?? group.HomeCarrierShipId;
+        var carrier = carrierId is Guid id ? match.Ships.SingleOrDefault(s => s.Id == id) : null;
+        if (carrier is null)
+        {
+            // A group with no carrier assigned is being deployed or tidied up by hand rather than
+            // flown off a deck, so there is no carrier operation to police.
+            return;
+        }
+
+        if (IsDestroyed(carrier))
+        {
+            throw new InvalidOperationException($"{carrier.Name} is gone; {group.Name} has nowhere to land.");
+        }
+
+        if (carrier.FighterBays <= 0)
+        {
+            throw new InvalidOperationException($"{carrier.Name} has no working fighter bays.");
+        }
+
+        // Holding course and velocity is the price of flight operations. No order at all counts,
+        // because an unordered ship holds both.
+        if (match.Commitments.TryGetValue(carrier.Id, out var order))
+        {
+            if (!order.IsRevealed || order.RevealedOrder is null)
+            {
+                throw new InvalidOperationException(
+                    $"{carrier.Name} has orders still sealed. Reveal them, or leave it unordered, before flight operations.");
+            }
+
+            var plotted = order.RevealedOrder;
+            var turning = plotted.TurnManeuvers is { Count: > 0 }
+                ? plotted.TurnManeuvers.Sum(m => m.Steps) > 0
+                : plotted.TurnSteps > 0;
+            if (plotted.VelocityDelta != 0 || turning)
+            {
+                throw new InvalidOperationException(
+                    $"{carrier.Name} is manoeuvring this turn. A carrier must hold course and speed to launch or recover.");
+            }
+        }
+
+        // A true carrier can work two groups a turn; anything else with a bay manages one.
+        var isTrueCarrier = NormalizeIconText(carrier.ClassName).Contains("carrier", StringComparison.Ordinal)
+            || carrier.IconKey == "carrier";
+        var allowance = isLaunch && isTrueCarrier ? 2 : 1;
+        var alreadyWorked = match.CarrierOperationsThisTurn.TryGetValue(carrier.Id, out var used) ? used : 0;
+        if (alreadyWorked >= allowance)
+        {
+            throw new InvalidOperationException(
+                $"{carrier.Name} has already handled {alreadyWorked} group{(alreadyWorked == 1 ? string.Empty : "s")} this turn.");
+        }
+
+        if (isLaunch)
+        {
+            group.PositionX = carrier.PositionX;
+            group.PositionY = carrier.PositionY;
+            group.CurrentCourse = carrier.CurrentCourse;
+        }
+        else
+        {
+            var reach = Math.Sqrt(
+                Math.Pow((double)(group.PositionX - carrier.PositionX), 2)
+                + Math.Pow((double)(group.PositionY - carrier.PositionY), 2));
+            if (reach > FighterMoveAllowance)
+            {
+                throw new InvalidOperationException(
+                    $"{group.Name} is {reach:0.#} from {carrier.Name}, too far to make the rendezvous this turn.");
+            }
+
+            var docked = match.Ships.Count(candidate => candidate.Id != group.Id
+                && candidate.HomeCarrierShipId == carrier.Id
+                && IsFighterGroupShip(candidate)
+                && candidate.FighterStatus == "Docked"
+                && !IsDestroyed(candidate));
+            if (docked >= carrier.FighterBays)
+            {
+                throw new InvalidOperationException(
+                    $"{carrier.Name} has {carrier.FighterBays} bay{(carrier.FighterBays == 1 ? string.Empty : "s")} and they are full.");
+            }
+
+            group.PositionX = carrier.PositionX;
+            group.PositionY = carrier.PositionY;
+        }
+
+        match.CarrierOperationsThisTurn[carrier.Id] = alreadyWorked + 1;
+        match.AddLog(
+            "Fighters",
+            match.Phase.ToString(),
+            isLaunch
+                ? $"{DescribeShip(match, group)} launched from {carrier.Name}, which holds course and speed this turn."
+                : $"{DescribeShip(match, group)} landed aboard {carrier.Name}, which holds course and speed this turn.");
     }
 
     /// <summary>The twelve-point course that best matches a heading across the table.</summary>
@@ -1423,6 +1537,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 match.Commitments.Clear();
                 match.FiringResults.Clear();
                 match.MovedFighterGroupIds.Clear();
+                match.CarrierOperationsThisTurn.Clear();
                 foreach (var plotter in match.Participants)
                 {
                     plotter.OrdersComplete = false;
@@ -1720,6 +1835,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.FireControlMax,
             s.FireControlDamage,
             s.PointDefenseSystems,
+            s.FighterBays,
             s.DriveDamage,
             s.WeaponDamage,
             s.ScreenRating,
@@ -1809,6 +1925,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         /// <summary>Fighter groups that have already flown this turn.</summary>
         public HashSet<Guid> MovedFighterGroupIds { get; } = [];
 
+        /// <summary>Groups each carrier has launched or recovered this turn, by carrier id.</summary>
+        public Dictionary<Guid, int> CarrierOperationsThisTurn { get; } = [];
+
         /// <summary>Hull damage each target had before the firing ship opened up, by target id.</summary>
         public Dictionary<Guid, int> PendingThresholds { get; } = [];
         public int TurnNumber { get; set; } = 1;
@@ -1886,6 +2005,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int FireControlMax { get; set; } = 1;
         public int FireControlDamage { get; set; }
         public int PointDefenseSystems { get; set; }
+        public int FighterBays { get; set; }
         public int DriveDamage { get; set; }
         public int WeaponDamage { get; set; }
         public int ScreenRating { get; set; } = screenRating;
@@ -1959,6 +2079,8 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private static int ClampFireControl(int value) => Math.Clamp(value, 0, 6);
 
     private static int ClampPointDefense(int value) => Math.Clamp(value, 0, 12);
+
+    private static int ClampFighterBays(int value) => Math.Clamp(value, 0, 12);
 
     private static int ClampPoints(int value) => Math.Clamp(value, 0, 99999);
 
@@ -2122,9 +2244,14 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             return null;
         }
 
-        if (carrier.IconKey != "carrier" && !NormalizeIconText(carrier.ClassName).Contains("carrier", StringComparison.Ordinal))
+        // Fighters are carried by specialised carriers *or* by larger warships with bays fitted, so
+        // what qualifies a host is a bay rather than its class name. A carrier-classed hull with no
+        // bays recorded yet is still accepted, so a fleet can be assembled in any order.
+        var isCarrierClassed = carrier.IconKey == "carrier"
+            || NormalizeIconText(carrier.ClassName).Contains("carrier", StringComparison.Ordinal);
+        if (carrier.FighterBays <= 0 && !isCarrierClassed)
         {
-            throw new InvalidOperationException("Home carrier must be a carrier ship.");
+            throw new InvalidOperationException($"{carrier.Name} has no fighter bays, so it cannot host a fighter group.");
         }
 
         return carrier.Id;
@@ -2157,7 +2284,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         var losses = new List<string>();
         foreach (var system in result.Lost)
         {
-            losses.Add(ApplySystemLoss(target, system));
+            losses.Add(ApplySystemLoss(match, target, system));
         }
 
         var rollNote = result.Rolls.Count == 0
@@ -2194,6 +2321,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             systems.Add(new ShipSystem(ShipSystemKind.Screen, "screen generator"));
         }
 
+        for (var bay = 0; bay < ship.FighterBays; bay++)
+        {
+            systems.Add(new ShipSystem(ShipSystemKind.FighterBay, "fighter bay"));
+        }
+
         systems.AddRange(ship.Weapons
             .Where(weapon => !weapon.IsDestroyed)
             .Select(weapon => new ShipSystem(ShipSystemKind.Weapon, weapon.Name, weapon.Id)));
@@ -2201,7 +2333,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     }
 
     /// <summary>Applies one knocked-out system and describes it for the log.</summary>
-    private static string ApplySystemLoss(ShipState ship, ShipSystem system)
+    private static string ApplySystemLoss(MatchState match, ShipState ship, ShipSystem system)
     {
         switch (system.Kind)
         {
@@ -2224,6 +2356,20 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             case ShipSystemKind.Screen:
                 ship.ScreenRating = Math.Max(0, ship.ScreenRating - 1);
                 return ship.ScreenRating == 0 ? "screens down" : $"screens dropped to level {ship.ScreenRating}";
+            case ShipSystemKind.FighterBay:
+                ship.FighterBays = Math.Max(0, ship.FighterBays - 1);
+                // A bay takes whatever was still sitting in it.
+                var stranded = match.Ships.FirstOrDefault(candidate => candidate.HomeCarrierShipId == ship.Id
+                    && IsFighterGroupShip(candidate)
+                    && candidate.FighterStatus == "Docked"
+                    && !IsDestroyed(candidate));
+                if (stranded is not null)
+                {
+                    stranded.HullDamage = stranded.HullMax;
+                    return $"fighter bay destroyed with {stranded.Name} aboard";
+                }
+
+                return "fighter bay destroyed";
             case ShipSystemKind.Weapon:
                 var mount = ship.Weapons.SingleOrDefault(weapon => weapon.Id == system.WeaponId);
                 if (mount is null)

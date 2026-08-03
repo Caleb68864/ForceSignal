@@ -484,7 +484,7 @@ Code: `MoveFighterGroup` / `PlottableShipIds` / `CourseTowards` in `InMemoryMatc
 
 ---
 
-## Gap 18 — Carrier launch and recovery are unrestricted
+## Gap 18 — Carrier launch and recovery are unrestricted — FIXED 2026-08-02
 
 **Rules** (`Fighters/Carriers & Fighter Bays.md`): a carrier launching or recovering may **not change
 course or velocity that turn** - the real cost of a launch. Fighters deploy at the halfway point of
@@ -493,26 +493,47 @@ one six-fighter group. Launch caps are layer-dependent: Fleet Book 1 allows two 
 carriers and one for other ships, recovering one; Fleet Book 2 replaces that with one group per
 operational bay and recovery of half the bays.
 
-**App**: `FighterStatus` is Docked, Airborne or Recovering with nothing enforced. A carrier can launch
-while turning and accelerating, launch any number of groups, and recover as many as it likes. There is
-no bay count, so no capacity limit either.
+**Was**: status was free text with nothing enforced. A carrier could launch while turning and
+accelerating, launch any number of groups, and recover as many as it liked.
 
-Code: `UpdateFighterOperations` - status, endurance and range only.
+**Now**: a ship carries a count of fighter bays, and a status change that means a launch or a recovery
+is checked before anything is written.
+
+- The carrier must hold course and speed for the turn. No order at all counts, since an unordered ship
+  holds both; a plotted hold counts; a plotted manoeuvre is refused. If the carrier's order is still
+  sealed the answer is "not yet, reveal it or leave it unordered" - the app will not guess at a hidden
+  order, and it will not leak one either.
+- A true carrier works two groups a turn and anything else with a bay works one.
+- A launch deploys the group on the carrier; a recovery requires the group to be within its own move of
+  the carrier to make the rendezvous, and refuses if the bays are already full.
+- A carrier with no working bays cannot fly anything at all.
+
+What qualifies a ship to host a group also changed: it used to have to be carrier-*classed*, but the
+rules put bays on larger warships too, so a bay is what makes a host now.
+
+**Not covered**: the Fleet Book 2 amendment that replaces the launch cap with one group per operational
+bay and recovery of half the bays, plus its optional turnaround roll. That is a layer switch, not a
+correction. Fighters deploy from the carrier's position rather than the halfway point of its move,
+which only differs while a carrier launches under way - and a launching carrier is holding its speed.
+
+Code: `ResolveCarrierOperation` in `InMemoryMatchService`, `ValidateCarrierId`, bay field on the ship form.
 
 ---
 
-## Gap 19 — Fighter bays are not systems for a threshold check
+## Gap 19 — Fighter bays are not systems for a threshold check — FIXED 2026-08-02
 
 **Rules** (`Damage/Threshold Check.md`, `Fighters/Carriers & Fighter Bays.md`): fighter bays roll at a
 threshold like any other system, and a knocked-out bay loses the fighters still aboard it and can no
 longer recover fighters in flight - so a carrier can lose the ability to land its own air group.
 
-**App**: a threshold check rolls for drives, each fire control system, each screen level and each
-weapon mount. Bays do not exist as a system, so they never roll.
+**Was**: bays did not exist, so they never rolled.
 
-Depends on gap 18: bays have to exist before they can be shot off.
+**Now**: each surviving bay rolls its own die at a threshold check like any other system. A bay knocked
+out costs the carrier a group's worth of capacity, and if a group was still sitting in it that group
+goes too - the log says so by name. So a carrier that takes a beating can lose the ability to land the
+air group it already has in the sky, which is the pressure the rules intend.
 
-Code: `SurvivingSystems` in `InMemoryMatchService`, `ShipSystemKind` in `ThresholdContracts.cs`.
+Code: `ShipSystemKind.FighterBay`, `SurvivingSystems` / `ApplySystemLoss` in `InMemoryMatchService`.
 
 ---
 
@@ -593,8 +614,7 @@ whole subsystems above the target profile, and none blocks a match.
 ## Suggested order for the second round
 
 1. ~~Stop main batteries engaging fighter groups (gap 16).~~ Done.
-2. ~~Fighter group movement (gap 17).~~ Done. Carrier launch and recovery with bays as systems
-   (gaps 18, 19) still to do; together with 17 they make carrier play work as written.
+2. ~~Fighter group movement, carrier launch and recovery, and bays as systems (gaps 17, 18, 19).~~ Done.
 3. Damage control (gap 20). The natural counterpart to threshold checks, and the biggest change to how
    a long game feels.
 4. Needle beams (gap 21), which are mostly wiring over machinery that already exists.

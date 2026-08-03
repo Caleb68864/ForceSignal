@@ -57,6 +57,7 @@ type Ship = {
   fireControlMax: number;
   fireControlDamage: number;
   pointDefenseSystems?: number;
+  fighterBays?: number;
   driveDamage: number;
   weaponDamage: number;
   screenRating: number;
@@ -250,6 +251,7 @@ type ShipForm = {
   screenRating: number;
   fireControlMax: number;
   pointDefenseSystems: number;
+  fighterBays: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -286,6 +288,7 @@ type FleetExportShip = {
   screenRating: number;
   fireControlMax: number;
   pointDefenseSystems: number;
+  fighterBays: number;
   weapons: WeaponMount[];
   fighterEnduranceMax: number;
   fighterEnduranceUsed: number;
@@ -337,6 +340,7 @@ const defaultShipForm: ShipForm = {
   armorMax: 4,
   fireControlMax: 2,
   pointDefenseSystems: 1,
+  fighterBays: 0,
   screenRating: 1,
   weapons: [{
     id: crypto.randomUUID(),
@@ -547,7 +551,7 @@ const shipPresets: { label: string; patch: Partial<ShipForm> }[] = [
   },
   {
     label: 'Carrier',
-    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 3, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
+    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 3, fighterBays: 4, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
   },
   {
     label: 'Fighters',
@@ -802,6 +806,7 @@ function App() {
       screenRating: shipForm.screenRating,
       fireControlMax: shipForm.fireControlMax,
       pointDefenseSystems: shipForm.pointDefenseSystems,
+      fighterBays: shipForm.fighterBays,
       weapons: shipForm.weapons,
       iconKey: shipForm.iconKey,
       fighterEnduranceMax: shipForm.fighterEnduranceMax,
@@ -894,6 +899,7 @@ function App() {
         screenRating: ship.screenRating,
         fireControlMax: ship.fireControlMax ?? 1,
         pointDefenseSystems: ship.pointDefenseSystems ?? 0,
+        fighterBays: ship.fighterBays ?? 0,
         weapons: ship.weapons,
         iconKey: ship.iconKey,
         fighterEnduranceMax: ship.fighterEnduranceMax,
@@ -1095,6 +1101,7 @@ function App() {
       screenRating: form.screenRating,
       fireControlMax: form.fireControlMax,
       pointDefenseSystems: form.pointDefenseSystems,
+      fighterBays: form.fighterBays,
       weapons: form.weapons,
       iconKey: form.iconKey,
       fighterEnduranceMax: form.fighterEnduranceMax,
@@ -2317,6 +2324,10 @@ function ShipProfileFields({ form, onChange }: { form: ShipForm; onChange: (form
         Point defence
         <input type="number" min="0" max="12" value={form.pointDefenseSystems} onChange={(event) => onChange({ ...form, pointDefenseSystems: Number(event.target.value) })} />
       </label>
+      <label title="Fighter bays. Each holds one group; a carrier must hold course and speed to launch or recover, and a bay lost to a threshold check takes the group inside it.">
+        Fighter bays
+        <input type="number" min="0" max="12" value={form.fighterBays} onChange={(event) => onChange({ ...form, fighterBays: Number(event.target.value) })} />
+      </label>
       <label>
         Points (NPV)
         <input type="number" min="0" max="99999" value={form.pointsValue} onChange={(event) => onChange({ ...form, pointsValue: Number(event.target.value) })} />
@@ -2463,6 +2474,7 @@ function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (form: Shi
     screenRating: ship.screenRating,
     fireControlMax: ship.fireControlMax ?? 1,
     pointDefenseSystems: ship.pointDefenseSystems ?? 0,
+    fighterBays: ship.fighterBays ?? 0,
     weapons: ship.weapons.length > 0 ? ship.weapons : [newWeaponMount()],
     fighterEnduranceMax: ship.fighterEnduranceMax,
     fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -4878,6 +4890,7 @@ function toFleetExport(fleet: Fleet, ships: Ship[]): FleetExport {
       screenRating: ship.screenRating,
       fireControlMax: ship.fireControlMax ?? 1,
       pointDefenseSystems: ship.pointDefenseSystems ?? 0,
+      fighterBays: ship.fighterBays ?? 0,
       weapons: ship.weapons,
       fighterEnduranceMax: ship.fighterEnduranceMax,
       fighterEnduranceUsed: ship.fighterEnduranceUsed,
@@ -4918,6 +4931,7 @@ function parseFleetExport(text: string, fileName: string, fallback: ShipForm): F
       screenRating: getValue('screens') || getValue('screenrating'),
       fireControlMax: getValue('firecontrolmax') || getValue('firecons'),
       pointDefenseSystems: getValue('pointdefensesystems') || getValue('pds'),
+      fighterBays: getValue('fighterbays') || getValue('bays'),
       fighterEnduranceMax: getValue('fighterendurance') || getValue('fighterendurancemax'),
       fighterEnduranceUsed: getValue('fighterused') || getValue('fighterenduranceused'),
       fighterMaxRange: getValue('fighterrange') || getValue('fightermaxrange'),
@@ -4975,6 +4989,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
     screenRating: wholeNumberFrom(record.screenRating ?? record.screens, fallback.screenRating, 0, 3),
     fireControlMax: wholeNumberFrom(record.fireControlMax ?? record.firecons, fallback.fireControlMax, 0, 6),
     pointDefenseSystems: wholeNumberFrom(record.pointDefenseSystems ?? record.pds, fallback.pointDefenseSystems, 0, 12),
+    fighterBays: wholeNumberFrom(record.fighterBays ?? record.bays, fallback.fighterBays, 0, 12),
     weapons: Array.isArray(record.weapons) ? record.weapons.map(normalizeWeaponMount) : [newWeaponMount()],
     fighterEnduranceMax: wholeNumberFrom(record.fighterEnduranceMax ?? record.fighterEndurance, fallback.fighterEnduranceMax, 0, 24),
     fighterEnduranceUsed: wholeNumberFrom(record.fighterEnduranceUsed ?? record.fighterUsed, fallback.fighterEnduranceUsed, 0, 24),
@@ -4988,7 +5003,7 @@ function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExpo
 
 function fleetExportToCsv(fleet: FleetExport) {
   const rows = [
-    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fireControlMax', 'pointDefenseSystems', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
+    ['fleetColor', 'name', 'className', 'iconKey', 'thrustRating', 'initialVelocity', 'initialCourse', 'startX', 'startY', 'hullMax', 'armorMax', 'screenRating', 'fireControlMax', 'pointDefenseSystems', 'fighterBays', 'fighterEnduranceMax', 'fighterEnduranceUsed', 'fighterMaxRange', 'fighterStatus', 'homeCarrierName', 'pointsValue', 'weapons'],
     ...fleet.ships.map((ship) => [
       fleet.fleetColor,
       ship.name,
@@ -5004,6 +5019,7 @@ function fleetExportToCsv(fleet: FleetExport) {
       String(ship.screenRating),
       String(ship.fireControlMax ?? 1),
       String(ship.pointDefenseSystems ?? 0),
+      String(ship.fighterBays ?? 0),
       String(ship.fighterEnduranceMax),
       String(ship.fighterEnduranceUsed),
       String(ship.fighterMaxRange),

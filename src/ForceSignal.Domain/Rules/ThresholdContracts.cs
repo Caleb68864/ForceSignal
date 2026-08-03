@@ -13,7 +13,13 @@ public enum ShipSystemKind
     Screen,
 
     /// <summary>One weapon mount.</summary>
-    Weapon
+    Weapon,
+
+    /// <summary>
+    /// One fighter bay. Losing it costs the carrier a group's worth of capacity, and any group
+    /// still aboard goes with it.
+    /// </summary>
+    FighterBay
 }
 
 /// <summary>One surviving system icon that rolls when a hull row is completed.</summary>
