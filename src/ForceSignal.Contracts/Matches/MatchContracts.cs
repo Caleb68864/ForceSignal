@@ -164,6 +164,16 @@ public sealed record UpdateShipDamageRequest(
 /// <param name="ParticipantToken">Session token of the participant who is done plotting.</param>
 public sealed record DeclareOrdersCompleteRequest(string ParticipantToken);
 
+/// <summary>
+/// Flies a fighter group to a new spot on the table. A group takes no written orders: it simply moves
+/// up to its allowance in any direction, and its stand ends up pointing the way it flew.
+/// </summary>
+/// <param name="ParticipantToken">Session token of the group's owner.</param>
+/// <param name="ShipId">The fighter group being moved.</param>
+/// <param name="PositionX">Where the group is going, across the table.</param>
+/// <param name="PositionY">Where the group is going, down the table.</param>
+public sealed record MoveFighterGroupRequest(string ParticipantToken, Guid ShipId, decimal PositionX, decimal PositionY);
+
 /// <summary>Commits a hidden movement order by storing its salted hash.</summary>
 public sealed record CommitOrderRequest(
     string ParticipantToken,

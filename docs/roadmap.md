@@ -86,11 +86,11 @@ A second pass over the rules areas the first scan did not reach - carrier operat
 defences, damage control, needle beams - found six more divergences. Each is written up in full in
 `rules-fidelity-gaps.md`.
 
-- [ ] Main batteries can shoot fighter groups (gap 16). The rules let only anti-fighter weapons and
-      other fighters engage a group, so today a beam wipes a flight in a volley, carriers are
-      worthless against a beam fleet, and point defence has nothing to do. The worst of the six.
-- [ ] Fighter groups move like warships (gap 17). A group should need no orders and move up to 12mu
-      (24 under Fleet Book) in any direction; instead it is plotted with course, velocity and thrust.
+- [x] Main batteries cannot engage fighter groups (gap 16). Only fighters may fire on fighters; a
+      warship is not even offered a group as a target, and point defence answers a strike instead.
+- [x] Fighter groups are flown, not plotted (gap 17). A group moves to any point within 12mu once a
+      turn, in any direction, ending up facing the way it flew. It takes no orders, never holds up
+      plotting, and never drifts.
 - [ ] Carrier launch and recovery are unrestricted (gap 18). A launching or recovering carrier may not
       change course or velocity, launch rates are capped by bays, and each bay holds one group.
 - [ ] Fighter bays are not threshold systems (gap 19). A lost bay should cost capacity and the ability

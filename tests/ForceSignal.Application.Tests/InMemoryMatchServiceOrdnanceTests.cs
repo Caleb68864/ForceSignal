@@ -185,6 +185,34 @@ public sealed class InMemoryMatchServiceOrdnanceTests
         Assert.Contains("out of combat endurance", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void FireWeapon_RefusesAMainBatteryFiringAtAFighterGroup()
+    {
+        // Batteries cannot engage fighters: point defence is the answer, and it fires when the group
+        // attacks rather than being aimed at it.
+        var table = OrdnanceTable.Build(targetPointDefense: 0);
+        table.RunToFiring();
+
+        var error = Assert.Throws<InvalidOperationException>(table.BeamTheFighters);
+
+        Assert.Contains("cannot engage fighters", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FireWeapon_LetsAFighterGroupShootAtAnotherFighterGroup()
+    {
+        // Fighters may fire on each other inside 6mu through their fore arc, scoring kills on the same
+        // numbers as anti-fighter fire. A dogfight at base contact is a separate rule and not built.
+        var table = OrdnanceTable.Build(targetPointDefense: 0, opposingFlight: true);
+        table.RunToFiring();
+        table.Dice.Script(5, 5, 5, 6, 4, 4);
+
+        var result = table.StrikeOpposingFlight();
+
+        var enemyFlight = result.Ships.Single(ship => ship.Id == table.OpposingFlightId);
+        Assert.True(enemyFlight.HullDamage > 0);
+    }
+
     /// <summary>A missile cruiser and a fighter group against one target, all inside 6mu of it.</summary>
     private sealed record OrdnanceTable(
         InMemoryMatchService Service,
@@ -196,9 +224,11 @@ public sealed class InMemoryMatchServiceOrdnanceTests
         Guid FighterGroupId,
         Guid TargetId,
         Guid FighterMount,
-        Guid SecondFighterMount)
+        Guid SecondFighterMount,
+        Guid BeamMount,
+        Guid OpposingFlightId)
     {
-        public static OrdnanceTable Build(int targetPointDefense, int fighterEnduranceUsed = 0)
+        public static OrdnanceTable Build(int targetPointDefense, int fighterEnduranceUsed = 0, bool opposingFlight = false)
         {
             var dice = new ScriptedDice { Fallback = 4 };
             var service = new InMemoryMatchService(dice.Next);
@@ -209,10 +239,13 @@ public sealed class InMemoryMatchServiceOrdnanceTests
             var redFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null))
                 .Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
 
+            var beamMount = Guid.NewGuid();
             var launcher = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Archer", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: 12, HullMax: 20, ArmorMax: 0,
-                StartX: 20, StartY: 40, FireControlMax: 1)).Ships.Single(s => s.Name == "Archer");
+                StartX: 20, StartY: 40, FireControlMax: 1,
+                Weapons: [new WeaponMountDto(beamMount, "Class-3 Beam", 3, 36, [FiringArc.Fore])]))
+                .Ships.Single(s => s.Name == "Archer");
 
             Guid fighterMount = Guid.NewGuid(), secondMount = Guid.NewGuid();
             var group = service.CreateShip(blueFleet.Id, new CreateShipRequest(
@@ -235,12 +268,24 @@ public sealed class InMemoryMatchServiceOrdnanceTests
                 StartX: 20, StartY: 20, ScreenRating: 2,
                 FireControlMax: 1, PointDefenseSystems: targetPointDefense)).Ships.Single(s => s.Name == "Bulwark");
 
+            // An enemy flight just off the friendly group's bow, for fighter-versus-fighter fire.
+            var opposing = opposingFlight
+                ? service.CreateShip(redFleet.Id, new CreateShipRequest(
+                    opponent.ParticipantToken, "Red Talons", "Fighter Group", 6,
+                    InitialVelocity: 0, InitialCourse: 6, HullMax: 6, ArmorMax: 0,
+                    StartX: 20, StartY: 21,
+                    Weapons: [new WeaponMountDto(Guid.NewGuid(), "Fighter Attack", 6, 6, [FiringArc.Fore])],
+                    IconKey: "fighter-group",
+                    FighterEnduranceMax: 6,
+                    FireControlMax: 1)).Ships.Single(s => s.Name == "Red Talons")
+                : null;
+
             service.SetReady(owner.MatchId, owner.ParticipantToken, true);
             service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
 
             return new OrdnanceTable(
                 service, dice, owner.MatchId, owner.ParticipantToken, opponent.ParticipantToken,
-                launcher.Id, group.Id, target.Id, fighterMount, secondMount);
+                launcher.Id, group.Id, target.Id, fighterMount, secondMount, beamMount, opposing?.Id ?? Guid.Empty);
         }
 
         public void LaunchSalvo(decimal aimX, decimal aimY) =>
@@ -259,6 +304,13 @@ public sealed class InMemoryMatchServiceOrdnanceTests
         public MatchSnapshotDto FighterStrike(int range = 4, bool secondMount = false) =>
             Service.FireWeapon(MatchId, new FireWeaponRequest(
                 OwnerToken, FighterGroupId, TargetId, secondMount ? SecondFighterMount : FighterMount, range));
+
+        /// <summary>Tries to bring the cruiser's main battery to bear on the friendly flight.</summary>
+        public MatchSnapshotDto BeamTheFighters() =>
+            Service.FireWeapon(MatchId, new FireWeaponRequest(OwnerToken, LauncherId, FighterGroupId, BeamMount, 16));
+
+        public MatchSnapshotDto StrikeOpposingFlight() =>
+            Service.FireWeapon(MatchId, new FireWeaponRequest(OwnerToken, FighterGroupId, OpposingFlightId, FighterMount, 3));
 
         /// <summary>Shoots down fighters by hand, standing in for earlier losses.</summary>
         public void KillFighters(int count)

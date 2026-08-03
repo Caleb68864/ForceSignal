@@ -435,40 +435,52 @@ Each was checked against the code, not inferred.
 
 ---
 
-## Gap 16 — Main batteries can shoot fighter groups
+## Gap 16 — Main batteries can shoot fighter groups — FIXED 2026-08-02
 
 **Rules** (`Fighters/Anti-Fighter Defences.md`): "Main starship batteries cannot engage fighters."
 Only dedicated anti-fighter weapons - point defence in Fleet Book terms - and other fighters may fire
 at a fighter group.
 
-**App**: a fighter group is a ship record, so any beam or torpedo can name it as a target. Nothing in
-`FireWeapon` stops it: the only special case for a group as target is spending its endurance.
+**Was**: a fighter group is a ship record, so any beam or torpedo could name it as a target - which
+undid both of the systems built the day before. A Class-3 beam wiped a flight in a volley or two, so
+carriers were worthless against a beam fleet and point defence had nothing to do.
 
-**Why it matters**: this is the worst of the new findings, because it undoes two systems that were
-just built. A Class-3 beam wipes a six-fighter group in a volley or two, so carriers are worthless to
-fly against any beam fleet, and point defence - the actual counter, with its own fire control and its
-own kill table - is pointless because the batteries never needed it. It also makes fighters far more
-fragile than their 20-point cost assumes.
+**Now**: a mount belonging to a warship cannot target a fighter group at all, and says why: point
+defence answers a strike when the group attacks, rather than being aimed at it. The client does not
+even offer fighter groups in a warship's target list.
 
-Code: `InMemoryMatchService.FireWeapon` - no check on the target being a fighter group.
+Fighters may still fire on each other - within 6mu, through their fore arc, scoring on the same numbers
+as anti-fighter fire - because that is the ranged half of fighter-versus-fighter combat and falls out of
+the existing path. Dogfights at base contact, with their simultaneous fire, remain unbuilt.
+
+Code: target check in `InMemoryMatchService.FireWeapon`, `firingTargetOptions` in `main.tsx`.
 
 ---
 
-## Gap 17 — Fighter groups move like warships
+## Gap 17 — Fighter groups move like warships — FIXED 2026-08-02
 
 **Rules** (`Fighters/Fighter Groups.md`): a group needs no written movement orders, and neither its
 course nor its velocity is tracked. In the fighter movement phase you simply move any or all
 operational groups up to 12mu (FT2) or 24mu (Fleet Book 1) in any direction.
 
-**App**: a group is a ship with a thrust rating, a course and a velocity, plotted through the same
-hidden-order pipeline as a cruiser and held to the same half-thrust turn cap. Since unordered ships
-now hold course (gap 7), a group left unplotted drifts on a heading instead of being moved freely.
+**Was**: a group was plotted through the same hidden-order pipeline as a cruiser and held to the same
+half-thrust turn cap, so repositioning cost thrust it should not spend and a group could not reverse.
+Worse, once unordered ships began holding course, an unplotted group drifted on a heading.
 
-**Why it matters**: fighters cannot be flown the way the rules intend. Repositioning a group costs
-thrust it should not have to spend, a group cannot reverse direction, and a strike cannot be walked
-onto a target that moved.
+**Now**: a group is flown rather than plotted. It moves to any point within 12mu once a turn, in any
+direction including straight backwards, and its stand ends up pointing the way it flew - which is what
+its fore arc is then measured from. Trying to plot a course for one is refused and says to fly it
+instead; trying to fly a warship is refused the other way round.
 
-Code: no fighter special-casing anywhere in the movement path.
+Groups are out of the plotting gates entirely: they never hold up an order-entry phase and they never
+drift. On the map, right-click or long-press flies the selected group to that spot, and a point past
+its allowance says how far away it is instead.
+
+Fleet Book 1 raises the allowance to 24mu with an optional second move after the ships have moved;
+ForceSignal uses the 12mu of FTL and FT2, which is the profile it targets.
+
+Code: `MoveFighterGroup` / `PlottableShipIds` / `CourseTowards` in `InMemoryMatchService`,
+`moveFighterGroup` and the fighter branch of `plotFromClientPoint` in `main.tsx`.
 
 ---
 
@@ -580,10 +592,9 @@ whole subsystems above the target profile, and none blocks a match.
 
 ## Suggested order for the second round
 
-1. Stop main batteries engaging fighter groups (gap 16). Small change, and it restores the point of
-   both fighters and point defence.
-2. Fighter group movement (gap 17), then carrier launch and recovery with bays as systems
-   (gaps 18, 19). Together these make carrier play work as written.
+1. ~~Stop main batteries engaging fighter groups (gap 16).~~ Done.
+2. ~~Fighter group movement (gap 17).~~ Done. Carrier launch and recovery with bays as systems
+   (gaps 18, 19) still to do; together with 17 they make carrier play work as written.
 3. Damage control (gap 20). The natural counterpart to threshold checks, and the biggest change to how
    a long game feels.
 4. Needle beams (gap 21), which are mostly wiring over machinery that already exists.

@@ -424,6 +424,23 @@ app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/commit", async (
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
+app.MapPost("/api/matches/{matchId:guid}/fighters/move", async (
+    Guid matchId,
+    MoveFighterGroupRequest request,
+    IMatchService matches,
+    IHubContext<MatchHub> hub) =>
+{
+    var snapshot = matches.MoveFighterGroup(matchId, request);
+    await NotifySnapshotChanged(hub, snapshot, "FighterGroupMoved");
+    return Results.Ok(snapshot);
+})
+    .WithName("MoveFighterGroup")
+    .WithTags("Fighters")
+    .WithSummary("Flies a fighter group up to its move allowance in any direction.")
+    .Produces<MatchSnapshotDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
 app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/complete", async (
     Guid matchId,
     DeclareOrdersCompleteRequest request,

@@ -73,6 +73,9 @@ public interface IMatchService
     /// <summary>Removes a launched ordnance marker.</summary>
     MatchSnapshotDto RemoveOrdnanceMarker(Guid markerId, RemoveOrdnanceMarkerRequest request);
 
+    /// <summary>Flies a fighter group up to its move allowance in any direction.</summary>
+    MatchSnapshotDto MoveFighterGroup(Guid matchId, MoveFighterGroupRequest request);
+
     /// <summary>Declares a participant has finished plotting, leaving unordered ships to hold course.</summary>
     MatchSnapshotDto DeclareOrdersComplete(Guid matchId, DeclareOrdersCompleteRequest request);
 
@@ -907,6 +910,72 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
     }
 
+    public MatchSnapshotDto MoveFighterGroup(Guid matchId, MoveFighterGroupRequest request)
+    {
+        lock (_gate)
+        {
+            var match = FindMatch(matchId);
+            var participant = FindParticipant(match, request.ParticipantToken);
+            if (match.Phase is MatchPhase.FleetSetup or MatchPhase.Firing)
+            {
+                throw new InvalidOperationException("Fighter groups fly between plotting and the firing phase.");
+            }
+
+            var group = FindOwnedShip(match, participant.Id, request.ShipId);
+            if (!IsFighterGroupShip(group))
+            {
+                throw new InvalidOperationException($"{group.Name} is not a fighter group. Plot a course for it instead.");
+            }
+
+            if (IsDestroyed(group))
+            {
+                throw new InvalidOperationException($"{group.Name} has been wiped out.");
+            }
+
+            if (match.MovedFighterGroupIds.Contains(group.Id))
+            {
+                throw new InvalidOperationException($"{group.Name} has already flown this turn.");
+            }
+
+            var destinationX = ClampPosition(request.PositionX, match.TableWidth);
+            var destinationY = ClampPosition(request.PositionY, match.TableDepth);
+            var distance = Math.Round((decimal)Math.Sqrt(
+                Math.Pow((double)(destinationX - group.PositionX), 2)
+                + Math.Pow((double)(destinationY - group.PositionY), 2)), 1);
+            if (distance > FighterMoveAllowance)
+            {
+                throw new InvalidOperationException(
+                    $"That is {distance:0.#} away, past the {FighterMoveAllowance} {group.Name} can fly in a turn.");
+            }
+
+            var startingX = group.PositionX;
+            var startingY = group.PositionY;
+            group.PositionX = destinationX;
+            group.PositionY = destinationY;
+            // The stand points the way the group flew, which is what its fore arc is measured from.
+            if (distance > 0)
+            {
+                group.CurrentCourse = CourseTowards(startingX, startingY, destinationX, destinationY);
+            }
+
+            match.MovedFighterGroupIds.Add(group.Id);
+            match.AddLog(
+                "Fighters",
+                match.Phase.ToString(),
+                $"{DescribeShip(match, group)} flew {distance:0.#} from {startingX:0.#},{startingY:0.#} to {destinationX:0.#},{destinationY:0.#}, now facing course {group.CurrentCourse}.{PositionEdgeNote(group, match)}");
+            match.Touch("FighterGroupMoved");
+            return ToSnapshot(match);
+        }
+    }
+
+    /// <summary>The twelve-point course that best matches a heading across the table.</summary>
+    private static int CourseTowards(decimal fromX, decimal fromY, decimal toX, decimal toY)
+    {
+        var bearing = Math.Atan2((double)(toX - fromX), -(double)(toY - fromY)) * 180 / Math.PI;
+        var normalized = ((bearing % 360) + 360) % 360;
+        return FullThrustLightCinematicRules.WrapCourse((int)Math.Round(normalized / 30));
+    }
+
     public MatchSnapshotDto DeclareOrdersComplete(Guid matchId, DeclareOrdersCompleteRequest request)
     {
         lock (_gate)
@@ -938,7 +1007,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     /// </summary>
     private static List<Guid> DriftingShipIds(MatchState match, Guid? ownerParticipantId = null) =>
     [
-        .. LiveShipIds(match).Where(id =>
+        .. PlottableShipIds(match).Where(id =>
         {
             if (match.Commitments.ContainsKey(id))
             {
@@ -1003,6 +1072,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException($"{ship.Name} is destroyed and cannot receive movement orders.");
             }
 
+            if (IsFighterGroupShip(ship))
+            {
+                throw new InvalidOperationException($"{ship.Name} is a fighter group: fly it straight to where it is going rather than plotting a course.");
+            }
+
             var validation = _rules.Validate(new ShipMovementState(ship.CurrentVelocity, ship.CurrentCourse), UsableThrust(ship), request.Order);
             if (!validation.IsValid)
             {
@@ -1015,7 +1089,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             match.Commitments[ship.Id] = new OrderCommitmentState(ship.Id, participant.Id, commitment, false, null, null, null);
             // Order contents stay hidden until reveal, so only the lock event itself is logged.
             match.AddLog("Orders", match.Phase.ToString(), $"{DescribeShip(match, ship)} {(isRelock ? "re-locked" : "locked")} a hidden movement order.");
-            var liveShipIds = LiveShipIds(match);
+            var liveShipIds = PlottableShipIds(match);
             if (liveShipIds.Count > 0 && liveShipIds.All(match.Commitments.ContainsKey))
             {
                 match.Phase = MatchPhase.OrdersLocked;
@@ -1149,6 +1223,14 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             {
                 var busy = match.Ships.SingleOrDefault(s => s.Id == firingShipId);
                 throw new InvalidOperationException($"{busy?.Name ?? "Another ship"} is still firing. Finish its fire before starting another ship.");
+            }
+
+            // Main batteries cannot engage fighters at all: that is what point defence is for, and it
+            // answers a strike automatically when the group attacks. Fighters may shoot at each other.
+            if (IsFighterGroupShip(target) && !IsFighterGroupShip(attacker))
+            {
+                throw new InvalidOperationException(
+                    $"{weapon.Name} cannot engage fighters. Point defence answers a fighter strike when the group attacks.");
             }
 
             if (IsFighterGroupShip(attacker))
@@ -1340,6 +1422,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 match.Phase = MatchPhase.OrderEntry;
                 match.Commitments.Clear();
                 match.FiringResults.Clear();
+                match.MovedFighterGroupIds.Clear();
                 foreach (var plotter in match.Participants)
                 {
                     plotter.OrdersComplete = false;
@@ -1723,6 +1806,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         /// <summary>Ships that have already taken their turn to fire this phase.</summary>
         public HashSet<Guid> ActivatedShipIds { get; } = [];
 
+        /// <summary>Fighter groups that have already flown this turn.</summary>
+        public HashSet<Guid> MovedFighterGroupIds { get; } = [];
+
         /// <summary>Hull damage each target had before the firing ship opened up, by target id.</summary>
         public Dictionary<Guid, int> PendingThresholds { get; } = [];
         public int TurnNumber { get; set; } = 1;
@@ -1893,6 +1979,19 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
     /// <summary>Thrust actually available for plotting after drive damage.</summary>
     private static int UsableThrust(ShipState ship) => Math.Max(0, ship.ThrustRating - ship.DriveDamage);
+
+    /// <summary>
+    /// How far a fighter group may move in a turn. A group is not flown on course and velocity: it
+    /// goes anywhere inside this radius, which is why it needs no written order.
+    /// </summary>
+    public const int FighterMoveAllowance = 12;
+
+    /// <summary>
+    /// Ships that are flown by written order. Fighter groups are moved by hand instead, so they never
+    /// hold up plotting and never drift on a heading.
+    /// </summary>
+    private static List<Guid> PlottableShipIds(MatchState match) =>
+        [.. match.Ships.Where(s => !IsDestroyed(s) && !IsFighterGroupShip(s)).Select(s => s.Id)];
 
     private static List<Guid> LiveShipIds(MatchState match) =>
         match.Ships.Where(s => !IsDestroyed(s)).Select(s => s.Id).ToList();

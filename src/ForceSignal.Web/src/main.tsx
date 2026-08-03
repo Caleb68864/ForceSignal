@@ -371,6 +371,10 @@ const shipIconOptions: { key: ShipIconKey; label: string }[] = [
 const fighterStatuses: FighterStatus[] = ['Docked', 'Airborne', 'Recovering'];
 
 // Six sixty-degree arcs, clockwise from dead ahead.
+/// How far a fighter group flies in a turn. It moves in any direction inside this radius rather than
+/// being plotted on a course, which is why it needs no written order.
+const fighterMoveAllowance = 12;
+
 const firingArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'Aft', 'AftPort', 'ForePort'];
 // Every weapon has the aft arc blacked out, so only these five can ever be fired through.
 const firableArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'AftPort', 'ForePort'];
@@ -1216,6 +1220,21 @@ function App() {
     setMessage(`${ship.name} fired at ${target?.name ?? 'target'} at range ${draft.range}.`);
   }
 
+  async function moveFighterGroup(ship: Ship, x: number, y: number) {
+    if (!session) {
+      return;
+    }
+
+    const flown = await post<MatchSnapshot>(`/api/matches/${session.matchId}/fighters/move`, {
+      participantToken: session.participantToken,
+      shipId: ship.id,
+      positionX: x,
+      positionY: y,
+    });
+    setSnapshot(flown);
+    setMessage(`${ship.name} flew to ${x.toFixed(1)}, ${y.toFixed(1)}.`);
+  }
+
   async function ceaseFire(ship: Ship) {
     if (!session) {
       return;
@@ -2056,6 +2075,7 @@ function App() {
                 onUpdateOrdnance={(marker, patch) => updateOrdnanceMarker(marker, patch).catch(showError(setMessage))}
                 onRemoveOrdnance={(marker) => removeOrdnanceMarker(marker).catch(showError(setMessage))}
                 onFire={(ship, draft) => fireWeapon(ship, draft)}
+                onFlyFighters={(ship, x, y) => moveFighterGroup(ship, x, y)}
               onCeaseFire={(ship) => ceaseFire(ship)}
               />
             ) : null}
@@ -2486,6 +2506,7 @@ function PlayMap({
   onRemoveOrdnance,
   onFire,
   onCeaseFire,
+  onFlyFighters,
 }: {
   snapshot: MatchSnapshot;
   ownedShipIds: Set<string>;
@@ -2503,6 +2524,7 @@ function PlayMap({
   onRemoveOrdnance: (marker: OrdnanceMarker) => void;
   onFire: (ship: Ship, draft: FiringDraft) => Promise<void>;
   onCeaseFire: (ship: Ship) => Promise<void>;
+  onFlyFighters: (ship: Ship, x: number, y: number) => Promise<void>;
 }) {
   const selectedShip = snapshot.ships.find((ship) => ship.id === focusedShipId)
     ?? snapshot.ships.find((ship) => ownedShipIds.has(ship.id) && !ship.isDestroyed)
@@ -2738,6 +2760,20 @@ function PlayMap({
     }
 
     const point = tablePointFromClient(tableRef.current, clientX, clientY, viewport, snapshot.tableWidth, snapshot.tableDepth);
+
+    // A fighter group takes no orders: it simply flies to the spot, up to its allowance.
+    if (isFighterGroup(shipToPlot)) {
+      const reach = Math.hypot(point.x - shipToPlot.positionX, point.y - shipToPlot.positionY);
+      if (reach > fighterMoveAllowance) {
+        setMapNotice(`${shipToPlot.name} can fly ${fighterMoveAllowance}; that spot is ${reach.toFixed(1)} away`);
+        return false;
+      }
+
+      onFlyFighters(shipToPlot, point.x, point.y).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)));
+      onFocus(shipToPlot.id);
+      return true;
+    }
+
     const targetCourse = courseFromTablePoint(shipToPlot, point.x, point.y);
     const draft = draftFor(shipToPlot.id, drafts);
     const maxTurn = maxLegalTurn(usableThrust(shipToPlot), draft.velocityDelta);
@@ -4707,8 +4743,12 @@ function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, Firing
 /// Selectable targets for a firing solution: hostile contacts first, nearest first.
 /// Friendly hulls stay selectable for deliberate crossfire but are never the default.
 function firingTargetOptions(ship: Ship, ships: Ship[], ownedShipIds?: Set<string>): Ship[] {
+  // Main batteries cannot engage fighters at all - point defence answers a strike when it comes in -
+  // so a warship is not offered fighter groups as targets. Fighters may shoot at each other.
+  const canEngageFighters = isFighterGroup(ship);
   return ships
-    .filter((candidate) => candidate.id !== ship.id && !candidate.isDestroyed)
+    .filter((candidate) => candidate.id !== ship.id && !candidate.isDestroyed
+      && (canEngageFighters || !isFighterGroup(candidate)))
     .map((candidate) => ({
       candidate,
       friendly: ownedShipIds?.has(candidate.id) ?? false,
