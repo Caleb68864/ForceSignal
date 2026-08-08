@@ -165,6 +165,72 @@ public sealed class InMemoryMatchServiceHardeningTests
         Assert.Contains("fleets", refused.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void AShipIsOnlyReachableThroughTheMatchThatHoldsIt()
+    {
+        var service = new InMemoryMatchService();
+        var blue = service.CreateMatch(new CreateMatchRequest("Blue", "Blue Match"));
+        var red = service.CreateMatch(new CreateMatchRequest("Red", "Red Match"));
+        var blueFleet = service.CreateFleet(blue.MatchId, new CreateFleetRequest(blue.ParticipantToken, "Blue", null)).Fleets.Single();
+        var blueShip = service.CreateShip(blueFleet.Id, Ship(blue.ParticipantToken, "Valiant")).Ships.Single();
+
+        // Red's token addresses Blue's ship: the ship resolves, but not to Red.
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            service.UpdateShipDamage(blueShip.Id, new UpdateShipDamageRequest(red.ParticipantToken, 1, 0, 0, 0, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void AnUnknownShipIdIsReportedAsMissingRatherThanFoundInSomeOtherMatch()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Missing Ship"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
+
+        var missing = Assert.Throws<InvalidOperationException>(() =>
+            service.UpdateShipDamage(Guid.NewGuid(), new UpdateShipDamageRequest(owner.ParticipantToken, 1, 0, 0, 0, 0, 0, 0)));
+        Assert.Contains("not found", missing.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ARemovedOrdnanceMarkerStopsBeingAddressable()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Marker Life"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
+
+        var marker = service.CreateOrdnanceMarker(owner.MatchId, new CreateOrdnanceMarkerRequest(
+            owner.ParticipantToken, "Salvo One", "Salvo", null, null, 20, 24, 1, 12, 3, 6, 24))
+            .OrdnanceMarkers.Single();
+
+        service.RemoveOrdnanceMarker(marker.Id, new RemoveOrdnanceMarkerRequest(owner.ParticipantToken));
+
+        var missing = Assert.Throws<InvalidOperationException>(() =>
+            service.RemoveOrdnanceMarker(marker.Id, new RemoveOrdnanceMarkerRequest(owner.ParticipantToken)));
+        Assert.Contains("not found", missing.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void OpeningMoreMatchesThanTheServerHoldsRetiresTheOldestRatherThanRefusing()
+    {
+        var service = new InMemoryMatchService();
+        var first = service.CreateMatch(new CreateMatchRequest("Blue", "First"));
+
+        // Push past the concurrent ceiling. A table must always be able to start a game, so the
+        // oldest match gives way instead of the new one being turned down.
+        for (var i = 0; i < 520; i++)
+        {
+            service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}"));
+        }
+
+        Assert.Throws<InvalidOperationException>(() => service.GetSnapshot(first.MatchId));
+
+        // The newest match is still there and still works.
+        var latest = service.CreateMatch(new CreateMatchRequest("Blue", "Latest"));
+        Assert.Equal("Latest", service.GetSnapshot(latest.MatchId).Name);
+    }
+
     private static CreateShipRequest Ship(string token, string name) => new(
         token, name, "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24);
 }

@@ -120,6 +120,14 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private readonly Dictionary<Guid, MatchState> _matches = [];
     private readonly Dictionary<string, Guid> _joinCodes = new(StringComparer.OrdinalIgnoreCase);
 
+    // Ships, fleets, and ordnance markers are addressed by their own id, without the match they
+    // belong to. Finding the owning match used to mean scanning every match's collections on every
+    // such call, which is work proportional to everything the server is hosting for an operation
+    // that touches one ship. These map an entity straight to its match instead.
+    private readonly Dictionary<Guid, Guid> _shipToMatch = [];
+    private readonly Dictionary<Guid, Guid> _fleetToMatch = [];
+    private readonly Dictionary<Guid, Guid> _markerToMatch = [];
+
     // Ceilings on how much state one match may hold. None of these is a rules limit - they are far
     // above any real game - they exist so that a mistyped number, a runaway client, or a crafted
     // snapshot cannot turn into unbounded memory on a machine someone is running off a laptop at
@@ -141,6 +149,17 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
     /// <summary>Longest caller-supplied display string kept. Longer text is truncated, not refused.</summary>
     private const int MaxDisplayTextLength = 120;
+
+    /// <summary>
+    /// How long a match with nobody touching it is kept before its memory is reclaimed. A game can
+    /// sit idle over a lunch break or an argument about a range measurement, so the window is long
+    /// enough that no real table ever hits it - it exists so a server left running for a month does
+    /// not still be holding every match anyone ever opened on it.
+    /// </summary>
+    private static readonly TimeSpan IdleMatchRetention = TimeSpan.FromHours(24);
+
+    /// <summary>Matches held at once. Reached only if that many are opened inside the retention window.</summary>
+    private const int MaxConcurrentMatches = 500;
 
     /// <summary>Refuses one more of something when a match is already holding its ceiling.</summary>
     private static void RequireRoom(int current, int max, string what)
@@ -164,6 +183,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
+            EvictIdleMatches();
             var matchId = Guid.NewGuid();
             var participant = ParticipantState.Create(NormalizeText(request.DisplayName, "Admiral"), "Owner");
             var joinCode = CreateJoinCode();
@@ -190,6 +210,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             }
 
             var match = _matches[matchId];
+            match.LastActivity = DateTimeOffset.UtcNow;
             if (match.Participants.Any(p => !p.IsClaimed))
             {
                 throw new InvalidOperationException("This match was restored from a backup. Claim your seat instead of joining.");
@@ -283,6 +304,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
         lock (_gate)
         {
+            EvictIdleMatches();
             var matchId = Guid.NewGuid();
             var reusedJoinCode = !string.IsNullOrWhiteSpace(snapshot.JoinCode)
                 && !_joinCodes.ContainsKey(snapshot.JoinCode);
@@ -469,6 +491,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
             _matches.Add(matchId, match);
             _joinCodes[joinCode] = matchId;
+            IndexMatch(match);
             match.Touch("MatchRestored");
             return new MatchRestoredResponse(
                 matchId,
@@ -491,6 +514,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             }
 
             var match = _matches[matchId];
+            match.LastActivity = DateTimeOffset.UtcNow;
             return new MatchIdentityDto(match.Id, match.JoinCode, match.Participants.Any(p => !p.IsClaimed));
         }
     }
@@ -741,7 +765,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var participant = FindParticipant(match, request.ParticipantToken);
             RequireRoom(match.Fleets.Count, MaxFleetsPerMatch, "fleets");
             var fleetName = NormalizeText(request.Name, "Fleet");
-            match.Fleets.Add(new FleetState(Guid.NewGuid(), participant.Id, fleetName, NormalizeOptionalText(request.Faction), NormalizeFleetColor(request.FleetColor)));
+            var fleet = new FleetState(Guid.NewGuid(), participant.Id, fleetName, NormalizeOptionalText(request.Faction), NormalizeFleetColor(request.FleetColor));
+            match.Fleets.Add(fleet);
+            _fleetToMatch[fleet.Id] = match.Id;
             match.AddLog("Setup", match.Phase.ToString(), $"{fleetName} fleet created for {participant.DisplayName}.");
             match.Touch("FleetCreated");
             return ToSnapshot(match);
@@ -752,8 +778,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.Fleets.Any(f => f.Id == fleetId))
-                ?? throw new InvalidOperationException("Fleet was not found.");
+            var match = FindMatchByFleet(fleetId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var fleet = match.Fleets.Single(f => f.Id == fleetId);
             if (fleet.OwnerParticipantId != participant.Id)
@@ -799,6 +824,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 FighterBays = ClampFighterBays(request.FighterBays),
                 DamageControlParties = ClampDamageControl(request.DamageControlParties),
             });
+            _shipToMatch[match.Ships[^1].Id] = match.Id;
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, match.Ships[^1])} added to {fleet.Name}.");
             match.Touch("ShipCreated");
             return ToSnapshot(match);
@@ -809,8 +835,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.Ships.Any(s => s.Id == shipId))
-                ?? throw new InvalidOperationException("Ship was not found.");
+            var match = FindMatchByShip(shipId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var ship = FindOwnedShip(match, participant.Id, shipId);
 
@@ -858,8 +883,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.Ships.Any(s => s.Id == shipId))
-                ?? throw new InvalidOperationException("Ship was not found.");
+            var match = FindMatchByShip(shipId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var source = FindOwnedShip(match, participant.Id, shipId);
             RequireRoom(match.Ships.Count, MaxShipsPerMatch, "ships");
@@ -893,6 +917,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 HomeCarrierShipId = source.HomeCarrierShipId,
                 PointsValue = source.PointsValue,
             });
+            _shipToMatch[match.Ships[^1].Id] = match.Id;
             match.AddLog("Setup", match.Phase.ToString(), $"{DescribeShip(match, source)} duplicated as {copyName}.");
             match.Touch("ShipDuplicated");
             return ToSnapshot(match);
@@ -904,8 +929,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.Ships.Any(s => s.Id == shipId))
-                ?? throw new InvalidOperationException("Ship was not found.");
+            var match = FindMatchByShip(shipId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var ship = FindOwnedShip(match, participant.Id, shipId);
 
@@ -927,8 +951,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.Ships.Any(s => s.Id == shipId))
-                ?? throw new InvalidOperationException("Ship was not found.");
+            var match = FindMatchByShip(shipId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var ship = FindOwnedShip(match, participant.Id, shipId);
             if (!IsFighterGroup(ship.IconKey, ship.ClassName))
@@ -1007,6 +1030,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 Math.Clamp(request.MaxRange, 0, 120),
                 NormalizeOrdnanceStatus(request.Status));
             match.OrdnanceMarkers.Add(marker);
+            _markerToMatch[marker.Id] = match.Id;
             var targetNote = target is null ? "no target" : $"targeting {target.Name}";
             match.AddLog("Ordnance", match.Phase.ToString(), $"{marker.Name} {marker.MarkerType} marker launched at {marker.PositionX:0.#},{marker.PositionY:0.#}, C{marker.Course}/V{marker.Speed}, {targetNote}.");
             match.Touch("OrdnanceMarkerCreated");
@@ -1018,8 +1042,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.OrdnanceMarkers.Any(o => o.Id == markerId))
-                ?? throw new InvalidOperationException("Ordnance marker was not found.");
+            var match = FindMatchByMarker(markerId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var marker = FindOwnedOrdnanceMarker(match, participant.Id, markerId);
             var target = request.TargetShipId is Guid targetId
@@ -1047,11 +1070,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.OrdnanceMarkers.Any(o => o.Id == markerId))
-                ?? throw new InvalidOperationException("Ordnance marker was not found.");
+            var match = FindMatchByMarker(markerId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var marker = FindOwnedOrdnanceMarker(match, participant.Id, markerId);
             match.OrdnanceMarkers.Remove(marker);
+            _markerToMatch.Remove(marker.Id);
             match.AddLog("Ordnance", match.Phase.ToString(), $"{marker.Name} marker removed from the table.");
             match.Touch("OrdnanceMarkerRemoved");
             return ToSnapshot(match);
@@ -1062,8 +1085,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     {
         lock (_gate)
         {
-            var match = _matches.Values.SingleOrDefault(m => m.Ships.Any(s => s.Id == shipId))
-                ?? throw new InvalidOperationException("Ship was not found.");
+            var match = FindMatchByShip(shipId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var ship = FindOwnedShip(match, participant.Id, shipId);
             if (match.Phase is not (MatchPhase.OrderEntry or MatchPhase.OrdersLocked))
@@ -2138,8 +2160,99 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         match.FiringShipId = null;
     }
 
-    private MatchState FindMatch(Guid matchId) =>
-        _matches.TryGetValue(matchId, out var match) ? match : throw new InvalidOperationException("Match was not found.");
+    private MatchState FindMatch(Guid matchId)
+    {
+        if (!_matches.TryGetValue(matchId, out var match))
+        {
+            throw new InvalidOperationException("Match was not found.");
+        }
+
+        // Every read and every write comes through here, so this is the one place that knows a
+        // match is still in use. Reading a snapshot counts: a table watching the map without
+        // touching anything is not an abandoned game.
+        match.LastActivity = DateTimeOffset.UtcNow;
+        return match;
+    }
+
+    /// <summary>
+    /// Drops matches nobody has touched inside the retention window, and their index entries with
+    /// them. Called when a match is opened rather than on a timer, so the service holds no
+    /// background work and a process that is doing nothing stays doing nothing.
+    /// </summary>
+    private void EvictIdleMatches()
+    {
+        var cutoff = DateTimeOffset.UtcNow - IdleMatchRetention;
+        var stale = _matches.Values.Where(match => match.LastActivity < cutoff).Select(match => match.Id).ToArray();
+        foreach (var matchId in stale)
+        {
+            Forget(matchId);
+        }
+
+        // If the server is genuinely this busy, the oldest matches give way so a new one can always
+        // be opened. Refusing instead would leave a table unable to start a game.
+        while (_matches.Count >= MaxConcurrentMatches)
+        {
+            var oldest = _matches.Values.OrderBy(match => match.LastActivity).First();
+            Forget(oldest.Id);
+        }
+    }
+
+    private void Forget(Guid matchId)
+    {
+        if (!_matches.Remove(matchId, out var match))
+        {
+            return;
+        }
+
+        _joinCodes.Remove(match.JoinCode);
+        foreach (var fleet in match.Fleets)
+        {
+            _fleetToMatch.Remove(fleet.Id);
+        }
+
+        foreach (var ship in match.Ships)
+        {
+            _shipToMatch.Remove(ship.Id);
+        }
+
+        foreach (var marker in match.OrdnanceMarkers)
+        {
+            _markerToMatch.Remove(marker.Id);
+        }
+    }
+
+    /// <summary>The match a ship belongs to, addressed by ship id alone.</summary>
+    private MatchState FindMatchByShip(Guid shipId) => FindMatchByEntity(_shipToMatch, shipId, "Ship");
+
+    /// <summary>The match a fleet belongs to, addressed by fleet id alone.</summary>
+    private MatchState FindMatchByFleet(Guid fleetId) => FindMatchByEntity(_fleetToMatch, fleetId, "Fleet");
+
+    /// <summary>The match an ordnance marker belongs to, addressed by marker id alone.</summary>
+    private MatchState FindMatchByMarker(Guid markerId) => FindMatchByEntity(_markerToMatch, markerId, "Ordnance marker");
+
+    private MatchState FindMatchByEntity(Dictionary<Guid, Guid> index, Guid id, string what) =>
+        index.TryGetValue(id, out var matchId) && _matches.TryGetValue(matchId, out var match)
+            ? match
+            : throw new InvalidOperationException($"{what} was not found.");
+
+    /// <summary>Records where every addressable part of a match lives, so it can be found by id.</summary>
+    private void IndexMatch(MatchState match)
+    {
+        foreach (var fleet in match.Fleets)
+        {
+            _fleetToMatch[fleet.Id] = match.Id;
+        }
+
+        foreach (var ship in match.Ships)
+        {
+            _shipToMatch[ship.Id] = match.Id;
+        }
+
+        foreach (var marker in match.OrdnanceMarkers)
+        {
+            _markerToMatch[marker.Id] = match.Id;
+        }
+    }
 
     private static ParticipantState FindParticipant(MatchState match, string token) =>
         string.IsNullOrWhiteSpace(token)
@@ -2368,6 +2481,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public int TableWidth { get; set; } = 72;
         public int TableDepth { get; set; } = 48;
         public int PointsLimit { get; set; }
+
+        /// <summary>When this match was last read or written. Drives idle eviction.</summary>
+        public DateTimeOffset LastActivity { get; set; } = DateTimeOffset.UtcNow;
         public List<ParticipantState> Participants { get; } = [owner];
         public List<FleetState> Fleets { get; } = [];
         public List<ShipState> Ships { get; } = [];
