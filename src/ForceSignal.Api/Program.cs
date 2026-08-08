@@ -32,7 +32,16 @@ builder.Services.AddCors(options =>
 
         if (allowedOrigins.AllowAnyOrigin)
         {
-            policy.SetIsOriginAllowed(_ => true);
+            // Development reflects the caller's origin rather than naming one, because the whole
+            // point of this app is being served off a laptop at a table and reached from tablets on
+            // the same wifi - the origin is whatever address that laptop happened to get, and
+            // nobody wants to configure it before a game.
+            //
+            // But reflecting *anything* while also allowing credentials means any page a player
+            // browses to can call their instance and read the answers. So the reflection is limited
+            // to origins that are on this machine or on a private network: a page on the open
+            // internet is refused, and the tablet across the table is not.
+            policy.SetIsOriginAllowed(IsLocalNetworkOrigin);
         }
         else
         {
@@ -157,7 +166,7 @@ app.MapGet("/ready", () => Results.Ok(new
     status = "ready",
     service = "ForceSignal.Api",
     environment = app.Environment.EnvironmentName,
-    cors = allowedOrigins.AllowAnyOrigin ? "development-any-origin" : "configured",
+    cors = allowedOrigins.AllowAnyOrigin ? "development-private-network" : "configured",
     persistence = "in-memory",
     features = features.ToDto(),
     warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features)
@@ -776,6 +785,58 @@ static string[] ReadDeploymentWarnings(
     }
 
     return [.. warnings];
+}
+
+/// <summary>
+/// Whether an origin is on this machine or on a private network.
+/// </summary>
+/// <remarks>
+/// Used only in Development, to decide which origins the CORS policy will reflect. The addresses
+/// allowed are the loopbacks, the three private IPv4 ranges, IPv4 link-local, IPv6 unique-local and
+/// link-local, and mDNS <c>.local</c> names - which between them cover every way a tablet reaches a
+/// laptop on the same wifi, and none of the ways a page on the internet reaches it.
+/// </remarks>
+static bool IsLocalNetworkOrigin(string origin)
+{
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    var host = uri.Host;
+    if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (!System.Net.IPAddress.TryParse(host, out var address))
+    {
+        return false;
+    }
+
+    if (System.Net.IPAddress.IsLoopback(address))
+    {
+        return true;
+    }
+
+    if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+    {
+        var octets = address.GetAddressBytes();
+        return octets[0] switch
+        {
+            10 => true,
+            172 => octets[1] >= 16 && octets[1] <= 31,
+            192 => octets[1] == 168,
+            169 => octets[1] == 254,
+            _ => false,
+        };
+    }
+
+    // IPv6 unique-local (fc00::/7) and link-local (fe80::/10).
+    var bytes = address.GetAddressBytes();
+    return (bytes[0] & 0xFE) == 0xFC || (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80);
 }
 
 static bool IsLocalOrigin(string origin) =>

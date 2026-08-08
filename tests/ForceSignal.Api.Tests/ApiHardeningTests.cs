@@ -201,6 +201,34 @@ public sealed class ApiHardeningTests
         allowed.EnsureSuccessStatusCode();
     }
 
+    [Theory]
+    // The tablet across the table, and this machine.
+    [InlineData("http://localhost:6297", true)]
+    [InlineData("http://127.0.0.1:6297", true)]
+    [InlineData("http://192.168.1.50:6297", true)]
+    [InlineData("http://10.0.0.7:6297", true)]
+    [InlineData("http://172.20.1.4:6297", true)]
+    [InlineData("http://forcesignal.local:6297", true)]
+    // A page on the open internet. Development reflects the caller's origin and allows credentials,
+    // so without this any site a player browsed to could call their instance and read the answers.
+    [InlineData("https://evil.example", false)]
+    [InlineData("http://8.8.8.8", false)]
+    [InlineData("http://172.32.0.1", false)]
+    [InlineData("http://notlocalhost.example.com", false)]
+    public async Task DevelopmentOnlyReflectsOriginsOnThisMachineOrAPrivateNetwork(string origin, bool allowed)
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/health");
+        request.Headers.TryAddWithoutValidation("Origin", origin);
+        using var response = await client.SendAsync(request);
+
+        var reflected = response.Headers.TryGetValues("Access-Control-Allow-Origin", out var values)
+            && values.Contains(origin);
+        Assert.Equal(allowed, reflected);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
