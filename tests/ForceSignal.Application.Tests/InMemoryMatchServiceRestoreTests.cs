@@ -196,7 +196,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         Assert.NotEqual(redShip.Id, restoredRedShip.Id);
 
         // The opponent seat is still claimable, and the claimed one reports as taken.
-        var seats = service.GetSeats(restored.MatchId);
+        var seats = service.GetSeats(restored.MatchId, restored.JoinCode);
         Assert.True(seats.Single(s => s.DisplayName == "Blue").IsClaimed);
         Assert.False(seats.Single(s => s.DisplayName == "Red").IsClaimed);
     }
@@ -244,17 +244,17 @@ public sealed class InMemoryMatchServiceRestoreTests
         var error = Assert.Throws<InvalidOperationException>(() =>
             service.JoinMatch(new JoinMatchRequest(restored.JoinCode, "Someone New")));
         Assert.Contains("claim", error.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(2, service.GetSeats(restored.MatchId).Count);
+        Assert.Equal(2, service.GetSeats(restored.MatchId, restored.JoinCode).Count);
 
         // Once every seat is taken, the room behaves like any other and accepts joiners.
-        foreach (var seat in service.GetSeats(restored.MatchId))
+        foreach (var seat in service.GetSeats(restored.MatchId, restored.JoinCode))
         {
             service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
         }
 
         var late = service.JoinMatch(new JoinMatchRequest(restored.JoinCode, "Someone New"));
         Assert.False(string.IsNullOrWhiteSpace(late.ParticipantToken));
-        Assert.Equal(3, service.GetSeats(restored.MatchId).Count);
+        Assert.Equal(3, service.GetSeats(restored.MatchId, restored.JoinCode).Count);
     }
 
     [Fact]

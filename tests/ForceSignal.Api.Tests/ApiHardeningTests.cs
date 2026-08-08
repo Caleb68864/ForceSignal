@@ -170,6 +170,37 @@ public sealed class ApiHardeningTests
         Assert.Equal(created.MatchId, identity!.MatchId);
     }
 
+    [Fact]
+    public async Task TheMatchSnapshotIsOnlyReadableBySomeoneInTheMatch()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Private", 72, 48)))
+            .Content.ReadFromJsonAsync<MatchCreatedResponse>();
+        Assert.NotNull(created);
+
+        // The snapshot is the whole game: positions, damage, every shot and its dice, the log, and
+        // who is playing. The match id is not a secret - the room-code lookup hands it out and
+        // every notification echoes it - so the id alone must not open it.
+        using var anonymous = await client.GetAsync($"/api/matches/{created.MatchId}/snapshot");
+        Assert.Equal(HttpStatusCode.Forbidden, anonymous.StatusCode);
+
+        // A token from a different match is no better.
+        var other = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Red", "Elsewhere", 72, 48)))
+            .Content.ReadFromJsonAsync<MatchCreatedResponse>();
+        using var wrongMatch = new HttpRequestMessage(HttpMethod.Get, $"/api/matches/{created.MatchId}/snapshot");
+        wrongMatch.Headers.TryAddWithoutValidation("X-Participant-Token", other!.ParticipantToken);
+        using var refused = await client.SendAsync(wrongMatch);
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+
+        // The player who is actually in the match reads it normally.
+        using var mine = new HttpRequestMessage(HttpMethod.Get, $"/api/matches/{created.MatchId}/snapshot");
+        mine.Headers.TryAddWithoutValidation("X-Participant-Token", created.ParticipantToken);
+        using var allowed = await client.SendAsync(mine);
+        allowed.EnsureSuccessStatusCode();
+    }
+
     private static WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder => builder.UseEnvironment("Development"));

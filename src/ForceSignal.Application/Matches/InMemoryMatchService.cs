@@ -28,8 +28,8 @@ public interface IMatchService
     /// <summary>Rebuilds a match from an exported snapshot. Participants return as unclaimed seats.</summary>
     MatchRestoredResponse RestoreMatch(MatchSnapshotDto snapshot, DateTimeOffset? savedAt);
 
-    /// <summary>Lists seats for a match, showing which are still claimable.</summary>
-    IReadOnlyList<MatchSeatDto> GetSeats(Guid matchId);
+    /// <summary>Lists seats for a match, showing which are still claimable. Needs the room code.</summary>
+    IReadOnlyList<MatchSeatDto> GetSeats(Guid matchId, string joinCode);
 
     /// <summary>Claims an unclaimed seat in a restored match and issues a participant token.</summary>
     MatchJoinedResponse ClaimSeat(Guid matchId, Guid participantId, ClaimSeatRequest request);
@@ -529,11 +529,28 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
     }
 
-    public IReadOnlyList<MatchSeatDto> GetSeats(Guid matchId)
+    public IReadOnlyList<MatchSeatDto> GetSeats(Guid matchId, string joinCode)
     {
         lock (_gate)
         {
-            return BuildSeats(FindMatch(matchId));
+            var match = FindMatch(matchId);
+            // Seat ids are what a claim is addressed to, so handing them out to anyone who knows
+            // the match id is what let a stranger take a seat. The room code is the thing a
+            // returning player actually has.
+            RequireJoinCode(match, joinCode);
+            return BuildSeats(match);
+        }
+    }
+
+    /// <summary>
+    /// Checks the room code a caller presented against the match. Used where there is no
+    /// participant token to check yet, which is the whole point of the restore-and-claim flow.
+    /// </summary>
+    private static void RequireJoinCode(MatchState match, string? joinCode)
+    {
+        if (!string.Equals(NormalizeText(joinCode, string.Empty), match.JoinCode, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnauthorizedAccessException("The room code does not match this match.");
         }
     }
 
@@ -548,10 +565,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             // for one. Without it, knowing a match id was enough to take any unclaimed seat,
             // including the owner's, which meant the table's controls and the legitimate player
             // locked out with no way back.
-            if (!string.Equals(NormalizeText(request.JoinCode, string.Empty), match.JoinCode, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new UnauthorizedAccessException("The room code does not match this match.");
-            }
+            RequireJoinCode(match, request.JoinCode);
 
             var seat = match.Participants.SingleOrDefault(p => p.Id == participantId)
                 ?? throw new InvalidOperationException("Seat was not found.");

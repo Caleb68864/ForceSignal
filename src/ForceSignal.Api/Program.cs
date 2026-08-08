@@ -273,12 +273,17 @@ app.MapGet("/api/matches/by-code/{joinCode}", (string joinCode, IMatchService ma
     .Produces<MatchIdentityDto>()
     .ProducesProblem(StatusCodes.Status404NotFound);
 
-app.MapGet("/api/matches/{matchId:guid}/seats", (Guid matchId, IMatchService matches) =>
-    Results.Ok(matches.GetSeats(matchId)))
+// The room code stands in for a token here, because a player coming back to a restored match has
+// no token yet - that is what they are here to get. Handing seat ids to anyone who knows the match
+// id is what made a seat takeover possible, since the id is not a secret.
+app.MapGet("/api/matches/{matchId:guid}/seats", (Guid matchId, string joinCode, IMatchService matches) =>
+    Results.Ok(matches.GetSeats(matchId, joinCode)))
     .WithName("GetMatchSeats")
     .WithTags("Matches")
-    .WithSummary("Lists claimable seats in a restored match.")
+    .WithSummary("Lists claimable seats in a restored match. Requires the room code.")
+    .RequireRateLimiting(RoomCodeLookupPolicy)
     .Produces<IReadOnlyList<MatchSeatDto>>()
+    .ProducesProblem(StatusCodes.Status403Forbidden)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
 app.MapPost("/api/matches/{matchId:guid}/seats/{participantId:guid}/claim", async (
@@ -299,12 +304,24 @@ app.MapPost("/api/matches/{matchId:guid}/seats/{participantId:guid}/claim", asyn
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
-app.MapGet("/api/matches/{matchId:guid}/snapshot", (Guid matchId, IMatchService matches) =>
-    Results.Ok(matches.GetSnapshot(matchId)))
+// The snapshot is the whole game: every ship's position and damage, every shot and its dice, the
+// battle log, and who is playing. It is only for the people at the table, and the match id is not a
+// secret - the room-code lookup hands it out and every notification echoes it.
+app.MapGet("/api/matches/{matchId:guid}/snapshot", (Guid matchId, HttpRequest http, IMatchService matches) =>
+{
+    var token = ReadParticipantToken(http);
+    if (!matches.IsMatchParticipant(matchId, token))
+    {
+        throw new UnauthorizedAccessException("Only a player in this match can read its state.");
+    }
+
+    return Results.Ok(matches.GetSnapshot(matchId));
+})
     .WithName("GetMatchSnapshot")
     .WithTags("Matches")
-    .WithSummary("Gets the authoritative match snapshot.")
+    .WithSummary("Gets the authoritative match snapshot. Requires a participant token.")
     .Produces<MatchSnapshotDto>()
+    .ProducesProblem(StatusCodes.Status403Forbidden)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
 app.MapPost("/api/matches/{matchId:guid}/participants/me/ready", async (

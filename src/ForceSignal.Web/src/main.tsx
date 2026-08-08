@@ -964,7 +964,8 @@ function App() {
       setPendingRestore({
         matchId: identity.matchId,
         joinCode: identity.joinCode,
-        seats: await get<MatchSeat[]>(`/api/matches/${identity.matchId}/seats`),
+        seats: await get<MatchSeat[]>(
+          `/api/matches/${identity.matchId}/seats?joinCode=${encodeURIComponent(identity.joinCode)}`),
         note: 'This room was restored from a backup.',
       });
       setMessage('Claim the seat you were playing.');
@@ -1007,7 +1008,10 @@ function App() {
   }
 
   async function loadSnapshot(matchId: string) {
-    applySnapshot(await get<MatchSnapshot>(`/api/matches/${matchId}/snapshot`));
+    // The snapshot is the whole game, so it is only for the people at the table. The token proves
+    // this device is one of them; the match id proves nothing, since it is handed out by the
+    // room-code lookup and echoed in every notification.
+    applySnapshot(await get<MatchSnapshot>(`/api/matches/${matchId}/snapshot`, session?.participantToken));
   }
 
   async function createShipFromForm() {
@@ -5886,8 +5890,10 @@ function createDraftOrder(): DraftOrder {
   };
 }
 
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`);
+async function get<T>(path: string, token?: string): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    headers: token ? { 'X-Participant-Token': token } : undefined,
+  });
   if (!response.ok) {
     throw await createApiError(response);
   }

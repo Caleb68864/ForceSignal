@@ -94,8 +94,14 @@ public sealed class MatchRestoreEndpointTests
         Assert.Equal(restored.MatchId, identity.MatchId);
         Assert.True(identity.HasUnclaimedSeats);
 
-        var seats = await client.GetFromJsonAsync<List<MatchSeatDto>>($"/api/matches/{identity.MatchId}/seats");
+        var seats = await client.GetFromJsonAsync<List<MatchSeatDto>>(
+            $"/api/matches/{identity.MatchId}/seats?joinCode={Uri.EscapeDataString(identity.JoinCode)}");
         Assert.Single(seats!);
+
+        // And only from the room code. Seat ids are what a claim is addressed to, so knowing the
+        // match id must not be enough to read them - the id is not a secret.
+        using var withoutCode = await client.GetAsync($"/api/matches/{identity.MatchId}/seats?joinCode=WRONG");
+        Assert.Equal(HttpStatusCode.Forbidden, withoutCode.StatusCode);
 
         using var unknownCode = await client.GetAsync("/api/matches/by-code/NOPE-NOPE-NOPE");
         Assert.Equal(HttpStatusCode.NotFound, unknownCode.StatusCode);
