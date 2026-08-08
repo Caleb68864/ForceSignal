@@ -228,9 +228,7 @@ public sealed partial class InMemoryMatchService
             match.Phase = phase;
             if (match.Phase == MatchPhase.Firing)
             {
-                // An exported snapshot carries no firing turn order, so settle one for the restored
-                // phase rather than leaving nobody able to shoot.
-                RollFiringInitiative(match);
+                RestoreFiringTurnOrder(match, snapshot, seatIds, shipIdMap);
             }
             RestoreRevealedCommitments(match, snapshot, phase, shipIdMap);
 
@@ -304,6 +302,50 @@ public sealed partial class InMemoryMatchService
                         result.Segments));
         }
     }
+    /// <summary>
+    /// Puts the firing phase back where it was, rather than starting it again.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The snapshot does carry the firing turn order - whose turn it is, which ships have already
+    /// taken theirs, and which one is part-way through a volley - and this used to ignore all three
+    /// and roll a fresh die-off. That handed the initiative to whoever the dice liked rather than
+    /// whoever held it, and, worse, forgot which ships had already fired: every ship that had taken
+    /// its turn before the export got another one. A restore is meant to put the table back, not to
+    /// give one side a second round of shooting.
+    /// </para>
+    /// <para>
+    /// Ship ids are reissued on restore, so they come back through the map. A participant kept its
+    /// id unless the snapshot forced a fresh one, so an id that is no longer a seat is dropped. If
+    /// the snapshot turns out to carry no usable turn order at all - an older export, or one
+    /// hand-edited - a die-off is rolled as before, because leaving nobody able to shoot is worse.
+    /// </para>
+    /// </remarks>
+    private void RestoreFiringTurnOrder(
+        MatchState match,
+        MatchSnapshotDto snapshot,
+        HashSet<Guid> seatIds,
+        Dictionary<Guid, Guid> shipIdMap)
+    {
+        foreach (var activated in snapshot.ActivatedShipIds ?? [])
+        {
+            if (shipIdMap.TryGetValue(activated, out var restoredShipId))
+            {
+                match.ActivatedShipIds.Add(restoredShipId);
+            }
+        }
+
+        match.FiringShipId = MapShipId(shipIdMap, snapshot.FiringShipId);
+
+        if (snapshot.FiringParticipantId is Guid holder && seatIds.Contains(holder))
+        {
+            match.FiringParticipantId = holder;
+            return;
+        }
+
+        RollFiringInitiative(match);
+    }
+
     /// <summary>Mints a seat id that no other seat in this restore is already using.</summary>
     private static Guid FreshSeatId(HashSet<Guid> used)
     {

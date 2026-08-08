@@ -518,4 +518,47 @@ public sealed class InMemoryMatchServiceRestoreTests
         Assert.Throws<UnauthorizedAccessException>(() =>
             service.SetReady(owner.MatchId, string.Empty, true));
     }
+
+    [Fact]
+    public void RestoringAFiringPhase_KeepsTheTurnOrderRatherThanStartingItAgain()
+    {
+        var dice = new ScriptedDice { Fallback = 4 };
+        var service = new InMemoryMatchService(dice.Next);
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Mid Volley"));
+        var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
+        var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
+            .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+        var redFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null))
+            .Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
+        service.CreateShip(blueFleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 12, 20, 0, StartX: 20, StartY: 28));
+        service.CreateShip(redFleet.Id, new CreateShipRequest(
+            opponent.ParticipantToken, "Crimson", "Cruiser", 4, 0, 6, 20, 0, StartX: 20, StartY: 22));
+
+        service.SetReady(owner.MatchId, owner.ParticipantToken, true);
+        service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
+        service.DeclareOrdersComplete(owner.MatchId, new DeclareOrdersCompleteRequest(owner.ParticipantToken));
+        service.DeclareOrdersComplete(owner.MatchId, new DeclareOrdersCompleteRequest(opponent.ParticipantToken));
+        var firing = service.AdvanceTurn(owner.MatchId, owner.ParticipantToken);
+        Assert.Equal("Firing", firing.Phase);
+
+        // Whoever won the die-off finishes one ship's fire, which spends that ship's turn.
+        var holder = firing.FiringParticipantId;
+        Assert.NotNull(holder);
+        var holderToken = holder == owner.ParticipantId ? owner.ParticipantToken : opponent.ParticipantToken;
+        var holderShip = firing.Ships.Single(ship =>
+            firing.Fleets.Single(fleet => fleet.Id == ship.FleetId).OwnerParticipantId == holder);
+        var afterCeaseFire = service.CeaseFire(owner.MatchId, new CeaseFireRequest(holderToken, holderShip.Id));
+        Assert.Contains(holderShip.Id, afterCeaseFire.ActivatedShipIds);
+
+        // Export mid-phase and bring it back somewhere else.
+        var restored = new InMemoryMatchService().RestoreMatch(afterCeaseFire, null).Snapshot;
+
+        // The ship that had already taken its turn must not get another one. Rolling a fresh
+        // die-off, as this used to, handed one side a second round of shooting.
+        Assert.Equal("Firing", restored.Phase);
+        var restoredShip = restored.Ships.Single(ship => ship.Name == holderShip.Name);
+        Assert.Contains(restoredShip.Id, restored.ActivatedShipIds);
+        Assert.Equal(afterCeaseFire.FiringParticipantId, restored.FiringParticipantId);
+    }
 }

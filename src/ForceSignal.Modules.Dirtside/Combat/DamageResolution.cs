@@ -174,20 +174,10 @@ public static class DamageResolution
             return Nothing(solution.ArmourValue);
         }
 
-        var drawn = pot.Draw(solution.ChitCount);
-        var validity = solution.Validity;
-
-        var resolved = new List<DrawnChit>(drawn.Count);
-        var total = 0;
-        foreach (var chit in drawn)
-        {
-            // Every chit is recorded, counting or not. The wasted ones are the mechanism, not noise:
-            // a five-chit draw that wasted four slots is the whole story of that shot.
-            var counts = validity.Counts(chit);
-            var value = validity.ValueOf(chit);
-            total += value;
-            resolved.Add(new DrawnChit(chit, counts, value));
-        }
+        // Drawing and scoring is shared with the infantry rules, because the one thing that must
+        // never differ between them is that an invalid chit burns its slot.
+        var tally = ChitDraw.From(solution.ChitCount, solution.Validity, pot);
+        var total = tally.ValidTotal;
 
         var numerical = Compare(total, solution.ArmourValue);
 
@@ -195,19 +185,19 @@ public static class DamageResolution
         // immobilised - with one exception: once the numbers have already knocked it out, there is
         // nothing left for a special to do to it.
         var suppressSpecials = numerical == NumericalDamage.KnockedOut;
-        var immobilised = !suppressSpecials && HasSpecial(resolved, ChitSpecial.Mobility);
-        var targetSystemsDown = !suppressSpecials && HasSpecial(resolved, ChitSpecial.SystemsDownTarget);
-        var boom = !suppressSpecials && HasSpecial(resolved, ChitSpecial.Boom);
+        var immobilised = !suppressSpecials && tally.Counted(ChitSpecial.Mobility);
+        var targetSystemsDown = !suppressSpecials && tally.Counted(ChitSpecial.SystemsDownTarget);
+        var boom = !suppressSpecials && tally.Counted(ChitSpecial.Boom);
 
         // The firer's Systems Down is checked against the raw draw rather than the surviving
         // specials, and it is checked last. It does not add to the result, it replaces it: the shot
         // is treated as never fired, so nothing that happened after the trigger was pulled happened
         // either. A knock-out cannot suppress it, because a knock-out that never occurred cannot
         // suppress anything.
-        if (HasSpecial(resolved, ChitSpecial.SystemsDownFirer))
+        if (tally.Counted(ChitSpecial.SystemsDownFirer))
         {
             return new DamageOutcome(
-                new ReadOnlyCollection<DrawnChit>(resolved),
+                tally.Draw,
                 ValidTotal: 0,
                 solution.ArmourValue,
                 NumericalDamage.None,
@@ -219,7 +209,7 @@ public static class DamageResolution
         }
 
         return new DamageOutcome(
-            new ReadOnlyCollection<DrawnChit>(resolved),
+            tally.Draw,
             total,
             solution.ArmourValue,
             numerical,
@@ -242,9 +232,6 @@ public static class DamageResolution
         validTotal < armourValue ? NumericalDamage.None
         : validTotal == armourValue ? NumericalDamage.Damaged
         : NumericalDamage.KnockedOut;
-
-    private static bool HasSpecial(List<DrawnChit> drawn, ChitSpecial special) =>
-        drawn.Exists(d => d.Counts && d.Chit.Special == special);
 
     private static DamageOutcome Nothing(int armourValue) => new(
         Array.Empty<DrawnChit>(),
