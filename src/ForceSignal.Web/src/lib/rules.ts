@@ -56,7 +56,17 @@ export function bearingArc(ship: Ship, target?: Ship): FiringArc | null {
 
   const bearing = Math.atan2(offsetX, -offsetY) * 180 / Math.PI;
   const relative = ((bearing - ship.currentCourse * 30) % 360 + 360) % 360;
-  return firingArcs[Math.floor((relative / 30 + 1) / 2) % 6];
+
+  // Snap a bearing that is within a rounding error of a clock point onto it, so an exact boundary
+  // resolves by the documented rule - a boundary reads as the more clockwise arc - rather than by
+  // the last bit of a floating point division. The server does the same, and it has to: it
+  // recomputes this arc authoritatively and refuses a shot that disagrees. Without the snap the
+  // map could show a mount bearing on a target the server then says it cannot see, for a ship the
+  // player had carefully placed on a round number.
+  const clockPoints = relative / 30;
+  const nearest = Math.round(clockPoints);
+  const snapped = Math.abs(clockPoints - nearest) < 1e-9 ? nearest : clockPoints;
+  return firingArcs[Math.floor((snapped + 1) / 2) % 6];
 }
 /// Why the firing order will not let this ship shoot right now, if it will not. The winner of the
 /// die-off fires one ship completely, then the players alternate a ship at a time.

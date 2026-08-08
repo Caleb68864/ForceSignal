@@ -14,13 +14,17 @@ import { wrapCourse } from './geometry.ts';
 import { newWeaponMount } from './weapons.ts';
 import type { FighterStatus, FiringArc, MatchSnapshot, OrdnanceMarker, ShipIconKey, WeaponKind, WeaponMount } from '../types.ts';
 
-export function normalizeShipIconKey(value: unknown, className?: string): ShipIconKey {
+export function normalizeShipIconKey(value: unknown, className?: unknown): ShipIconKey {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase().replaceAll(' ', '-').replaceAll('_', '-') : '';
   if (shipIconOptions.some((option) => option.key === normalized)) {
     return normalized as ShipIconKey;
   }
 
-  const classText = (className ?? '').toLowerCase();
+  // The class name is guarded the same way the key is. Both arrive from a snapshot off the wire or
+  // a fleet file the player picked, so neither is known to be a string - and calling a string
+  // method on whatever turned up would throw part-way through a load, taking the whole import with
+  // it for the sake of one unreadable field.
+  const classText = typeof className === 'string' ? className.toLowerCase() : '';
   if (classText.includes('escort')) {
     return 'escort';
   }
