@@ -1,5 +1,8 @@
+using ForceSignal.Api.Endpoints;
 using ForceSignal.Api.Hubs;
+using ForceSignal.Application.Features;
 using ForceSignal.Application.Matches;
+using ForceSignal.Contracts.Features;
 using ForceSignal.Contracts.Matches;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
@@ -45,6 +48,14 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 builder.Services.AddSingleton<IMatchService, InMemoryMatchService>();
 
+// Which optional game engines this server offers. Both ground-combat engines default to off: they
+// are built alongside the working Full Thrust game and must not be able to reach a table that
+// turned up to play it. See FeatureFlags for why the flag is checked in more than one place.
+// Resolved from the built configuration rather than the builder's, so a host that layers settings
+// in during startup - a container, or an integration test - is read rather than missed.
+builder.Services.AddSingleton(sp => FeatureFlags.Read(
+    new ConfigurationFeatureSource(sp.GetRequiredService<IConfiguration>())));
+
 // A room code is the only thing standing between a stranger and a seat, and it is short enough to
 // be read aloud. Guessing one is a matter of trying codes quickly, so the two endpoints that turn
 // a code into a match are the ones worth slowing down. The window is generous enough that a player
@@ -74,6 +85,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+var features = app.Services.GetRequiredService<FeatureFlags>();
 var RestoreJson = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 {
     Converters = { new JsonStringEnumConverter() },
@@ -147,13 +159,32 @@ app.MapGet("/ready", () => Results.Ok(new
     environment = app.Environment.EnvironmentName,
     cors = allowedOrigins.AllowAnyOrigin ? "development-any-origin" : "configured",
     persistence = "in-memory",
-    warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins)
+    features = features.ToDto(),
+    warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features)
 }))
     .WithName("GetReadiness")
     .WithTags("Operations")
     .WithSummary("Reports API readiness and deployment-critical configuration state.")
     .Produces(StatusCodes.Status200OK);
+app.MapGet("/api/features", () => Results.Ok(features.ToDto()))
+    .WithName("GetFeatures")
+    .WithTags("Operations")
+    .WithSummary("Reports which optional game engines this server offers.")
+    .Produces<FeatureFlagsDto>();
+
 app.MapHub<MatchHub>("/hubs/match");
+
+// Ground-combat engines mount their endpoints here. A disabled engine is not mapped at all, so its
+// routes 404 rather than existing in a half-wired state - which is the point of the flag.
+if (features.StarGrunt)
+{
+    app.MapStarGruntEndpoints();
+}
+
+if (features.Dirtside)
+{
+    app.MapDirtsideEndpoints();
+}
 
 app.MapPost("/api/matches", (CreateMatchRequest request, IMatchService matches) =>
     Results.Ok(matches.CreateMatch(request)))
@@ -695,7 +726,8 @@ static string[]? SplitOrigins(string? value) =>
 static string[] ReadDeploymentWarnings(
     IConfiguration configuration,
     IHostEnvironment environment,
-    CorsOriginSettings allowedOrigins)
+    CorsOriginSettings allowedOrigins,
+    FeatureFlags features)
 {
     // The in-memory persistence warning is reported in every environment so readiness never
     // implies durable match storage.
@@ -703,6 +735,18 @@ static string[] ReadDeploymentWarnings(
     {
         "Matches are currently stored in memory and will be lost on API restart.",
     };
+
+    // An in-progress engine being switched on is worth saying out loud, because the reason to
+    // check readiness before a game is to find out what is about to be in the way.
+    if (features.StarGrunt)
+    {
+        warnings.Add("StarGrunt ground combat is enabled and is still in development.");
+    }
+
+    if (features.Dirtside)
+    {
+        warnings.Add("Dirtside ground combat is enabled and is still in development.");
+    }
 
     if (environment.IsDevelopment())
     {
@@ -724,6 +768,15 @@ static bool IsLocalOrigin(string origin) =>
         || string.Equals(uri.Host, "::1", StringComparison.OrdinalIgnoreCase));
 
 internal sealed record CorsOriginSettings(bool AllowAnyOrigin, string[] Origins);
+
+/// <summary>
+/// Adapts the host's configuration to the one-method view the Application layer asks for, so that
+/// layer does not take a dependency on the hosting configuration stack to read two booleans.
+/// </summary>
+internal sealed class ConfigurationFeatureSource(IConfiguration configuration) : FeatureFlags.IConfigurationSource
+{
+    public string? GetValue(string key) => configuration[key];
+}
 
 /// <summary>
 /// Wraps a request body so it cannot deliver more than the caller said it would. Content-Length is
