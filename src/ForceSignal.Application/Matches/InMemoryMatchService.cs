@@ -120,6 +120,46 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private readonly Dictionary<Guid, MatchState> _matches = [];
     private readonly Dictionary<string, Guid> _joinCodes = new(StringComparer.OrdinalIgnoreCase);
 
+    // Ceilings on how much state one match may hold. None of these is a rules limit - they are far
+    // above any real game - they exist so that a mistyped number, a runaway client, or a crafted
+    // snapshot cannot turn into unbounded memory on a machine someone is running off a laptop at
+    // the table.
+    private const int MaxParticipantsPerMatch = 16;
+    private const int MaxFleetsPerMatch = 32;
+    private const int MaxShipsPerMatch = 400;
+    private const int MaxWeaponsPerShip = 40;
+    private const int MaxOrdnanceMarkersPerMatch = 400;
+    private const int MaxFiringResultsPerMatch = 5000;
+
+    /// <summary>
+    /// How many battle log entries a match keeps. The log is replayed in full inside every
+    /// snapshot, and a snapshot goes out on every mutation, so an uncapped log makes each turn of
+    /// a long game slower than the last. The oldest entries are dropped once the cap is reached;
+    /// the export a player takes for the after-action review is written as the game goes.
+    /// </summary>
+    private const int MaxLogEntriesPerMatch = 4000;
+
+    /// <summary>Longest caller-supplied display string kept. Longer text is truncated, not refused.</summary>
+    private const int MaxDisplayTextLength = 120;
+
+    /// <summary>Refuses one more of something when a match is already holding its ceiling.</summary>
+    private static void RequireRoom(int current, int max, string what)
+    {
+        if (current >= max)
+        {
+            throw new InvalidOperationException($"This match already holds {max} {what}, which is as many as it tracks.");
+        }
+    }
+
+    /// <summary>Refuses a restored collection that is larger than the match ceiling allows.</summary>
+    private static void RequireWithin(int count, int max, string what)
+    {
+        if (count > max)
+        {
+            throw new InvalidOperationException($"Snapshot carries {count} {what}, past the {max} a match can hold.");
+        }
+    }
+
     public MatchCreatedResponse CreateMatch(CreateMatchRequest request)
     {
         lock (_gate)
@@ -155,6 +195,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException("This match was restored from a backup. Claim your seat instead of joining.");
             }
 
+            RequireRoom(match.Participants.Count, MaxParticipantsPerMatch, "players");
             var participant = ParticipantState.Create(NormalizeText(request.DisplayName, "Player"), "Player");
             match.Participants.Add(participant);
             match.AddLog("Setup", match.Phase.ToString(), $"{participant.DisplayName} joined the match.");
@@ -181,7 +222,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         lock (_gate)
         {
             return _matches.TryGetValue(matchId, out var match)
-                && match.Participants.Any(p => p.IsClaimed && p.Token == participantToken);
+                && match.Participants.Any(p => p.IsClaimed && TokensMatch(p.Token, participantToken));
         }
     }
 
@@ -194,7 +235,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 return null;
             }
 
-            var participant = match.Participants.SingleOrDefault(p => p.IsClaimed && p.Token == participantToken);
+            var participant = match.Participants.SingleOrDefault(p => p.IsClaimed && TokensMatch(p.Token, participantToken));
             if (participant is null || participant.IsConnected == isConnected)
             {
                 return null;
@@ -226,6 +267,20 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             throw new InvalidOperationException($"Snapshot uses unknown rules profile: {snapshot.RulesProfileKey}.");
         }
 
+        // A snapshot is a file a user hands over, so it is untrusted input that gets turned
+        // straight into allocated state. Refuse an oversized one by name rather than letting it
+        // quietly consume the server's memory.
+        RequireWithin(snapshot.Participants.Count, MaxParticipantsPerMatch, "participants");
+        RequireWithin(snapshot.Fleets?.Count ?? 0, MaxFleetsPerMatch, "fleets");
+        RequireWithin(snapshot.Ships.Count, MaxShipsPerMatch, "ships");
+        RequireWithin(snapshot.OrdnanceMarkers?.Count ?? 0, MaxOrdnanceMarkersPerMatch, "ordnance markers");
+        RequireWithin(snapshot.MatchLog?.Count ?? 0, MaxLogEntriesPerMatch, "battle log entries");
+        RequireWithin(snapshot.FiringResults?.Count ?? 0, MaxFiringResultsPerMatch, "firing records");
+        foreach (var ship in snapshot.Ships)
+        {
+            RequireWithin(ship.Weapons?.Count ?? 0, MaxWeaponsPerShip, $"weapon mounts on {NormalizeText(ship.Name, "a ship")}");
+        }
+
         lock (_gate)
         {
             var matchId = Guid.NewGuid();
@@ -233,13 +288,24 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 && !_joinCodes.ContainsKey(snapshot.JoinCode);
             var joinCode = reusedJoinCode ? snapshot.JoinCode : CreateJoinCode();
 
+            // Seat ids have to be unique: a seat is claimed by id, and two seats sharing one would
+            // make the claim ambiguous. A blank or repeated id gets a fresh one.
+            var usedSeatIds = new HashSet<Guid>();
             var seats = snapshot.Participants
                 .Select(p => ParticipantState.CreateSeat(
-                    p.Id == Guid.Empty ? Guid.NewGuid() : p.Id,
+                    p.Id != Guid.Empty && usedSeatIds.Add(p.Id) ? p.Id : FreshSeatId(usedSeatIds),
                     NormalizeText(p.DisplayName, "Admiral"),
                     p.Role == "Owner" ? "Owner" : "Player",
                     p.IsReady))
                 .ToList();
+
+            // Only the owner can advance a turn or change the table, so a snapshot whose owner was
+            // edited out would restore into a match nobody can drive. Promote the first seat rather
+            // than refusing the file - the players at the table can sort out who holds it.
+            if (!seats.Any(seat => seat.Role == "Owner"))
+            {
+                seats[0] = ParticipantState.CreateSeat(seats[0].Id, seats[0].DisplayName, "Owner", seats[0].IsReady);
+            }
 
             var match = new MatchState(matchId, joinCode, NormalizeText(snapshot.Name, "Space Fleet Match"), seats[0])
             {
@@ -508,6 +574,18 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         }
     }
 
+    /// <summary>Mints a seat id that no other seat in this restore is already using.</summary>
+    private static Guid FreshSeatId(HashSet<Guid> used)
+    {
+        Guid id;
+        do
+        {
+            id = Guid.NewGuid();
+        } while (!used.Add(id));
+
+        return id;
+    }
+
     /// <summary>Maps every id in a restored collection to a fresh id, rejecting duplicates.</summary>
     private static Dictionary<Guid, Guid> NewIdMap(IEnumerable<Guid>? ids, string label)
     {
@@ -661,8 +739,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         {
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, request.ParticipantToken);
+            RequireRoom(match.Fleets.Count, MaxFleetsPerMatch, "fleets");
             var fleetName = NormalizeText(request.Name, "Fleet");
-            match.Fleets.Add(new FleetState(Guid.NewGuid(), participant.Id, fleetName, request.Faction, NormalizeFleetColor(request.FleetColor)));
+            match.Fleets.Add(new FleetState(Guid.NewGuid(), participant.Id, fleetName, NormalizeOptionalText(request.Faction), NormalizeFleetColor(request.FleetColor)));
             match.AddLog("Setup", match.Phase.ToString(), $"{fleetName} fleet created for {participant.DisplayName}.");
             match.Touch("FleetCreated");
             return ToSnapshot(match);
@@ -682,6 +761,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new UnauthorizedAccessException("You can only add ships to your own fleet.");
             }
 
+            RequireRoom(match.Ships.Count, MaxShipsPerMatch, "ships");
             var thrustRating = Math.Clamp(request.ThrustRating, 0, 20);
             var shipState = new ShipMovementState(request.InitialVelocity, request.InitialCourse);
             var validation = _rules.Validate(shipState, thrustRating, new MovementOrder(0, 0, TurnDirection.None));
@@ -782,6 +862,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 ?? throw new InvalidOperationException("Ship was not found.");
             var participant = FindParticipant(match, request.ParticipantToken);
             var source = FindOwnedShip(match, participant.Id, shipId);
+            RequireRoom(match.Ships.Count, MaxShipsPerMatch, "ships");
             var copyName = string.IsNullOrWhiteSpace(request.Name)
                 ? NextCopyName(source.Name, match.Ships.Where(s => s.FleetId == source.FleetId).Select(s => s.Name))
                 : request.Name.Trim();
@@ -887,6 +968,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         {
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, request.ParticipantToken);
+            RequireRoom(match.OrdnanceMarkers.Count, MaxOrdnanceMarkersPerMatch, "ordnance markers");
             var source = request.SourceShipId is Guid sourceId
                 ? FindOwnedShip(match, participant.Id, sourceId)
                 : null;
@@ -2062,8 +2144,19 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     private static ParticipantState FindParticipant(MatchState match, string token) =>
         string.IsNullOrWhiteSpace(token)
             ? throw new UnauthorizedAccessException("Participant token is invalid.")
-            : match.Participants.SingleOrDefault(p => p.IsClaimed && p.Token == token)
+            : match.Participants.SingleOrDefault(p => p.IsClaimed && TokensMatch(p.Token, token))
                 ?? throw new UnauthorizedAccessException("Participant token is invalid.");
+
+    /// <summary>
+    /// Compares a participant token in time that does not depend on how much of it is right. An
+    /// ordinary string comparison returns as soon as two bytes differ, which leaks the length of
+    /// the matching prefix to anyone who can time the request - enough, over many tries, to
+    /// recover a token a character at a time.
+    /// </summary>
+    private static bool TokensMatch(string stored, string supplied) =>
+        System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(stored),
+            System.Text.Encoding.UTF8.GetBytes(supplied));
 
     private static ShipState FindOwnedShip(MatchState match, Guid participantId, Guid shipId)
     {
@@ -2089,16 +2182,53 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         return marker;
     }
 
+    /// <summary>
+    /// Words a room code is built from. A code is read aloud across a table, so the list is all
+    /// short, unambiguous, distinctly-sounding words - no near-homophones, and nothing that reads
+    /// the same over a noisy room. Thirty-two words in three slots is 32,768 codes, which is what
+    /// keeps a code from being guessed by someone walking the space; see <see cref="CreateJoinCode"/>.
+    /// </summary>
+    private static readonly string[] JoinCodeWords =
+    [
+        "BLUE", "COMET", "SEVEN", "IRON", "ORBIT", "NOVA", "VECTOR", "LANCE",
+        "DRIFT", "EMBER", "AXIS", "BRAVO", "CINDER", "DELTA", "ECHO", "FLARE",
+        "GAMMA", "HELIX", "INDIGO", "JUNO", "KILO", "LUMEN", "MERIDIAN", "NADIR",
+        "OSPREY", "PULSAR", "QUASAR", "RAVEN", "SIGMA", "TALON", "UMBRA", "ZENITH",
+    ];
+
+    /// <summary>
+    /// Mints an unused room code. The code is the only thing standing between a stranger and a
+    /// seat at the table, so the words are drawn from a cryptographic source rather than
+    /// <see cref="Random"/> - a predictable sequence would let one code disclose the next.
+    /// Generation is bounded: after enough collisions the code takes a numeric suffix, so a busy
+    /// server degrades into longer codes instead of spinning forever.
+    /// </summary>
     private string CreateJoinCode()
     {
-        string[] words = ["BLUE", "COMET", "SEVEN", "IRON", "ORBIT", "NOVA", "VECTOR", "LANCE", "DRIFT", "EMBER"];
-        string code;
-        do
+        for (var attempt = 0; attempt < 64; attempt++)
         {
-            code = string.Join("-", Random.Shared.GetItems(words, 3));
-        } while (_joinCodes.ContainsKey(code));
+            var code = string.Join("-", Enumerable.Range(0, 3)
+                .Select(_ => JoinCodeWords[System.Security.Cryptography.RandomNumberGenerator.GetInt32(JoinCodeWords.Length)]));
+            if (!_joinCodes.ContainsKey(code))
+            {
+                return code;
+            }
+        }
 
-        return code;
+        // The word space is crowded. Fall back to a suffixed code, which is still readable aloud
+        // and cannot collide for long.
+        for (var attempt = 0; attempt < 1024; attempt++)
+        {
+            var code = string.Join("-", Enumerable.Range(0, 3)
+                .Select(_ => JoinCodeWords[System.Security.Cryptography.RandomNumberGenerator.GetInt32(JoinCodeWords.Length)]))
+                + "-" + System.Security.Cryptography.RandomNumberGenerator.GetInt32(100, 1000);
+            if (!_joinCodes.ContainsKey(code))
+            {
+                return code;
+            }
+        }
+
+        throw new InvalidOperationException("No room code could be allocated. Close some finished matches and try again.");
     }
 
     private static MatchSnapshotDto ToSnapshot(MatchState match) => new(
@@ -2247,8 +2377,39 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         public List<MatchLogEntryState> MatchLog { get; } = [];
         public long Version { get; private set; } = 1;
         public void Touch(string _) => Version++;
-        public void AddLog(string category, string phase, string message) => MatchLog.Add(new MatchLogEntryState(MatchLog.Count + 1, DateTimeOffset.UtcNow, TurnNumber, phase, category, message));
-        public void AddRestoredLog(MatchLogEntryState entry) => MatchLog.Add(entry);
+
+        /// <summary>
+        /// Next log sequence number. Kept separately from the list's length because the list is
+        /// trimmed once it reaches its ceiling, and a sequence that restarted would make two
+        /// different events in one game share a number.
+        /// </summary>
+        private long _nextLogSequence = 1;
+
+        public void AddLog(string category, string phase, string message)
+        {
+            MatchLog.Add(new MatchLogEntryState(_nextLogSequence++, DateTimeOffset.UtcNow, TurnNumber, phase, category, message));
+            TrimLog();
+        }
+
+        public void AddRestoredLog(MatchLogEntryState entry)
+        {
+            MatchLog.Add(entry);
+            _nextLogSequence = Math.Max(_nextLogSequence, entry.Sequence + 1);
+            TrimLog();
+        }
+
+        /// <summary>
+        /// Drops the oldest entries once the log passes its ceiling. The whole log rides inside
+        /// every snapshot, so letting it grow forever would make the last turn of a long game
+        /// noticeably slower than the first.
+        /// </summary>
+        private void TrimLog()
+        {
+            if (MatchLog.Count > MaxLogEntriesPerMatch)
+            {
+                MatchLog.RemoveRange(0, MatchLog.Count - MaxLogEntriesPerMatch);
+            }
+        }
     }
 
     private sealed class ParticipantState
@@ -3017,13 +3178,21 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
     private static string NormalizeOrdnanceText(string? value, string fallback) => NormalizeText(value, fallback);
 
-    /// <summary>Trims caller-supplied display text, falling back when it is blank.</summary>
+    /// <summary>
+    /// Trims caller-supplied display text, falling back when it is blank. Text longer than a ship
+    /// name has any business being is truncated rather than refused: a name is pasted from a fleet
+    /// file as often as it is typed, and losing the tail of an over-long one is friendlier than
+    /// rejecting the import - but it is not allowed to grow the snapshot without limit.
+    /// </summary>
     private static string NormalizeText(string? value, string fallback) =>
-        string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        string.IsNullOrWhiteSpace(value) ? fallback : Truncate(value.Trim());
 
     /// <summary>Trims optional display text, collapsing blank input to null.</summary>
     private static string? NormalizeOptionalText(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        string.IsNullOrWhiteSpace(value) ? null : Truncate(value.Trim());
+
+    private static string Truncate(string value) =>
+        value.Length <= MaxDisplayTextLength ? value : value[..MaxDisplayTextLength];
 
     private static string NormalizeOrdnanceStatus(string? value) =>
         value?.Trim().ToLowerInvariant() switch
@@ -3167,6 +3336,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
 
         return weapons
             .Where(w => !string.IsNullOrWhiteSpace(w.Name))
+            .Take(MaxWeaponsPerShip)
             .Select(w => new WeaponMountState(
                 w.Id == Guid.Empty ? Guid.NewGuid() : w.Id,
                 w.Name.Trim(),
