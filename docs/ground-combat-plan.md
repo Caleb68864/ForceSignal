@@ -166,6 +166,63 @@ Two more to honour when the surrounding systems are built:
    quality and leadership together, with "spent" rendered on the badge rather than as a second
    token, and suppression as a numeric badge rather than three stacked icons.
 
+## Decisions already taken for the next two pieces
+
+### The activation layer is a value, not a mutable session
+
+A suspended activation has to survive being serialized and restored, and a mutable class has no
+natural serialization boundary - you end up hand-writing a DTO that drifts from the object. So the
+session is an immutable record of immutable collections, and every transition is a pure function
+paired with a check that returns a reason instead of throwing. Restore fidelity then becomes a
+record equality assertion rather than a bespoke comparer, and undo, replay and the after-action log
+all come free, because the history *is* the log.
+
+Two things this makes structural rather than remembered:
+
+- **Resources spent are derived from the steps taken, never stored.** That is what makes StarGrunt's
+  per-activation weapon limit impossible to get wrong, and it removes a field that could go stale
+  across a restore.
+- **Counts are derived from the sets they count.** Both the pass rule and the first-activator rule
+  read how many units are unactivated; a stored count that disagrees with the set is a bug factory.
+
+### The frame stack is justified by Dirtside, not StarGrunt
+
+It looked like nesting was a StarGrunt-only need, since only StarGrunt lets a commander hand a
+subordinate a whole extra activation. It is not. Dirtside reaches an interrupt inside an interrupt
+on its own: a mover is interrupted by opportunity fire, and that fire is itself interrupted by
+area-defence interception of the missile it just launched. So the stack is derivable from the
+simpler game, which is the test of whether it belongs in the shared layer at all. StarGrunt's
+granted activation then drops in as a frame kind and costs the shared layer nothing.
+
+The same test caught a real over-fit: an activation is **not** a budget of two actions. That is
+StarGrunt's shape. Dirtside activates a platoon and then lets each element inside it choose
+independently. The shared layer therefore accumulates an ordered list of steps that may name a
+subject, and asks the game layer whether the frame is complete rather than counting anything.
+
+Nesting is bounded by three rules rather than by a limit: a commander has only two actions to give
+away, transfers only go down a chain of command that has finitely many levels, and no reaction can
+retrigger its own kind. A depth ceiling exists on top of those purely as a tripwire - if it ever
+fires, one of the three has a hole.
+
+### The chit engine's hard parts
+
+Draws are **without replacement within one shot, and the pot is restored between shots.** One draw
+is one damage resolution against one element - a twin mount scoring two hits is two draws with a
+restore between, not one draw of twice the size, and that genuinely changes the distribution.
+
+The mechanism that differentiates weapons is **invalid chits consuming their draw slot**. You never
+discard and redraw. The colours do not differ in severity at all - every colour averages the same
+value - they differ only in availability, so the whole spread between weapons comes from throwing
+draws away. Filtering before counting would quietly make every weapon equal.
+
+**"Ineffective" is not the same as "no valid colours"**, and collapsing them produces a live bug:
+special chits are not colour-gated, so a weapon the rules say cannot hurt the target at all would
+still immobilise or destroy it. Ineffective has to short-circuit before any chit is drawn.
+
+Chit count is an **input to the engine**, not something it derives from the weapon. The base rule -
+count equals weapon size class - holds only for vehicle guns; missiles are launcher-set, several
+weapons are flat regardless of class, and artillery multiplies by tube.
+
 ## Two things worth deciding early
 
 **Fog of war.** StarGrunt ships thirty dummy counters — the largest quantity in the box. Hidden
