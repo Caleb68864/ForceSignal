@@ -96,7 +96,7 @@ public sealed class InMemoryMatchServiceRestoreTests
 
         // The spent weapon stays spent: firing it again must be refused.
         var seat = restored.Seats.Single(s => s.Role == "Owner");
-        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
         var restoredAttacker = restored.Snapshot.Ships.Single(s => s.Name == "Valiant");
         var error = Assert.Throws<InvalidOperationException>(() =>
             service.FireWeapon(restored.MatchId, new FireWeaponRequest(session.ParticipantToken, restoredAttacker.Id, restoredTarget.Id, weaponId, 8)));
@@ -143,7 +143,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         Assert.Equal("Movement", restored.RestoredPhase);
 
         var seat = restored.Seats.Single();
-        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
         var firing = service.AdvanceTurn(restored.MatchId, session.ParticipantToken);
 
         // The restored order resolves once: velocity 6+1, course 3 starboard 1.
@@ -173,11 +173,11 @@ public sealed class InMemoryMatchServiceRestoreTests
         var service = new InMemoryMatchService();
         var restored = service.RestoreMatch(source.GetSnapshot(owner.MatchId), null);
         var blueSeat = restored.Seats.Single(s => s.DisplayName == "Blue");
-        var blueSession = service.ClaimSeat(restored.MatchId, blueSeat.ParticipantId, new ClaimSeatRequest("Blue"));
+        var blueSession = service.ClaimSeat(restored.MatchId, blueSeat.ParticipantId, new ClaimSeatRequest("Blue", restored.JoinCode));
 
         // Claiming the same seat again is refused.
         var doubleClaim = Assert.Throws<InvalidOperationException>(() =>
-            service.ClaimSeat(restored.MatchId, blueSeat.ParticipantId, new ClaimSeatRequest("Blue")));
+            service.ClaimSeat(restored.MatchId, blueSeat.ParticipantId, new ClaimSeatRequest("Blue", restored.JoinCode)));
         Assert.Contains("already been claimed", doubleClaim.Message, StringComparison.OrdinalIgnoreCase);
 
         // The claimed seat commands its own ship...
@@ -214,7 +214,7 @@ public sealed class InMemoryMatchServiceRestoreTests
 
         var restored = service.RestoreMatch(service.GetSnapshot(owner.MatchId), null);
         var seat = restored.Seats.Single();
-        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
         var restoredShip = restored.Snapshot.Ships.Single();
 
         // Both copies remain independently editable.
@@ -249,7 +249,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         // Once every seat is taken, the room behaves like any other and accepts joiners.
         foreach (var seat in service.GetSeats(restored.MatchId))
         {
-            service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+            service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
         }
 
         var late = service.JoinMatch(new JoinMatchRequest(restored.JoinCode, "Someone New"));
@@ -315,12 +315,12 @@ public sealed class InMemoryMatchServiceRestoreTests
         var restored = service.RestoreMatch(source.GetSnapshot(owner.MatchId), null);
 
         var unknownSeat = Assert.Throws<InvalidOperationException>(() =>
-            service.ClaimSeat(restored.MatchId, Guid.NewGuid(), new ClaimSeatRequest("Nobody")));
+            service.ClaimSeat(restored.MatchId, Guid.NewGuid(), new ClaimSeatRequest("Nobody", restored.JoinCode)));
         // "not found" is what the API layer maps to 404.
         Assert.Contains("not found", unknownSeat.Message, StringComparison.OrdinalIgnoreCase);
 
         var unknownMatch = Assert.Throws<InvalidOperationException>(() =>
-            service.ClaimSeat(Guid.NewGuid(), restored.Seats.Single().ParticipantId, new ClaimSeatRequest("Nobody")));
+            service.ClaimSeat(Guid.NewGuid(), restored.Seats.Single().ParticipantId, new ClaimSeatRequest("Nobody", restored.JoinCode)));
         Assert.Contains("not found", unknownMatch.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -421,7 +421,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         // without the wreck blocking the gate.
         foreach (var seat in restored.Seats)
         {
-            var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName));
+            var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
             var snapshot = service.SetReady(restored.MatchId, session.ParticipantToken, true);
             if (seat == restored.Seats[^1])
             {

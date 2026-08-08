@@ -539,6 +539,17 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
         lock (_gate)
         {
             var match = FindMatch(matchId);
+
+            // Claiming a seat mints a full participant token, and a restored match has no prior
+            // token to present - that is the whole point of the flow. So the room code stands in
+            // for one. Without it, knowing a match id was enough to take any unclaimed seat,
+            // including the owner's, which meant the table's controls and the legitimate player
+            // locked out with no way back.
+            if (!string.Equals(NormalizeText(request.JoinCode, string.Empty), match.JoinCode, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("The room code does not match this match.");
+            }
+
             var seat = match.Participants.SingleOrDefault(p => p.Id == participantId)
                 ?? throw new InvalidOperationException("Seat was not found.");
             if (seat.IsClaimed)
@@ -1531,14 +1542,29 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, request.ParticipantToken);
             var ship = FindOwnedShip(match, participant.Id, request.ShipId);
-            // A ship whose reveal failed verification must be able to re-lock during the reveal
-            // phase, otherwise the mismatch deadlocks the turn.
+            // A ship whose reveal failed verification may re-lock during the reveal phase, so an
+            // honest mistake - a mistyped salt, a device that lost its keys - does not deadlock the
+            // turn.
+            //
+            // But only while nothing is public yet. A player controls whether their own reveal
+            // fails, simply by revealing with the wrong salt, and this escape hatch used to be
+            // granted on that basis alone. That turned a failed reveal into a privilege: fail on
+            // purpose, read every opponent's revealed order and resolved movement out of the
+            // snapshot, then re-lock knowing exactly where every enemy ship will end up. The whole
+            // point of committing an order in advance was gone, and the only trace was one log
+            // line. So the repair is allowed only while no order in the match has been revealed -
+            // when there is nothing to have learned. Once anything is public, RevealOrder settles a
+            // failure by dropping the order instead, and the ship holds its course.
             var isFailedRevealRepair = match.Phase == MatchPhase.Reveal
                 && match.Commitments.TryGetValue(ship.Id, out var priorCommitment)
-                && priorCommitment.VerificationFailed == true;
+                && priorCommitment.VerificationFailed == true
+                && !match.Commitments.Values.Any(c => c.IsRevealed);
             if (match.Phase is not (MatchPhase.OrderEntry or MatchPhase.OrdersLocked) && !isFailedRevealRepair)
             {
-                throw new InvalidOperationException("Movement orders can only be locked during order entry.");
+                throw new InvalidOperationException(
+                    match.Phase == MatchPhase.Reveal
+                        ? "Orders cannot be re-locked once any order in the match has been revealed."
+                        : "Movement orders can only be locked during order entry.");
             }
 
             if (IsDestroyed(ship))
@@ -1596,8 +1622,37 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException("Ship has not been locked.");
             }
 
+            // Read before this reveal is written: whether anything in the match is already public
+            // decides what a failure costs. Nothing public yet means nobody can have learned
+            // anything, so a mismatch is treated as the honest mistake it almost always is.
+            var anythingAlreadyRevealed = match.Commitments.Values.Any(c => c.IsRevealed);
+
             var normalized = _rules.Normalize(request.Order);
             var isValid = _commitments.Verify(commitment.CommitmentHash, normalized, request.Salt);
+
+            if (!isValid && anythingAlreadyRevealed)
+            {
+                // An order that cannot be proved, once other orders are on the table, is an order
+                // that was not given. Dropping the commitment entirely leaves the ship holding its
+                // course and speed like any unordered ship, which settles the turn instead of
+                // deadlocking it - and, crucially, does not hand the player a fresh plot made with
+                // knowledge of where everyone else is going.
+                match.Commitments.Remove(ship.Id);
+                match.AddLog(
+                    "Orders",
+                    match.Phase.ToString(),
+                    $"{DescribeShip(match, ship)} could not prove its locked order, and other orders were already revealed. Its order is discarded and it holds course and speed.");
+
+                if (match.Commitments.Values.All(c => c.IsRevealed))
+                {
+                    match.Phase = MatchPhase.Movement;
+                    match.AddLog("Phase", match.Phase.ToString(), "All movement orders revealed.");
+                }
+
+                match.Touch("OrderRevealFailed");
+                return ToSnapshot(match);
+            }
+
             var revealed = commitment with
             {
                 IsRevealed = isValid,
@@ -1611,7 +1666,7 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 match.Phase.ToString(),
                 isValid
                     ? $"{DescribeShip(match, ship)} revealed dV {request.Order.VelocityDelta}, helm {DescribeTurnSequence(request.Order)}."
-                    : $"{DescribeShip(match, ship)} reveal did not match its locked order. Re-lock and reveal again before movement.");
+                    : $"{DescribeShip(match, ship)} reveal did not match its locked order. Re-lock and reveal again before anything else is revealed.");
 
             // Only locked orders need revealing: a ship without one is holding course, and there is
             // nothing hidden about that.
@@ -1794,6 +1849,19 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
             }
 
+            // A needle names its system up front, and the shot only makes sense if that system is
+            // there to take. This is a pure question about the target, so it is asked here with the
+            // other pre-flight guards rather than after the state below has moved. Asking it later
+            // wedged the match: naming a system the target no longer has - an ordinary mistake -
+            // threw after the attacker had been marked as firing, which then refused every other
+            // ship that player owned on the grounds that this one was still shooting, and nothing
+            // ever cleared it. A fighter attacker had also already spent its endurance and already
+            // been shot at by the target's point defence, so retrying re-rolled the interception
+            // against the survivors.
+            var needleTarget = weapon.Kind == WeaponKind.NeedleBeam
+                ? PlanNeedleShot(target, request.TargetSystem, request.TargetSystemWeaponId)
+                : null;
+
             match.FiringShipId = attacker.Id;
 
             // A fighter strike is met by the target's close-in fire on the way in, and whatever is
@@ -1819,12 +1887,6 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             {
                 SpendFighterEndurance(match, target);
             }
-
-            // A needle names its system up front, and the shot only makes sense if that system is
-            // there to take.
-            var needleTarget = weapon.Kind == WeaponKind.NeedleBeam
-                ? PlanNeedleShot(target, request.TargetSystem, request.TargetSystemWeaponId)
-                : null;
 
             var result = resolver.Resolve(solution);
             var remainingDamage = result.Damage;

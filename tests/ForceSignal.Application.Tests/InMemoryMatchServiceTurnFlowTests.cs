@@ -71,7 +71,7 @@ public sealed class InMemoryMatchServiceTurnFlowTests
     }
 
     [Fact]
-    public void FailedReveal_CanBeRepairedByRelockingWithoutDeadlockingTheTurn()
+    public void FailedReveal_CanBeRepairedByRelockingWhileNothingIsPublicYet()
     {
         var table = TestMatch.Create();
         table.MarkBothReady();
@@ -79,21 +79,62 @@ public sealed class InMemoryMatchServiceTurnFlowTests
         table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt"));
         table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueEscort.Id, Drift, "escort-salt"));
         table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
-        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
 
-        // Reveal an order that does not match the commitment: verification must fail, not throw.
+        // The first reveal of the turn fails verification. Nothing is public, so nobody can have
+        // learned anything, and this is almost always what it looks like: a mistyped salt or a
+        // device that lost its keys. The turn must stay recoverable.
         var mismatched = table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueLead.Id, Drift, "blue-salt"));
-        Assert.Equal("Reveal", mismatched.Phase);
         var failedStatus = mismatched.OrderStatuses.Single(status => status.ShipId == table.BlueLead.Id);
         Assert.True(failedStatus.VerificationFailed);
         Assert.False(failedStatus.IsRevealed);
         Assert.Contains(mismatched.MatchLog, entry => entry.Category == "Orders" && entry.Message.Contains("did not match", StringComparison.OrdinalIgnoreCase));
 
-        // The turn must remain recoverable: re-lock the mismatched ship and reveal again.
         table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt-2"));
         table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt-2"));
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
         table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueEscort.Id, Drift, "escort-salt"));
 
+        var firing = table.Service.AdvanceTurn(table.MatchId, table.OwnerToken);
+        Assert.Equal("Firing", firing.Phase);
+    }
+
+    [Fact]
+    public void FailedReveal_CannotBeRelockedOnceAnyOrderIsPublic()
+    {
+        // The whole point of locking an order in advance is that it is chosen without knowing what
+        // the other side chose. A player controls whether their own reveal fails - they need only
+        // reveal with the wrong salt - so if a failure bought a fresh plot, the sequence would be:
+        // fail on purpose, read every opponent order and its resolved movement out of the snapshot,
+        // then re-lock knowing exactly where every enemy ship will end up. That has to be refused.
+        var table = TestMatch.Create();
+        table.MarkBothReady();
+        var accelerate = new MovementOrder(1, 0, TurnDirection.None);
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt"));
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OwnerToken, table.BlueEscort.Id, Drift, "escort-salt"));
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
+
+        var opponentRevealed = table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OpponentToken, table.RedLead.Id, Drift, "red-salt"));
+        Assert.Contains(opponentRevealed.RevealedOrders, order => order.ShipId == table.RedLead.Id);
+
+        // Blue now reveals something other than what it locked, having seen Red's plot.
+        var mismatched = table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueLead.Id, Drift, "blue-salt"));
+
+        // The order is gone rather than pending: an order that cannot be proved, once other orders
+        // are on the table, is an order that was not given. The ship holds course like any
+        // unordered ship, which settles the turn instead of deadlocking it.
+        var status = mismatched.OrderStatuses.Single(entry => entry.ShipId == table.BlueLead.Id);
+        Assert.False(status.IsCommitted);
+        Assert.False(status.IsRevealed);
+        Assert.Contains(mismatched.MatchLog, entry => entry.Message.Contains("holds course and speed", StringComparison.OrdinalIgnoreCase));
+
+        // And it cannot be re-plotted with what it just learned.
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+            table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(
+                table.OwnerToken, table.BlueLead.Id, accelerate, "blue-salt-2")));
+        Assert.Contains("re-locked", refused.Message, StringComparison.OrdinalIgnoreCase);
+
+        // The turn still finishes.
+        table.Service.RevealOrder(table.MatchId, new RevealOrderRequest(table.OwnerToken, table.BlueEscort.Id, Drift, "escort-salt"));
         var firing = table.Service.AdvanceTurn(table.MatchId, table.OwnerToken);
         Assert.Equal("Firing", firing.Phase);
     }

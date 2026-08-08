@@ -996,6 +996,10 @@ function App() {
   async function claimSeat(restored: PendingRestore, seat: MatchSeat) {
     const claimed = await post<Session>(`/api/matches/${restored.matchId}/seats/${seat.participantId}/claim`, {
       displayName: seat.displayName,
+      // The room code is what proves this device belongs at the table. A restored match has no
+      // prior token to present, and a match id proves nothing - it is handed out by the room-code
+      // lookup and echoed in every notification.
+      joinCode: restored.joinCode,
     });
     setPendingRestore(null);
     setSession(claimed);

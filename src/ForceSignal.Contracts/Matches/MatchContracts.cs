@@ -444,8 +444,13 @@ public sealed record OrdnanceMarkerDto(
     string Status);
 
 /// <summary>Claims an unclaimed seat in a restored match.</summary>
-/// <param name="DisplayName">Seat display name, confirmed by the caller.</param>
-public sealed record ClaimSeatRequest(string DisplayName);
+/// <param name="DisplayName">Name the claiming device shows for the seat.</param>
+/// <param name="JoinCode">
+/// The room code, which is what proves the claimer belongs at this table. A returning player has
+/// it - it is how they got here - while a match id alone proves nothing, since the id is handed out
+/// by the room-code lookup and echoed in every notification.
+/// </param>
+public sealed record ClaimSeatRequest(string DisplayName, string? JoinCode = null);
 
 /// <summary>An unclaimed or claimed seat in a restored match.</summary>
 /// <param name="ParticipantId">Participant id preserved from the restored snapshot.</param>

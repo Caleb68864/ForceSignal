@@ -143,4 +143,29 @@ public sealed class FullThrustSalvoMissileRulesTests
         var die = () => faces[index++ % faces.Length];
         return new FullThrustSalvoMissileRules(die, new FullThrustPointDefenseRules(die));
     }
+
+    [Fact]
+    public void PointDefence_StopsChainingEvenWhenTheDiceNeverStopRollingSixes()
+    {
+        // A six earns another die, so the chain is unbounded by the rules. A die source stuck on
+        // six therefore never returned - and it spun inside the match service's lock, which is
+        // process-wide, so one such request froze every match on the server. A source like this is
+        // not hypothetical: scripted test dice cycle, and fallbacks are settable.
+        var rules = new FullThrustPointDefenseRules(() => 6);
+
+        var result = rules.Resolve(systems: 3, incoming: 100);
+
+        Assert.Equal(3 * FullThrustPointDefenseRules.MaxChainLength, result.Rolls.Count);
+        Assert.All(result.Rolls, roll => Assert.Equal(6, roll));
+    }
+
+    [Fact]
+    public void PointDefence_IgnoresAnAbsurdNumberOfSystems()
+    {
+        var rules = new FullThrustPointDefenseRules(() => 1);
+
+        var result = rules.Resolve(systems: int.MaxValue, incoming: 1);
+
+        Assert.Equal(FullThrustPointDefenseRules.MaxSystems, result.Rolls.Count);
+    }
 }

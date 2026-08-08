@@ -49,7 +49,7 @@ public sealed class MatchRestoreEndpointTests
 
         using var claimResponse = await client.PostAsJsonAsync(
             $"/api/matches/{restored.MatchId}/seats/{seat.ParticipantId}/claim",
-            new ClaimSeatRequest(seat.DisplayName));
+            new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
         claimResponse.EnsureSuccessStatusCode();
         var session = await claimResponse.Content.ReadFromJsonAsync<MatchJoinedResponse>();
         Assert.NotNull(session);
@@ -63,7 +63,7 @@ public sealed class MatchRestoreEndpointTests
         // A second claim on the same seat is refused.
         using var secondClaim = await client.PostAsJsonAsync(
             $"/api/matches/{restored.MatchId}/seats/{seat.ParticipantId}/claim",
-            new ClaimSeatRequest(seat.DisplayName));
+            new ClaimSeatRequest(seat.DisplayName, restored.JoinCode));
         Assert.Equal(HttpStatusCode.BadRequest, secondClaim.StatusCode);
     }
 

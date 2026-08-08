@@ -19,16 +19,31 @@ public sealed class FullThrustPointDefenseRules(Func<int>? rollDie = null) : IPo
     /// <inheritdoc />
     public int Range => PointDefenseRange;
 
+    /// <summary>
+    /// Longest chain of sixes one system may roll before the chain is cut.
+    /// </summary>
+    /// <remarks>
+    /// This is a safety net rather than a rule. A six earns another die, so the chain is unbounded
+    /// by the rules, and a die source that keeps returning six never stops - which used to spin
+    /// forever inside the service's lock and take every match on the server with it. A real die
+    /// reaches this length about once in three billion chains, so no game will ever notice, and
+    /// the same bound already guards the firing initiative die-off.
+    /// </remarks>
+    public const int MaxChainLength = 20;
+
+    /// <summary>Most point defence systems one ship's fire is resolved with.</summary>
+    public const int MaxSystems = 32;
+
     /// <inheritdoc />
     public PointDefenseResult Resolve(int systems, int incoming)
     {
         var rolls = new List<int>();
         var scored = 0;
-        for (var system = 0; system < Math.Max(0, systems); system++)
+        for (var system = 0; system < Math.Clamp(systems, 0, MaxSystems); system++)
         {
             // A six kills two and earns another die, which scores the same way.
             var rolling = true;
-            while (rolling)
+            for (var chain = 0; rolling && chain < MaxChainLength; chain++)
             {
                 var die = Math.Clamp(_rollDie(), 1, 6);
                 rolls.Add(die);

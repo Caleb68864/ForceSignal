@@ -231,6 +231,31 @@ public sealed class InMemoryMatchServiceHardeningTests
         Assert.Equal("Latest", service.GetSnapshot(latest.MatchId).Name);
     }
 
+    [Fact]
+    public void ASeatCannotBeTakenByAnyoneWhoDoesNotHaveTheRoomCode()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Takeover"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
+        var restored = new InMemoryMatchService();
+        var rebuilt = restored.RestoreMatch(service.GetSnapshot(owner.MatchId), null);
+        var seat = rebuilt.Seats.Single();
+
+        // Claiming mints a full participant token, and the owner's seat carries the table controls
+        // and the turn. Knowing the match id must not be enough: the id is handed out by the
+        // room-code lookup and echoed in every notification, so it proves nothing about belonging
+        // at the table.
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            restored.ClaimSeat(rebuilt.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName)));
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            restored.ClaimSeat(rebuilt.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, "WRONG-CODE-HERE")));
+
+        // The player who was actually at the table has the code, which is how they got here.
+        var session = restored.ClaimSeat(rebuilt.MatchId, seat.ParticipantId, new ClaimSeatRequest(seat.DisplayName, rebuilt.JoinCode));
+        Assert.False(string.IsNullOrWhiteSpace(session.ParticipantToken));
+    }
+
     private static CreateShipRequest Ship(string token, string name) => new(
         token, name, "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24);
 }
