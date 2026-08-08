@@ -14,3 +14,6 @@ TestResults/
 output/
 .playwright-mcp/
 bash.exe.stackdump
+
+# Agent worktrees live inside the repo but are separate checkouts of it.
+.claude/worktrees/
