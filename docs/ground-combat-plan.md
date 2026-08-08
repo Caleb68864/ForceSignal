@@ -46,7 +46,7 @@ the user's to enter from their own legally obtained rules. Concretely:
 ```
 ForceSignal.Modules.GroundCombat      shared by both games
     Dice/        quality ladder, closed and open shifts, the three roll shapes  [BUILT]
-    Sequence/    alternating activation, initiative, the pass rule, turn end    [TODO]
+    Sequence/    alternating activation, initiative, the pass rule, turn end    [BUILT]
     Morale/      confidence ladder and the test procedure                       [partly, see below]
     Design/      size class, capacity, armour by facing, points                 [TODO]
 
@@ -56,7 +56,7 @@ ForceSignal.Modules.StarGrunt         figure scale
     Assault/     close assault                                                  [TODO]
 
 ForceSignal.Modules.Dirtside          vehicle scale
-    Combat/      two-stage hit and damage resolution                            [Stage 1 BUILT]
+    Combat/      two-stage hit and damage resolution                            [BUILT]
     Chits/       the damage pot, composition and validity                       [TODO]
     Support/     the deferred artillery queue                                   [TODO]
 ```
@@ -222,6 +222,24 @@ still immobilise or destroy it. Ineffective has to short-circuit before any chit
 Chit count is an **input to the engine**, not something it derives from the weapon. The base rule -
 count equals weapon size class - holds only for vehicle guns; missiles are launcher-set, several
 weapons are flat regardless of class, and artillery multiplies by tube.
+
+### Two things the build turned up that the design did not say
+
+**The pass rule deadlocks a finished turn if taken alone.** "Fewer unactivated units than the
+opponent" is exactly right while a turn is being played, and wrong at the end of one: two sides that
+have both finished hold zero and zero, neither is fewer than the other, so neither may pass and the
+turn cannot end. The shared guard stays worded as the rules word it - it is the rule - and the
+degenerate case is handled beside it, because a side with nothing left to activate is not choosing
+to pass.
+
+**The interrupt-window count is probably one too many.** A confidence test triggered by opportunity
+fire reads as a consequence resolved *inside* the interrupt rather than a window of its own
+competing for the stack. Worth settling when Dirtside's policy is written.
+
+Also worth recording, since the two are easy to conflate: StarGrunt's weapon limit is per
+activation, while Dirtside's one-weapon-per-combat-action is per element per action. Both express
+against the same derived set of resources spent in a frame; the shared layer holds no opinion about
+the scope, and should not.
 
 ## Two things worth deciding early
 
