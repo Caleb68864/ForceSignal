@@ -2814,3 +2814,23 @@ small,
   color: #ffd9a0;
   font-size: 0.9rem;
 }
+
+/* Ground unit icons. They inherit their colour so a unit can be tinted by its side, the same way
+   ship icons are - which is why the sheet is inlined rather than referenced across documents. */
+.unit-icon-svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* The icon credit is a licence obligation rather than a design choice, so it is quiet but present
+   rather than hidden. */
+.icon-credit {
+  font-size: 0.78rem;
+  color: #8fa5b8;
+}
+
+.icon-credit a {
+  color: inherit;
+  text-decoration: underline;
+}

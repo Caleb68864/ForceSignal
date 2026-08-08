@@ -1113,6 +1113,16 @@ function App() {
           <strong>Unofficial companion</strong>
           <p>ForceSignal is an unofficial tabletop companion. It is not affiliated with, endorsed by, or sponsored by Ground Zero Games.</p>
           <p>Full Thrust and Ground Zero Games are trademarks/property of their respective owners. Use your own legally obtained rules and fleet data.</p>
+          {/* Creative Commons Attribution requires the artists to be credited wherever the icons
+              are used, which includes a build someone else is running. This is that credit; the
+              other two copies are ATTRIBUTION.md and the icon sheet's own header. */}
+          <p className="icon-credit">
+            Ground unit icons made by Lorc, Delapouite, Skoll and sbed, available on{' '}
+            <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a>
+            {' '}under{' '}
+            <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>.
+            Ship icons are original to ForceSignal.
+          </p>
         </div>
         <a href={officialRulesUrl} target="_blank" rel="noreferrer">Rules</a>
       </section>

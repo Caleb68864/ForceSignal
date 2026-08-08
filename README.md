@@ -43,7 +43,16 @@ single lock cannot use. `IMatchStore` is the seam if that ever changes.
 
 ## Asset Notes
 
-The ship class icons used by the web app are original inline SVG silhouettes created for ForceSignal. No third-party icon pack is bundled. If a later pass imports icons from a source such as game-icons.net, add the required license attribution next to this note and in any distributed app credits.
+The Full Thrust ship class icons are original inline SVG silhouettes drawn for ForceSignal and
+carry no third-party obligation.
+
+The ground unit icons are from [game-icons.net](https://game-icons.net) under
+[Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/), which requires
+the artists to be credited wherever the icons are used - including in a build someone else runs.
+See [ATTRIBUTION.md](ATTRIBUTION.md) for the per-artist credit. The same credit appears in the icon
+sheet's header and in the app's on-screen notice panel, so losing one copy does not put the project
+out of licence. Tests in `UnitIcon.test.ts` fail if the credits go missing or if the sheet and the
+app disagree about which icons exist.
 
 ## Local Development
 
