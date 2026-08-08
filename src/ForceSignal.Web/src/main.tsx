@@ -718,6 +718,22 @@ function App() {
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const spentDraftTurnRef = useRef<string | null>(null);
+  /**
+   * The newest slice of the battle log, newest first.
+   *
+   * The log runs to thousands of entries in a long game, and this used to reverse the whole array
+   * and render every entry on every render of the app - which includes every keystroke and every
+   * plot on the map, not just log changes. On a tablet that is a guaranteed stutter. The reversal
+   * is now memoized on the log itself, and only the recent tail is put in the DOM; the export
+   * still writes the whole thing, which is what an after-action record is for.
+   */
+  const logPageSize = 300;
+  const recentLog = useMemo(
+    () => (snapshot?.matchLog ?? []).slice(-logPageSize).reverse(),
+    [snapshot?.matchLog]);
+  const logHiddenCount = Math.max(0, (snapshot?.matchLog ?? []).length - recentLog.length);
+
+
   const snapshotVersionRef = useRef(-1);
 
   /**
@@ -1845,7 +1861,15 @@ function App() {
               }}>Public Display</button>
               <button className="ghost" onClick={printShipCards}>Print Cards</button>
               <button className="ghost" onClick={exportSnapshotBackup}>Save Snapshot</button>
-              <button className="ghost" onClick={clearSession}>Leave Device Session</button>
+              <button
+                className="ghost"
+                onClick={() => {
+                  // Directly beneath Save Snapshot, and it drops the seat this device is holding.
+                  if (window.confirm('Leave this match on this device? Save a snapshot first if you want to come back to it.')) {
+                    clearSession();
+                  }
+                }}
+              >Leave Device Session</button>
             </div>
           </aside>
 
@@ -2311,7 +2335,19 @@ function App() {
                             <button className="ghost" type="button" onClick={() => updateDamage(ship, { driveDamage: ship.driveDamage + 1 }).catch(showError(setMessage))}>Drive Hit</button>
                             <button className="ghost" type="button" onClick={() => updateDamage(ship, { weaponDamage: ship.weaponDamage + 1 }).catch(showError(setMessage))}>Weapon Hit</button>
                             <button className="ghost" type="button" onClick={() => updateDamage(ship, { fireControlDamage: 0, driveDamage: 0, weaponDamage: 0 }).catch(showError(setMessage))}>Systems Up</button>
-                            <button className="ghost" type="button" onClick={() => updateDamage(ship, { hullDamage: ship.hullMax }).catch(showError(setMessage))}>Destroy</button>
+                            <button
+                              className="ghost"
+                              type="button"
+                              onClick={() => {
+                                // Sits in a row of ordinary damage buttons and writes the hull
+                                // straight to its maximum. A mis-tap kills a ship outright, and
+                                // the single-slot undo is gone the moment anything else is
+                                // recorded.
+                                if (window.confirm(`Mark ${ship.name} destroyed? This fills its hull damage.`)) {
+                                  run(() => updateDamage(ship, { hullDamage: ship.hullMax }));
+                                }
+                              }}
+                            >Destroy</button>
                             <button className="ghost" type="button" disabled={!damageUndo} onClick={() => undoLastDamage().catch(showError(setMessage))}>Undo Damage</button>
                           </div>
                         </div>
@@ -2383,13 +2419,19 @@ function App() {
                 </div>
               </div>
               <ol className="log-list">
-                {(snapshot?.matchLog ?? []).slice().reverse().map((entry) => (
+                {recentLog.map((entry) => (
                   <li key={entry.sequence}>
                     <span>T{entry.turnNumber} · {formatPhase(entry.phase)} · {entry.category} · {formatLogTime(entry.timestamp)}</span>
                     <p>{entry.message}</p>
                   </li>
                 ))}
               </ol>
+              {logHiddenCount > 0 ? (
+                <p className="log-truncated">
+                  Showing the most recent {recentLog.length} of {(snapshot?.matchLog ?? []).length} entries.
+                  Export the log for the full after-action record.
+                </p>
+              ) : null}
             </section>
             ) : null}
           </section>
@@ -3019,6 +3061,17 @@ function PlayMap({
       dragRef.current.longPressId = null;
     }
   }
+
+  // A long press is half a second of pending timer. Switching away from the map inside that window
+  // unmounted this component while the timer was still armed, and it then fired into a component
+  // that was gone - assigning a firing target the player had started to press and deliberately
+  // moved away from. Cancel both timers on the way out.
+  useEffect(() => () => {
+    clearLongPress();
+    clearMarkerLongPress();
+    // The cleanup runs once, on unmount; the two clear functions close over refs rather than state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function measureFromClientPoint(clientX: number, clientY: number, startNew: boolean) {
     if (!tableRef.current) {

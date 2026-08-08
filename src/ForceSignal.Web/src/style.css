@@ -2787,3 +2787,10 @@ small,
   color: #8fa5b8;
   font-size: 0.85rem;
 }
+
+/* Says plainly that the log view is a tail, so nobody thinks the earlier turns are gone. */
+.log-truncated {
+  margin-top: 0.5rem;
+  color: #8fa5b8;
+  font-size: 0.85rem;
+}
