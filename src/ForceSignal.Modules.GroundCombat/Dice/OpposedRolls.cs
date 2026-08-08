@@ -1,4 +1,4 @@
-namespace ForceSignal.Modules.StarGrunt.Dice;
+namespace ForceSignal.Modules.GroundCombat.Dice;
 
 /// <summary>
 /// How well a multiple-opposed roll went. The firer throws two or more dice against the target's

@@ -1,4 +1,4 @@
-using ForceSignal.Modules.StarGrunt.Dice;
+using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.StarGrunt.Morale;
 
 namespace ForceSignal.Modules.StarGrunt.Tests;

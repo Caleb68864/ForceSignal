@@ -1,4 +1,4 @@
-namespace ForceSignal.Modules.StarGrunt.Dice;
+namespace ForceSignal.Modules.GroundCombat.Dice;
 
 /// <summary>
 /// A die on StarGrunt's quality ladder. The die type <em>is</em> the modifier in this game: rather

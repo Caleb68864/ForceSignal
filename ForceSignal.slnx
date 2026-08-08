@@ -6,6 +6,7 @@
     <Project Path="src/ForceSignal.Domain/ForceSignal.Domain.csproj" />
     <Project Path="src/ForceSignal.Infrastructure/ForceSignal.Infrastructure.csproj" />
     <Project Path="src/ForceSignal.Modules.FullThrust/ForceSignal.Modules.FullThrust.csproj" />
+    <Project Path="src/ForceSignal.Modules.GroundCombat/ForceSignal.Modules.GroundCombat.csproj" />
     <Project Path="src/ForceSignal.Modules.StarGrunt/ForceSignal.Modules.StarGrunt.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -13,6 +14,7 @@
     <Project Path="tests/ForceSignal.Application.Tests/ForceSignal.Application.Tests.csproj" />
     <Project Path="tests/ForceSignal.Domain.Tests/ForceSignal.Domain.Tests.csproj" />
     <Project Path="tests/ForceSignal.Modules.FullThrust.Tests/ForceSignal.Modules.FullThrust.Tests.csproj" />
+    <Project Path="tests/ForceSignal.Modules.GroundCombat.Tests/ForceSignal.Modules.GroundCombat.Tests.csproj" />
     <Project Path="tests/ForceSignal.Modules.StarGrunt.Tests/ForceSignal.Modules.StarGrunt.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,5 +1,5 @@
 using ForceSignal.Modules.StarGrunt.Combat;
-using ForceSignal.Modules.StarGrunt.Dice;
+using ForceSignal.Modules.GroundCombat.Dice;
 
 namespace ForceSignal.Modules.StarGrunt.Tests;
 

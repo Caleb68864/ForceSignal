@@ -1,4 +1,4 @@
-namespace ForceSignal.Modules.StarGrunt.Dice;
+namespace ForceSignal.Modules.GroundCombat.Dice;
 
 /// <summary>
 /// Where the engine gets its die results. Injectable so a test can script a sequence and a replay

@@ -6,6 +6,55 @@ import './style.css';
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5225';
 const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
 
+/**
+ * A random identifier, on any browser that can load this page.
+ *
+ * `crypto.randomUUID` exists only in a secure context, which means HTTPS or localhost. ForceSignal
+ * is meant to be self-hosted on a laptop at a table and reached over the LAN by plain HTTP, and in
+ * that setup every device except the host's own has no `randomUUID` at all. Calling it while the
+ * module is still evaluating - which is what a default form value does - threw before React had
+ * mounted and left those devices staring at a blank page, with the host unable to reproduce it
+ * because their own machine is on localhost.
+ *
+ * `crypto.getRandomValues` is available in an insecure context, so the fallback is a version 4
+ * identifier built from it. It matters that this is real entropy rather than something like
+ * Math.random: the same function mints the salt that hides a movement order, and a guessable salt
+ * would let an opponent unpick a commitment before it is revealed.
+ */
+function newId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  // Stamp the version and variant bits so the result is a well-formed v4 identifier.
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * Writes a value to local storage without letting a full store take the app down with it.
+ *
+ * Every one of these writes used to be unguarded, inside an effect. A browser that has hit its
+ * quota throws from `setItem`, the throw escapes the effect, and the player loses the whole screen
+ * mid-game. Quota is reachable in a long match because the entire snapshot - battle log included -
+ * is rewritten on every update.
+ *
+ * Returns whether the write landed, so a caller that is storing something it cannot afford to lose
+ * can say so rather than assuming.
+ */
+function writeStorage(key: string, value: unknown): boolean {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 type TurnDirection = 'None' | 'Port' | 'Starboard';
 type WeaponKind = 'Beam' | 'PulseTorpedo' | 'NeedleBeam';
 
@@ -355,7 +404,7 @@ const defaultShipForm: ShipForm = {
   damageControlParties: 2,
   screenRating: 1,
   weapons: [{
-    id: crypto.randomUUID(),
+    id: newId(),
     name: 'Class-2 Beam',
     attackDice: 2,
     maxRange: 24,
@@ -619,7 +668,7 @@ function App() {
   const [displayName, setDisplayName] = useState('Admiral');
   const [joinCode, setJoinCode] = useState('');
   const [session, setSession] = useState<Session | null>(() => readJson(sessionKey));
-  const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
+  const [snapshot, setSnapshotState] = useState<MatchSnapshot | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftOrder>>(() => readJson(draftsKey) ?? {});
   const [firingDrafts, setFiringDrafts] = useState<Record<string, FiringDraft>>({});
   const [shipForm, setShipForm] = useState<ShipForm>(defaultShipForm);
@@ -632,6 +681,7 @@ function App() {
   const [publicMode, setPublicMode] = useState(false);
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('offline');
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
   const [fleetLibrary, setFleetLibrary] = useState<SavedFleet[]>(() => readJson<SavedFleet[]>(fleetLibraryKey) ?? []);
@@ -640,13 +690,55 @@ function App() {
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const spentDraftTurnRef = useRef<string | null>(null);
+  const snapshotVersionRef = useRef(-1);
 
+  /**
+   * The only way a snapshot reaches the board.
+   *
+   * Two players acting inside the same second produce overlapping work: every mutation returns the
+   * state it produced, and every realtime notification starts a fresh fetch. Nothing ordered them,
+   * so a reply that left the server first could land last and put the board back to a state that
+   * had already been superseded. Damage appeared to un-apply, and the checklist and firing guards
+   * were computed from it. It corrected itself on the next push - unless that was the turn's last
+   * event, in which case the table resolved the turn against a board that was quietly out of date.
+   *
+   * The server stamps every snapshot with a version that only ever increases, so an older one is
+   * simply dropped. This is also the one place normalization happens: before this, only the
+   * explicit refetch normalized, and the twenty-odd mutation replies went in raw.
+   */
+  function applySnapshot(next: MatchSnapshot | null) {
+    if (next === null) {
+      snapshotVersionRef.current = -1;
+      setSnapshotState(null);
+      return;
+    }
+
+    if (next.version <= snapshotVersionRef.current) {
+      return;
+    }
+
+    snapshotVersionRef.current = next.version;
+    setSnapshotState(normalizeMatchSnapshot(next));
+  }
+
+  // The drafts hold the salts that make a locked order revealable, so this is the one write in the
+  // app that must not be quietly lost. It is also written first, before the much larger snapshot
+  // backup below, so a store that is filling up sheds the backup rather than the salts.
   useEffect(() => {
-    localStorage.setItem(draftsKey, JSON.stringify(drafts));
+    if (!writeStorage(draftsKey, drafts) && Object.keys(drafts).length > 0) {
+      localStorage.removeItem(snapshotBackupKey);
+      if (!writeStorage(draftsKey, drafts)) {
+        setStorageWarning(
+          'This browser will not store your order keys. Do not close the tab before revealing, and export your order keys to be safe.');
+        return;
+      }
+    }
+
+    setStorageWarning(null);
   }, [drafts]);
 
   useEffect(() => {
-    localStorage.setItem(fleetLibraryKey, JSON.stringify(fleetLibrary));
+    writeStorage(fleetLibraryKey, fleetLibrary);
   }, [fleetLibrary]);
 
   useEffect(() => {
@@ -655,14 +747,32 @@ function App() {
     }
   }, [snapshot?.pointsLimit]);
 
+  // The local backup is a convenience, not a guarantee - an explicit snapshot export is the real
+  // recovery path - so it is written without the battle log. The log is the bulk of a long match's
+  // state and is what pushes this store over its quota; the export keeps the whole thing.
   useEffect(() => {
-    if (snapshot) {
-      localStorage.setItem(snapshotBackupKey, JSON.stringify({ savedAt: new Date().toISOString(), snapshot }));
+    if (!snapshot) {
+      return;
+    }
+
+    const stored = { savedAt: new Date().toISOString(), snapshot: { ...snapshot, matchLog: [] } };
+    if (!writeStorage(snapshotBackupKey, stored)) {
+      localStorage.removeItem(snapshotBackupKey);
     }
   }, [snapshot]);
 
-  // An order is spent once movement resolves. Drop the local drafts then, so the next turn
-  // starts from a clean plot instead of previewing - or silently re-locking - last turn's helm.
+  // An order is spent once movement resolves. Drop the local drafts then, so the next turn starts
+  // from a clean plot instead of previewing - or silently re-locking - last turn's helm.
+  //
+  // A draft holds the salt without which a locked order can never be revealed, and the salt exists
+  // nowhere else. So a draft whose order is still sealed is kept even though the phase has moved
+  // on: this used to clear everything the moment any snapshot arrived in the firing phase, which
+  // meant the opponent advancing the turn while one of your ships was locked-but-unrevealed
+  // destroyed the only copy of that salt, permanently and with no warning.
+  //
+  // The stale firing drafts go at the same moment. Ships move every turn, so a range typed last
+  // turn describes a distance that no longer exists, and the console would happily have resolved a
+  // close-range volley the map disagreed with.
   useEffect(() => {
     if (!snapshot || snapshot.phase !== 'Firing') {
       return;
@@ -674,7 +784,18 @@ function App() {
     }
 
     spentDraftTurnRef.current = turnKey;
-    setDrafts({});
+    setFiringDrafts({});
+    setDrafts((current) => {
+      const unresolved: Record<string, DraftOrder> = {};
+      for (const [shipId, draft] of Object.entries(current)) {
+        const status = snapshot.orderStatuses.find((entry) => entry.shipId === shipId);
+        if (status?.isCommitted && !status.isRevealed) {
+          unresolved[shipId] = draft;
+        }
+      }
+
+      return unresolved;
+    });
   }, [snapshot?.matchId, snapshot?.turnNumber, snapshot?.phase]);
 
   useEffect(() => {
@@ -825,7 +946,7 @@ function App() {
   }
 
   async function loadSnapshot(matchId: string) {
-    setSnapshot(normalizeMatchSnapshot(await get<MatchSnapshot>(`/api/matches/${matchId}/snapshot`)));
+    applySnapshot(await get<MatchSnapshot>(`/api/matches/${matchId}/snapshot`));
   }
 
   async function createShipFromForm() {
@@ -869,7 +990,7 @@ function App() {
       homeCarrierShipId: shipForm.homeCarrierShipId || null,
       pointsValue: shipForm.pointsValue,
     });
-    setSnapshot(created);
+    applySnapshot(created);
     setShipForm((current) => ({
       ...current,
       name: nextShipName(current.name),
@@ -971,7 +1092,7 @@ function App() {
       }
     }
 
-    setSnapshot(importedSnapshot);
+    applySnapshot(importedSnapshot);
     setActiveFleetId(fleet.id);
     setMessage(`Brought ${exportData.ships.length} ship${exportData.ships.length === 1 ? '' : 's'} (${fleetPoints(exportData)} pts) into ${exportData.name}.`);
   }
@@ -981,7 +1102,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(
+    applySnapshot(await post<MatchSnapshot>(
       `/api/matches/${session.matchId}/participants/me/ready`,
       { isReady: true },
       session.participantToken,
@@ -997,7 +1118,7 @@ function App() {
     if (!drafts[ship.id]) {
       setDrafts((current) => ({ ...current, [ship.id]: draft }));
     }
-    setSnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/commit`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/commit`, {
       participantToken: session.participantToken,
       shipId: ship.id,
       order: toOrder(draft),
@@ -1016,7 +1137,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/reveal`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/reveal`, {
       participantToken: session.participantToken,
       shipId: ship.id,
       order: toOrder(draft),
@@ -1057,7 +1178,7 @@ function App() {
     latest = await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/complete`, {
       participantToken: session.participantToken,
     });
-    setSnapshot(latest);
+    applySnapshot(latest);
     const holding = ownedShips.filter((ship) => (
       !ship.isDestroyed && !latest.orderStatuses.find((status) => status.shipId === ship.id)?.isCommitted
     )).length;
@@ -1092,7 +1213,7 @@ function App() {
       });
     }
 
-    setSnapshot(latest);
+    applySnapshot(latest);
     setMessage(missingDraftShips.length > 0
       ? `${missingDraftShips.length} locked friendly order${missingDraftShips.length === 1 ? '' : 's'} need the original local draft before reveal.`
       : revealableShips.length === 0 ? 'No friendly locked orders need reveal.' : `Revealed ${revealableShips.length} friendly orders.`);
@@ -1107,7 +1228,7 @@ function App() {
       setDamageUndo({ shipId: ship.id, shipName: ship.name, before: captureDamageState(ship) });
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/damage`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/damage`, {
       participantToken: session.participantToken,
       hullDamage: ship.hullDamage,
       armorDamage: ship.armorDamage,
@@ -1141,7 +1262,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/profile`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/profile`, {
       participantToken: session.participantToken,
       name: form.name,
       className: form.className,
@@ -1175,7 +1296,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/duplicate`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/duplicate`, {
       participantToken: session.participantToken,
       name: nextShipName(ship.name),
     }));
@@ -1197,7 +1318,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/fighter-ops`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/ships/${ship.id}/fighter-ops`, {
       participantToken: session.participantToken,
       fighterStatus: patch.fighterStatus ?? ship.fighterStatus,
       fighterEnduranceUsed: patch.fighterEnduranceUsed ?? ship.fighterEnduranceUsed,
@@ -1213,7 +1334,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/ordnance`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/ordnance`, {
       participantToken: session.participantToken,
       name: patch.name || `${sourceShip.name} Salvo`,
       markerType: patch.markerType || 'Missile',
@@ -1236,7 +1357,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/ordnance/${marker.id}`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/ordnance/${marker.id}`, {
       participantToken: session.participantToken,
       name: patch.name ?? marker.name,
       markerType: patch.markerType ?? marker.markerType,
@@ -1258,7 +1379,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/ordnance/${marker.id}/remove`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/ordnance/${marker.id}/remove`, {
       participantToken: session.participantToken,
     }));
     setMessage(`${marker.name} marker removed.`);
@@ -1279,7 +1400,7 @@ function App() {
       targetSystem: draft.targetSystem ?? null,
       targetSystemWeaponId: draft.targetSystemWeaponId ?? null,
     });
-    setSnapshot(fired);
+    applySnapshot(fired);
     const target = fired.ships.find((item) => item.id === draft.targetShipId);
     setMessage(`${ship.name} fired at ${target?.name ?? 'target'} at range ${draft.range}.`);
   }
@@ -1293,7 +1414,7 @@ function App() {
       participantToken: session.participantToken,
       jobs: jobs.map((job) => ({ kind: job.kind, weaponId: job.weaponId ?? null, parties: job.parties })),
     });
-    setSnapshot(repaired);
+    applySnapshot(repaired);
     const note = repaired.matchLog.find((entry) => entry.category === 'Repair');
     setMessage(note?.message ?? `${ship.name} worked its damage control.`);
   }
@@ -1309,7 +1430,7 @@ function App() {
       positionX: x,
       positionY: y,
     });
-    setSnapshot(flown);
+    applySnapshot(flown);
     setMessage(`${ship.name} flew to ${x.toFixed(1)}, ${y.toFixed(1)}.`);
   }
 
@@ -1322,7 +1443,7 @@ function App() {
       participantToken: session.participantToken,
       shipId: ship.id,
     });
-    setSnapshot(closed);
+    applySnapshot(closed);
     setMessage(`${ship.name} finished firing. Any threshold checks it earned have been rolled.`);
   }
 
@@ -1335,7 +1456,7 @@ function App() {
       participantToken: session.participantToken,
       rulesLayer: layer,
     });
-    setSnapshot(switched);
+    applySnapshot(switched);
     setMessage(switched.matchLog.find((entry) => entry.message.startsWith('Rules layer set'))?.message
       ?? `Rules layer set to ${layer}.`);
   }
@@ -1346,7 +1467,7 @@ function App() {
     }
 
     const limit = Math.max(0, Math.min(99999, Math.round(Number(pointsLimitForm) || 0)));
-    setSnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/points-limit`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/points-limit`, {
       participantToken: session.participantToken,
       pointsLimit: limit,
     }));
@@ -1370,7 +1491,7 @@ function App() {
       throw new Error('New fleet was not returned.');
     }
 
-    setSnapshot(created);
+    applySnapshot(created);
     setActiveFleetId(fleet.id);
     setNewFleetForm(null);
     setMessage(`${fleet.name} created. Ships you add now join this fleet.`);
@@ -1409,7 +1530,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/table`, {
+    applySnapshot(await post<MatchSnapshot>(`/api/matches/${session.matchId}/table`, {
       participantToken: session.participantToken,
       tableWidth: tableForm.width,
       tableDepth: tableForm.depth,
@@ -1489,7 +1610,7 @@ function App() {
       return;
     }
 
-    setSnapshot(await post<MatchSnapshot>(
+    applySnapshot(await post<MatchSnapshot>(
       `/api/matches/${session.matchId}/turns/current/advance`,
       {},
       session.participantToken,
@@ -1499,7 +1620,7 @@ function App() {
   function clearSession() {
     clearLocalMatchState();
     setSession(null);
-    setSnapshot(null);
+    applySnapshot(null);
   }
 
   function clearLocalMatchState() {
@@ -1701,7 +1822,12 @@ function App() {
                   <span>{snapshot.movementResults.length} resolved</span>
                 </div>
               ) : null}
-              <p>{message}</p>
+              <p aria-live="polite">{message}</p>
+              {storageWarning ? (
+                // Losing the order keys means a locked order can never be revealed, which stops the
+                // turn dead. That is worth interrupting someone over rather than logging quietly.
+                <p className="storage-warning" role="alert">{storageWarning}</p>
+              ) : null}
             </div>
 
             {snapshot?.phase === 'FleetSetup' && activeView === 'ships' ? (
@@ -2377,7 +2503,7 @@ function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form: ShipF
               onClick={() => onChange({
                 ...form,
                 ...preset.patch,
-                weapons: preset.patch.weapons?.map((weapon) => ({ ...weapon, id: crypto.randomUUID() })) ?? form.weapons,
+                weapons: preset.patch.weapons?.map((weapon) => ({ ...weapon, id: newId() })) ?? form.weapons,
               })}
             >
               {preset.label}
@@ -4840,7 +4966,7 @@ function normalizeOrdnanceMarker(value: unknown): OrdnanceMarker | null {
   }
 
   const record = value as Record<string, unknown>;
-  const id = typeof record.id === 'string' && record.id.trim() ? record.id : crypto.randomUUID();
+  const id = typeof record.id === 'string' && record.id.trim() ? record.id : newId();
   const ownerParticipantId = typeof record.ownerParticipantId === 'string' ? record.ownerParticipantId : '';
 
   return {
@@ -5044,7 +5170,7 @@ function firingTargetOptions(ship: Ship, ships: Ship[], ownedShipIds?: Set<strin
 
 function newWeaponMount(): WeaponMount {
   return {
-    id: crypto.randomUUID(),
+    id: newId(),
     name: 'Class-2 Beam',
     attackDice: 2,
     maxRange: 24,
@@ -5058,7 +5184,7 @@ function newWeaponMount(): WeaponMount {
 
 function weaponPreset(name: string, attackDice: number, maxRange: number, arcs: FiringArc[], ammoMax = 0, kind: WeaponKind = 'Beam'): WeaponMount {
   return {
-    id: crypto.randomUUID(),
+    id: newId(),
     name,
     attackDice,
     maxRange,
@@ -5084,7 +5210,7 @@ function normalizeWeaponMount(value: unknown): WeaponMount {
 
   const record = value as Record<string, unknown>;
   return {
-    id: typeof record.id === 'string' && record.id ? record.id : crypto.randomUUID(),
+    id: typeof record.id === 'string' && record.id ? record.id : newId(),
     name: stringFrom(record.name, 'Class-2 Beam'),
     attackDice: wholeNumberFrom(record.attackDice ?? record.dice, 2, 1, 12),
     maxRange: wholeNumberFrom(record.maxRange ?? record.range, 24, 1, 72),
@@ -5657,7 +5783,7 @@ function createDraftOrder(): DraftOrder {
     turnSteps: 0,
     turnDirection: 'None',
     turnManeuvers: [],
-    salt: crypto.randomUUID(),
+    salt: newId(),
   };
 }
 

@@ -6,8 +6,4 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\ForceSignal.Modules.GroundCombat\ForceSignal.Modules.GroundCombat.csproj" />
-  </ItemGroup>
-
 </Project>

@@ -1,4 +1,4 @@
-using ForceSignal.Modules.StarGrunt.Dice;
+using ForceSignal.Modules.GroundCombat.Dice;
 
 namespace ForceSignal.Modules.StarGrunt.Combat;
 

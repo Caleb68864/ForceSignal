@@ -1,6 +1,6 @@
-using ForceSignal.Modules.StarGrunt.Dice;
+using ForceSignal.Modules.GroundCombat.Dice;
 
-namespace ForceSignal.Modules.StarGrunt.Tests;
+namespace ForceSignal.Modules.GroundCombat.Tests;
 
 /// <summary>
 /// Every roll in the game is one of three shapes, and all three share one rule: the roll has to

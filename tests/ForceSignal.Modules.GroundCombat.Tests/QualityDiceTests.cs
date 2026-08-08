@@ -1,6 +1,6 @@
-using ForceSignal.Modules.StarGrunt.Dice;
+using ForceSignal.Modules.GroundCombat.Dice;
 
-namespace ForceSignal.Modules.StarGrunt.Tests;
+namespace ForceSignal.Modules.GroundCombat.Tests;
 
 /// <summary>
 /// The quality ladder is the arithmetic the whole engine rests on: every circumstance that would
