@@ -2,463 +2,51 @@ import { type CSSProperties, type KeyboardEvent, type PointerEvent, useEffect, u
 import { createRoot } from 'react-dom/client';
 import * as signalR from '@microsoft/signalr';
 import './style.css';
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5225';
-const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
-
-/**
- * A random identifier, on any browser that can load this page.
- *
- * `crypto.randomUUID` exists only in a secure context, which means HTTPS or localhost. ForceSignal
- * is meant to be self-hosted on a laptop at a table and reached over the LAN by plain HTTP, and in
- * that setup every device except the host's own has no `randomUUID` at all. Calling it while the
- * module is still evaluating - which is what a default form value does - threw before React had
- * mounted and left those devices staring at a blank page, with the host unable to reproduce it
- * because their own machine is on localhost.
- *
- * `crypto.getRandomValues` is available in an insecure context, so the fallback is a version 4
- * identifier built from it. It matters that this is real entropy rather than something like
- * Math.random: the same function mints the salt that hides a movement order, and a guessable salt
- * would let an opponent unpick a commitment before it is revealed.
- */
-function newId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  // Stamp the version and variant bits so the result is a well-formed v4 identifier.
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-/**
- * Writes a value to local storage without letting a full store take the app down with it.
- *
- * Every one of these writes used to be unguarded, inside an effect. A browser that has hit its
- * quota throws from `setItem`, the throw escapes the effect, and the player loses the whole screen
- * mid-game. Quota is reachable in a long match because the entire snapshot - battle log included -
- * is rewritten on every update.
- *
- * Returns whether the write landed, so a caller that is storing something it cannot afford to lose
- * can say so rather than assuming.
- */
-function writeStorage(key: string, value: unknown): boolean {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-type TurnDirection = 'None' | 'Port' | 'Starboard';
-type WeaponKind = 'Beam' | 'PulseTorpedo' | 'NeedleBeam';
-
-type FiringArc = 'Fore' | 'ForeStarboard' | 'AftStarboard' | 'Aft' | 'AftPort' | 'ForePort';
-type ShipIconKey = 'escort' | 'frigate' | 'destroyer' | 'cruiser' | 'carrier' | 'dreadnought' | 'fighter-group' | 'station';
-type FighterStatus = 'Docked' | 'Airborne' | 'Recovering';
-
-type TurnManeuver = {
-  direction: Exclude<TurnDirection, 'None'>;
-  steps: number;
-};
-
-type MovementSegment = {
-  course: number;
-  distance: number;
-};
-
-type Participant = {
-  id: string;
-  displayName: string;
-  role: string;
-  isReady: boolean;
-  isConnected: boolean;
-  ordersComplete?: boolean;
-};
-
-type Fleet = {
-  id: string;
-  ownerParticipantId: string;
-  name: string;
-  faction?: string;
-  fleetColor: string;
-};
-
-type Ship = {
-  id: string;
-  fleetId: string;
-  name: string;
-  className?: string;
-  thrustRating: number;
-  currentVelocity: number;
-  currentCourse: number;
-  positionX: number;
-  positionY: number;
-  hullMax: number;
-  hullDamage: number;
-  armorMax: number;
-  armorDamage: number;
-  fireControlMax: number;
-  fireControlDamage: number;
-  pointDefenseSystems?: number;
-  fighterBays?: number;
-  fighterBayDamage?: number;
-  damageControlParties?: number;
-  driveDamage: number;
-  weaponDamage: number;
-  screenRating: number;
-  screenDamage?: number;
-  weapons: WeaponMount[];
-  isDestroyed: boolean;
-  // The hull damage track, as boxes per row. Completing a row triggers a threshold check.
-  hullRows?: number[];
-  hullRowsCompleted?: number;
-  iconKey: ShipIconKey;
-  fighterEnduranceMax: number;
-  fighterEnduranceUsed: number;
-  fighterMaxRange: number;
-  fighterStatus: FighterStatus;
-  homeCarrierShipId?: string | null;
-  pointsValue: number;
-};
-
-type WeaponMount = {
-  id: string;
-  name: string;
-  attackDice: number;
-  maxRange: number;
-  arcs: FiringArc[];
-  ammoMax: number;
-  ammoUsed: number;
-  reloadTurns: number;
-  isDestroyed?: boolean;
-  isNeedleKilled?: boolean;
-  kind: WeaponKind;
-};
-
-type OrdnanceMarker = {
-  id: string;
-  ownerParticipantId: string;
-  name: string;
-  markerType: string;
-  sourceShipId?: string | null;
-  targetShipId?: string | null;
-  positionX: number;
-  positionY: number;
-  course: number;
-  speed: number;
-  enduranceRemaining: number;
-  attackDice: number;
-  maxRange: number;
-  status: string;
-};
-
-type OrderStatus = {
-  shipId: string;
-  ownerParticipantId: string;
-  isCommitted: boolean;
-  isRevealed: boolean;
-  verificationFailed: boolean;
-};
-
-type RevealedOrder = {
-  shipId: string;
-  velocityDelta: number;
-  turnSteps: number;
-  turnDirection: TurnDirection;
-  turnManeuvers?: TurnManeuver[] | null;
-};
-
-type MovementResult = {
-  shipId: string;
-  startingVelocity: number;
-  startingCourse: number;
-  endingVelocity: number;
-  endingCourse: number;
-  segments?: MovementSegment[] | null;
-};
-
-type FiringResult = {
-  attackerShipId: string;
-  targetShipId: string;
-  weaponId: string;
-  weaponName: string;
-  turnNumber: number;
-  range: number;
-  rangeBand: string;
-  arc: FiringArc;
-  rawDice: number;
-  rangePenalty: number;
-  screenReduction: number;
-  systemPenalty: number;
-  damage: number;
-  armorDamageApplied: number;
-  hullDamageApplied: number;
-  diceRolls: number[];
-  weaponKind?: WeaponKind;
-  toHitNumber?: number | null;
-  isHit?: boolean | null;
-};
-
-type MatchLogEntry = {
-  sequence: number;
-  timestamp: string;
-  turnNumber: number;
-  phase: string;
-  category: string;
-  message: string;
-};
-
-type MatchSnapshot = {
-  matchId: string;
-  joinCode: string;
-  name: string;
-  phase: string;
-  turnNumber: number;
-  rulesProfileKey: string;
-  tableWidth: number;
-  tableDepth: number;
-  participants: Participant[];
-  fleets: Fleet[];
-  ships: Ship[];
-  orderStatuses: OrderStatus[];
-  revealedOrders: RevealedOrder[];
-  movementResults: MovementResult[];
-  firingResults: FiringResult[];
-  ordnanceMarkers: OrdnanceMarker[];
-  matchLog: MatchLogEntry[];
-  version: number;
-  pointsLimit: number;
-  // Which layer of the rules this match is played under. The layers replace parts of one another.
-  rulesLayer?: string;
-  // The ship part-way through its fire. Its threshold checks roll when the volley closes.
-  firingShipId?: string | null;
-  // Whose turn it is to pick a ship and fire it, and which ships have already had their turn.
-  firingParticipantId?: string | null;
-  activatedShipIds?: string[];
-};
-
-type Session = {
-  matchId: string;
-  participantId: string;
-  participantToken: string;
-  joinCode: string;
-};
-
-type MatchSeat = {
-  participantId: string;
-  displayName: string;
-  role: string;
-  isClaimed: boolean;
-  fleetCount: number;
-  shipCount: number;
-};
-
-type PendingRestore = {
-  matchId: string;
-  joinCode: string;
-  seats: MatchSeat[];
-  note: string;
-};
-
-type MatchRestored = {
-  matchId: string;
-  joinCode: string;
-  reusedJoinCode: boolean;
-  restoredPhase: string;
-  lockedOrdersDropped: boolean;
-  seats: MatchSeat[];
-};
-
-type MatchIdentity = {
-  matchId: string;
-  joinCode: string;
-  hasUnclaimedSeats: boolean;
-};
-
-type DraftOrder = {
-  velocityDelta: number;
-  turnSteps: number;
-  turnDirection: TurnDirection;
-  turnManeuvers?: TurnManeuver[];
-  salt: string;
-};
-
-type ShipForm = {
-  fleetName: string;
-  faction: string;
-  fleetColor: string;
-  name: string;
-  className: string;
-  iconKey: ShipIconKey;
-  thrustRating: number;
-  currentVelocity: number;
-  currentCourse: number;
-  positionX: number;
-  positionY: number;
-  hullMax: number;
-  armorMax: number;
-  screenRating: number;
-  fireControlMax: number;
-  pointDefenseSystems: number;
-  fighterBays: number;
-  damageControlParties: number;
-  weapons: WeaponMount[];
-  fighterEnduranceMax: number;
-  fighterEnduranceUsed: number;
-  fighterMaxRange: number;
-  fighterStatus: FighterStatus;
-  homeCarrierShipId: string;
-  pointsValue: number;
-};
-
-type FiringDraft = {
-  targetShipId: string;
-  weaponId: string;
-  range: number;
-  // A needle beam names one system on the target; every other weapon ignores this.
-  targetSystem?: string;
-  targetSystemWeaponId?: string;
-};
-
-type DamageState = Pick<Ship, 'hullDamage' | 'armorDamage' | 'fireControlDamage' | 'driveDamage' | 'weaponDamage'>;
-
-type TablePoint = {
-  x: number;
-  y: number;
-};
-
-type FleetExportShip = {
-  name: string;
-  className: string;
-  iconKey: ShipIconKey;
-  thrustRating: number;
-  initialVelocity: number;
-  initialCourse: number;
-  startX: number;
-  startY: number;
-  hullMax: number;
-  armorMax: number;
-  screenRating: number;
-  fireControlMax: number;
-  pointDefenseSystems: number;
-  fighterBays: number;
-  damageControlParties: number;
-  weapons: WeaponMount[];
-  fighterEnduranceMax: number;
-  fighterEnduranceUsed: number;
-  fighterMaxRange: number;
-  fighterStatus: FighterStatus;
-  homeCarrierShipId?: string | null;
-  homeCarrierName?: string | null;
-  pointsValue: number;
-};
-
-type SavedFleet = {
-  savedAt: string;
-  fleet: FleetExport;
-};
-
-type FleetExport = {
-  schema: 'forcesignal-fleet-1';
-  gameSystem: 'space-fleet-compatible';
-  name: string;
-  faction: string;
-  fleetColor: string;
-  ships: FleetExportShip[];
-};
-
-class ApiRequestError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-  }
-}
-
-const sessionKey = 'forcesignal.session';
-const draftsKey = 'forcesignal.drafts';
-const snapshotBackupKey = 'forcesignal.snapshot-backup';
-const fleetLibraryKey = 'forcesignal.fleet-library';
-
-const defaultShipForm: ShipForm = {
-  fleetName: 'Patrol Group',
-  faction: 'Custom',
-  fleetColor: '#47f1ff',
-  name: 'Valiant',
-  className: 'Cruiser',
-  iconKey: 'cruiser',
-  thrustRating: 4,
-  currentVelocity: 8,
-  currentCourse: 1,
-  positionX: 12,
-  positionY: 24,
-  hullMax: 12,
-  armorMax: 4,
-  fireControlMax: 2,
-  pointDefenseSystems: 1,
-  fighterBays: 0,
-  damageControlParties: 2,
-  screenRating: 1,
-  weapons: [{
-    id: newId(),
-    name: 'Class-2 Beam',
-    attackDice: 2,
-    maxRange: 24,
-    arcs: ['Fore'],
-    kind: 'Beam',
-    ammoMax: 0,
-    ammoUsed: 0,
-    reloadTurns: 0,
-  }],
-  fighterEnduranceMax: 0,
-  fighterEnduranceUsed: 0,
-  fighterMaxRange: 0,
-  fighterStatus: 'Docked',
-  homeCarrierShipId: '',
-  pointsValue: 0,
-};
-
-const shipIconOptions: { key: ShipIconKey; label: string }[] = [
-  { key: 'escort', label: 'Escort' },
-  { key: 'frigate', label: 'Frigate' },
-  { key: 'destroyer', label: 'Destroyer' },
-  { key: 'cruiser', label: 'Cruiser' },
-  { key: 'carrier', label: 'Carrier' },
-  { key: 'dreadnought', label: 'Dreadnought' },
-  { key: 'fighter-group', label: 'Fighter group' },
-  { key: 'station', label: 'Station' },
-];
-
-const fighterStatuses: FighterStatus[] = ['Docked', 'Airborne', 'Recovering'];
-
-// Six sixty-degree arcs, clockwise from dead ahead.
-/// How far a fighter group flies in a turn. It moves in any direction inside this radius rather than
-/// being plotted on a course, which is why it needs no written order.
-const fighterMoveAllowance = 12;
-
-const firingArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'Aft', 'AftPort', 'ForePort'];
-// Every weapon has the aft arc blacked out, so only these five can ever be fired through.
-const firableArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'AftPort', 'ForePort'];
-const arcLabels: Record<FiringArc, string> = {
-  Fore: 'Fore',
-  ForeStarboard: 'Fore Starboard',
-  AftStarboard: 'Aft Starboard',
-  Aft: 'Aft',
-  AftPort: 'Aft Port',
-  ForePort: 'Fore Port',
-};
-const arcAbbreviations: Record<FiringArc, string> = {
-  Fore: 'F',
-  ForeStarboard: 'FS',
-  AftStarboard: 'AS',
-  Aft: 'A',
-  AftPort: 'AP',
-  ForePort: 'FP',
-};
+import { arcAbbreviations, arcLabels, defaultShipForm, draftsKey, fighterMoveAllowance, fighterStatuses, firableArcs, firingArcs, fleetLibraryKey, officialRulesUrl, sessionKey, shipIconOptions, shipPresets, snapshotBackupKey, weaponKinds } from './constants.ts';
+import { newWeaponMount, updateWeapon } from './lib/weapons.ts';
+import { courseAngle, courseFromPoint, distanceBetweenShips, mapPercent, rangeDiameterPercent, weaponArcAngle, wrapCourse } from './lib/geometry.ts';
+import { csvEscape, downloadText, formatLogTime, formatPhase, formatRulesProfile, normalizeHeader, numberFrom, slugify, stringFrom, stripFileExtension, wholeNumberFrom } from './lib/format.ts';
+import {
+  ApiRequestError,
+  apiBaseUrl,
+  get,
+  newId,
+  post,
+  readJson,
+  showError,
+  writeStorage,
+} from './lib/api.ts';
+import type {
+  DamageState,
+  DraftOrder,
+  FighterStatus,
+  FiringArc,
+  FiringDraft,
+  FiringResult,
+  Fleet,
+  FleetExport,
+  FleetExportShip,
+  MatchIdentity,
+  MatchRestored,
+  MatchSeat,
+  MatchSnapshot,
+  MovementResult,
+  MovementSegment,
+  OrdnanceMarker,
+  Participant,
+  PendingRestore,
+  RepairJob,
+  SavedFleet,
+  Session,
+  Ship,
+  ShipForm,
+  ShipIconKey,
+  TablePoint,
+  TurnDirection,
+  TurnManeuver,
+  WeaponKind,
+  WeaponMount,
+} from './types.ts';
 
 /// The hull damage track as boxes per row: four rows, remainder weighted to the upper rows.
 function hullRowsFor(hullMax: number): number[] {
@@ -534,12 +122,6 @@ function firingTurnBlocker(ship: Ship, snapshot: MatchSnapshot, participantId: s
 
   return null;
 }
-
-const weaponKinds: { key: WeaponKind; label: string; maxRange: number }[] = [
-  { key: 'Beam', label: 'Beam battery', maxRange: 36 },
-  { key: 'PulseTorpedo', label: 'Pulse torpedo', maxRange: 30 },
-  { key: 'NeedleBeam', label: 'Needle beam', maxRange: 9 },
-];
 
 /// Whether a declared range disagrees with the map enough to be worth saying: it sits in a
 /// different band, which changes the dice, or the two numbers are simply far apart. Mirrors the
@@ -632,37 +214,6 @@ function arcBlocker(ship: Ship, target?: Ship, weapon?: WeaponMount): string | n
 
   return weapon.arcs.includes(arc) ? null : `${weapon.name} does not bear ${arcLabel(arc)}`;
 }
-
-const shipPresets: { label: string; patch: Partial<ShipForm> }[] = [
-  {
-    label: 'Escort',
-    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 0, weapons: [weaponPreset('Class-1 Beam', 1, 12, ['Fore'])] },
-  },
-  {
-    label: 'Frigate',
-    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
-  },
-  {
-    label: 'Destroyer',
-    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, fireControlMax: 1, pointDefenseSystems: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
-  },
-  {
-    label: 'Cruiser',
-    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 2, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs]), weaponPreset('Torpedo Tube', 1, 30, ['Fore'], 0, 'PulseTorpedo')] },
-  },
-  {
-    label: 'Carrier',
-    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 3, fighterBays: 4, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
-  },
-  {
-    label: 'Fighters',
-    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 0, weapons: [weaponPreset('Fighter Attack', 3, 6, ['Fore'])], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
-  },
-  {
-    label: 'Station',
-    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, fireControlMax: 3, pointDefenseSystems: 4, weapons: [weaponPreset('Heavy Battery', 3, 30, [...firableArcs])] },
-  },
-];
 
 function App() {
   const [displayName, setDisplayName] = useState('Admiral');
@@ -4622,9 +4173,6 @@ function CourseCompass({
   );
 }
 
-/// One job a damage control party can be put on.
-type RepairJob = { kind: string; weaponId?: string | null; parties: number };
-
 /// Systems on a ship that damage control could actually bring back. Hull damage and dead parties are
 /// never on the list, and neither is anything a needle beam cut out.
 function repairableSystems(ship: Ship): { key: string; label: string; kind: string; weaponId?: string }[] {
@@ -4867,32 +4415,6 @@ function appendTurnPatchForCourse(draft: DraftOrder, currentCourse: number, targ
   return turnPatchFromManeuvers([...existing, ...turnManeuversForDraft({ ...draft, ...patch })]);
 }
 
-function courseFromPoint(element: HTMLElement, clientX: number, clientY: number) {
-  const rect = element.getBoundingClientRect();
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-  const radians = Math.atan2(clientX - centerX, centerY - clientY);
-  const degrees = (radians * 180 / Math.PI + 360) % 360;
-  return wrapCourse(Math.round(degrees / 30) || 12);
-}
-
-function wrapCourse(course: number) {
-  const zeroBased = ((course - 1) % 12 + 12) % 12;
-  return zeroBased + 1;
-}
-
-function courseAngle(course: number) {
-  return course * 30;
-}
-
-function mapPercent(value: number, max: number) {
-  return Math.max(0, Math.min(100, (value / Math.max(1, max)) * 100));
-}
-
-function distanceBetweenShips(source: Ship, target: Ship) {
-  return Math.hypot(target.positionX - source.positionX, target.positionY - source.positionY);
-}
-
 /// The legs a plotted order will actually be flown as, mirroring the server: each plotted turn
 /// takes an equal share of the move and is made half at the start of its leg and half at the
 /// mid-point, with half rounded down. A straight line to the ending course would put the preview
@@ -4941,10 +4463,6 @@ function estimateDraftEndpoint(ship: Ship, draft: DraftOrder, tableWidth: number
   return { x, y };
 }
 
-function rangeDiameterPercent(range: number, tableSize: number) {
-  return Math.max(4, Math.min(240, (range * 2 / Math.max(1, tableSize)) * 100));
-}
-
 function isFighterGroup(ship: Pick<Ship, 'iconKey' | 'className'>) {
   return normalizeShipIconKey(ship.iconKey, ship.className) === 'fighter-group'
     || (ship.className ?? '').toLowerCase().includes('fighter');
@@ -4979,12 +4497,6 @@ function fighterEnduranceRange(ship: Ship) {
   const velocityReach = Math.max(1, ship.currentVelocity) * Math.max(1, remaining);
   const maxRange = ship.fighterMaxRange || 24;
   return Math.max(1, Math.min(maxRange, velocityReach));
-}
-
-/// Screen angle of an arc's centreline: each arc sits two clock points from the last.
-function weaponArcAngle(course: number, arc: FiringArc) {
-  const offset = Math.max(0, firingArcs.indexOf(arc)) * 2;
-  return courseAngle(wrapCourse(course + offset));
 }
 
 function normalizeShipIconKey(value: unknown, className?: string): ShipIconKey {
@@ -5269,41 +4781,6 @@ function firingTargetOptions(ship: Ship, ships: Ship[], ownedShipIds?: Set<strin
     }))
     .sort((left, right) => Number(left.friendly) - Number(right.friendly) || left.range - right.range)
     .map((entry) => entry.candidate);
-}
-
-function newWeaponMount(): WeaponMount {
-  return {
-    id: newId(),
-    name: 'Class-2 Beam',
-    attackDice: 2,
-    maxRange: 24,
-    arcs: ['Fore'],
-    kind: 'Beam',
-    ammoMax: 0,
-    ammoUsed: 0,
-    reloadTurns: 0,
-  };
-}
-
-function weaponPreset(name: string, attackDice: number, maxRange: number, arcs: FiringArc[], ammoMax = 0, kind: WeaponKind = 'Beam'): WeaponMount {
-  return {
-    id: newId(),
-    name,
-    attackDice,
-    maxRange,
-    arcs,
-    kind,
-    ammoMax,
-    ammoUsed: 0,
-    reloadTurns: 0,
-  };
-}
-
-function updateWeapon(form: ShipForm, weaponId: string, patch: Partial<WeaponMount>): ShipForm {
-  return {
-    ...form,
-    weapons: form.weapons.map((weapon) => weapon.id === weaponId ? { ...weapon, ...patch } : weapon),
-  };
 }
 
 function normalizeWeaponMount(value: unknown): WeaponMount {
@@ -5659,10 +5136,6 @@ function parseCsv(text: string) {
   return rows;
 }
 
-function csvEscape(value: string) {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
-
 function getValueFromRows(rows: string[][], headers: string[], header: string) {
   const index = headers.indexOf(header);
   if (index < 0) {
@@ -5670,75 +5143,6 @@ function getValueFromRows(rows: string[][], headers: string[], header: string) {
   }
 
   return rows.slice(1).map((row) => row[index]?.trim() ?? '').find(Boolean) ?? '';
-}
-
-function downloadText(fileName: string, mimeType: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: `${mimeType};charset=utf-8` }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  // Revoking in the same tick can cancel the download in some browsers.
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-function formatLogTime(timestamp: string) {
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return '--:--';
-  }
-
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function wholeNumberFrom(value: unknown, fallback: number, min: number, max: number) {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-
-  return Math.max(min, Math.min(max, Math.round(parsed)));
-}
-
-function numberFrom(value: unknown, fallback: number, min: number, max: number) {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-
-  return Math.max(min, Math.min(max, parsed));
-}
-
-function stringFrom(value: unknown, fallback: string) {
-  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
-}
-
-function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function stripFileExtension(fileName: string) {
-  return fileName.replace(/\.[^.]+$/, '').replace(/\.forcesignal-fleet$/i, '').trim();
-}
-
-function slugify(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'fleet';
-}
-
-function formatPhase(phase: string) {
-  return phase.replace(/([a-z])([A-Z])/g, '$1 $2');
-}
-
-function formatRulesProfile(profileKey?: string) {
-  if (!profileKey || profileKey === 'full-thrust-light-cinematic') {
-    return 'Cinematic space fleet profile';
-  }
-
-  return profileKey
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(' ');
 }
 
 function captureDamageState(ship: Ship): DamageState {
@@ -5887,64 +5291,6 @@ function createDraftOrder(): DraftOrder {
     turnDirection: 'None',
     turnManeuvers: [],
     salt: newId(),
-  };
-}
-
-async function get<T>(path: string, token?: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: token ? { 'X-Participant-Token': token } : undefined,
-  });
-  if (!response.ok) {
-    throw await createApiError(response);
-  }
-
-  return response.json();
-}
-
-async function post<T>(path: string, body: unknown, token?: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { 'X-Participant-Token': token } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw await createApiError(response);
-  }
-
-  return response.json();
-}
-
-async function createApiError(response: Response) {
-  const fallback = `Request failed with status ${response.status}.`;
-  const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.includes('application/problem+json') && !contentType.includes('application/json')) {
-    return new ApiRequestError(fallback, response.status);
-  }
-
-  const problem = await response.json() as { title?: string; detail?: string };
-  return new ApiRequestError(problem.detail ?? problem.title ?? fallback, response.status);
-}
-
-function readJson<T>(key: string): T | null {
-  const value = localStorage.getItem(key);
-  if (!value) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
-}
-
-function showError(setMessage: (message: string) => void) {
-  return (error: unknown) => {
-    setMessage(error instanceof Error ? error.message : 'Something went wrong.');
   };
 }
 

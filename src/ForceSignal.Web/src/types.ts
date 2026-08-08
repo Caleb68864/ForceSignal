@@ -1,0 +1,300 @@
+/**
+ * The shapes the API speaks and the shapes the screen edits.
+ *
+ * Everything here mirrors a contract in `ForceSignal.Contracts`, except the handful of view-only
+ * types at the bottom - the order draft, the ship form, the firing draft - which exist only while
+ * a player is part-way through entering something and never leave the browser.
+ */
+
+export type TurnDirection = 'None' | 'Port' | 'Starboard';
+export type WeaponKind = 'Beam' | 'PulseTorpedo' | 'NeedleBeam';
+export type FiringArc = 'Fore' | 'ForeStarboard' | 'AftStarboard' | 'Aft' | 'AftPort' | 'ForePort';
+export type ShipIconKey = 'escort' | 'frigate' | 'destroyer' | 'cruiser' | 'carrier' | 'dreadnought' | 'fighter-group' | 'station';
+export type FighterStatus = 'Docked' | 'Airborne' | 'Recovering';
+export type TurnManeuver = {
+  direction: Exclude<TurnDirection, 'None'>;
+  steps: number;
+};
+export type MovementSegment = {
+  course: number;
+  distance: number;
+};
+export type Participant = {
+  id: string;
+  displayName: string;
+  role: string;
+  isReady: boolean;
+  isConnected: boolean;
+  ordersComplete?: boolean;
+};
+export type Fleet = {
+  id: string;
+  ownerParticipantId: string;
+  name: string;
+  faction?: string;
+  fleetColor: string;
+};
+export type Ship = {
+  id: string;
+  fleetId: string;
+  name: string;
+  className?: string;
+  thrustRating: number;
+  currentVelocity: number;
+  currentCourse: number;
+  positionX: number;
+  positionY: number;
+  hullMax: number;
+  hullDamage: number;
+  armorMax: number;
+  armorDamage: number;
+  fireControlMax: number;
+  fireControlDamage: number;
+  pointDefenseSystems?: number;
+  fighterBays?: number;
+  fighterBayDamage?: number;
+  damageControlParties?: number;
+  driveDamage: number;
+  weaponDamage: number;
+  screenRating: number;
+  screenDamage?: number;
+  weapons: WeaponMount[];
+  isDestroyed: boolean;
+  // The hull damage track, as boxes per row. Completing a row triggers a threshold check.
+  hullRows?: number[];
+  hullRowsCompleted?: number;
+  iconKey: ShipIconKey;
+  fighterEnduranceMax: number;
+  fighterEnduranceUsed: number;
+  fighterMaxRange: number;
+  fighterStatus: FighterStatus;
+  homeCarrierShipId?: string | null;
+  pointsValue: number;
+};
+export type WeaponMount = {
+  id: string;
+  name: string;
+  attackDice: number;
+  maxRange: number;
+  arcs: FiringArc[];
+  ammoMax: number;
+  ammoUsed: number;
+  reloadTurns: number;
+  isDestroyed?: boolean;
+  isNeedleKilled?: boolean;
+  kind: WeaponKind;
+};
+export type OrdnanceMarker = {
+  id: string;
+  ownerParticipantId: string;
+  name: string;
+  markerType: string;
+  sourceShipId?: string | null;
+  targetShipId?: string | null;
+  positionX: number;
+  positionY: number;
+  course: number;
+  speed: number;
+  enduranceRemaining: number;
+  attackDice: number;
+  maxRange: number;
+  status: string;
+};
+export type OrderStatus = {
+  shipId: string;
+  ownerParticipantId: string;
+  isCommitted: boolean;
+  isRevealed: boolean;
+  verificationFailed: boolean;
+};
+export type RevealedOrder = {
+  shipId: string;
+  velocityDelta: number;
+  turnSteps: number;
+  turnDirection: TurnDirection;
+  turnManeuvers?: TurnManeuver[] | null;
+};
+export type MovementResult = {
+  shipId: string;
+  startingVelocity: number;
+  startingCourse: number;
+  endingVelocity: number;
+  endingCourse: number;
+  segments?: MovementSegment[] | null;
+};
+export type FiringResult = {
+  attackerShipId: string;
+  targetShipId: string;
+  weaponId: string;
+  weaponName: string;
+  turnNumber: number;
+  range: number;
+  rangeBand: string;
+  arc: FiringArc;
+  rawDice: number;
+  rangePenalty: number;
+  screenReduction: number;
+  systemPenalty: number;
+  damage: number;
+  armorDamageApplied: number;
+  hullDamageApplied: number;
+  diceRolls: number[];
+  weaponKind?: WeaponKind;
+  toHitNumber?: number | null;
+  isHit?: boolean | null;
+};
+export type MatchLogEntry = {
+  sequence: number;
+  timestamp: string;
+  turnNumber: number;
+  phase: string;
+  category: string;
+  message: string;
+};
+export type MatchSnapshot = {
+  matchId: string;
+  joinCode: string;
+  name: string;
+  phase: string;
+  turnNumber: number;
+  rulesProfileKey: string;
+  tableWidth: number;
+  tableDepth: number;
+  participants: Participant[];
+  fleets: Fleet[];
+  ships: Ship[];
+  orderStatuses: OrderStatus[];
+  revealedOrders: RevealedOrder[];
+  movementResults: MovementResult[];
+  firingResults: FiringResult[];
+  ordnanceMarkers: OrdnanceMarker[];
+  matchLog: MatchLogEntry[];
+  version: number;
+  pointsLimit: number;
+  // Which layer of the rules this match is played under. The layers replace parts of one another.
+  rulesLayer?: string;
+  // The ship part-way through its fire. Its threshold checks roll when the volley closes.
+  firingShipId?: string | null;
+  // Whose turn it is to pick a ship and fire it, and which ships have already had their turn.
+  firingParticipantId?: string | null;
+  activatedShipIds?: string[];
+};
+export type Session = {
+  matchId: string;
+  participantId: string;
+  participantToken: string;
+  joinCode: string;
+};
+export type MatchSeat = {
+  participantId: string;
+  displayName: string;
+  role: string;
+  isClaimed: boolean;
+  fleetCount: number;
+  shipCount: number;
+};
+export type PendingRestore = {
+  matchId: string;
+  joinCode: string;
+  seats: MatchSeat[];
+  note: string;
+};
+export type MatchRestored = {
+  matchId: string;
+  joinCode: string;
+  reusedJoinCode: boolean;
+  restoredPhase: string;
+  lockedOrdersDropped: boolean;
+  seats: MatchSeat[];
+};
+export type MatchIdentity = {
+  matchId: string;
+  joinCode: string;
+  hasUnclaimedSeats: boolean;
+};
+export type DraftOrder = {
+  velocityDelta: number;
+  turnSteps: number;
+  turnDirection: TurnDirection;
+  turnManeuvers?: TurnManeuver[];
+  salt: string;
+};
+export type ShipForm = {
+  fleetName: string;
+  faction: string;
+  fleetColor: string;
+  name: string;
+  className: string;
+  iconKey: ShipIconKey;
+  thrustRating: number;
+  currentVelocity: number;
+  currentCourse: number;
+  positionX: number;
+  positionY: number;
+  hullMax: number;
+  armorMax: number;
+  screenRating: number;
+  fireControlMax: number;
+  pointDefenseSystems: number;
+  fighterBays: number;
+  damageControlParties: number;
+  weapons: WeaponMount[];
+  fighterEnduranceMax: number;
+  fighterEnduranceUsed: number;
+  fighterMaxRange: number;
+  fighterStatus: FighterStatus;
+  homeCarrierShipId: string;
+  pointsValue: number;
+};
+export type FiringDraft = {
+  targetShipId: string;
+  weaponId: string;
+  range: number;
+  // A needle beam names one system on the target; every other weapon ignores this.
+  targetSystem?: string;
+  targetSystemWeaponId?: string;
+};
+export type DamageState = Pick<Ship, 'hullDamage' | 'armorDamage' | 'fireControlDamage' | 'driveDamage' | 'weaponDamage'>;
+export type TablePoint = {
+  x: number;
+  y: number;
+};
+export type FleetExportShip = {
+  name: string;
+  className: string;
+  iconKey: ShipIconKey;
+  thrustRating: number;
+  initialVelocity: number;
+  initialCourse: number;
+  startX: number;
+  startY: number;
+  hullMax: number;
+  armorMax: number;
+  screenRating: number;
+  fireControlMax: number;
+  pointDefenseSystems: number;
+  fighterBays: number;
+  damageControlParties: number;
+  weapons: WeaponMount[];
+  fighterEnduranceMax: number;
+  fighterEnduranceUsed: number;
+  fighterMaxRange: number;
+  fighterStatus: FighterStatus;
+  homeCarrierShipId?: string | null;
+  homeCarrierName?: string | null;
+  pointsValue: number;
+};
+export type SavedFleet = {
+  savedAt: string;
+  fleet: FleetExport;
+};
+export type FleetExport = {
+  schema: 'forcesignal-fleet-1';
+  gameSystem: 'space-fleet-compatible';
+  name: string;
+  faction: string;
+  fleetColor: string;
+  ships: FleetExportShip[];
+};
+/// One job a damage control party can be put on.
+export type RepairJob = { kind: string; weaponId?: string | null; parties: number };
