@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using ForceSignal.Modules.GroundCombat.Morale;
 using ForceSignal.Modules.GroundCombat.Sequence;
-using ForceSignal.Modules.StarGrunt.Morale;
 
 namespace ForceSignal.Modules.StarGrunt.Sequence;
 

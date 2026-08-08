@@ -47,17 +47,18 @@ the user's to enter from their own legally obtained rules. Concretely:
 ForceSignal.Modules.GroundCombat      shared by both games
     Dice/        quality ladder, closed and open shifts, the three roll shapes  [BUILT]
     Sequence/    alternating activation, initiative, the pass rule, turn end    [BUILT]
-    Morale/      confidence ladder and the test procedure                       [partly, see below]
+    Morale/      confidence ladder and the test procedure                       [BUILT]
     Design/      size class, capacity, armour by facing, points                 [TODO]
 
 ForceSignal.Modules.StarGrunt         figure scale
     Combat/      range bands, the fire sequence vs dispersed targets            [BUILT]
     Morale/      confidence, fatigue, suppression 0-3                           [BUILT]
-    Assault/     close assault                                                  [TODO]
+    Assault/     close assault                                                  [BUILT]
 
 ForceSignal.Modules.Dirtside          vehicle scale
     Combat/      two-stage hit and damage resolution                            [BUILT]
     Chits/       the damage pot, composition and validity                       [TODO]
+    Sequence/    the activation policy                                          [BUILT]
     Support/     the deferred artillery queue                                   [TODO]
 ```
 
@@ -240,6 +241,32 @@ Also worth recording, since the two are easy to conflate: StarGrunt's weapon lim
 activation, while Dirtside's one-weapon-per-combat-action is per element per action. Both express
 against the same derived set of resources spent in a frame; the shared layer holds no opinion about
 the scope, and should not.
+
+### A rules reading that is counterintuitive and correct
+
+Dirtside's confidence effects are given in two columns, dismounted infantry and armour, and they
+**cross over rather than run parallel**. At Shaken it is the *armour* that balks - it needs a
+reaction test to leave cover or advance, withdraws to cover if caught in the open, may not
+close-assault, and is routed outright if close-assaulted - while Shaken infantry acts normally, its
+restrictions biting through the reaction-test system instead. At Broken it reverses: the foot
+soldiers stop advancing but keep fighting from where they are, while the armour turns for home and
+only returns fire if attacked.
+
+This reads backwards - one expects a tank to be steadier than a man - and it has now been misread
+twice during this work, once in a research pass and once in a brief written from it. It is correct:
+verified against the vault note and against the raw rulebook text, which agree. The sense of it is
+that a rattled crew buttons up and pulls back while infantry are already on the ground and carry on.
+Anyone tempted to "fix" it should check the source first.
+
+### Confidence tests are not an interrupt window
+
+Settled during the build, and worth recording because the plan previously implied five windows. A
+window exists so the *other* player may choose to spend something: it has a responding side, an
+eligibility list, a cap and a cost. A confidence test has none of those - nobody chooses it, nobody
+may decline it, and it costs only morale. Modelling it as a window would also mean the
+no-self-retrigger guard silently stopped a unit fired on twice from testing twice, which inverts the
+rule. So it is a consequence resolved inline between steps, with the interrupted frame resuming
+underneath. Four windows, not five.
 
 ## Two things worth deciding early
 
