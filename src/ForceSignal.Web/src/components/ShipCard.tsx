@@ -331,6 +331,15 @@ export function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (fo
     pointsValue: ship.pointsValue ?? 0,
   });
 
+  // What the ship looked like when this editor opened. The form is seeded once and deliberately
+  // never re-seeded, because re-seeding would throw away whatever the player is part-way through
+  // typing. The cost of that is a lost update: saving writes the whole profile, including velocity,
+  // position, hull and the entire weapon list, so a save made while the editor sat open would
+  // silently revert anything that happened to the ship in the meantime - the opponent's fire
+  // resolving, most obviously. Comparing against this tells us whether that is about to happen.
+  const [openedWith] = useState(() => JSON.stringify(captureShipState(ship)));
+  const drifted = JSON.stringify(captureShipState(ship)) !== openedWith;
+
   return (
     <section className="ship-editor" aria-label={`Edit ${ship.name}`}>
       <div className="section-head compact">
@@ -340,12 +349,47 @@ export function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (fo
         </div>
       </div>
       <ShipProfileFields form={form} onChange={setForm} />
+      {drifted ? (
+        <p className="editor-drift" role="alert">
+          {ship.name} changed while this was open - most likely damage resolving. Saving now writes
+          the numbers as they were when you started editing and will undo those changes.
+        </p>
+      ) : null}
       <div className="card-actions">
-        <button onClick={() => onSave(form)}>Save Stats</button>
+        <button
+          onClick={() => {
+            if (!drifted || window.confirm(
+              `${ship.name} has changed since you opened this. Save anyway and overwrite those changes?`)) {
+              onSave(form);
+            }
+          }}
+        >Save Stats</button>
         <button className="ghost" onClick={onCancel}>Cancel</button>
       </div>
     </section>
   );
+}
+
+/**
+ * The parts of a ship a profile save would overwrite. Compared as a whole rather than field by
+ * field, because the question is only ever "did anything change", never "what".
+ */
+function captureShipState(ship: Ship) {
+  return {
+    currentVelocity: ship.currentVelocity,
+    currentCourse: ship.currentCourse,
+    positionX: ship.positionX,
+    positionY: ship.positionY,
+    hullMax: ship.hullMax,
+    hullDamage: ship.hullDamage,
+    armorMax: ship.armorMax,
+    armorDamage: ship.armorDamage,
+    screenRating: ship.screenRating,
+    screenDamage: ship.screenDamage,
+    fireControlDamage: ship.fireControlDamage,
+    driveDamage: ship.driveDamage,
+    weapons: ship.weapons.map((weapon) => `${weapon.id}:${weapon.isDestroyed}:${weapon.ammoUsed}`),
+  };
 }
 export function FiringConsole({
   ship,

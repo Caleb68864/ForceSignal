@@ -353,7 +353,7 @@ export function PlayMap({
           <span className="label">Play map</span>
           <h3>{snapshot.tableWidth} x {snapshot.tableDepth} table</h3>
         </div>
-        <p>{mapNotice}</p>
+        <p aria-live="polite">{mapNotice}</p>
       </div>
       <div className="map-controls" aria-label="Map controls">
         <label className="map-contact-select">
@@ -747,7 +747,16 @@ export function PlayMap({
                   event.stopPropagation();
                   markerActionsFor(ship, isOwned);
                 }}
-                onFocus={() => onFocus(ship.id)}
+                // Keyboard focus alone must not change which contact is selected: tabbing across
+                // the map to reach a ship would otherwise reassign the selection to every marker it
+                // passed on the way, and the firing console reads that selection. Selecting is what
+                // Enter, Space and a tap are for.
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onFocus(ship.id);
+                  }
+                }}
               >
                 <span className="ship-icon-shell">
                   <ShipIcon iconKey={normalizeShipIconKey(ship.iconKey, ship.className)} />
