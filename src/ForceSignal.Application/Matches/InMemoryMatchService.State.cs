@@ -44,8 +44,15 @@ public sealed partial class InMemoryMatchService
         /// <summary>Fighter groups that have already flown this turn.</summary>
         public HashSet<Guid> MovedFighterGroupIds { get; } = [];
 
-        /// <summary>Groups each carrier has launched or recovered this turn, by carrier id.</summary>
-        public Dictionary<Guid, int> CarrierOperationsThisTurn { get; } = [];
+        /// <summary>Groups each carrier has put up this turn, by carrier id.</summary>
+        public Dictionary<Guid, int> CarrierLaunchesThisTurn { get; } = [];
+
+        /// <summary>
+        /// Groups each carrier has brought aboard this turn, by carrier id. Counted apart from
+        /// launches because the Fleet Book gives the two separate allowances; the older layer adds
+        /// the two together against one budget.
+        /// </summary>
+        public Dictionary<Guid, int> CarrierRecoveriesThisTurn { get; } = [];
 
         /// <summary>Ships whose damage control has already worked this turn.</summary>
         public HashSet<Guid> RepairedShipIds { get; } = [];
@@ -181,6 +188,15 @@ public sealed partial class InMemoryMatchService
         public int FighterEnduranceUsed { get; set; }
         public int FighterMaxRange { get; set; }
         public string FighterStatus { get; set; } = "Docked";
+
+        /// <summary>
+        /// Earliest turn this group may be launched again, after a turnaround roll held it on the
+        /// deck. Zero when nothing is holding it.
+        /// </summary>
+        public int FighterRelaunchTurn { get; set; }
+
+        /// <summary>True when a turnaround roll wrote this group off for the rest of the game.</summary>
+        public bool FighterGroundedForGame { get; set; }
         public Guid? HomeCarrierShipId { get; set; }
         public int PointsValue { get; set; }
     }

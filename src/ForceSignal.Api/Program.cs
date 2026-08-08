@@ -787,15 +787,11 @@ static string[] ReadDeploymentWarnings(
     return [.. warnings];
 }
 
-/// <summary>
-/// Whether an origin is on this machine or on a private network.
-/// </summary>
-/// <remarks>
-/// Used only in Development, to decide which origins the CORS policy will reflect. The addresses
-/// allowed are the loopbacks, the three private IPv4 ranges, IPv4 link-local, IPv6 unique-local and
-/// link-local, and mDNS <c>.local</c> names - which between them cover every way a tablet reaches a
-/// laptop on the same wifi, and none of the ways a page on the internet reaches it.
-/// </remarks>
+// Whether an origin is on this machine or on a private network. Used only in Development, to
+// decide which origins the CORS policy will reflect. The addresses allowed are the loopbacks, the
+// three private IPv4 ranges, IPv4 link-local, IPv6 unique-local and link-local, and mDNS .local
+// names - which between them cover every way a tablet reaches a laptop on the same wifi, and none
+// of the ways a page on the internet reaches it.
 static bool IsLocalNetworkOrigin(string origin)
 {
     if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))

@@ -26,7 +26,7 @@ public sealed class FullThrustLightPulseTorpedoRules(Func<int>? rollDie = null) 
         Math.Clamp(2 + ((Math.Max(1, range) - 1) / BandWidth), 2, 6);
 
     /// <inheritdoc />
-    public FiringValidationResult Validate(FiringSolution solution)
+    public FiringValidationResult Validate(FiringSolution solution, RulesProfile? rules = null)
     {
         if (solution.Weapon.MaxRange <= 0)
         {
@@ -60,9 +60,11 @@ public sealed class FullThrustLightPulseTorpedoRules(Func<int>? rollDie = null) 
     }
 
     /// <inheritdoc />
-    public FiringResult Resolve(FiringSolution solution)
+    public FiringResult Resolve(FiringSolution solution, RulesProfile? rules = null)
     {
-        var validation = Validate(solution);
+        // The torpedo ladder is unchanged between the layers, so the layer is accepted for the
+        // contract's sake and changes nothing here.
+        var validation = Validate(solution, rules);
         if (!validation.IsValid)
         {
             throw new InvalidOperationException(string.Join(" ", validation.Errors));

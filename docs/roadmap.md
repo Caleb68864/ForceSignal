@@ -113,10 +113,20 @@ defences, damage control, needle beams - found six more divergences. Each is wri
 - [x] A rules-layer switch. A match is played under one layer, settled during fleet setup and carried
       in the snapshot, and the numbers that differ follow from it: the Fleet Book layer caps screens at
       level two, flies fighter groups 24mu instead of 12, and reaches 12mu with a needle instead of 9.
-      Switching down brings existing screens with it. Three differences are named in the profile's
-      documentation but not yet wired, because each needs rules work of its own rather than a number:
-      threshold rows by class, Fleet Book carrier launch rates, and the enhanced needle's hull damage
-      and reroll rules.
+      Switching down brings existing screens with it.
+- [x] The layer reaches the rules. Firing and threshold resolvers take the profile as an argument
+      rather than capturing one, because the resolvers are built once per service while the layer is
+      per-match state that the owner can still change during fleet setup. Two more differences are
+      now wired and tested against both layers: **the enhanced needle beam** puts a point into the
+      hull on a 5 or a 6 and that point ignores armour, and **flight operations** run at one group
+      per operational bay out, half the bays back, with a turnaround roll on recovery.
+- [ ] **Threshold rows by class** is *not* a Fleet Book difference and is deliberately not wired.
+      Four rows for every hull is the Fleet Book rule and is what both shipped layers use; rows by
+      class band - an escort two, a cruiser three, a capital four - is the second edition rule, and
+      ForceSignal has no second-edition profile to hang it on. The seam exists
+      (`RulesProfile.ThresholdRows`, `ShipClassBands`, `FullThrustLightThresholdRules.RowCountFor`),
+      so adding a second-edition layer is a matter of selecting it. Whether to add that layer is a
+      separate decision: it also changes screens, needle reach, fighter moves and ship points.
 
 ## Movement Rule Fidelity
 

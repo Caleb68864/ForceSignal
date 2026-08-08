@@ -511,9 +511,11 @@ is checked before anything is written.
 What qualifies a ship to host a group also changed: it used to have to be carrier-*classed*, but the
 rules put bays on larger warships too, so a bay is what makes a host now.
 
-**Not covered**: the Fleet Book 2 amendment that replaces the launch cap with one group per operational
-bay and recovery of half the bays, plus its optional turnaround roll. That is a layer switch, not a
-correction. Fighters deploy from the carrier's position rather than the halfway point of its move,
+**Since covered** (gap 23): the Fleet Book amendment that replaces the launch cap with one group per
+operational bay and recovery of half the bays, plus its turnaround roll, now follows from the match's
+rules layer. What is described above is the light cinematic layer's behaviour, and it is unchanged.
+
+**Not covered**: fighters deploy from the carrier's position rather than the halfway point of its move,
 which only differs while a carrier launches under way - and a launching carrier is holding its speed.
 
 Code: `ResolveCarrierOperation` in `InMemoryMatchService`, `ValidateCarrierId`, bay field on the ship form.
@@ -593,8 +595,14 @@ A needled system is beyond damage control, which is the weapon's real limit and 
 its short reach: anything a threshold check takes can be jury-rigged back, and anything a needle cuts out
 cannot.
 
-**Not covered**: the Fleet Book enhanced needle, which reaches 12mu, adds a point of hull damage on a 5
-or 6, and ignores armour. That is a layer switch rather than a correction.
+**Since covered** (gap 23): the Fleet Book enhanced needle, which reaches 12mu, adds a point of hull
+damage on a 5 or 6, and ignores armour, now follows from the match's rules layer. What is described
+above is the light cinematic layer's behaviour, and it is unchanged - with one caveat below.
+
+**A divergence worth recording**: the rules notes say a needled system *can* be repaired, and treat
+that as the weapon's real limit. ForceSignal makes a needle's kill permanent under both layers
+(gap 20). That is a deliberate app choice made before the layer switch existed, not something this
+pass changed, but it is a fidelity gap rather than a layer difference and belongs on a list.
 
 Code: `FullThrustNeedleBeamRules`, `PlanNeedleShot` and the firecon accounting in `FireWeapon`.
 
@@ -613,11 +621,37 @@ it one.
 published convention, and it keeps a small hull under threshold pressure instead of dying with its
 systems intact. `FullThrustLightThresholdRules.RowCount` carries the reasoning.
 
-A rules-layer switch now exists (`RulesProfile`), so this is where by-class rows would go. It is not
-wired yet because it needs a class-to-rows mapping and ForceSignal's ship class is free text, which
-makes the mapping a guess rather than a lookup - so it stays a documented choice for now.
+**Which layer this belongs to — 2026-08-08.** An earlier reading of this entry had it backwards, so
+it is worth stating plainly, because a note that is wrong is worse than no note:
 
-Code: `FullThrustLightThresholdRules.RowCount`.
+- **Four rows for every hull is the Fleet Book rule.** `Hull Boxes & Damage` and
+  `Variable Hull Strength` both say so.
+- **Rows by class band is the FT2 rule** — escorts two rows and one threshold, cruisers three and
+  two, capitals four and three.
+
+ForceSignal ships two layers: `LightCinematic`, which covers Full Thrust Light *and* the second
+edition it subsets, and `FleetBook`. By-class rows therefore has no layer to live on. Putting it
+behind the Fleet Book switch would attach an FT2 rule to the Fleet Book and make the app wrong under
+both; putting it on `LightCinematic` would silently change the layer people are actually playing and
+reverse the judgement recorded above. **It needs a third, FT2-only profile**, which is a real piece
+of work — that layer also differs on screens, needle reach, fighter moves and ship points — and not
+something to slip in under a wiring task.
+
+The seam is built and both shipped layers select four rows through it, so adding that profile later
+is a choice rather than a rewrite: `RulesProfile.ThresholdRows` names the policy,
+`FullThrustLightThresholdRules.RowCountFor` applies it, and `ShipClassBands.FromIconKey` infers the
+band. That inference is honest about its limits, and they are real: ship class here is free text, so
+the only normalized size signal is the map icon. An unrecognised class falls back to the cruiser
+icon, so an unnamed hull reads as a cruiser rather than as "unknown"; an "Escort Cruiser" is a
+cruiser in the rules but matches "escort" first; a "Battlecruiser" is a capital ship but matches
+nothing and lands on cruiser; every carrier shares one icon from escort to fleet carrier; and a
+station is not on the ladder at all. Hull boxes would be a better signal except that the two design
+systems convert MASS to boxes differently, so a box count does not map back to a class across
+layers. Any FT2 profile should let the player set the band outright and treat the icon as the
+opening guess.
+
+Code: `FullThrustLightThresholdRules.RowCount` / `RowCountFor`, `RulesProfile.ThresholdRows`,
+`ShipClassBands.FromIconKey`.
 
 ---
 
@@ -653,15 +687,62 @@ Both scans are closed, and so are the three follow-ups the second round created:
 record an undamaged value so damage control can restore them, needle-killed systems are permanent, and a
 rules-layer switch carries the FT2-versus-Fleet-Book differences.
 
-What remains is the "deliberately not built" list above, plus three layer differences that the switch
-names but does not yet act on, because each needs rules work rather than a number:
+What remains is the "deliberately not built" list above, plus one difference the switch names and
+still cannot act on.
 
-- **Threshold rows by class** (FT2: escorts two rows, cruisers three, capitals four). Needs a
-  class-to-rows mapping, and ship class here is free text.
-- **Fleet Book carrier launch rates** (one group per operational bay, recovery of half the bays, plus the
-  optional turnaround roll) instead of the two-and-one currently enforced.
-- **The enhanced needle beam**: a point of hull damage on a 5 or 6, and armour ignored.
+---
 
-And one thing worth doing before any of them: play a full game. Everything above is verified by tests and
-by driving the API and the browser, but no two-device match has been played end to end since the turn
-structure changed.
+## Gap 23 — The rules layer did not reach the rules — FIXED 2026-08-08
+
+**Was**: `RulesProfile` was read by the match service for screen ceilings, fighter move allowances
+and needle reach, but never by a rules module. It could not be: the resolvers are constructed once
+per *service* while the layer is per-*match* state the owner can still change during fleet setup, so
+anything a resolver captured would have been answering for whichever match happened to build it.
+That is why the layer's observable effect was untested end to end, and why differences kept being
+recorded as "named but not wired".
+
+**Now**: the layer travels with the call. `IFiringResolver` and `IThresholdResolver` take a
+`RulesProfile` argument, optional and defaulting to the light cinematic profile the same way
+`RulesProfile.Parse` does. A resolver's answer is a function of (layer, question), which is what "a
+match is played under one layer" actually means, and a test can put the same shot through both
+layers with one resolver and one scripted die.
+
+Two differences are wired on top of that seam, each proved to behave differently under each layer:
+
+- **The enhanced needle beam.** Under the Fleet Book a needle also puts a single point into the hull
+  from a 5 upward — a 5 draws blood without taking the system, a 6 does both — and that point goes
+  past armour boxes that are still standing, the way it already goes past screens. Under the light
+  layer a needle draws no blood at all. The mount's reach is the layer's, not the record sheet's, so
+  the same mount snipes 9mu under one layer and 12 under the other.
+- **Flight operations.** The light layer caps a deck by what the ship is: a true carrier works two
+  groups a turn, anything else with a bay works one, and launches and recoveries share that budget.
+  The Fleet Book replaces it with a rate the fittings set — one group out per operational bay, half
+  the bays back, each with its own allowance, so a deck can be working both ways in one turn — and a
+  recovered group rolls for turnaround: a 1 writes it off for the game, a 6 has it back out next
+  turn, anything between costs a full turn on the deck. Launch and recovery counts are now tracked
+  separately for exactly this reason.
+
+**Left to the table**: "half the ship's operational bays" is printed with no rounding rule, and the
+rules themselves say to agree one before play. ForceSignal rounds **up**, because rounding down would
+make a single-bay hull unable to land anything at all — strictly worse than the layer it replaces.
+
+**A judgement worth knowing about**: the turnaround roll is an *optional* rule in its source, and
+ForceSignal has it always on under the Fleet Book layer, with no per-match switch. The layer is the
+only dial a table has.
+
+Code: `RulesProfile` (`EnhancedNeedleBeams`, `CarrierRatesFollowBays`, `CarrierTurnaroundRoll`),
+`FullThrustNeedleBeamRules`, `FullThrustCarrierOperationRules`, `ResolveCarrierOperation` /
+`RequireFlightAllowance` / `RollTurnaround` in `InMemoryMatchService`.
+
+---
+
+## Still open — threshold rows by class
+
+**Not** a Fleet Book difference. Four rows for every hull is the Fleet Book rule and is what both
+shipped layers use; rows by class band is the FT2 rule, and ForceSignal has no FT2 profile to hang it
+on. See gap 22 above for the full reasoning, what the icon-key class inference gets wrong, and the
+seam that is already in place for an FT2 layer.
+
+And one thing worth doing before anything else: play a full game. Everything above is verified by
+tests and by driving the API and the browser, but no two-device match has been played end to end
+since the turn structure changed.

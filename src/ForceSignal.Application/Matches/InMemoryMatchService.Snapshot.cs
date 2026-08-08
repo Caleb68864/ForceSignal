@@ -51,8 +51,10 @@ public sealed partial class InMemoryMatchService
             s.ScreenDamage,
             s.Weapons.Select(w => new WeaponMountDto(w.Id, w.Name, w.AttackDice, w.MaxRange, w.Arcs, w.AmmoMax, w.AmmoUsed, w.ReloadTurns, w.IsDestroyed, w.Kind, w.IsNeedleKilled)).ToArray(),
             s.HullDamage >= s.HullMax,
-            FullThrustLightThresholdRules.HullRowsFor(s.HullMax),
-            FullThrustLightThresholdRules.RowsCompletedFor(s.HullDamage, s.HullMax),
+            // The damage track drawn on screen is the one the match's layer says the ship has, so
+            // the row count comes through the same seam the threshold check uses.
+            FullThrustLightThresholdRules.HullRowsFor(s.HullMax, RowCountFor(match, s)),
+            FullThrustLightThresholdRules.RowsCompletedFor(s.HullDamage, s.HullMax, RowCountFor(match, s)),
             s.IconKey,
             s.FighterEnduranceMax,
             s.FighterEnduranceUsed,
@@ -63,7 +65,9 @@ public sealed partial class InMemoryMatchService
             s.NeedledFireControl,
             s.NeedledDrives,
             s.NeedledScreens,
-            s.NeedledBays)).ToArray(),
+            s.NeedledBays,
+            s.FighterRelaunchTurn,
+            s.FighterGroundedForGame)).ToArray(),
         match.Ships.Select(s =>
         {
             match.Commitments.TryGetValue(s.Id, out var commitment);
@@ -119,6 +123,9 @@ public sealed partial class InMemoryMatchService
         [.. match.ActivatedShipIds],
         match.Version,
         match.PointsLimit);
+    /// <summary>Rows this match's layer draws for one ship's damage track.</summary>
+    private static int RowCountFor(MatchState match, ShipState ship) =>
+        FullThrustLightThresholdRules.RowCountFor(match.Rules, ShipClassBands.FromIconKey(ship.IconKey));
     private static string DescribeShip(MatchState match, ShipState ship)
     {
         var fleet = match.Fleets.Single(f => f.Id == ship.FleetId);

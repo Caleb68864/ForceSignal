@@ -98,6 +98,119 @@ public sealed class InMemoryMatchServiceRulesLayerTests
         Assert.Equal(22m, flown.Ships.Single(ship => ship.Id == farGroup.Id).PositionY);
     }
 
+    [Fact]
+    public void FireWeapon_NeedleDrawsNoBloodUnderTheLightLayerAndAPointUnderTheFleetBook()
+    {
+        // A 6 takes the named system under both layers. Only the enhanced needle also puts a point
+        // into the hull, and that point goes past armour boxes that are still standing.
+        var light = NeedleLayerTable.Build("LightCinematic");
+        light.Dice.Script(6);
+        var lightTarget = light.Needle(ShipSystemKind.FireControl).Ships.Single(ship => ship.Id == light.TargetId);
+
+        var fleetBook = NeedleLayerTable.Build("FleetBook");
+        fleetBook.Dice.Script(6);
+        var fleetBookResult = fleetBook.Needle(ShipSystemKind.FireControl);
+        var fleetBookTarget = fleetBookResult.Ships.Single(ship => ship.Id == fleetBook.TargetId);
+
+        Assert.Equal(1, lightTarget.FireControlDamage);
+        Assert.Equal(0, lightTarget.HullDamage);
+
+        Assert.Equal(1, fleetBookTarget.FireControlDamage);
+        Assert.Equal(1, fleetBookTarget.HullDamage);
+        // The target carries armour, and the needle went straight past it.
+        Assert.Equal(0, fleetBookTarget.ArmorDamage);
+        Assert.Contains(fleetBookResult.MatchLog, entry => entry.Message.Contains("ignoring armour", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FireWeapon_AFiveIsAMissUnderTheLightLayerAndBloodWithoutTheSystemUnderTheFleetBook()
+    {
+        var light = NeedleLayerTable.Build("LightCinematic");
+        light.Dice.Script(5);
+        var lightResult = light.Needle(ShipSystemKind.FireControl);
+        var lightTarget = lightResult.Ships.Single(ship => ship.Id == light.TargetId);
+
+        var fleetBook = NeedleLayerTable.Build("FleetBook");
+        fleetBook.Dice.Script(5);
+        var fleetBookResult = fleetBook.Needle(ShipSystemKind.FireControl);
+        var fleetBookTarget = fleetBookResult.Ships.Single(ship => ship.Id == fleetBook.TargetId);
+
+        Assert.Equal(0, lightTarget.FireControlDamage);
+        Assert.Equal(0, lightTarget.HullDamage);
+        Assert.Contains(lightResult.MatchLog, entry => entry.Message.Contains("nothing hit", StringComparison.Ordinal));
+
+        // The system rides it out; the hull does not.
+        Assert.Equal(0, fleetBookTarget.FireControlDamage);
+        Assert.Equal(1, fleetBookTarget.HullDamage);
+        Assert.Contains(fleetBookResult.MatchLog, entry => entry.Message.Contains("system held, hull holed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FireWeapon_NeedleReachesFurtherUnderTheFleetBookLayer()
+    {
+        // Nine units under the light rules, twelve under the Fleet Book, whatever range the mount
+        // was written down with.
+        var light = NeedleLayerTable.Build("LightCinematic");
+        light.Dice.Script(6);
+        var tooFar = Assert.Throws<InvalidOperationException>(() => light.Needle(ShipSystemKind.FireControl, range: 11));
+
+        var fleetBook = NeedleLayerTable.Build("FleetBook");
+        fleetBook.Dice.Script(6);
+        var reached = fleetBook.Needle(ShipSystemKind.FireControl, range: 11);
+
+        Assert.Contains("out of range", tooFar.Message, StringComparison.Ordinal);
+        Assert.True(Assert.Single(reached.FiringResults).IsHit);
+    }
+
+    /// <summary>A needle-armed cruiser and an armoured target, under a chosen layer.</summary>
+    private sealed record NeedleLayerTable(
+        InMemoryMatchService Service,
+        ScriptedDice Dice,
+        Guid MatchId,
+        string OwnerToken,
+        Guid AttackerId,
+        Guid TargetId,
+        Guid NeedleId)
+    {
+        public static NeedleLayerTable Build(string layer)
+        {
+            var dice = new ScriptedDice { Fallback = 4 };
+            var service = new InMemoryMatchService(dice.Next);
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Needle Layers", RulesLayer: layer));
+            var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
+            var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
+                .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+            var redFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null))
+                .Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
+
+            var needleId = Guid.NewGuid();
+            // The mount is written down with the longer reach; the layer is what actually caps it.
+            var attacker = service.CreateShip(blueFleet.Id, new CreateShipRequest(
+                owner.ParticipantToken, "Stiletto", "Cruiser", 4,
+                InitialVelocity: 0, InitialCourse: 12, HullMax: 20, ArmorMax: 0,
+                StartX: 20, StartY: 34,
+                Weapons: [new WeaponMountDto(needleId, "Needle Beam", 1, 12, [FiringArc.Fore], Kind: WeaponKind.NeedleBeam)],
+                FireControlMax: 2)).Ships.Single(s => s.Name == "Stiletto");
+
+            var target = service.CreateShip(redFleet.Id, new CreateShipRequest(
+                opponent.ParticipantToken, "Mark", "Cruiser", 4,
+                InitialVelocity: 0, InitialCourse: 6, HullMax: 20, ArmorMax: 6,
+                StartX: 20, StartY: 28, FireControlMax: 2)).Ships.Single(s => s.Name == "Mark");
+
+            service.SetReady(owner.MatchId, owner.ParticipantToken, true);
+            service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
+            service.DeclareOrdersComplete(owner.MatchId, new DeclareOrdersCompleteRequest(owner.ParticipantToken));
+            service.DeclareOrdersComplete(owner.MatchId, new DeclareOrdersCompleteRequest(opponent.ParticipantToken));
+            service.AdvanceTurn(owner.MatchId, owner.ParticipantToken);
+
+            return new NeedleLayerTable(service, dice, owner.MatchId, owner.ParticipantToken, attacker.Id, target.Id, needleId);
+        }
+
+        public MatchSnapshotDto Needle(ShipSystemKind system, int range = 6) =>
+            Service.FireWeapon(MatchId, new FireWeaponRequest(
+                OwnerToken, AttackerId, TargetId, NeedleId, range, TargetSystem: system));
+    }
+
     /// <summary>A match under a chosen layer, with ships added as each test needs them.</summary>
     private sealed record LayerTable(
         InMemoryMatchService Service,

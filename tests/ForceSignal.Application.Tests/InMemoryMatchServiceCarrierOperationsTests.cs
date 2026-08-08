@@ -160,6 +160,123 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
             && entry.Message.Contains("fighter bay destroyed with Hawk Flight aboard", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void UpdateFighterOperations_UnderTheFleetBookLayerLaunchesOneGroupPerOperationalBay()
+    {
+        // The same warship that manages one group a turn under the light layer puts up a group for
+        // every bay it has under the Fleet Book, which is the whole point of the amendment: the
+        // launch rate follows the ship's fittings rather than what the fleet list calls it.
+        var light = CarrierTable.Build(bays: 3, secondGroup: true, thirdGroup: true, carrierIsWarship: true);
+        light.Launch();
+        Assert.Contains(
+            "already handled 1 group this turn",
+            Assert.Throws<InvalidOperationException>(() => light.Launch(secondGroup: true)).Message,
+            StringComparison.Ordinal);
+
+        var fleetBook = CarrierTable.Build(
+            bays: 3, secondGroup: true, thirdGroup: true, carrierIsWarship: true, layer: "FleetBook");
+        fleetBook.Launch();
+        fleetBook.Launch(secondGroup: true);
+        var third = fleetBook.Launch(thirdGroup: true);
+
+        Assert.All(
+            third.Ships.Where(ship => ship.IconKey == "fighter-group"),
+            group => Assert.Equal("Airborne", group.FighterStatus));
+    }
+
+    [Fact]
+    public void UpdateFighterOperations_UnderTheFleetBookLayerRecoversHalfTheBays()
+    {
+        // Two bays recover one group a turn - half, rounded up. The second is refused, and the
+        // refusal names the bays rather than a group count, because that is what sets the rate now.
+        var table = CarrierTable.Build(bays: 2, secondGroup: true, layer: "FleetBook");
+        table.Launch();
+        table.Launch(secondGroup: true);
+        table.NextTurn();
+
+        table.Recover();
+        var error = Assert.Throws<InvalidOperationException>(() => table.Recover(secondGroup: true));
+
+        Assert.Contains("already recovered 1 group this turn", error.Message, StringComparison.Ordinal);
+        Assert.Contains("2 working bays allow", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UpdateFighterOperations_UnderTheFleetBookLayerLaunchesAndRecoversInTheSameTurn()
+    {
+        // Launch and recovery draw on separate allowances under the Fleet Book, so a deck can be
+        // working in both directions at once. Under the light layer they share one budget.
+        var table = CarrierTable.Build(bays: 2, secondGroup: true, layer: "FleetBook");
+        table.Launch();
+        table.NextTurn();
+
+        var result = table.Recover();
+        table.Launch(secondGroup: true);
+
+        Assert.Contains(result.MatchLog, entry => entry.Message.Contains("landed aboard Home Plate", StringComparison.Ordinal));
+        Assert.Equal(
+            "Airborne",
+            table.Service.GetSnapshot(table.MatchId).Ships.Single(ship => ship.Id == table.SecondGroupId).FighterStatus);
+    }
+
+    [Fact]
+    public void UpdateFighterOperations_UnderTheFleetBookLayerRollsTurnaroundOnRecovery()
+    {
+        // A 1 on the turnaround roll writes the group off for the rest of the game, so the deck it
+        // just landed on is the last one it sees. The light layer rolls nothing at all.
+        var table = CarrierTable.Build(bays: 2, layer: "FleetBook");
+        table.Launch();
+        table.NextTurn();
+
+        table.Dice.Script(1);
+        var recovered = table.Recover();
+
+        Assert.True(recovered.Ships.Single(ship => ship.Id == table.GroupId).FighterGroundedForGame);
+        Assert.Contains(recovered.MatchLog, entry => entry.Message.Contains("written off", StringComparison.Ordinal));
+        Assert.Contains(
+            "will not fly again this game",
+            Assert.Throws<InvalidOperationException>(() => table.Launch()).Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UpdateFighterOperations_TurnaroundHoldsAGroupOnTheDeckForTheTurnsItRolled()
+    {
+        // A 2 through 5 needs a full turn on the deck, so the group launches on the second turn
+        // after landing rather than the next one.
+        var table = CarrierTable.Build(bays: 2, layer: "FleetBook");
+        table.Launch();
+        table.NextTurn();
+        table.Dice.Script(3);
+        table.Recover();
+
+        table.NextTurn();
+        var tooSoon = Assert.Throws<InvalidOperationException>(() => table.Launch());
+        table.NextTurn();
+        var away = table.Launch();
+
+        Assert.Contains("still being turned around", tooSoon.Message, StringComparison.Ordinal);
+        Assert.Equal("Airborne", away.Ships.Single(ship => ship.Id == table.GroupId).FighterStatus);
+    }
+
+    [Fact]
+    public void UpdateFighterOperations_UnderTheLightLayerARecoveredGroupNeedsNoTurnaround()
+    {
+        // Nothing holds a group on the deck under the light layer: the only limit is the one group
+        // a turn the ship may work, so it is straight back out the following turn.
+        var table = CarrierTable.Build(bays: 2);
+        table.Launch();
+        table.NextTurn();
+        table.Dice.Script(1);
+        var recovered = table.Recover();
+
+        Assert.False(recovered.Ships.Single(ship => ship.Id == table.GroupId).FighterGroundedForGame);
+        Assert.DoesNotContain(recovered.MatchLog, entry => entry.Message.Contains("turnaround", StringComparison.Ordinal));
+
+        table.NextTurn();
+        Assert.Equal("Airborne", table.Launch().Ships.Single(ship => ship.Id == table.GroupId).FighterStatus);
+    }
+
     /// <summary>A carrier with its groups aboard, and an enemy cruiser in a position to shoot it.</summary>
     private sealed record CarrierTable(
         InMemoryMatchService Service,
@@ -181,11 +298,12 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
             bool secondGroup = false,
             bool thirdGroup = false,
             bool carrierIsWarship = false,
-            int damageDie = 4)
+            int damageDie = 4,
+            string layer = "LightCinematic")
         {
             var dice = new ScriptedDice { Fallback = damageDie };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Carrier Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Carrier Table", RulesLayer: layer));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

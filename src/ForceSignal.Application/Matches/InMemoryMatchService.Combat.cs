@@ -157,6 +157,8 @@ public sealed partial class InMemoryMatchService
                     $"{target.Name} bears {FiringArcs.Describe(targetArc)} of {attacker.Name}, not {FiringArcs.Describe(declaredArc)}. Fix the ship positions if the table disagrees.");
             }
 
+            // A needle's reach is the layer's, not the mount's: the enhanced needle is a longer
+            // weapon, and a mount recorded under one layer should not out-range the other.
             var reach = weapon.Kind == WeaponKind.NeedleBeam
                 ? Math.Min(weapon.MaxRange, match.Rules.NeedleBeamRange)
                 : weapon.MaxRange;
@@ -174,7 +176,10 @@ public sealed partial class InMemoryMatchService
                 WeaponKind.NeedleBeam => _needleRules,
                 _ => _firingRules,
             };
-            var validation = resolver.Validate(solution);
+            // The layer travels with the call rather than with the resolver: the resolvers are built
+            // once for the service, while the layer is per-match state, so a captured profile would
+            // be answering for whichever match happened to build the service.
+            var validation = resolver.Validate(solution, match.Rules);
             if (!validation.IsValid)
             {
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
@@ -219,7 +224,7 @@ public sealed partial class InMemoryMatchService
                 SpendFighterEndurance(match, target);
             }
 
-            var result = resolver.Resolve(solution);
+            var result = resolver.Resolve(solution, match.Rules);
             var remainingDamage = result.Damage;
             var damageBefore = CaptureDamage(target);
             if (!match.PendingThresholds.ContainsKey(target.Id))
@@ -228,8 +233,16 @@ public sealed partial class InMemoryMatchService
             }
 
             var wasDestroyed = target.HullDamage >= target.HullMax;
+            // A needle picks its way past plating rather than punching through it, so under a layer
+            // whose needles draw blood that point goes straight to the hull with armour boxes still
+            // standing. Every other weapon meets armour first.
+            var ignoresArmor = weapon.Kind == WeaponKind.NeedleBeam && match.Rules.EnhancedNeedleBeams;
             var armorBefore = target.ArmorDamage;
-            target.ArmorDamage = ClampDamage(target.ArmorDamage + remainingDamage, target.ArmorMax);
+            if (!ignoresArmor)
+            {
+                target.ArmorDamage = ClampDamage(target.ArmorDamage + remainingDamage, target.ArmorMax);
+            }
+
             var armorApplied = target.ArmorDamage - armorBefore;
             remainingDamage -= armorApplied;
             var hullBefore = target.HullDamage;
@@ -274,7 +287,9 @@ public sealed partial class InMemoryMatchService
             {
                 needleNote = result.IsHit == true
                     ? $" {ApplySystemLoss(match, target, needleTarget, fromNeedle: true)}"
-                    : " nothing hit";
+                    // An enhanced needle that drew blood without taking the system is not a miss,
+                    // and reading "nothing hit" beside a point of hull damage would be a lie.
+                    : result.Damage > 0 ? " system held, hull holed" : " nothing hit";
             }
 
             var rollNote = weapon.Kind == WeaponKind.NeedleBeam
@@ -286,6 +301,9 @@ public sealed partial class InMemoryMatchService
                 : result.DiceRolls.Count == 0
                     ? "no dice left to roll"
                     : $"rolled {string.Join(",", result.DiceRolls)}";
+            // An enhanced needle's point of damage lands with armour boxes still standing, which
+            // would read as an accounting error without a word about it.
+            var armorNote = ignoresArmor && result.Damage > 0 ? " ignoring armour" : string.Empty;
             var screenNote = weapon.Kind == WeaponKind.PulseTorpedo
                 // Screens do not degrade a torpedo. Say so on a hit, where a reader might otherwise
                 // wonder why a screened ship took the full damage, and stay quiet on a miss.
@@ -299,7 +317,7 @@ public sealed partial class InMemoryMatchService
             match.AddLog(
                 "Fire",
                 match.Phase.ToString(),
-                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
+                $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote}{armorNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
             if (rangeDisagreed)
             {
                 match.AddLog(
@@ -388,15 +406,19 @@ public sealed partial class InMemoryMatchService
             return;
         }
 
-        var rowsBefore = _thresholdRules.RowsCompleted(hullBefore, target.HullMax);
-        var rowsAfter = _thresholdRules.RowsCompleted(target.HullDamage, target.HullMax);
+        // How many rows the track has is the layer's call, and where a layer sizes it by class the
+        // hull's size band decides. Both shipped layers draw four rows for every hull.
+        var band = ShipClassBands.FromIconKey(target.IconKey);
+        var rows = _thresholdRules.HullRows(target.HullMax, match.Rules, band);
+        var rowsBefore = _thresholdRules.RowsCompleted(hullBefore, target.HullMax, match.Rules, band);
+        var rowsAfter = _thresholdRules.RowsCompleted(target.HullDamage, target.HullMax, match.Rules, band);
         if (rowsAfter <= rowsBefore)
         {
             return;
         }
 
         // One check against the deepest row reached, one point worse per extra row torn through.
-        var threshold = Math.Min(rowsAfter, FullThrustLightThresholdRules.DeepestThreshold);
+        var threshold = Math.Min(rowsAfter, FullThrustLightThresholdRules.DeepestThresholdFor(rows.Count));
         var extra = rowsAfter - rowsBefore - 1;
         var systems = SurvivingSystems(target);
         var result = _thresholdRules.Resolve(new ThresholdCheck(threshold, extra, systems));
@@ -415,7 +437,7 @@ public sealed partial class InMemoryMatchService
         match.AddLog(
             "Threshold",
             match.Phase.ToString(),
-            $"{DescribeShip(match, target)} completed hull row {rowsAfter} of {_thresholdRules.HullRows(target.HullMax).Count}: {rowNote}, systems lost on {result.LostOn} or less, {rollNote}. {lossNote}.");
+            $"{DescribeShip(match, target)} completed hull row {rowsAfter} of {rows.Count}: {rowNote}, systems lost on {result.LostOn} or less, {rollNote}. {lossNote}.");
     }
     /// <summary>
     /// Every system icon still working on a ship, one entry per die the threshold check will roll.

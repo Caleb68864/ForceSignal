@@ -2,6 +2,7 @@ using ForceSignal.Contracts.Matches;
 using ForceSignal.Domain.Rules;
 using ForceSignal.Modules.FullThrust.Combat;
 using ForceSignal.Modules.FullThrust.Damage;
+using ForceSignal.Modules.FullThrust.Fighters;
 using ForceSignal.Modules.FullThrust.Movement;
 using ForceSignal.Modules.FullThrust.Ordnance;
 
@@ -113,6 +114,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
     private readonly FullThrustDamageControlRules _repairRules = new(rollDie);
     private readonly FullThrustPointDefenseRules _pointDefenseRules = new(rollDie);
     private readonly FullThrustSalvoMissileRules _salvoRules = new(rollDie);
+    private readonly FullThrustCarrierOperationRules _carrierRules = new(rollDie);
     // The firing initiative die-off is the service's own roll rather than any rules module's.
     private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
     private readonly Sha256CommitmentService _commitments = new();
@@ -349,7 +351,13 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
             match.AddLog(
                 "Setup",
                 match.Phase.ToString(),
-                $"Rules layer set to {match.Rules.Layer}: screens up to level {match.Rules.MaxScreenLevel}, fighter groups fly {match.Rules.FighterMoveAllowance}, needle beams reach {match.Rules.NeedleBeamRange}.");
+                $"Rules layer set to {match.Rules.Layer}: screens up to level {match.Rules.MaxScreenLevel}, fighter groups fly {match.Rules.FighterMoveAllowance}, needle beams reach {match.Rules.NeedleBeamRange}"
+                    + (match.Rules.EnhancedNeedleBeams ? " and hole the hull on a 5 or 6, ignoring armour" : string.Empty)
+                    + (match.Rules.CarrierRatesFollowBays
+                        ? ", flight operations run at one group per bay out and half the bays back"
+                        : ", carriers work two groups a turn and other ships one")
+                    + (match.Rules.CarrierTurnaroundRoll ? ", and a recovered group rolls for turnaround" : string.Empty)
+                    + ".");
             match.Touch("RulesLayerChanged");
             return ToSnapshot(match);
         }
@@ -959,7 +967,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
     /// bays left. On success the group is placed on the carrier: a launch deploys from it, and a
     /// recovery has the group meet it.
     /// </summary>
-    private static void ResolveCarrierOperation(MatchState match, ShipState group, Guid? requestedCarrierId, bool isLaunch)
+    private void ResolveCarrierOperation(MatchState match, ShipState group, Guid? requestedCarrierId, bool isLaunch)
     {
         var carrierId = requestedCarrierId ?? group.HomeCarrierShipId;
         var carrier = carrierId is Guid id ? match.Ships.SingleOrDefault(s => s.Id == id) : null;
@@ -978,6 +986,11 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
         if (EffectiveBays(carrier) <= 0)
         {
             throw new InvalidOperationException($"{carrier.Name} has no working fighter bays.");
+        }
+
+        if (isLaunch)
+        {
+            RequireTurnedAround(match, group);
         }
 
         // Holding course and velocity is the price of flight operations. No order at all counts,
@@ -1001,22 +1014,15 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
             }
         }
 
-        // A true carrier can work two groups a turn; anything else with a bay manages one.
-        var isTrueCarrier = NormalizeIconText(carrier.ClassName).Contains("carrier", StringComparison.Ordinal)
-            || carrier.IconKey == "carrier";
-        var allowance = isLaunch && isTrueCarrier ? 2 : 1;
-        var alreadyWorked = match.CarrierOperationsThisTurn.TryGetValue(carrier.Id, out var used) ? used : 0;
-        if (alreadyWorked >= allowance)
-        {
-            throw new InvalidOperationException(
-                $"{carrier.Name} has already handled {alreadyWorked} group{(alreadyWorked == 1 ? string.Empty : "s")} this turn.");
-        }
+        RequireFlightAllowance(match, carrier, isLaunch);
 
         if (isLaunch)
         {
             group.PositionX = carrier.PositionX;
             group.PositionY = carrier.PositionY;
             group.CurrentCourse = carrier.CurrentCourse;
+            // Off the deck and clear of the deck crews: whatever the last turnaround imposed is spent.
+            group.FighterRelaunchTurn = 0;
         }
         else
         {
@@ -1045,13 +1051,99 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
             group.PositionY = carrier.PositionY;
         }
 
-        match.CarrierOperationsThisTurn[carrier.Id] = alreadyWorked + 1;
+        var ledger = isLaunch ? match.CarrierLaunchesThisTurn : match.CarrierRecoveriesThisTurn;
+        ledger[carrier.Id] = (ledger.TryGetValue(carrier.Id, out var worked) ? worked : 0) + 1;
         match.AddLog(
             "Fighters",
             match.Phase.ToString(),
             isLaunch
                 ? $"{DescribeShip(match, group)} launched from {carrier.Name}, which holds course and speed this turn."
                 : $"{DescribeShip(match, group)} landed aboard {carrier.Name}, which holds course and speed this turn.");
+
+        if (!isLaunch)
+        {
+            RollTurnaround(match, group);
+        }
+    }
+
+    /// <summary>
+    /// Refuses a launch or a recovery the carrier has no allowance left for. Under the older layer
+    /// launches and recoveries share one budget, so they are counted together and reported as the
+    /// groups the ship has handled; the Fleet Book gives each its own and names which one ran out.
+    /// </summary>
+    private static void RequireFlightAllowance(MatchState match, ShipState carrier, bool isLaunch)
+    {
+        // Only the older layer asks whether a ship is a carrier by trade. The Fleet Book rate
+        // follows the bays, which is exactly why it stops needing the word to mean anything.
+        var isTrueCarrier = NormalizeIconText(carrier.ClassName).Contains("carrier", StringComparison.Ordinal)
+            || carrier.IconKey == "carrier";
+        var allowance = FullThrustCarrierOperationRules.AllowanceFor(match.Rules, EffectiveBays(carrier), isTrueCarrier);
+        var launched = match.CarrierLaunchesThisTurn.TryGetValue(carrier.Id, out var alreadyLaunched) ? alreadyLaunched : 0;
+        var recovered = match.CarrierRecoveriesThisTurn.TryGetValue(carrier.Id, out var alreadyRecovered) ? alreadyRecovered : 0;
+
+        if (allowance.SharedAllowance)
+        {
+            var worked = launched + recovered;
+            if (worked >= (isLaunch ? allowance.Launches : allowance.Recoveries))
+            {
+                throw new InvalidOperationException(
+                    $"{carrier.Name} has already handled {worked} group{(worked == 1 ? string.Empty : "s")} this turn.");
+            }
+
+            return;
+        }
+
+        var used = isLaunch ? launched : recovered;
+        var cap = isLaunch ? allowance.Launches : allowance.Recoveries;
+        if (used >= cap)
+        {
+            var what = isLaunch ? "launched" : "recovered";
+            throw new InvalidOperationException(
+                $"{carrier.Name} has already {what} {used} group{(used == 1 ? string.Empty : "s")} this turn, which is all its {EffectiveBays(carrier)} working bays allow.");
+        }
+    }
+
+    /// <summary>
+    /// Refuses a launch by a group the deck crews have not finished with. Only a layer that rolls
+    /// for turnaround can leave a group in that state.
+    /// </summary>
+    private static void RequireTurnedAround(MatchState match, ShipState group)
+    {
+        if (group.FighterGroundedForGame)
+        {
+            throw new InvalidOperationException(
+                $"{group.Name} was written off on recovery and will not fly again this game.");
+        }
+
+        if (group.FighterRelaunchTurn > match.TurnNumber)
+        {
+            throw new InvalidOperationException(
+                $"{group.Name} is still being turned around and cannot launch before turn {group.FighterRelaunchTurn}.");
+        }
+    }
+
+    /// <summary>
+    /// Rolls how long the deck crews need with a group that has just landed, where the layer uses
+    /// the turnaround rule. Under the older layer a recovered group is ready whenever a bay is.
+    /// </summary>
+    private void RollTurnaround(MatchState match, ShipState group)
+    {
+        if (!match.Rules.CarrierTurnaroundRoll)
+        {
+            return;
+        }
+
+        var turnaround = _carrierRules.RollTurnaround();
+        group.FighterGroundedForGame = turnaround.IsGroundedForGame;
+        group.FighterRelaunchTurn = turnaround.IsGroundedForGame
+            ? 0
+            : match.TurnNumber + turnaround.TurnsBeforeRelaunch;
+        match.AddLog(
+            "Fighters",
+            match.Phase.ToString(),
+            turnaround.IsGroundedForGame
+                ? $"{DescribeShip(match, group)} turnaround rolled {turnaround.Roll}: written off, it will not fly again this game."
+                : $"{DescribeShip(match, group)} turnaround rolled {turnaround.Roll}: ready to launch again from turn {group.FighterRelaunchTurn}.");
     }
 
     /// <summary>The twelve-point course that best matches a heading across the table.</summary>
@@ -1307,7 +1399,8 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
                 match.Commitments.Clear();
                 match.FiringResults.Clear();
                 match.MovedFighterGroupIds.Clear();
-                match.CarrierOperationsThisTurn.Clear();
+                match.CarrierLaunchesThisTurn.Clear();
+                match.CarrierRecoveriesThisTurn.Clear();
                 match.RepairedShipIds.Clear();
                 foreach (var plotter in match.Participants)
                 {

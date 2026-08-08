@@ -26,7 +26,7 @@ public sealed class FullThrustLightFiringRules(Func<int>? rollDie = null) : IFir
     };
 
     /// <inheritdoc />
-    public FiringValidationResult Validate(FiringSolution solution)
+    public FiringValidationResult Validate(FiringSolution solution, RulesProfile? rules = null)
     {
         if (solution.Weapon.AttackDice <= 0)
         {
@@ -65,9 +65,11 @@ public sealed class FullThrustLightFiringRules(Func<int>? rollDie = null) : IFir
     }
 
     /// <inheritdoc />
-    public FiringResult Resolve(FiringSolution solution)
+    public FiringResult Resolve(FiringSolution solution, RulesProfile? rules = null)
     {
-        var validation = Validate(solution);
+        // Beam falloff and the screen table read the same under both layers, so the layer is
+        // accepted for the contract's sake and changes nothing here.
+        var validation = Validate(solution, rules);
         if (!validation.IsValid)
         {
             throw new InvalidOperationException(string.Join(" ", validation.Errors));

@@ -68,12 +68,6 @@ public static class FiringArcs
     };
 
     /// <summary>
-    /// The arc covering a bearing given in clock points to starboard of the ship's nose, where
-    /// 0 is dead ahead and 6 is dead astern. Each arc spans two clock points; a bearing exactly
-    /// on a boundary reads as the more clockwise arc, matching how the arcs are named - fore is
-    /// eleven through one, fore starboard is one through three.
-    /// </summary>
-    /// <summary>
     /// How close a bearing has to be to a boundary before it is treated as sitting on it.
     /// </summary>
     /// <remarks>
@@ -86,6 +80,14 @@ public static class FiringArcs
     /// </remarks>
     private const double BoundaryTolerance = 1e-9;
 
+    /// <summary>
+    /// The arc covering a bearing given in clock points to starboard of the ship's nose, where
+    /// 0 is dead ahead and 6 is dead astern. Each arc spans two clock points; a bearing exactly
+    /// on a boundary reads as the more clockwise arc, matching how the arcs are named - fore is
+    /// eleven through one, fore starboard is one through three.
+    /// </summary>
+    /// <param name="clockPoints">Bearing in clock points to starboard of the nose.</param>
+    /// <returns>The arc that bearing falls in.</returns>
     public static FiringArc FromRelativeClock(double clockPoints)
     {
         if (double.IsNaN(clockPoints) || double.IsInfinity(clockPoints))
@@ -205,11 +207,24 @@ public sealed record FiringResult(
     bool? IsHit = null);
 
 /// <summary>Validates and resolves firing attacks for a rules profile.</summary>
+/// <remarks>
+/// The layer arrives as an argument rather than as constructor state on purpose. The resolvers are
+/// built once for the whole service, while the rules layer is per-match state that the owner can
+/// still change during fleet setup, so a resolver that captured a profile would be answering for
+/// whichever match happened to build it. Passing the profile in makes a shot's outcome a function
+/// of (layer, solution), which is exactly what "a match is played under one layer" means, and it
+/// lets a test put the same shot through both layers with one resolver. The profile is optional
+/// and falls back to the light cinematic default, matching <see cref="RulesProfile.Parse"/>.
+/// </remarks>
 public interface IFiringResolver
 {
     /// <summary>Validates a firing solution before damage resolution.</summary>
-    FiringValidationResult Validate(FiringSolution solution);
+    /// <param name="solution">The shot being attempted.</param>
+    /// <param name="rules">The layer being played, or null for the light cinematic default.</param>
+    FiringValidationResult Validate(FiringSolution solution, RulesProfile? rules = null);
 
     /// <summary>Resolves a valid firing solution into damage and attack modifiers.</summary>
-    FiringResult Resolve(FiringSolution solution);
+    /// <param name="solution">The shot being resolved.</param>
+    /// <param name="rules">The layer being played, or null for the light cinematic default.</param>
+    FiringResult Resolve(FiringSolution solution, RulesProfile? rules = null);
 }

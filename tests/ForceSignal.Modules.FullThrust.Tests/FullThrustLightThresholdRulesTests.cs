@@ -110,6 +110,53 @@ public sealed class FullThrustLightThresholdRulesTests
         Assert.Equal(3, result.LostOn);
     }
 
+    [Theory]
+    [InlineData(ShipClassBand.Escort)]
+    [InlineData(ShipClassBand.Cruiser)]
+    [InlineData(ShipClassBand.Capital)]
+    [InlineData(null)]
+    public void RowCountFor_IsFourUnderBothShippedLayersWhateverTheHullIs(ShipClassBand? band)
+    {
+        // Four rows for every hull is the Fleet Book rule, and the light cinematic profile keeps it
+        // deliberately. Rows by class belong to the second edition, which has no profile here.
+        Assert.Equal(4, FullThrustLightThresholdRules.RowCountFor(RulesProfile.LightCinematic, band));
+        Assert.Equal(4, FullThrustLightThresholdRules.RowCountFor(RulesProfile.FleetBook, band));
+    }
+
+    [Theory]
+    // The second edition sizes the track by band: an escort two rows and one threshold, a cruiser
+    // three and two, a capital four and three. A band nobody could work out gets the full four.
+    [InlineData(ShipClassBand.Escort, 2)]
+    [InlineData(ShipClassBand.Cruiser, 3)]
+    [InlineData(ShipClassBand.Capital, 4)]
+    [InlineData(null, 4)]
+    public void RowCountFor_SizesTheTrackByBandWhenTheLayerAsksForIt(ShipClassBand? band, int expected)
+    {
+        var byClass = RulesProfile.LightCinematic with { ThresholdRows = ThresholdRowMode.ByShipClass };
+
+        Assert.Equal(expected, FullThrustLightThresholdRules.RowCountFor(byClass, band));
+    }
+
+    [Fact]
+    public void HullRows_SplitsIntoHoweverManyRowsTheLayerAsksFor()
+    {
+        // A twelve-box escort under a by-class layer runs 6/6 and faces one check instead of three.
+        Assert.Equal([6, 6], FullThrustLightThresholdRules.HullRowsFor(12, rowCount: 2));
+        Assert.Equal([4, 4, 4], FullThrustLightThresholdRules.HullRowsFor(12, rowCount: 3));
+        // Remainders still weight to the upper rows.
+        Assert.Equal([4, 3, 3], FullThrustLightThresholdRules.HullRowsFor(10, rowCount: 3));
+        Assert.Equal(1, FullThrustLightThresholdRules.RowsCompletedFor(6, 12, rowCount: 2));
+    }
+
+    [Theory]
+    [InlineData(2, 1)]
+    [InlineData(3, 2)]
+    [InlineData(4, 3)]
+    public void DeepestThresholdFor_StopsOneRowShortBecauseTheLastRowIsDeath(int rowCount, int expected)
+    {
+        Assert.Equal(expected, FullThrustLightThresholdRules.DeepestThresholdFor(rowCount));
+    }
+
     /// <summary>Threshold rules fed a fixed sequence of die faces, cycling if more are needed.</summary>
     private static FullThrustLightThresholdRules Dice(params int[] faces)
     {

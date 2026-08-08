@@ -129,6 +129,9 @@ public sealed partial class InMemoryMatchService
                     FighterEnduranceUsed = NormalizeFighterEnduranceUsed(ship.FighterEnduranceUsed, fighterEnduranceMax),
                     FighterMaxRange = NormalizeFighterMaxRange(ship.FighterMaxRange, iconKey, ship.ClassName),
                     FighterStatus = NormalizeFighterStatus(ship.FighterStatus, iconKey, ship.ClassName),
+                    // A group the deck crews have not finished with stays that way across a save.
+                    FighterRelaunchTurn = Math.Clamp(ship.FighterRelaunchTurn, 0, 9999),
+                    FighterGroundedForGame = ship.FighterGroundedForGame,
                     PointsValue = ClampPoints(ship.PointsValue),
                     FireControlMax = ClampFireControl(ship.FireControlMax),
                     PointDefenseSystems = ClampPointDefense(ship.PointDefenseSystems),

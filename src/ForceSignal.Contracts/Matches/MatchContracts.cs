@@ -340,7 +340,9 @@ public sealed record ShipDto(
     int NeedledFireControl = 0,
     int NeedledDrives = 0,
     int NeedledScreens = 0,
-    int NeedledBays = 0);
+    int NeedledBays = 0,
+    int FighterRelaunchTurn = 0,
+    bool FighterGroundedForGame = false);
 
 /// <summary>Commit/reveal status for a ship order.</summary>
 public sealed record OrderStatusDto(Guid ShipId, Guid OwnerParticipantId, bool IsCommitted, bool IsRevealed, bool VerificationFailed);
