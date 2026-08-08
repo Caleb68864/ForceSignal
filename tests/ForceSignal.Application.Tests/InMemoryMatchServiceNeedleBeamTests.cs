@@ -123,6 +123,60 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
         Assert.Contains("no fire control free", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void NeedleLosses_SurviveAnExportAndRestoreSoTheyStayBeyondDamageControl()
+    {
+        var table = NeedleTable.Build(fireControlMax: 2);
+        table.Dice.Script(6);
+        table.Needle(ShipSystemKind.FireControl);
+
+        table.Dice.Script(6);
+        table.SecondNeedle(ShipSystemKind.Weapon, table.TargetMountId);
+
+        var exported = table.Service.GetSnapshot(table.MatchId);
+        var needled = exported.Ships.Single(s => s.Name == "Mark");
+        Assert.Equal(1, needled.FireControlDamage);
+        Assert.Equal(1, needled.NeedledFireControl);
+        Assert.True(needled.Weapons.Single().IsNeedleKilled);
+
+        // A needled system is cut out rather than broken, so what a needle took has to still be
+        // gone after the match is reloaded from a file. The counts and the mount flag ride in the
+        // snapshot for exactly this reason: without them a restore quietly handed the ship back
+        // systems the rules say are gone for good, and damage control would happily repair them.
+        var restored = new InMemoryMatchService().RestoreMatch(exported, null).Snapshot;
+        var restoredShip = restored.Ships.Single(s => s.Name == "Mark");
+        Assert.Equal(1, restoredShip.FireControlDamage);
+        Assert.Equal(1, restoredShip.NeedledFireControl);
+        Assert.True(restoredShip.Weapons.Single().IsDestroyed);
+        Assert.True(restoredShip.Weapons.Single().IsNeedleKilled);
+    }
+
+    [Fact]
+    public void AWorkingMountNeverCarriesTheNeedleFlagBackInFromASnapshot()
+    {
+        var table = NeedleTable.Build(fireControlMax: 2);
+        var exported = table.Service.GetSnapshot(table.MatchId);
+        var target = exported.Ships.Single(s => s.Name == "Mark");
+
+        // A hand-edited file claiming an undamaged mount was needled describes nothing real: only a
+        // knocked-out mount can have been cut out.
+        var tampered = exported with
+        {
+            Ships =
+            [
+                .. exported.Ships.Select(ship => ship.Id != target.Id ? ship : ship with
+                {
+                    Weapons = [.. ship.Weapons.Select(w => w with { IsDestroyed = false, IsNeedleKilled = true })],
+                }),
+            ],
+        };
+
+        var restored = new InMemoryMatchService().RestoreMatch(tampered, null).Snapshot;
+        var mount = restored.Ships.Single(s => s.Name == "Mark").Weapons.Single();
+        Assert.False(mount.IsDestroyed);
+        Assert.False(mount.IsNeedleKilled);
+    }
+
     /// <summary>A sniper with a needle, a beam, and a spare needle, against one target dead ahead.</summary>
     private sealed record NeedleTable(
         InMemoryMatchService Service,
@@ -182,9 +236,9 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
             Service.FireWeapon(MatchId, new FireWeaponRequest(
                 OwnerToken, AttackerId, TargetId, NeedleId, 6, TargetSystem: system, TargetSystemWeaponId: mountId));
 
-        public MatchSnapshotDto SecondNeedle(ShipSystemKind? system) =>
+        public MatchSnapshotDto SecondNeedle(ShipSystemKind? system, Guid? mountId = null) =>
             Service.FireWeapon(MatchId, new FireWeaponRequest(
-                OwnerToken, AttackerId, TargetId, SecondNeedleId, 6, TargetSystem: system));
+                OwnerToken, AttackerId, TargetId, SecondNeedleId, 6, TargetSystem: system, TargetSystemWeaponId: mountId));
 
         public MatchSnapshotDto Beam() =>
             Service.FireWeapon(MatchId, new FireWeaponRequest(OwnerToken, AttackerId, TargetId, BeamId, 6));

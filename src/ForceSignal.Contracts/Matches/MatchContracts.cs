@@ -296,6 +296,12 @@ public sealed record ParticipantDto(Guid Id, string DisplayName, string Role, bo
 public sealed record FleetDto(Guid Id, Guid OwnerParticipantId, string Name, string? Faction, string FleetColor);
 
 /// <summary>Ship profile, table position, equipment, and damage state.</summary>
+/// <remarks>
+/// The four Needled counts record how much of each system was cut out by needle fire rather than
+/// merely broken. They are carried separately from the ordinary damage counts because damage
+/// control can undo one and never the other, and they have to survive an export: without them a
+/// match reloaded from a snapshot would let a ship repair systems the rules say are gone for good.
+/// </remarks>
 public sealed record ShipDto(
     Guid Id,
     Guid FleetId,
@@ -330,7 +336,11 @@ public sealed record ShipDto(
     int FighterMaxRange,
     string FighterStatus,
     Guid? HomeCarrierShipId,
-    int PointsValue);
+    int PointsValue,
+    int NeedledFireControl = 0,
+    int NeedledDrives = 0,
+    int NeedledScreens = 0,
+    int NeedledBays = 0);
 
 /// <summary>Commit/reveal status for a ship order.</summary>
 public sealed record OrderStatusDto(Guid ShipId, Guid OwnerParticipantId, bool IsCommitted, bool IsRevealed, bool VerificationFailed);

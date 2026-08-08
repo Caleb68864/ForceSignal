@@ -398,6 +398,13 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 restoredShip.FighterBayDamage = ClampDamage(ship.FighterBayDamage, restoredShip.FighterBays);
                 restoredShip.DriveDamage = ClampDamage(ship.DriveDamage, restoredShip.ThrustRating);
                 restoredShip.WeaponDamage = ClampDamage(ship.WeaponDamage, 12);
+                // What a needle cut out is beyond damage control, and has to come back as such:
+                // without this a restored ship could repair systems the rules say are gone for
+                // good. A needled count can never exceed the damage it is part of.
+                restoredShip.NeedledFireControl = ClampDamage(ship.NeedledFireControl, restoredShip.FireControlDamage);
+                restoredShip.NeedledDrives = ClampDamage(ship.NeedledDrives, 2);
+                restoredShip.NeedledScreens = ClampDamage(ship.NeedledScreens, restoredShip.ScreenDamage);
+                restoredShip.NeedledBays = ClampDamage(ship.NeedledBays, restoredShip.FighterBayDamage);
                 match.Ships.Add(restoredShip);
             }
 
@@ -2390,7 +2397,11 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
             s.FighterMaxRange,
             s.FighterStatus,
             s.HomeCarrierShipId,
-            s.PointsValue)).ToArray(),
+            s.PointsValue,
+            s.NeedledFireControl,
+            s.NeedledDrives,
+            s.NeedledScreens,
+            s.NeedledBays)).ToArray(),
         match.Ships.Select(s =>
         {
             match.Commitments.TryGetValue(s.Id, out var commitment);
@@ -3462,7 +3473,13 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 Math.Clamp(w.AmmoMax, 0, 99),
                 Math.Clamp(w.AmmoUsed, 0, Math.Max(0, w.AmmoMax)),
                 Math.Clamp(w.ReloadTurns, 0, 12),
-                w.Kind) { IsDestroyed = w.IsDestroyed })
+                w.Kind)
+            {
+                IsDestroyed = w.IsDestroyed,
+                // A mount a needle cut out stays cut out across an export. Only a knocked-out mount
+                // can be needled, so the flag never survives on a working one.
+                IsNeedleKilled = w.IsDestroyed && w.IsNeedleKilled,
+            })
             .ToArray();
     }
 
