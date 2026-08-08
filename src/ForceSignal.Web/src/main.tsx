@@ -685,6 +685,31 @@ function App() {
   // What the other player is doing, kept apart from what the app is telling *you*. Background
   // traffic used to share one line with error messages and simply overwrote them.
   const [activity, setActivity] = useState('');
+  // True while an action that changes the game is in flight. Buttons were freely double-tappable,
+  // and on a slow link a player who saw nothing happen would tap again - firing the same weapon
+  // twice, or skipping a phase with two taps of Advance Turn. The guards that would have caught it
+  // are computed from a snapshot that has not come back yet, so the UI did not even grey out.
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+
+  /**
+   * Runs one game-changing action, refusing to start a second while the first is still going.
+   * The ref is what actually enforces it: two taps in the same frame both read the old state.
+   */
+  function run(work: () => Promise<unknown>) {
+    if (busyRef.current) {
+      return;
+    }
+
+    busyRef.current = true;
+    setBusy(true);
+    work()
+      .catch(showError(setMessage))
+      .finally(() => {
+        busyRef.current = false;
+        setBusy(false);
+      });
+  }
   const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('offline');
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
   const [fleetLibrary, setFleetLibrary] = useState<SavedFleet[]>(() => readJson<SavedFleet[]>(fleetLibraryKey) ?? []);
@@ -1705,8 +1730,8 @@ function App() {
               key={seat.participantId}
               type="button"
               className={seat.isClaimed ? 'ghost' : undefined}
-              disabled={seat.isClaimed}
-              onClick={() => claimSeat(pendingRestore, seat).catch(showError(setMessage))}
+              disabled={seat.isClaimed || busy}
+              onClick={() => run(() => claimSeat(pendingRestore, seat))}
             >
               {seat.displayName} · {seat.role} · {seat.fleetCount} fleet{seat.fleetCount === 1 ? '' : 's'}, {seat.shipCount} ship{seat.shipCount === 1 ? '' : 's'}{seat.isClaimed ? ' · taken' : ''}
             </button>
@@ -1719,12 +1744,12 @@ function App() {
             Display name
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
           </label>
-          <button onClick={() => createMatch().catch(showError(setMessage))}>Create Match</button>
+          <button onClick={() => run(createMatch)} disabled={busy}>Create Match</button>
           <label>
             Room code
             <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
           </label>
-          <button onClick={() => joinMatch().catch(showError(setMessage))}>Join Match</button>
+          <button onClick={() => run(joinMatch)} disabled={busy}>Join Match</button>
           <p className="auth-status auth-wide">{message}</p>
           <button className="ghost auth-wide" type="button" onClick={exportLastSnapshotBackup}>Export Last Device Backup</button>
           <button className="ghost auth-wide" type="button" onClick={() => restoreInputRef.current?.click()}>Restore Match From Backup</button>
@@ -1810,10 +1835,10 @@ function App() {
             </div>
             <div className="side-actions">
               <span className="label">Match commands</span>
-              <button onClick={() => markReady().catch(showError(setMessage))}>Ready</button>
-              <button className="ghost" onClick={() => lockOwnedOrders().catch(showError(setMessage))}>Lock Fleet Orders</button>
-              <button className="ghost" onClick={() => revealOwnedOrders().catch(showError(setMessage))}>Reveal Fleet Orders</button>
-              <button onClick={() => advanceTurn().catch(showError(setMessage))}>Advance Turn</button>
+              <button onClick={() => run(markReady)} disabled={busy}>Ready</button>
+              <button className="ghost" onClick={() => run(lockOwnedOrders)} disabled={busy}>Lock Fleet Orders</button>
+              <button className="ghost" onClick={() => run(revealOwnedOrders)} disabled={busy}>Reveal Fleet Orders</button>
+              <button onClick={() => run(advanceTurn)} disabled={busy}>Advance Turn</button>
               <button className={publicMode ? 'ghost active' : 'ghost'} onClick={() => {
                 setPublicMode((current) => !current);
                 setActiveView('map');
@@ -1918,7 +1943,7 @@ function App() {
                       onChange={setShipForm}
                       maxScreenLevel={snapshot?.rulesLayer === 'FleetBook' ? 2 : 3}
                     />
-                    <button onClick={() => createShipFromForm().catch(showError(setMessage))}>Add Ship</button>
+                    <button onClick={() => run(createShipFromForm)} disabled={busy}>Add Ship</button>
                   </div>
                   <div className="fleet-transfer">
                     <span className="label">Fleet transfer</span>
@@ -2220,8 +2245,8 @@ function App() {
                               <button className="ghost" type="button" onClick={() => updateDraft(ship.id, turnPatchFromManeuvers([]))}>Clear Turns</button>
                             </div>
                           </div>
-                          <button onClick={() => commit(ship).catch(showError(setMessage))}>Lock</button>
-                          <button onClick={() => reveal(ship).catch(showError(setMessage))}>Reveal</button>
+                          <button onClick={() => run(() => commit(ship))} disabled={busy}>Lock</button>
+                          <button onClick={() => run(() => reveal(ship))} disabled={busy}>Reveal</button>
                         </div>
                       </>
                     ) : null}
@@ -2236,11 +2261,11 @@ function App() {
                           phase={snapshot.phase}
                           firingResults={snapshot.firingResults}
                           onChange={(patch) => updateFiringDraft(ship.id, { ...firingDraft, ...patch })}
-                          onFire={() => fireWeapon(ship, firingDraft).catch(showError(setMessage))}
+                          onFire={() => run(() => fireWeapon(ship, firingDraft))}
                           volleyOpen={snapshot.firingShipId === ship.id}
                           turnProblem={firingTurnBlocker(ship, snapshot, session.participantId)}
                           canEndFire={snapshot.firingParticipantId === session.participantId && !(snapshot.activatedShipIds ?? []).includes(ship.id)}
-                          onCeaseFire={() => ceaseFire(ship).catch(showError(setMessage))}
+                          onCeaseFire={() => run(() => ceaseFire(ship))}
                         />
                       </>
                     ) : null}
