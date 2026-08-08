@@ -2779,3 +2779,11 @@ small,
   color: #ffd9a0;
   font-size: 0.9rem;
 }
+
+/* What the other player just did. Kept apart from the message line so a notification arriving a
+   moment after a failed action cannot erase the reason it failed. */
+.activity-line {
+  margin-top: 0.25rem;
+  color: #8fa5b8;
+  font-size: 0.85rem;
+}

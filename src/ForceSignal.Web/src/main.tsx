@@ -682,6 +682,9 @@ function App() {
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  // What the other player is doing, kept apart from what the app is telling *you*. Background
+  // traffic used to share one line with error messages and simply overwrote them.
+  const [activity, setActivity] = useState('');
   const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('offline');
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
   const [fleetLibrary, setFleetLibrary] = useState<SavedFleet[]>(() => readJson<SavedFleet[]>(fleetLibraryKey) ?? []);
@@ -808,12 +811,22 @@ function App() {
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(`${apiBaseUrl}/hubs/match`)
-      .withAutomaticReconnect()
+      // The default policy tries four times over thirty seconds and then stops for good. A venue
+      // wifi drop lasting longer than that left the client permanently deaf to notifications while
+      // still feeling alive, because REST calls kept working - so the board quietly diverged from
+      // the table for the rest of the game. This one keeps trying, backing off to half a minute.
+      .withAutomaticReconnect({
+        nextRetryDelayInMilliseconds: (context) =>
+          Math.min(30_000, 1_000 * 2 ** Math.min(context.previousRetryCount, 5)),
+      })
       .build();
 
     connection.on('MatchSnapshotChanged', (matchId: string, version: number, reason: string) => {
       if (matchId === session.matchId) {
-        setMessage(`${reason} · v${version}`);
+        // Background traffic goes to the activity line, never to the message line. Writing it to
+        // the message line overwrote whatever error the player was reading, so a failed action
+        // vanished a fraction of a second later and left no evidence it had happened at all.
+        setActivity(`${reason} · v${version}`);
         loadSnapshot(session.matchId).catch(handleSessionError);
       }
     });
@@ -873,22 +886,25 @@ function App() {
   const visibleOwnedShipIds = useMemo(() => (publicMode ? new Set<string>() : ownedShipIds), [publicMode, ownedShipIds]);
 
   async function createMatch() {
-    clearLocalMatchState();
+    // The old state is cleared only once the new room exists. Clearing first threw away the order
+    // keys of the match already in progress whenever the request failed - a typo'd code, or now a
+    // rate-limited attempt that never reached the match logic at all.
     const response = await post<Session & { matchId: string; joinCode: string }>('/api/matches', {
       displayName,
       matchName: `${displayName}'s Match`,
     });
+    clearLocalMatchState();
     setSession(response);
     setMessage(`Created room ${response.joinCode}.`);
   }
 
   async function joinMatch() {
-    clearLocalMatchState();
     try {
       const response = await post<Session & { matchId: string; joinCode: string }>('/api/matches/join', {
         displayName,
         joinCode,
       });
+      clearLocalMatchState();
       setSession(response);
       setMessage(`Joined room ${response.joinCode}.`);
     } catch (error) {
@@ -1823,6 +1839,7 @@ function App() {
                 </div>
               ) : null}
               <p aria-live="polite">{message}</p>
+              {activity ? <p className="activity-line" aria-live="polite">{activity}</p> : null}
               {storageWarning ? (
                 // Losing the order keys means a locked order can never be revealed, which stops the
                 // turn dead. That is worth interrupting someone over rather than logging quietly.
