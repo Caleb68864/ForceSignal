@@ -16,6 +16,16 @@ public enum FireControlLevel
 }
 
 /// <summary>Which of a weapon's three range bands the shot falls in.</summary>
+/// <remarks>
+/// The values are the rungs each band shifts the firer's die, so the band can be added directly
+/// rather than looked up.
+/// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Naming",
+    "CA1720:Identifier contains type name",
+    Justification = "Close, medium and long are what the rules call the three bands, and a table "
+        + "reads them off a record card by those names. Renaming the member to satisfy the "
+        + "analyzer would put the code and the card out of step for no benefit.")]
 public enum WeaponRangeBand
 {
     /// <summary>Inside the weapon's close band, where the gunner can hardly miss.</summary>

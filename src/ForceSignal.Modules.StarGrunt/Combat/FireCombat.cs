@@ -151,12 +151,22 @@ public sealed class FireCombat(IQualityDiceRoller? roller = null)
 
         // Step 3. Each potential hit is the weapon's impact against the target's armour, with the
         // armour shifted up by whatever the target is hiding behind. No other modifiers apply.
-        var armour = QualityDice.ShiftClosed(attempt.TargetArmourDie, attempt.TargetPosture.Shifts);
+        //
+        // This is an open shift, which is easy to miss and changes the answer at the top of the
+        // ladder: armour that is already as good as the ladder goes still benefits from more cover,
+        // by making the incoming weapon worse instead. Troops in the best armour, dug into hard
+        // cover, therefore degrade the weapon shooting at them rather than wasting the protection.
+        var settled = QualityDice.ShiftOpposed(
+            attempt.ImpactDie,
+            0,
+            attempt.TargetArmourDie,
+            attempt.TargetPosture.Shifts);
+
         var hits = new List<ResolvedHit>(potentialHits);
         for (var hit = 0; hit < potentialHits; hit++)
         {
-            var impactRoll = _roller.Roll(attempt.ImpactDie);
-            var armourRoll = _roller.Roll(armour);
+            var impactRoll = _roller.Roll(settled.Actor);
+            var armourRoll = _roller.Roll(settled.Opponent);
             hits.Add(new ResolvedHit(impactRoll, armourRoll, Compare(impactRoll, armourRoll)));
         }
 

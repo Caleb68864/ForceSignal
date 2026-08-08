@@ -184,6 +184,35 @@ public sealed class FireCombatTests
     public void ANullAttemptIsRefused() =>
         Assert.Throws<ArgumentNullException>(() => new FireCombat().Resolve(null!));
 
+    [Fact]
+    public void ArmourAlreadyAtTheTopOfTheLadderDegradesTheWeaponInstead()
+    {
+        // Impact against armour is an OPEN shift, which only shows at the top of the ladder. Armour
+        // of D10 with three shifts of cover cannot climb three rungs: it caps at D12 and the two
+        // leftover steps come off the incoming weapon, dropping a D12 impact to D8. Treating this
+        // as an ordinary capped shift would have thrown that protection away.
+        // Firer 5 and 4 against a range roll of 3 is a total of 9 over a D8 range die: one hit,
+        // leftover 1, and the leftover roll of 8 does not claim a second.
+        var dice = new ScriptedDice(5, 4, 3, 8, 8, 12);
+        var combat = new FireCombat(dice);
+
+        var outcome = combat.Resolve(new FireAttempt(
+            FirerQuality: QualityDie.D8,
+            FirepowerDie: QualityDie.D8,
+            SupportDice: [],
+            ImpactDie: QualityDie.D12,
+            TargetArmourDie: QualityDie.D10,
+            DistanceInches: 4,
+            TargetPosture: new TargetPosture(CoverLevel.Hard, InPosition: true)));
+
+        var hit = Assert.Single(outcome.Hits);
+        // The armour rolled a 12, which only a D12 can produce; the impact rolled an 8, which is
+        // all a degraded D8 can produce. Armour matched or beat it, so the round was stopped.
+        Assert.Equal(12, hit.ArmourRoll);
+        Assert.Equal(8, hit.ImpactRoll);
+        Assert.Equal(HitEffect.Stopped, hit.Effect);
+    }
+
     /// <summary>A die source that hands out a fixed script, so a worked example can be replayed.</summary>
     private sealed class ScriptedDice(params int[] rolls) : IQualityDiceRoller
     {
