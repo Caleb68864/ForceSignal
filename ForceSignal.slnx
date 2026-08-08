@@ -14,6 +14,7 @@
     <Project Path="tests/ForceSignal.Api.Tests/ForceSignal.Api.Tests.csproj" />
     <Project Path="tests/ForceSignal.Application.Tests/ForceSignal.Application.Tests.csproj" />
     <Project Path="tests/ForceSignal.Domain.Tests/ForceSignal.Domain.Tests.csproj" />
+    <Project Path="tests/ForceSignal.Infrastructure.Tests/ForceSignal.Infrastructure.Tests.csproj" />
     <Project Path="tests/ForceSignal.Modules.FullThrust.Tests/ForceSignal.Modules.FullThrust.Tests.csproj" />
     <Project Path="tests/ForceSignal.Modules.Dirtside.Tests/ForceSignal.Modules.Dirtside.Tests.csproj" />
     <Project Path="tests/ForceSignal.Modules.GroundCombat.Tests/ForceSignal.Modules.GroundCombat.Tests.csproj" />

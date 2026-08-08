@@ -141,16 +141,20 @@ defences, damage control, needle beams - found six more divergences. Each is wri
 ## Later Production Options
 
 - [x] Browser/local snapshot recovery for tabletop use through local autosave, explicit snapshot export, and full-state restore with seat claiming.
-- [ ] Durable PostgreSQL persistence for long-running online matches. Deferred until real-world
-      tabletop testing proves what needs durable storage. File-based restore now covers recovery
-      from an API restart, which lowers the urgency without removing the need: recovery is still
-      manual and depends on someone having saved a snapshot.
+- [x] Durable match storage. Matches are written to a SQLite file as they change, and rebuilt at
+      startup, so a restart - or a crash - resumes the game instead of ending it. The internal
+      state is persisted rather than the exported snapshot, which matters: a snapshot reissues ids,
+      omits participant tokens and omits the commitment hashes behind locked orders, so recovering
+      through it would hand every device new ship ids, make everyone claim their seat again, and
+      throw away any order already locked. Persisting the real state makes a restart invisible - and
+      a locked order still reveals, because the salt was never on the server to lose. SQLite rather
+      than a database server: one process, one table of players, one laptop. `IMatchStore` is the
+      seam if this ever becomes hosted.
 - [x] Spectator/public table display with hidden information removed.
-- [ ] Reconnect-safe online play once the tabletop workflows are proven. The client half is in
-      place: automatic reconnect re-establishes the match notification group, resyncs the
-      snapshot, and reports link state, and participant presence is tracked and logged on
-      connect/disconnect. Still blocked by durable persistence — an API restart drops
-      in-memory match state, so the session ends no matter how cleanly the client reconnects.
+- [ ] Reconnect-safe online play once the tabletop workflows are proven. Both halves are now in
+      place — the client reconnects, rejoins the notification group and resyncs, and the server
+      keeps the match across a restart — so what remains is real-world testing rather than a
+      missing piece.
 
 ## Current Constraint
 

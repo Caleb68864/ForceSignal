@@ -104,8 +104,13 @@ public interface IMatchService
 
 /// <summary>In-memory implementation of match orchestration for local and early self-hosted play.</summary>
 /// <param name="rollDie">Die source for firing resolution, injectable so tests are deterministic.</param>
-public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IMatchService
+/// <param name="store">
+/// Where matches are written so they survive a restart. Defaults to keeping nothing, which is what
+/// the tests and a throwaway session want.
+/// </param>
+public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMatchStore? store = null) : IMatchService
 {
+    private readonly IMatchStore _store = store ?? NoMatchStore.Instance;
     private readonly FullThrustLightCinematicRules _rules = new();
     private readonly FullThrustLightFiringRules _firingRules = new(rollDie);
     private readonly FullThrustLightPulseTorpedoRules _torpedoRules = new(rollDie);
@@ -129,6 +134,35 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
     private readonly Dictionary<Guid, Guid> _shipToMatch = [];
     private readonly Dictionary<Guid, Guid> _fleetToMatch = [];
     private readonly Dictionary<Guid, Guid> _markerToMatch = [];
+
+    /// <summary>
+    /// Builds the service and brings back whatever the store was holding, so a restart resumes a
+    /// game rather than ending it.
+    /// </summary>
+    /// <remarks>
+    /// This exists only because a primary constructor has no body to put the load in. It runs
+    /// before the first request can arrive, since the service is a singleton built during startup,
+    /// and it takes the lock anyway so a store that is slow cannot race the first player in.
+    /// </remarks>
+    /// <param name="rollDie">Die source for firing resolution.</param>
+    /// <param name="store">Where matches are written.</param>
+    /// <param name="loadPersisted">
+    /// False to start empty and ignore what is stored. Only a test that wants a clean service over
+    /// a populated store has any use for this.
+    /// </param>
+    public InMemoryMatchService(Func<int>? rollDie, IMatchStore? store, bool loadPersisted)
+        : this(rollDie, store)
+    {
+        if (!loadPersisted)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            LoadPersistedMatches();
+        }
+    }
 
     // Ceilings on how much state one match may hold. None of these is a rules limit - they are far
     // above any real game - they exist so that a mistyped number, a runaway client, or a crafted
@@ -201,6 +235,8 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
             match.AddLog("Setup", "FleetSetup", "Match created.");
             _matches.Add(matchId, match);
             _joinCodes.Add(joinCode, matchId);
+            match.Persist = Persist;
+            Persist(match);
             return new MatchCreatedResponse(matchId, joinCode, participant.Id, participant.Token);
         }
     }
@@ -1511,6 +1547,10 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null) : IM
         {
             return;
         }
+
+        // A match that has been retired is gone on purpose, so the stored copy goes with it -
+        // otherwise every eviction would be undone by the next restart.
+        _store.Remove(matchId);
 
         _joinCodes.Remove(match.JoinCode);
         foreach (var fleet in match.Fleets)

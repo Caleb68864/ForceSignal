@@ -31,7 +31,15 @@ Use your own legally obtained rules and fleet data. ForceSignal links outward to
 - Restore a match from an exported snapshot backup and claim your original seat.
 - Record points values per ship, keep a device library of prebuilt fleets, and hold a match to an agreed points ceiling.
 
-The current persistence layer is intentionally in-memory so the first hidden-order workflow is easy to exercise. PostgreSQL/EF Core is the next hardening step.
+Matches are held in memory and, when a database path is configured, written to a SQLite file as
+well - so restarting the API resumes the game rather than ending it. `docker compose` sets this up
+on a named volume; running the API directly needs `Persistence:MatchDatabasePath` (or
+`FORCESIGNAL_MATCH_DB`) set, and without it matches live only in memory and readiness says so.
+
+SQLite rather than a database server because of what ForceSignal is: one process serving one
+table's worth of players off a laptop somebody carried to the game. A server would add another
+container to keep running before anyone can play, in exchange for concurrency a service holding a
+single lock cannot use. `IMatchStore` is the seam if that ever changes.
 
 ## Asset Notes
 
@@ -76,7 +84,7 @@ Health surfaces:
 
 The production containers run without root privileges and drop Linux capabilities. API and web responses include baseline browser security headers.
 
-Readiness currently reports `persistence = in-memory` with deployment warnings. That is intentional for tabletop-first real-world testing; public or long-running deployments should enable durable match storage after those workflows prove out.
+Readiness reports `persistence` as `sqlite` or `in-memory`, and warns when matches would be lost on a restart. The warning is the only thing telling an operator their game is not being written down, so it is reported in every environment.
 
 Smoke test a running stack:
 

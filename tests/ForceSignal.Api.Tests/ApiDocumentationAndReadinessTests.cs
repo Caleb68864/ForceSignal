@@ -74,10 +74,12 @@ public sealed class ApiDocumentationAndReadinessTests
             var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
             Assert.Equal("Production", readyBody.GetProperty("environment").GetString());
             Assert.Equal("configured", readyBody.GetProperty("cors").GetString());
+            // With no database configured, readiness has to say so - that warning is the only thing
+            // telling an operator their game will not survive a restart.
+            Assert.Equal("in-memory", readyBody.GetProperty("persistence").GetString());
             Assert.Contains(
-                "Matches are currently stored in memory",
-                readyBody.GetProperty("warnings").EnumerateArray().First().GetString(),
-                StringComparison.Ordinal);
+                readyBody.GetProperty("warnings").EnumerateArray().Select(warning => warning.GetString() ?? string.Empty),
+                warning => warning.Contains("stored in memory", StringComparison.OrdinalIgnoreCase));
 
             using var allowed = await SendPreflight(client, "http://localhost:6297");
             Assert.Equal(HttpStatusCode.NoContent, allowed.StatusCode);

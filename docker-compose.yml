@@ -7,8 +7,13 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Cors__AllowedOrigins__0: ${FORCESIGNAL_WEB_ORIGIN:-http://localhost:6297}
+      # Matches live on the volume below, so restarting the container - or the machine - resumes the
+      # game instead of ending it.
+      Persistence__MatchDatabasePath: /var/lib/forcesignal/matches.db
     ports:
       - "8080:8080"
+    volumes:
+      - match-data:/var/lib/forcesignal
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -43,3 +48,8 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+volumes:
+  # Named rather than a bind mount so it survives `docker compose down` and does not depend on a
+  # path existing on the host.
+  match-data:

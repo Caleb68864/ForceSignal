@@ -4,6 +4,7 @@ using ForceSignal.Application.Features;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Features;
 using ForceSignal.Contracts.Matches;
+using ForceSignal.Infrastructure.Persistence;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Scalar.AspNetCore;
@@ -55,7 +56,21 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
-builder.Services.AddSingleton<IMatchService, InMemoryMatchService>();
+// Where matches are kept so a restart does not end the game. A configured path switches durable
+// storage on; leaving it unset keeps everything in memory, which is what a throwaway session or a
+// test wants and which readiness then warns about.
+//
+// Read from the built configuration rather than the builder's, so settings a host layers in during
+// startup - a container, or an integration test - are seen rather than missed.
+builder.Services.AddSingleton<IMatchStore>(sp =>
+{
+    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
+    return string.IsNullOrWhiteSpace(path)
+        ? NoMatchStore.Instance
+        : new SqliteMatchStore(path);
+});
+builder.Services.AddSingleton<IMatchService>(sp =>
+    new InMemoryMatchService(null, sp.GetRequiredService<IMatchStore>(), loadPersisted: true));
 
 // Which optional game engines this server offers. Both ground-combat engines default to off: they
 // are built alongside the working Full Thrust game and must not be able to reach a table that
@@ -95,6 +110,7 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 var features = app.Services.GetRequiredService<FeatureFlags>();
+var matchDatabasePath = ReadMatchDatabasePath(app.Configuration);
 var RestoreJson = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 {
     Converters = { new JsonStringEnumConverter() },
@@ -167,9 +183,9 @@ app.MapGet("/ready", () => Results.Ok(new
     service = "ForceSignal.Api",
     environment = app.Environment.EnvironmentName,
     cors = allowedOrigins.AllowAnyOrigin ? "development-private-network" : "configured",
-    persistence = "in-memory",
+    persistence = string.IsNullOrWhiteSpace(matchDatabasePath) ? "in-memory" : "sqlite",
     features = features.ToDto(),
-    warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features)
+    warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath)
 }))
     .WithName("GetReadiness")
     .WithTags("Operations")
@@ -749,18 +765,25 @@ static string[]? SplitOrigins(string? value) =>
         ? null
         : value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
+// Where matches are written, or null when they are only held in memory.
+static string? ReadMatchDatabasePath(IConfiguration configuration) =>
+    configuration["Persistence:MatchDatabasePath"] ?? configuration["FORCESIGNAL_MATCH_DB"];
+
 static string[] ReadDeploymentWarnings(
     IConfiguration configuration,
     IHostEnvironment environment,
     CorsOriginSettings allowedOrigins,
-    FeatureFlags features)
+    FeatureFlags features,
+    string? matchDatabasePath)
 {
-    // The in-memory persistence warning is reported in every environment so readiness never
-    // implies durable match storage.
-    var warnings = new List<string>
+    var warnings = new List<string>();
+
+    // Reported in every environment, because the reason to read readiness before a game is to find
+    // out what will happen if the machine hiccups.
+    if (string.IsNullOrWhiteSpace(matchDatabasePath))
     {
-        "Matches are currently stored in memory and will be lost on API restart.",
-    };
+        warnings.Add("Matches are stored in memory and will be lost on API restart. Set Persistence:MatchDatabasePath to keep them.");
+    }
 
     // An in-progress engine being switched on is worth saying out loud, because the reason to
     // check readiness before a game is to find out what is about to be in the way.

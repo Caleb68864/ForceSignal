@@ -74,7 +74,32 @@ public sealed partial class InMemoryMatchService
         public List<FiringResultState> FiringResults { get; } = [];
         public List<MatchLogEntryState> MatchLog { get; } = [];
         public long Version { get; private set; } = 1;
-        public void Touch(string _) => Version++;
+
+        /// <summary>
+        /// Called after every change, to write the match down.
+        /// </summary>
+        /// <remarks>
+        /// Hung here rather than called from each of the service's two dozen mutations, because
+        /// every one of them already ends by touching the match. One hook cannot be forgotten; two
+        /// dozen call sites can.
+        /// </remarks>
+        public Action<MatchState>? Persist { get; set; }
+
+        public void Touch(string _)
+        {
+            Version++;
+            Persist?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Puts the version back to what it was, when rebuilding a match from storage.
+        /// </summary>
+        /// <remarks>
+        /// The clients' guard against an out-of-order snapshot compares versions, so a restarted
+        /// server that began again at one would have every client ignore it until the count caught
+        /// up - the board would simply stop moving.
+        /// </remarks>
+        public void RestoreVersion(long version) => Version = version;
 
         /// <summary>
         /// Next log sequence number. Kept separately from the list's length because the list is
@@ -143,6 +168,26 @@ public sealed partial class InMemoryMatchService
         };
 
         public string Claim() => Token = _commitmentSafeToken();
+
+        /// <summary>
+        /// Rebuilds a seat from storage, token and all.
+        /// </summary>
+        /// <remarks>
+        /// Keeping the token is the whole point: it is what makes a restart invisible to the device
+        /// holding it, rather than making everyone claim their seat again. Connection state is not
+        /// restored - a connection cannot outlive the process that held it, so everyone comes back
+        /// disconnected and the hub marks them present as they reconnect.
+        /// </remarks>
+        public static ParticipantState Restore(
+            Guid id, string token, string displayName, string role, bool isReady, bool ordersComplete) => new()
+        {
+            Id = id,
+            Token = token,
+            DisplayName = displayName,
+            Role = role,
+            IsReady = isReady,
+            OrdersComplete = ordersComplete,
+        };
 
         private static string _commitmentSafeToken() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
     }

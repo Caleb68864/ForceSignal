@@ -244,6 +244,7 @@ public sealed partial class InMemoryMatchService
             _matches.Add(matchId, match);
             _joinCodes[joinCode] = matchId;
             IndexMatch(match);
+            match.Persist = Persist;
             match.Touch("MatchRestored");
             return new MatchRestoredResponse(
                 matchId,

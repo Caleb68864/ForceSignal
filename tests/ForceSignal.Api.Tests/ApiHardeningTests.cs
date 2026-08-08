@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using ForceSignal.Contracts.Matches;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 
 namespace ForceSignal.Api.Tests;
 
@@ -229,7 +230,50 @@ public sealed class ApiHardeningTests
         Assert.Equal(allowed, reflected);
     }
 
-    private static WebApplicationFactory<Program> CreateFactory() =>
+    [Fact]
+    public async Task WithADatabaseConfigured_ReadinessStopsWarningThatMatchesAreLostOnRestart()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"forcesignal-ready-{Guid.NewGuid():n}");
+        try
+        {
+            using var factory = CreateFactory(new Dictionary<string, string?>
+            {
+                ["Persistence:MatchDatabasePath"] = Path.Combine(directory, "matches.db"),
+            });
+            using var client = factory.CreateClient();
+
+            var ready = await client.GetFromJsonAsync<JsonElement>("/ready");
+
+            Assert.Equal("sqlite", ready.GetProperty("persistence").GetString());
+            var warnings = ready.GetProperty("warnings").EnumerateArray()
+                .Select(warning => warning.GetString() ?? string.Empty)
+                .ToArray();
+            Assert.DoesNotContain(warnings, warning => warning.Contains("stored in memory", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                try
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // A stray temp directory is untidy, not a failing test.
+                }
+            }
+        }
+    }
+
+    private static WebApplicationFactory<Program> CreateFactory(Dictionary<string, string?>? settings = null) =>
         new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Development");
+                if (settings is not null)
+                {
+                    builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(settings));
+                }
+            });
 }
