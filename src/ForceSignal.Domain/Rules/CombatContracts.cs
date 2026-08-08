@@ -73,12 +73,40 @@ public static class FiringArcs
     /// on a boundary reads as the more clockwise arc, matching how the arcs are named - fore is
     /// eleven through one, fore starboard is one through three.
     /// </summary>
+    /// <summary>
+    /// How close a bearing has to be to a boundary before it is treated as sitting on it.
+    /// </summary>
+    /// <remarks>
+    /// Positions are measured in decimal and converted to double to take an arc tangent, so a
+    /// geometry that is exactly on a 30 degree boundary can land either side of it on the last bit
+    /// of the mantissa. Which side it lands on decides whether a mount bears at all. Without this,
+    /// a player who drags a ship to a round-numbered position and measures a clean right angle
+    /// could be refused the shot, with nothing on screen to explain why. Snapping first makes the
+    /// documented rule - a boundary reads as the more clockwise arc - actually hold.
+    /// </remarks>
+    private const double BoundaryTolerance = 1e-9;
+
     public static FiringArc FromRelativeClock(double clockPoints)
     {
+        if (double.IsNaN(clockPoints) || double.IsInfinity(clockPoints))
+        {
+            // Nothing sensible to say about a bearing that is not a number, and casting one to an
+            // integer silently saturates to zero - which would read as dead ahead.
+            return FiringArc.Fore;
+        }
+
         var wrapped = clockPoints % 12;
         if (wrapped < 0)
         {
             wrapped += 12;
+        }
+
+        // Snap a bearing that is within a rounding error of a clock point onto it, so the boundary
+        // rule below decides the arc rather than the last bit of a floating point division.
+        var nearest = Math.Round(wrapped);
+        if (Math.Abs(wrapped - nearest) < BoundaryTolerance)
+        {
+            wrapped = nearest;
         }
 
         var index = (int)Math.Floor((wrapped + 1) / 2) % 6;

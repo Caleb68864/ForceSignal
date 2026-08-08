@@ -147,6 +147,9 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     /// </summary>
     private const int MaxLogEntriesPerMatch = 4000;
 
+    /// <summary>Most repair jobs one request may carry. Far above the parties any ship has.</summary>
+    private const int MaxRepairJobs = 32;
+
     /// <summary>Longest caller-supplied display string kept. Longer text is truncated, not refused.</summary>
     private const int MaxDisplayTextLength = 120;
 
@@ -1127,12 +1130,26 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
                 throw new InvalidOperationException("No repair jobs were assigned.");
             }
 
+            RequireWithin(jobs.Count, MaxRepairJobs, "repair jobs");
+
+            // Two parties cannot both be put on the same job by listing it twice - the second roll
+            // would be against a system the first already brought back, so the parties would be
+            // spent for nothing.
+            if (jobs.Select(job => (job.Kind, job.WeaponId)).Distinct().Count() != jobs.Count)
+            {
+                throw new InvalidOperationException("The same system was assigned twice. Put the parties on one job instead.");
+            }
+
             if (ship.DamageControlParties <= 0)
             {
                 throw new InvalidOperationException($"{ship.Name} has no damage control parties left.");
             }
 
-            var assigned = jobs.Sum(job => Math.Max(1, job.Parties));
+            // Count what will actually be used, not what was asked for. A job may only take so many
+            // parties, so budgeting against the requested number silently debited a ship for parties
+            // that then sat idle - the player was penalised for a number the form had accepted.
+            // Summing as a long also keeps two absurd numbers from overflowing into a passing check.
+            var assigned = jobs.Sum(job => (long)PartiesFor(job));
             if (assigned > ship.DamageControlParties)
             {
                 throw new InvalidOperationException(
@@ -1173,9 +1190,16 @@ public sealed class InMemoryMatchService(Func<int>? rollDie = null) : IMatchServ
     /// broken. Hull damage and lost damage control parties are never repairable, and screens and
     /// fighter bays are not yet, because ForceSignal does not record what they started at.
     /// </summary>
+    /// <summary>
+    /// How many parties a requested job actually takes. One place, so the budget check and the roll
+    /// can never disagree about it.
+    /// </summary>
+    private int PartiesFor(RepairJobDto job) =>
+        Math.Clamp(job.Parties <= 0 ? 1 : job.Parties, 1, _repairRules.MaxPartiesPerJob);
+
     private RepairJob PlanRepair(ShipState ship, RepairJobDto job)
     {
-        var parties = Math.Clamp(job.Parties <= 0 ? 1 : job.Parties, 1, _repairRules.MaxPartiesPerJob);
+        var parties = PartiesFor(job);
         switch (job.Kind)
         {
             case ShipSystemKind.FireControl:

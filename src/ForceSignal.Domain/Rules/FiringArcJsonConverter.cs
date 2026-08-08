@@ -46,9 +46,23 @@ public sealed class FiringArcJsonConverter : JsonConverter<FiringArc>
     /// <inheritdoc />
     public override FiringArc Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out var ordinal))
+        // An unknown arc is refused whichever way it is written. The numeric path used to fall back
+        // to Fore, which is the most permissive arc there is - so a garbled fleet file silently
+        // granted a mount forward coverage it was never built with, and did it without a word.
+        // Refusing means a malformed file is reported as one instead of being quietly repaired into
+        // something playable but wrong.
+        if (reader.TokenType == JsonTokenType.Number)
         {
-            return Enum.IsDefined(typeof(FiringArc), ordinal) ? (FiringArc)ordinal : FiringArc.Fore;
+            return reader.TryGetInt32(out var ordinal) && Enum.IsDefined(typeof(FiringArc), ordinal)
+                ? (FiringArc)ordinal
+                : throw new JsonException("That is not a firing arc.");
+        }
+
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            // Reading a string out of a boolean or an array throws the wrong kind of exception,
+            // which surfaces as a server fault rather than a bad request.
+            throw new JsonException($"A firing arc must be a name or a number, not {reader.TokenType}.");
         }
 
         var name = reader.GetString();

@@ -203,6 +203,54 @@ public sealed class InMemoryMatchServiceRepairTests
         Assert.Contains("works between turns", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AttemptRepairs_BudgetsOnlyThePartiesAJobCanActuallyUse()
+    {
+        // A job takes at most three parties. Budgeting against the number asked for meant a ship
+        // with five parties putting "five" on one job passed the check and then rolled with three,
+        // silently spending two parties on nothing - penalised for a number the form accepted.
+        var table = RepairTable.Build(parties: 5);
+        table.BreakFireControl();
+        table.BreakScreens();
+        table.Dice.Script(4, 6);
+
+        var result = table.Repair(
+            new RepairJobDto(ShipSystemKind.FireControl, null, 5),
+            new RepairJobDto(ShipSystemKind.Screen, null, 1));
+
+        Assert.Equal(0, table.ShipIn(result).FireControlDamage);
+        Assert.Equal(0, table.ShipIn(result).ScreenDamage);
+    }
+
+    [Fact]
+    public void AttemptRepairs_RefusesTheSameSystemTwiceInOneRequest()
+    {
+        // The second roll would be against a system the first already brought back, so the parties
+        // would be spent for nothing.
+        var table = RepairTable.Build(parties: 4);
+        table.BreakFireControl();
+
+        var refused = Assert.Throws<InvalidOperationException>(() => table.Repair(
+            new RepairJobDto(ShipSystemKind.FireControl, null, 1),
+            new RepairJobDto(ShipSystemKind.FireControl, null, 1)));
+
+        Assert.Contains("assigned twice", refused.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AttemptRepairs_DoesNotOverflowOnAnAbsurdPartyCount()
+    {
+        var table = RepairTable.Build(parties: 2);
+        table.BreakFireControl();
+        table.BreakScreens();
+
+        var refused = Assert.Throws<InvalidOperationException>(() => table.Repair(
+            new RepairJobDto(ShipSystemKind.FireControl, null, int.MaxValue),
+            new RepairJobDto(ShipSystemKind.Screen, null, int.MaxValue)));
+
+        Assert.Contains("damage control", refused.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>One damaged cruiser with a mount, drives, and parties to fix them.</summary>
     private sealed record RepairTable(
         InMemoryMatchService Service,

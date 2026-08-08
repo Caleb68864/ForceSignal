@@ -94,4 +94,70 @@ public sealed class FiringArcsTests
     {
         Assert.False(FiringArcJsonConverter.TryParse("Broadside", out _));
     }
+
+    [Theory]
+    // A ship on course 12 points up the table, so these are the six arc boundaries measured from a
+    // round-numbered position - exactly what a player produces by dragging a ship onto a grid
+    // intersection. The y offsets are +/-sqrt(3), which is what a 30 or 60 degree bearing needs.
+    [InlineData(1.0, -1, FiringArc.ForeStarboard)]
+    [InlineData(1.0, 0, FiringArc.AftStarboard)]
+    [InlineData(1.0, 1, FiringArc.Aft)]
+    [InlineData(-1.0, 1, FiringArc.AftPort)]
+    [InlineData(-1.0, 0, FiringArc.ForePort)]
+    [InlineData(-1.0, -1, FiringArc.Fore)]
+    public void Bearing_OnAnExactBoundaryTakesTheMoreClockwiseArc(double offsetX, int rootThreeSign, FiringArc expected) =>
+        Assert.Equal(expected, FiringArcs.Bearing(12, offsetX, rootThreeSign * Math.Sqrt(3)));
+
+    [Fact]
+    public void Bearing_IsStableWhenTheGeometryLandsAHairEitherSideOfABoundary()
+    {
+        // The arc tangent of a nominally exact right angle can fall on either side of the boundary
+        // on the last bit of the mantissa, and which side it falls on decides whether a mount bears
+        // at all. A player who measured a clean right angle should not be refused the shot.
+        const double hair = 1e-13;
+        Assert.Equal(FiringArc.AftStarboard, FiringArcs.Bearing(12, 1.0, hair));
+        Assert.Equal(FiringArc.AftStarboard, FiringArcs.Bearing(12, 1.0, -hair));
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void FromRelativeClock_WithNoUsableBearingReadsAsForeRatherThanSaturating(double clockPoints) =>
+        Assert.Equal(FiringArc.Fore, FiringArcs.FromRelativeClock(clockPoints));
+
+    [Theory]
+    [InlineData("\"Fore\"", FiringArc.Fore)]
+    [InlineData("\"AftPort\"", FiringArc.AftPort)]
+    [InlineData("\"aft-port\"", FiringArc.AftPort)]
+    [InlineData("0", FiringArc.Fore)]
+    [InlineData("4", FiringArc.AftPort)]
+    public void Converter_ReadsBothANameAndAnOrdinal(string json, FiringArc expected) =>
+        Assert.Equal(expected, System.Text.Json.JsonSerializer.Deserialize<FiringArc>(json, ConverterOptions));
+
+    [Theory]
+    // Fore is the most permissive arc there is, so failing open to it silently granted a mount
+    // forward coverage it was never built with. A garbled file must be reported, not repaired.
+    [InlineData("99")]
+    [InlineData("-1")]
+    [InlineData("\"Broadside\"")]
+    [InlineData("true")]
+    [InlineData("null")]
+    [InlineData("[]")]
+    public void Converter_RefusesAnythingThatIsNotAnArcRatherThanFailingOpen(string json) =>
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() =>
+            System.Text.Json.JsonSerializer.Deserialize<FiringArc>(json, ConverterOptions));
+
+    [Fact]
+    public void Converter_RoundTripsEveryArcByName()
+    {
+        foreach (var arc in FiringArcs.All)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(arc, ConverterOptions);
+            Assert.Equal(arc, System.Text.Json.JsonSerializer.Deserialize<FiringArc>(json, ConverterOptions));
+        }
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions ConverterOptions =
+        new() { Converters = { new FiringArcJsonConverter() } };
 }
