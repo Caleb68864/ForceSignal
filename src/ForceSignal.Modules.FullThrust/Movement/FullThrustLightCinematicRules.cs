@@ -8,6 +8,22 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
     /// <summary>Stable key used to identify this movement rules profile in snapshots.</summary>
     public const string ProfileKey = "full-thrust-light-cinematic";
 
+    /// <summary>
+    /// Largest velocity change an order may name. No ship has anything like this much thrust - the
+    /// bound exists because the arithmetic below has to be safe on any number that arrives.
+    /// Math.Abs(int.MinValue) throws rather than returning a positive, and adding an unbounded
+    /// delta to a velocity wraps silently into a negative one, so both are refused by name here
+    /// rather than surfacing as a crash or a ship that accelerated into nonsense.
+    /// </summary>
+    public const int MaxVelocityDelta = 100;
+
+    /// <summary>
+    /// Most turn maneuvers one order may hold. A legal order can only contain as many as half the
+    /// thrust rating, so this is far above any real plot; it stops a caller sending a list long
+    /// enough to be expensive to check and to hash.
+    /// </summary>
+    public const int MaxTurnManeuvers = 32;
+
     /// <inheritdoc />
     public string Normalize(MovementOrder order)
     {
@@ -44,6 +60,19 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
     public OrderValidationResult Validate(ShipMovementState shipState, int thrustRating, MovementOrder order)
     {
         var errors = new List<string>();
+
+        // Checked before anything else touches the numbers: the thrust arithmetic below is not safe
+        // on an unbounded delta, and there is nothing useful to say about the rest of an order
+        // whose velocity change is not a number a ship could plot.
+        if (Math.Abs((long)order.VelocityDelta) > MaxVelocityDelta)
+        {
+            return new OrderValidationResult(false, [$"Velocity change must be within {MaxVelocityDelta} of a standstill."]);
+        }
+
+        if (order.TurnManeuvers is { Count: > MaxTurnManeuvers })
+        {
+            return new OrderValidationResult(false, [$"An order cannot hold more than {MaxTurnManeuvers} turn maneuvers."]);
+        }
 
         if (shipState.Course is < 1 or > 12)
         {
@@ -182,7 +211,10 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
         if (order.TurnManeuvers is { Count: > 0 })
         {
             var maneuvers = new List<TurnManeuver>();
-            foreach (var maneuver in order.TurnManeuvers)
+            // Normalizing happens on the reveal path before the hash has been checked, so the list
+            // here has not necessarily been through Validate. Reading past the ceiling would be
+            // work done on behalf of a caller who has not yet proved they committed to anything.
+            foreach (var maneuver in order.TurnManeuvers.Take(MaxTurnManeuvers))
             {
                 if (maneuver.Steps <= 0)
                 {

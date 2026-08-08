@@ -262,4 +262,48 @@ public sealed class FullThrustLightCinematicRulesTests
 
         Assert.False(commitments.Verify(hash, changed, salt));
     }
+
+    [Theory]
+    [InlineData(int.MinValue)]
+    [InlineData(int.MaxValue)]
+    [InlineData(-101)]
+    [InlineData(101)]
+    public void Validate_RefusesAVelocityChangeTheThrustArithmeticCouldNotSurvive(int velocityDelta)
+    {
+        // Math.Abs(int.MinValue) throws rather than returning a positive, and adding an unbounded
+        // delta to a velocity wraps silently into a negative one. Both used to reach the arithmetic.
+        var result = _rules.Validate(
+            new ShipMovementState(Velocity: 6, Course: 12),
+            thrustRating: 4,
+            new MovementOrder(velocityDelta, 0, TurnDirection.None));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("standstill", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_RefusesAnOrderCarryingMoreManeuversThanAPlotCouldHold()
+    {
+        var maneuvers = Enumerable.Range(0, 500).Select(_ => new TurnManeuver(TurnDirection.Port, 1)).ToArray();
+
+        var result = _rules.Validate(
+            new ShipMovementState(Velocity: 6, Course: 12),
+            thrustRating: 4,
+            new MovementOrder(0, 0, TurnDirection.None, maneuvers));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("turn maneuvers", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Normalize_DoesNotWalkAnUnboundedManeuverListBeforeTheHashIsChecked()
+    {
+        // Normalizing happens on the reveal path before the commitment hash has been verified, so
+        // it must not do work proportional to whatever the caller sent.
+        var maneuvers = Enumerable.Range(0, 100_000).Select(_ => new TurnManeuver(TurnDirection.Port, 1)).ToArray();
+
+        var normalized = _rules.Normalize(new MovementOrder(0, 0, TurnDirection.None, maneuvers));
+
+        Assert.Contains("\"turnSteps\":32", normalized, StringComparison.Ordinal);
+    }
 }
