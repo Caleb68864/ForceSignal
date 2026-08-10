@@ -604,6 +604,20 @@ app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/commit", async (
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
+// Read-only like the order preview, and quiet for the same reason.
+app.MapPost("/api/matches/{matchId:guid}/turns/current/firing-solution", (
+    Guid matchId,
+    FiringSolutionRequest request,
+    IMatchService matches) => Results.Ok(matches.GetFiringSolution(matchId, request)))
+    .WithName("GetFiringSolution")
+    .WithTags("Firing")
+    .WithSummary("Answers whether a shot could be taken, and what it would need.")
+    .WithDescription("Held to the same checks as firing, so a console cannot offer a shot the server would refuse. Reports the blocker rather than throwing it.")
+    .Produces<FiringSolutionDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status403Forbidden)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
 // Deliberately does not notify the hub: a preview changes nothing, and a player working out a
 // course would otherwise wake every other device at the table on every adjustment.
 app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/preview", (

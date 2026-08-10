@@ -22,45 +22,11 @@ public sealed partial class InMemoryMatchService
         {
             var match = FindMatch(matchId);
             var participant = FindParticipant(match, request.ParticipantToken);
-            if (match.Phase != MatchPhase.Firing)
-            {
-                throw new InvalidOperationException("Weapons may only fire during the firing phase.");
-            }
-
             var attacker = FindOwnedShip(match, participant.Id, request.AttackerShipId);
             var target = match.Ships.SingleOrDefault(s => s.Id == request.TargetShipId)
                 ?? throw new InvalidOperationException("Target ship was not found.");
-            if (attacker.Id == target.Id)
-            {
-                throw new InvalidOperationException("A ship cannot fire on itself.");
-            }
-
-            if (IsDestroyed(attacker))
-            {
-                throw new InvalidOperationException($"{attacker.Name} is destroyed and cannot fire.");
-            }
-
-            if (IsDestroyed(target))
-            {
-                throw new InvalidOperationException($"{target.Name} is already destroyed.");
-            }
-
             var weapon = attacker.Weapons.SingleOrDefault(w => w.Id == request.WeaponId)
                 ?? throw new InvalidOperationException("Weapon mount was not found.");
-            if (weapon.IsDestroyed)
-            {
-                throw new InvalidOperationException($"{weapon.Name} was knocked out by a threshold check.");
-            }
-
-            if (weapon.AmmoMax > 0 && weapon.AmmoUsed >= weapon.AmmoMax)
-            {
-                throw new InvalidOperationException($"{weapon.Name} has no ammunition remaining.");
-            }
-
-            if (match.FiringResults.Any(f => f.TurnNumber == match.TurnNumber && f.AttackerShipId == attacker.Id && f.WeaponId == weapon.Id))
-            {
-                throw new InvalidOperationException($"{weapon.Name} has already fired this turn.");
-            }
 
             // A restored match arrives mid-phase with no turn order, so settle one before checking it.
             if (match.FiringParticipantId is null)
@@ -68,122 +34,15 @@ public sealed partial class InMemoryMatchService
                 RollFiringInitiative(match);
             }
 
-            if (match.ActivatedShipIds.Contains(attacker.Id))
+            var shot = PrepareShot(match, participant, attacker, target, weapon, request.Range, request.Arc);
+            if (shot.Blocker is { } blocked)
             {
-                throw new InvalidOperationException($"{attacker.Name} has already taken its turn to fire.");
+                throw new InvalidOperationException(blocked);
             }
 
-            if (match.FiringParticipantId != participant.Id)
-            {
-                var holder = match.Participants.SingleOrDefault(p => p.Id == match.FiringParticipantId);
-                throw new InvalidOperationException($"It is {holder?.DisplayName ?? "the other player"}'s turn to fire.");
-            }
-
-            if (match.FiringShipId is { } firingShipId && firingShipId != attacker.Id)
-            {
-                var busy = match.Ships.SingleOrDefault(s => s.Id == firingShipId);
-                throw new InvalidOperationException($"{busy?.Name ?? "Another ship"} is still firing. Finish its fire before starting another ship.");
-            }
-
-            // Main batteries cannot engage fighters at all: that is what point defence is for, and it
-            // answers a strike automatically when the group attacks. Fighters may shoot at each other.
-            if (IsFighterGroupShip(target) && !IsFighterGroupShip(attacker))
-            {
-                throw new InvalidOperationException(
-                    $"{weapon.Name} cannot engage fighters. Point defence answers a fighter strike when the group attacks.");
-            }
-
-            if (IsFighterGroupShip(attacker))
-            {
-                if (SurvivingFighters(attacker) == 0)
-                {
-                    throw new InvalidOperationException($"{attacker.Name} has no fighters left to attack with.");
-                }
-
-                if (attacker.FighterEnduranceMax > 0 && attacker.FighterEnduranceUsed >= attacker.FighterEnduranceMax
-                    && !AlreadyInCombatThisTurn(match, attacker.Id))
-                {
-                    throw new InvalidOperationException($"{attacker.Name} is out of combat endurance and must return to rearm before it attacks again.");
-                }
-            }
-
-            // Fire control directs the guns: with none left a ship cannot shoot at all, and each
-            // working system holds exactly one target ship for the turn.
-            var workingFireControl = Math.Max(0, attacker.FireControlMax - attacker.FireControlDamage);
-            if (workingFireControl == 0)
-            {
-                throw new InvalidOperationException($"{attacker.Name} has no working fire control and cannot fire.");
-            }
-
-            var shotsThisTurn = match.FiringResults
-                .Where(f => f.TurnNumber == match.TurnNumber && f.AttackerShipId == attacker.Id)
-                .ToArray();
-            // A needle beam needs a fire control system all to itself, and that firecon cannot direct
-            // anything else this turn, so each needle shot spends one outright.
-            var needlesFired = shotsThisTurn.Count(f => f.WeaponKind == WeaponKind.NeedleBeam);
-            var engagedTargetIds = shotsThisTurn
-                .Where(f => f.WeaponKind != WeaponKind.NeedleBeam)
-                .Select(f => f.TargetShipId)
-                .Distinct()
-                .ToArray();
-            if (weapon.Kind == WeaponKind.NeedleBeam)
-            {
-                if (needlesFired + engagedTargetIds.Length >= workingFireControl)
-                {
-                    throw new InvalidOperationException(
-                        $"{attacker.Name} has no fire control free to direct {weapon.Name}: a needle beam needs one of its own.");
-                }
-            }
-            else if (needlesFired > 0 && engagedTargetIds.Length + needlesFired >= workingFireControl
-                && !engagedTargetIds.Contains(target.Id))
-            {
-                throw new InvalidOperationException(
-                    $"{attacker.Name} has its fire control tied up directing needle fire this turn.");
-            }
-            else if (!engagedTargetIds.Contains(target.Id) && engagedTargetIds.Length + needlesFired >= workingFireControl)
-            {
-                var engagedNames = string.Join(", ", engagedTargetIds
-                    .Select(id => match.Ships.SingleOrDefault(s => s.Id == id)?.Name ?? "an unknown ship"));
-                throw new InvalidOperationException(
-                    $"{attacker.Name} has {workingFireControl} working fire control system{(workingFireControl == 1 ? string.Empty : "s")} and is already engaging {engagedNames}. Fire the rest of its weapons at {(workingFireControl == 1 ? "that target" : "those targets")}.");
-            }
-
-            // Which arc the target sits in is geometry, not a choice: it follows from the firing
-            // ship's course and where the two ships are on the table.
-            var targetArc = BearingToTarget(attacker, target);
-            if (request.Arc is { } declaredArc && declaredArc != targetArc)
-            {
-                throw new InvalidOperationException(
-                    $"{target.Name} bears {FiringArcs.Describe(targetArc)} of {attacker.Name}, not {FiringArcs.Describe(declaredArc)}. Fix the ship positions if the table disagrees.");
-            }
-
-            // A needle's reach is the layer's, not the mount's: the enhanced needle is a longer
-            // weapon, and a mount recorded under one layer should not out-range the other.
-            var reach = weapon.Kind == WeaponKind.NeedleBeam
-                ? Math.Min(weapon.MaxRange, match.Rules.NeedleBeamRange)
-                : weapon.MaxRange;
-            var solution = new FiringSolution(
-                new WeaponAttackProfile(weapon.Name, EffectiveAttackDice(attacker, weapon), reach, weapon.Arcs, weapon.Kind),
-                request.Range,
-                EffectiveScreens(target),
-                attacker.WeaponDamage,
-                targetArc);
-            // A pulse torpedo rolls to hit and then for damage, and screens do not touch it, so it
-            // resolves through its own rules rather than the beam table.
-            IFiringResolver resolver = weapon.Kind switch
-            {
-                WeaponKind.PulseTorpedo => _torpedoRules,
-                WeaponKind.NeedleBeam => _needleRules,
-                _ => _firingRules,
-            };
-            // The layer travels with the call rather than with the resolver: the resolvers are built
-            // once for the service, while the layer is per-match state, so a captured profile would
-            // be answering for whichever match happened to build the service.
-            var validation = resolver.Validate(solution, match.Rules);
-            if (!validation.IsValid)
-            {
-                throw new InvalidOperationException(string.Join(" ", validation.Errors));
-            }
+            var targetArc = shot.TargetArc;
+            var solution = shot.Solution;
+            var resolver = shot.Resolver;
 
             // A needle names its system up front, and the shot only makes sense if that system is
             // there to take. This is a pure question about the target, so it is asked here with the

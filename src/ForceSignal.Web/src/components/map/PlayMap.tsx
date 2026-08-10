@@ -15,8 +15,9 @@ import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance,
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
 import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
-import { arcBlocker, arcLabel, bearingArc, describeArcs, effectiveScreens, fighterEnduranceRange, fireControlBlocker, firingDraftFor, firingTargetOptions, firingTurnBlocker, isFighterGroup, needleTargets, torpedoToHitNumber, workingFireControl } from '../../lib/rules.ts';
-import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, Ship, TablePoint } from '../../types.ts';
+import { describeArcs, effectiveScreens, fighterEnduranceRange, firingDraftFor, firingTargetOptions, isFighterGroup } from '../../lib/rules.ts';
+import { useFiringSolution } from '../../lib/useFiringSolution.ts';
+import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, Ship, TablePoint, FiringSolution } from '../../types.ts';
 
 export function PlayMap({
   snapshot,
@@ -34,6 +35,7 @@ export function PlayMap({
   onUpdateOrdnance,
   onRemoveOrdnance,
   onPreviewOrder,
+  onFiringSolution,
   onFire,
   onCeaseFire,
   onFlyFighters,
@@ -53,6 +55,7 @@ export function PlayMap({
   onUpdateOrdnance: (marker: OrdnanceMarker, patch: Partial<OrdnanceMarker>) => void;
   onRemoveOrdnance: (marker: OrdnanceMarker) => void;
   onPreviewOrder: (ship: Ship, draft: DraftOrder) => Promise<OrderPreview>;
+  onFiringSolution: (ship: Ship, targetShipId?: string, weaponId?: string, range?: number) => Promise<FiringSolution>;
   onFire: (ship: Ship, draft: FiringDraft) => Promise<void>;
   onCeaseFire: (ship: Ship) => Promise<void>;
   onFlyFighters: (ship: Ship, x: number, y: number) => Promise<void>;
@@ -293,8 +296,10 @@ export function PlayMap({
     };
     onFiringDraftChange(ship, next);
     if (target) {
-      const arc = bearingArc(ship, target);
-      setMapNotice(`${ship.name} solution: ${weapon?.name ?? 'weapon'} on ${target.name}, range ${next.range}, bears ${arc ? arcLabel(arc) : 'unknown'}`);
+      // The bearing is left off this notice on purpose. It is the firing console's readout, and
+      // that one comes back from the server with the rest of the solution rather than being a
+      // second opinion computed here.
+      setMapNotice(`${ship.name} solution: ${weapon?.name ?? 'weapon'} on ${target.name}, range ${next.range}`);
     }
   }
 
@@ -847,7 +852,8 @@ export function PlayMap({
                 onChange={(patch) => updateMapFiringDraft(selectedShip, patch)}
                 onFire={() => onFire(selectedShip, selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds)).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
                 volleyOpen={snapshot.firingShipId === selectedShip.id}
-                turnProblem={firingTurnBlocker(selectedShip, snapshot, ownerParticipantId ?? '')}
+                snapshotVersion={snapshot.version}
+                onFiringSolution={onFiringSolution}
                 canEndFire={Boolean(ownerParticipantId) && snapshot.firingParticipantId === ownerParticipantId && !(snapshot.activatedShipIds ?? []).includes(selectedShip.id)}
                 onCeaseFire={() => onCeaseFire(selectedShip).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
               />
@@ -1385,7 +1391,8 @@ function MapFiringAssistant({
   onChange,
   onFire,
   volleyOpen,
-  turnProblem,
+  snapshotVersion,
+  onFiringSolution,
   canEndFire,
   onCeaseFire,
 }: {
@@ -1398,7 +1405,8 @@ function MapFiringAssistant({
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
   volleyOpen: boolean;
-  turnProblem: string | null;
+  snapshotVersion: number;
+  onFiringSolution: (ship: Ship, targetShipId?: string, weaponId?: string, range?: number) => Promise<FiringSolution>;
   canEndFire: boolean;
   onCeaseFire: () => void;
 }) {
@@ -1406,38 +1414,24 @@ function MapFiringAssistant({
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
   const target = targetOptions.find((candidate) => candidate.id === draft.targetShipId) ?? targetOptions[0];
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : 0;
-  const targetArc = bearingArc(ship, target);
-  const arcProblem = arcBlocker(ship, target, weapon);
-  const fireControlProblem = fireControlBlocker(ship, target, firingResults);
-  const mountLost = Boolean(weapon?.isDestroyed);
+  const solution = useFiringSolution(
+    ship,
+    target?.id,
+    weapon?.id,
+    draft.range,
+    snapshotVersion,
+    phase === 'Firing',
+    onFiringSolution,
+  );
+  // Naming a needle's system is a fact about the draft rather than about the rules, so it stays
+  // here: the server cannot judge a system that has not been picked yet.
   const needsSystem = weapon?.kind === 'NeedleBeam' && !draft.targetSystem;
-  const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
-  const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
-  const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
-  const canFire = phase === 'Firing' && Boolean(target) && Boolean(weapon) && inRange && !ship.isDestroyed && !weaponSpent && !ammoEmpty && !arcProblem && !mountLost && !fireControlProblem && !turnProblem && !needsSystem;
+  const canFire = phase === 'Firing' && Boolean(solution?.canFire) && !needsSystem;
   const firingNote = needsSystem
     ? 'Name the system this needle is aimed at'
-    : turnProblem
-    ? turnProblem
-    : !weapon
-    ? 'No weapon mounted'
-    : mountLost
-      ? 'Mount knocked out'
-      : fireControlProblem
-        ? fireControlProblem
-      : !target
-      ? 'No target selected'
-      : arcProblem
-        ? arcProblem
-        : weaponSpent
-        ? 'Weapon spent'
-        : ammoEmpty
-          ? 'Ammo empty'
-        : draft.range > weapon.maxRange
-        ? `Out of range by ${draft.range - weapon.maxRange}`
-        : phase === 'Firing'
-          ? 'Ready'
-          : 'Firing phase closed';
+    : phase !== 'Firing'
+      ? 'Firing phase closed'
+      : solution?.blocker ?? (solution ? 'Ready' : 'Checking');
 
   return (
     <div className="map-firing-assistant">
@@ -1462,10 +1456,10 @@ function MapFiringAssistant({
       </label>
       <div className="bearing-readout">
         <span className="label">Bearing</span>
-        <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
+        <strong>{solution?.targetArc ?? 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
-        <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
-        {weapon?.kind === 'PulseTorpedo' ? <small>needs {torpedoToHitNumber(draft.range)}+ to hit</small> : null}
+        <small>{solution ? `${solution.workingFireControl} firecon${solution.workingFireControl === 1 ? '' : 's'}` : ''}</small>
+        {solution?.toHitNumber ? <small>needs {solution.toHitNumber}+ to hit</small> : null}
         {weapon?.kind === 'NeedleBeam' ? <small>takes a system on a 6</small> : null}
       </div>
       {weapon?.kind === 'NeedleBeam' ? (
@@ -1479,7 +1473,7 @@ function MapFiringAssistant({
             }}
           >
             <option value="">Pick a system</option>
-            {needleTargets(target).map((option) => (
+            {(solution?.needleTargets ?? []).map((option) => (
               <option key={option.key} value={`${option.kind}:${option.weaponId ?? ''}`}>{option.label}</option>
             ))}
           </select>

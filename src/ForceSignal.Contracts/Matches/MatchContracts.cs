@@ -292,6 +292,64 @@ public sealed record OrderPreviewDto(
     IReadOnlyList<TablePointDto> Path,
     bool RunsOffTable);
 
+/// <summary>
+/// Asks whether a shot could be taken, and what it would need, without taking it.
+/// </summary>
+/// <param name="ParticipantToken">Session token of the firing participant.</param>
+/// <param name="AttackerShipId">The ship that would fire.</param>
+/// <param name="TargetShipId">The ship it would fire at, or null while none is picked.</param>
+/// <param name="WeaponId">The mount it would fire, or null while none is picked.</param>
+/// <param name="Range">Range as declared at the table, for the map cross-check.</param>
+public sealed record FiringSolutionRequest(
+    string ParticipantToken,
+    Guid AttackerShipId,
+    Guid? TargetShipId,
+    Guid? WeaponId,
+    int Range = 0);
+
+/// <summary>One system on a ship that some action can name: a needle target, a repair job.</summary>
+/// <param name="Key">Stable key for the option.</param>
+/// <param name="Label">What to show the player.</param>
+/// <param name="Kind">The system kind the server expects back.</param>
+/// <param name="WeaponId">The mount, when the system is one.</param>
+public sealed record SystemOptionDto(string Key, string Label, string Kind, Guid? WeaponId = null);
+
+/// <summary>
+/// Whether a shot can be taken, and the numbers behind it.
+/// </summary>
+/// <remarks>
+/// Answered by the same checks <see cref="FireWeaponRequest"/> is held to, so the console cannot
+/// offer a shot the server then refuses. The client used to carry its own copy of these rules and
+/// it was an incomplete one - it did not know about ammunition, mounts that had already fired,
+/// fighter endurance, or the fire control a needle beam claims for itself - so those refusals only
+/// ever showed up as an error after the button was pressed.
+/// </remarks>
+/// <param name="AttackerShipId">The ship that would fire.</param>
+/// <param name="TargetShipId">The ship it would fire at, if one is picked.</param>
+/// <param name="CanFire">Whether the shot would be allowed as it stands.</param>
+/// <param name="Blocker">The first reason it would not be, in the server's own words.</param>
+/// <param name="TargetArc">The arc the target actually bears in, or null with no target.</param>
+/// <param name="MapRange">The distance the map measures between the two ships.</param>
+/// <param name="RangeDisagreesWithMap">Whether the declared range is far enough from the map's to be worth saying.</param>
+/// <param name="ToHitNumber">The die a pulse torpedo needs at this range, or null for other mounts.</param>
+/// <param name="WorkingFireControl">Fire control systems the attacker still has.</param>
+/// <param name="EngagedTargetCount">Targets those systems are already holding this turn.</param>
+/// <param name="TargetScreens">Screen levels the target still generates.</param>
+/// <param name="NeedleTargets">Systems on the target a needle beam could still snipe.</param>
+public sealed record FiringSolutionDto(
+    Guid AttackerShipId,
+    Guid? TargetShipId,
+    bool CanFire,
+    string? Blocker,
+    string? TargetArc,
+    decimal MapRange,
+    bool RangeDisagreesWithMap,
+    int? ToHitNumber,
+    int WorkingFireControl,
+    int EngagedTargetCount,
+    int TargetScreens,
+    IReadOnlyList<SystemOptionDto> NeedleTargets);
+
 /// <summary>Resolves one weapon mount firing at a target during the firing phase.</summary>
 /// <param name="ParticipantToken">Session token of the firing participant.</param>
 /// <param name="AttackerShipId">The firing ship.</param>

@@ -5,7 +5,7 @@ import './style.css';
 import { CourseCompass, DamageControl, DamageControlPanel, DamageMeter, FiringConsole, PreTurnChecklist, ShipEditor, ShipProfileFields } from './components/ShipCard.tsx';
 import { PlayMap } from './components/map/PlayMap.tsx';
 import { carrierImportRank, fleetPoints, nextShipName, shipsPoints } from './lib/fleetMath.ts';
-import { bearingArc, captureDamageState, effectiveScreens, firingDraftFor, firingTurnBlocker, focusedFirstShips, hullRowsOf } from './lib/rules.ts';
+import { captureDamageState, effectiveScreens, firingDraftFor, focusedFirstShips } from './lib/rules.ts';
 import { normalizeMatchSnapshot } from './lib/normalize.ts';
 import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
 import { fleetExportToCsv, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
@@ -25,6 +25,7 @@ import type {
   DamageState,
   DraftOrder,
   FiringDraft,
+  FiringSolution as FiringSolutionType,
   FleetExport,
   MatchIdentity,
   MatchRestored,
@@ -584,6 +585,24 @@ function App() {
     });
   }
 
+  /**
+   * Asks whether a shot could be taken. Read-only, and held to the same checks firing is, so the
+   * console shows the server's reason rather than a second opinion about it.
+   */
+  async function firingSolution(ship: Ship, targetShipId?: string, weaponId?: string, range = 0) {
+    if (!session) {
+      throw new Error('A session is required to check a firing solution.');
+    }
+
+    return post<FiringSolutionType>(`/api/matches/${session.matchId}/turns/current/firing-solution`, {
+      participantToken: session.participantToken,
+      attackerShipId: ship.id,
+      targetShipId: targetShipId ?? null,
+      weaponId: weaponId ?? null,
+      range,
+    });
+  }
+
   async function reveal(ship: Ship) {
     if (!session) {
       return;
@@ -854,7 +873,10 @@ function App() {
       targetShipId: draft.targetShipId,
       weaponId: draft.weaponId,
       range: draft.range,
-      arc: bearingArc(ship, snapshot?.ships.find((item) => item.id === draft.targetShipId)),
+      // The arc is left for the server to work out. It recomputes it authoritatively from the two
+      // positions either way, and treats anything sent as a cross-check to disagree with - so
+      // sending one only creates a second opinion that can be wrong.
+      arc: null,
       targetSystem: draft.targetSystem ?? null,
       targetSystemWeaponId: draft.targetSystemWeaponId ?? null,
     });
@@ -1698,7 +1720,8 @@ function App() {
                           onChange={(patch) => updateFiringDraft(ship.id, { ...firingDraft, ...patch })}
                           onFire={() => run(() => fireWeapon(ship, firingDraft))}
                           volleyOpen={snapshot.firingShipId === ship.id}
-                          turnProblem={firingTurnBlocker(ship, snapshot, session.participantId)}
+                          snapshotVersion={snapshot.version}
+                          onFiringSolution={firingSolution}
                           canEndFire={snapshot.firingParticipantId === session.participantId && !(snapshot.activatedShipIds ?? []).includes(ship.id)}
                           onCeaseFire={() => run(() => ceaseFire(ship))}
                         />
@@ -1713,7 +1736,7 @@ function App() {
                             label="Hull"
                             value={ship.hullDamage}
                             max={ship.hullMax}
-                            rows={hullRowsOf(ship)}
+                            rows={ship.hullRows}
                             onChange={(value) => updateDamage(ship, { hullDamage: value }).catch(showError(setMessage))}
                           />
                           <DamageControl
@@ -1812,6 +1835,7 @@ function App() {
                 onUpdateOrdnance={(marker, patch) => updateOrdnanceMarker(marker, patch).catch(showError(setMessage))}
                 onRemoveOrdnance={(marker) => removeOrdnanceMarker(marker).catch(showError(setMessage))}
                 onPreviewOrder={previewOrder}
+                onFiringSolution={firingSolution}
                 onFire={(ship, draft) => fireWeapon(ship, draft)}
                 onFlyFighters={(ship, x, y) => moveFighterGroup(ship, x, y)}
               onCeaseFire={(ship) => ceaseFire(ship)}

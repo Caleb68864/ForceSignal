@@ -144,6 +144,33 @@ export type OrderPreview = {
   path: TablePoint[];
   runsOffTable: boolean;
 };
+export type SystemOption = {
+  key: string;
+  label: string;
+  kind: string;
+  weaponId?: string | null;
+};
+/**
+ * Whether a shot can be taken, and the numbers behind it, answered by the server.
+ *
+ * Held to the same checks firing is, so the console cannot offer a shot that would then be
+ * refused. The client used to work this out itself and did it incompletely - it knew nothing of
+ * ammunition, spent mounts, fighter endurance, or the fire control a needle beam claims.
+ */
+export type FiringSolution = {
+  attackerShipId: string;
+  targetShipId?: string | null;
+  canFire: boolean;
+  blocker?: string | null;
+  targetArc?: string | null;
+  mapRange: number;
+  rangeDisagreesWithMap: boolean;
+  toHitNumber?: number | null;
+  workingFireControl: number;
+  engagedTargetCount: number;
+  targetScreens: number;
+  needleTargets: SystemOption[];
+};
 export type FiringResult = {
   attackerShipId: string;
   targetShipId: string;

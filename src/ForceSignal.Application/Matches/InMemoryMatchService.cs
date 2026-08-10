@@ -98,6 +98,12 @@ public interface IMatchService
     /// <summary>Reveals and verifies a hidden movement order.</summary>
     MatchSnapshotDto RevealOrder(Guid matchId, RevealOrderRequest request);
 
+    /// <summary>
+    /// Answers whether a shot could be taken and what it would need, without taking it. Held to the
+    /// same checks as <see cref="FireWeapon"/>, so the console cannot offer a refused shot.
+    /// </summary>
+    FiringSolutionDto GetFiringSolution(Guid matchId, FiringSolutionRequest request);
+
     /// <summary>Resolves one weapon attack.</summary>
     MatchSnapshotDto FireWeapon(Guid matchId, FireWeaponRequest request);
 

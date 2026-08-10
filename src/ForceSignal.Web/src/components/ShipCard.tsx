@@ -9,9 +9,10 @@ import { newId } from '../lib/api.ts';
 import { courseAngle, courseFromPoint, distanceBetweenShips, wrapCourse } from '../lib/geometry.ts';
 import { formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, turnPatchForCourse, turnPatchFromManeuvers } from '../lib/movement.ts';
 import { normalizeShipIconKey } from '../lib/normalize.ts';
-import { arcBlocker, arcLabel, bearingArc, buildPreTurnChecklist, describeArcs, fireControlBlocker, firingTargetOptions, isFighterGroupForm, needleTargets, rangeDisagreesWithMap, repairableSystems, torpedoToHitNumber, workingFireControl } from '../lib/rules.ts';
+import { arcLabel, buildPreTurnChecklist, describeArcs, firingTargetOptions, isFighterGroupForm, repairableSystems } from '../lib/rules.ts';
+import { useFiringSolution } from '../lib/useFiringSolution.ts';
 import { newWeaponMount, updateWeapon } from '../lib/weapons.ts';
-import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, MatchSnapshot, RepairJob, Ship, ShipForm, ShipIconKey, TurnDirection, WeaponKind } from '../types.ts';
+import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, FiringSolution, MatchSnapshot, RepairJob, Ship, ShipForm, ShipIconKey, TurnDirection, WeaponKind } from '../types.ts';
 
 export function ShipIcon({ iconKey }: { iconKey: ShipIconKey }) {
   return (
@@ -401,7 +402,8 @@ export function FiringConsole({
   onChange,
   onFire,
   volleyOpen,
-  turnProblem,
+  snapshotVersion,
+  onFiringSolution,
   canEndFire,
   onCeaseFire,
 }: {
@@ -414,7 +416,8 @@ export function FiringConsole({
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
   volleyOpen: boolean;
-  turnProblem: string | null;
+  snapshotVersion: number;
+  onFiringSolution: (ship: Ship, targetShipId?: string, weaponId?: string, range?: number) => Promise<FiringSolution>;
   canEndFire: boolean;
   onCeaseFire: () => void;
 }) {
@@ -422,38 +425,31 @@ export function FiringConsole({
   const weapon = ship.weapons.find((item) => item.id === draft.weaponId) ?? ship.weapons[0];
   const target = targetOptions.find((candidate) => candidate.id === draft.targetShipId) ?? targetOptions[0];
   const estimatedRange = target ? Math.max(1, Math.round(distanceBetweenShips(ship, target))) : null;
-  const targetArc = bearingArc(ship, target);
-  const arcProblem = arcBlocker(ship, target, weapon);
-  const fireControlProblem = fireControlBlocker(ship, target, firingResults);
-  const mountLost = Boolean(weapon?.isDestroyed);
+  const solution = useFiringSolution(
+    ship,
+    target?.id,
+    weapon?.id,
+    draft.range,
+    snapshotVersion,
+    phase === 'Firing',
+    onFiringSolution,
+  );
+  // Naming a needle's system is a fact about the draft rather than about the rules, so it stays
+  // here: the server cannot judge a system that has not been picked yet.
   const needsSystem = weapon?.kind === 'NeedleBeam' && !draft.targetSystem;
-  const weaponSpent = Boolean(weapon) && firingResults.some((result) => result.attackerShipId === ship.id && result.weaponId === weapon?.id);
-  const ammoEmpty = Boolean(weapon) && weapon!.ammoMax > 0 && weapon!.ammoUsed >= weapon!.ammoMax;
-  const inRange = Boolean(weapon) && draft.range > 0 && draft.range <= (weapon?.maxRange ?? 0);
-  const canFire = phase === 'Firing' && targetOptions.length > 0 && ship.weapons.length > 0 && !ship.isDestroyed && !weaponSpent && !ammoEmpty && inRange && !arcProblem && !mountLost && !fireControlProblem && !turnProblem && !needsSystem;
+  const canFire = phase === 'Firing' && Boolean(solution?.canFire) && !needsSystem;
   const rangeStatus = weapon && estimatedRange
     ? estimatedRange <= weapon.maxRange ? `Estimated range ${estimatedRange}; in range.` : `Estimated range ${estimatedRange}; outside ${weapon.maxRange}.`
     : 'Pick a target and weapon.';
   // The table is the authority on distance, so a disagreement is said out loud, not enforced.
-  const rangeDoubt = Boolean(weapon) && Boolean(estimatedRange)
-    && rangeDisagreesWithMap(draft.range, estimatedRange!, weapon!.kind)
-    ? `Declared ${draft.range}, map measures ${estimatedRange}. The table decides; fix the range or the ship positions if that gap is wrong.`
+  const rangeDoubt = solution?.rangeDisagreesWithMap
+    ? `Declared ${draft.range}, map measures ${solution.mapRange.toFixed(1)}. The table decides; fix the range or the ship positions if that gap is wrong.`
     : null;
   const fireStatus = needsSystem
     ? 'Name the system this needle is aimed at.'
-    : turnProblem
-    ? `${turnProblem}.`
-    : mountLost
-    ? `${weapon?.name} was knocked out by a threshold check.`
-    : fireControlProblem
-    ? `${fireControlProblem}.`
-    : arcProblem
-    ? `${arcProblem}.`
-    : weaponSpent
-      ? `${weapon?.name} spent this turn.`
-      : ammoEmpty
-        ? `${weapon?.name} has no ammunition remaining.`
-        : rangeStatus;
+    : solution?.blocker
+      ? `${solution.blocker}`
+      : rangeStatus;
   const spentShot = weapon ? firingResults.find((result) => result.attackerShipId === ship.id && result.weaponId === weapon.id) : undefined;
 
   return (
@@ -486,10 +482,10 @@ export function FiringConsole({
       </label>
       <div className="bearing-readout">
         <span className="label">Bearing</span>
-        <strong>{targetArc ? arcLabel(targetArc) : 'no target'}</strong>
+        <strong>{solution?.targetArc ?? 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
-        <small>{workingFireControl(ship)} firecon{workingFireControl(ship) === 1 ? '' : 's'}</small>
-        {weapon?.kind === 'PulseTorpedo' ? <small>needs {torpedoToHitNumber(draft.range)}+ to hit</small> : null}
+        <small>{solution ? `${solution.workingFireControl} firecon${solution.workingFireControl === 1 ? '' : 's'}` : ''}</small>
+        {solution?.toHitNumber ? <small>needs {solution.toHitNumber}+ to hit</small> : null}
         {weapon?.kind === 'NeedleBeam' ? <small>takes a system on a 6</small> : null}
       </div>
       {weapon?.kind === 'NeedleBeam' ? (
@@ -503,7 +499,7 @@ export function FiringConsole({
             }}
           >
             <option value="">Pick a system</option>
-            {needleTargets(target).map((option) => (
+            {(solution?.needleTargets ?? []).map((option) => (
               <option key={option.key} value={`${option.kind}:${option.weaponId ?? ''}`}>{option.label}</option>
             ))}
           </select>

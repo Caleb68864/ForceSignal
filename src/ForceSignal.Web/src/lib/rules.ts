@@ -7,10 +7,10 @@
  * why instead of just failing.
  */
 
-import { arcAbbreviations, arcLabels, firableArcs, firingArcs } from '../constants.ts';
+import { arcAbbreviations, arcLabels, firableArcs } from '../constants.ts';
 import { distanceBetweenShips } from './geometry.ts';
 import { normalizeOrdnanceStatus, normalizeShipIconKey } from './normalize.ts';
-import type { DamageState, FiringArc, FiringDraft, FiringResult, MatchSnapshot, Ship, ShipForm, WeaponKind, WeaponMount } from '../types.ts';
+import type { DamageState, FiringArc, FiringDraft, MatchSnapshot, Ship, ShipForm } from '../types.ts';
 
 /// The hull damage track as boxes per row: four rows, remainder weighted to the upper rows.
 export function hullRowsFor(hullMax: number): number[] {
@@ -41,101 +41,12 @@ export function describeArcs(arcs: FiringArc[]) {
     ? 'all round'
     : arcs.map((arc) => arcAbbreviations[arc]).join('/');
 }
-/// Which arc a target bears in, from the firing ship's course and the offset between them.
-/// Mirrors the server: each arc spans two clock points and boundaries resolve clockwise.
-export function bearingArc(ship: Ship, target?: Ship): FiringArc | null {
-  if (!target) {
-    return null;
-  }
-
-  const offsetX = target.positionX - ship.positionX;
-  const offsetY = target.positionY - ship.positionY;
-  if (offsetX === 0 && offsetY === 0) {
-    return 'Fore';
-  }
-
-  const bearing = Math.atan2(offsetX, -offsetY) * 180 / Math.PI;
-  const relative = ((bearing - ship.currentCourse * 30) % 360 + 360) % 360;
-
-  // Snap a bearing that is within a rounding error of a clock point onto it, so an exact boundary
-  // resolves by the documented rule - a boundary reads as the more clockwise arc - rather than by
-  // the last bit of a floating point division. The server does the same, and it has to: it
-  // recomputes this arc authoritatively and refuses a shot that disagrees. Without the snap the
-  // map could show a mount bearing on a target the server then says it cannot see, for a ship the
-  // player had carefully placed on a round number.
-  const clockPoints = relative / 30;
-  const nearest = Math.round(clockPoints);
-  const snapped = Math.abs(clockPoints - nearest) < 1e-9 ? nearest : clockPoints;
-  return firingArcs[Math.floor((snapped + 1) / 2) % 6];
-}
-/// Why the firing order will not let this ship shoot right now, if it will not. The winner of the
-/// die-off fires one ship completely, then the players alternate a ship at a time.
-export function firingTurnBlocker(ship: Ship, snapshot: MatchSnapshot, participantId: string): string | null {
-  if ((snapshot.activatedShipIds ?? []).includes(ship.id)) {
-    return `${ship.name} has already had its turn to fire`;
-  }
-
-  if (!snapshot.firingParticipantId) {
-    return 'Every ship has fired this turn';
-  }
-
-  if (snapshot.firingParticipantId !== participantId) {
-    const holder = snapshot.participants.find((participant) => participant.id === snapshot.firingParticipantId);
-    return `It is ${holder?.displayName ?? 'the other player'}'s turn to fire`;
-  }
-
-  if (snapshot.firingShipId && snapshot.firingShipId !== ship.id) {
-    const busy = snapshot.ships.find((candidate) => candidate.id === snapshot.firingShipId);
-    return `${busy?.name ?? 'Another ship'} is still firing`;
-  }
-
-  return null;
-}
-/// Whether a declared range disagrees with the map enough to be worth saying: it sits in a
-/// different band, which changes the dice, or the two numbers are simply far apart. Mirrors the
-/// server, which logs the same disagreement but never refuses the shot - the table decides distance.
-export function rangeDisagreesWithMap(declaredRange: number, mapRange: number, kind: WeaponKind) {
-  const bandWidth = kind === 'PulseTorpedo' ? 6 : 12;
-  const declaredBand = Math.floor(Math.max(0, declaredRange - 1) / bandWidth);
-  const mappedBand = Math.floor(Math.max(0, Math.ceil(mapRange) - 1) / bandWidth);
-  return declaredBand !== mappedBand || Math.abs(declaredRange - mapRange) > bandWidth / 2;
-}
-/// The die a pulse torpedo needs at this range: 2+ inside 6mu, a point worse every 6mu after.
-export function torpedoToHitNumber(range: number) {
-  return Math.min(6, Math.max(2, 2 + Math.floor((Math.max(1, range) - 1) / 6)));
-}
-/// The systems a needle beam could snipe on a target: only ones still working, since a needle takes a
-/// live system rather than finishing a dead one.
-export function needleTargets(target?: Ship): { key: string; label: string; kind: string; weaponId?: string }[] {
-  if (!target) {
-    return [];
-  }
-
-  const options: { key: string; label: string; kind: string; weaponId?: string }[] = [];
-  if ((target.fireControlMax ?? 1) - target.fireControlDamage > 0) {
-    options.push({ key: 'firecon', label: 'Fire control', kind: 'FireControl' });
-  }
-
-  if (target.thrustRating > 0 && target.driveDamage < target.thrustRating) {
-    options.push({ key: 'drive', label: 'Drives', kind: 'Drive' });
-  }
-
-  if (effectiveScreens(target) > 0) {
-    options.push({ key: 'screen', label: 'Screen generator', kind: 'Screen' });
-  }
-
-  if ((target.fighterBays ?? 0) - (target.fighterBayDamage ?? 0) > 0) {
-    options.push({ key: 'bay', label: 'Fighter bay', kind: 'FighterBay' });
-  }
-
-  for (const mount of target.weapons) {
-    if (!mount.isDestroyed) {
-      options.push({ key: `mount-${mount.id}`, label: mount.name, kind: 'Weapon', weaponId: mount.id });
-    }
-  }
-
-  return options;
-}
+// Arc bearing, firing turn order, the range cross-check, a torpedo's to-hit number and a needle's
+// list of live systems all used to be worked out here as well as on the server. They are gone: the
+// firing solution query answers all of them, from the same checks that decide whether the shot is
+// actually allowed. Keeping a copy here meant keeping an incomplete one - it knew nothing about
+// ammunition, spent mounts, fighter endurance or the fire control a needle beam claims - so the
+// console offered shots the server then refused.
 /// Screen levels still generating, after whatever has been shot away. The rating a ship carries is
 /// what it was built with, so anything shown to the table has to subtract the damage.
 export function effectiveScreens(ship: Ship) {
@@ -144,37 +55,6 @@ export function effectiveScreens(ship: Ship) {
 /// Fire control systems still working. Each one holds a single target ship for the turn.
 export function workingFireControl(ship: Ship) {
   return Math.max(0, (ship.fireControlMax ?? 1) - ship.fireControlDamage);
-}
-/// Why fire control will not let this ship shoot at this target, if it will not.
-export function fireControlBlocker(ship: Ship, target: Ship | undefined, firingResults: FiringResult[]): string | null {
-  const working = workingFireControl(ship);
-  if (working === 0) {
-    return `${ship.name} has no working fire control`;
-  }
-
-  if (!target) {
-    return null;
-  }
-
-  const engaged = new Set(firingResults.filter((result) => result.attackerShipId === ship.id).map((result) => result.targetShipId));
-  if (engaged.has(target.id) || engaged.size < working) {
-    return null;
-  }
-
-  return `Fire control is holding ${engaged.size} target${engaged.size === 1 ? '' : 's'} already`;
-}
-/// Why a mount cannot engage the target through the arc it actually bears in, if it cannot.
-export function arcBlocker(ship: Ship, target?: Ship, weapon?: WeaponMount): string | null {
-  const arc = bearingArc(ship, target);
-  if (!arc || !weapon) {
-    return null;
-  }
-
-  if (arc === 'Aft') {
-    return 'Target is in the aft blind spot';
-  }
-
-  return weapon.arcs.includes(arc) ? null : `${weapon.name} does not bear ${arcLabel(arc)}`;
 }
 export function isFighterGroup(ship: Pick<Ship, 'iconKey' | 'className'>) {
   return normalizeShipIconKey(ship.iconKey, ship.className) === 'fighter-group'
@@ -224,12 +104,14 @@ export function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string,
   const target = ships.find((candidate) => candidate.id === current?.targetShipId && isTargetable(candidate))
     ?? firingTargetOptions(ship, ships, ownedShipIds)[0];
   const weapon = ship.weapons.find((mount) => mount.id === current?.weaponId) ?? ship.weapons[0];
-  // A nomination only means anything for a needle, and only while it is still aimed at a system the
-  // target actually has, so it is dropped the moment either stops being true.
+  // A nomination only means anything for a needle aimed at the ship it was named against, so it is
+  // dropped when either changes. Whether the target still *has* that system is not asked here: the
+  // answer belongs to the server, which offers only live systems in the firing solution and refuses
+  // a shot at a system that has gone - before it moves any state, so a stale nomination costs a
+  // refusal rather than a wedged turn.
   const keepsNomination = weapon?.kind === 'NeedleBeam'
     && Boolean(current?.targetSystem)
-    && needleTargets(target).some((option) => option.kind === current?.targetSystem
-      && (option.weaponId ?? undefined) === (current?.targetSystemWeaponId ?? undefined));
+    && current?.targetShipId === target?.id;
   return {
     targetShipId: target?.id ?? '',
     weaponId: weapon?.id ?? '',
