@@ -213,15 +213,4 @@ public sealed class FireCombatTests
         Assert.Equal(HitEffect.Stopped, hit.Effect);
     }
 
-    /// <summary>A die source that hands out a fixed script, so a worked example can be replayed.</summary>
-    private sealed class ScriptedDice(params int[] rolls) : IQualityDiceRoller
-    {
-        private readonly Queue<int> _rolls = new(rolls);
-
-        public int Remaining => _rolls.Count;
-
-        public int Roll(QualityDie die) => _rolls.Count > 0
-            ? _rolls.Dequeue()
-            : throw new InvalidOperationException($"The script ran out while rolling a {die}.");
-    }
 }

@@ -43,4 +43,12 @@ internal static class GameFixtures
         StarGruntGame.Create("Hill 43")
             .WithUnit(Squad(Alpha, "Alpha Squad", Blue))
             .WithUnit(Squad(Bravo, "Bravo Squad", Red));
+
+    /// <summary>Alpha activated and ready to shoot at Bravo.</summary>
+    /// <returns>The game mid-activation.</returns>
+    public static StarGruntGame Firefight() =>
+        TwoSquadGame()
+            .BeginTurn().Value!
+            .ChooseFirstActivator(Blue, takeIt: true).Value!
+            .BeginActivation(Blue, Alpha).Value!;
 }
