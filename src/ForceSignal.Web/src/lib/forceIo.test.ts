@@ -24,6 +24,8 @@ function unit(overrides: Partial<StarGruntUnit> = {}): StarGruntUnit {
     confidence: 'Shaken',
     isDisorganised: false,
     isInCover: true,
+    nextMoveLeavesCover: false,
+    reactionTestCleared: false,
     hasActivated: false,
     weapons: [{ name: 'Rifles', impactDie: 10, isSupport: false, isCloseRange: false }],
     canActivate: true,

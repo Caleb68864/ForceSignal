@@ -243,6 +243,29 @@ export function StarGruntView() {
                 {action}
               </button>
             ))}
+            <button
+              className="ghost"
+              type="button"
+              disabled={busy}
+              onClick={() => run(
+                () => api.setLeavesCover(game, activating.id, !activating.nextMoveLeavesCover),
+                activating.nextMoveLeavesCover ? 'Move is under cover.' : 'Move leaves cover.',
+              )}
+            >
+              {activating.nextMoveLeavesCover ? 'Move Stays In Cover' : 'Move Leaves Cover'}
+            </button>
+            {activating.nextMoveLeavesCover && !activating.reactionTestCleared ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run(
+                  () => api.reactionTest(game, activating.id, threatLevel),
+                  `${activating.name} steeled itself.`,
+                )}
+              >
+                Reaction Test
+              </button>
+            ) : null}
             {activating.isDisorganised ? (
               <button
                 type="button"
@@ -434,6 +457,7 @@ function UnitCard({
         {unit.isInCover ? ' In cover.' : ''}
         {unit.isDisorganised ? ' Disorganised.' : ''}
         {unit.isLeaderDown ? ' Leader down.' : ''}
+        {unit.nextMoveLeavesCover ? (unit.reactionTestCleared ? ' Ready to go.' : ' Next move leaves cover.') : ''}
       </p>
       <div className="quick-actions">
         <button type="button" disabled={busy || !unit.canActivate} onClick={onActivate}>Activate</button>

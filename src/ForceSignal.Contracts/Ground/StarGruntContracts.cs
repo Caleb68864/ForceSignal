@@ -90,6 +90,19 @@ public sealed record StarGruntConfidenceTestRequest(string UnitId, int ThreatLev
 /// <param name="RalliedUnitId">The unit being steadied, which does the rolling.</param>
 public sealed record StarGruntRallyRequest(string RallyingUnitId, string RalliedUnitId);
 
+/// <summary>Rolls to see whether troops have the nerve for a risky order.</summary>
+/// <param name="UnitId">The unit being asked.</param>
+/// <param name="ThreatLevel">
+/// How much they are being asked to swallow, off the player's own table. Mission motivation does
+/// not scale a reaction test.
+/// </param>
+public sealed record StarGruntReactionTestRequest(string UnitId, int ThreatLevel);
+
+/// <summary>Declares that a unit's next move would take it out of cover or on to a located enemy.</summary>
+/// <param name="UnitId">The unit.</param>
+/// <param name="LeavesCover">True when the move is the risky sort.</param>
+public sealed record StarGruntLeavesCoverRequest(string UnitId, bool LeavesCover);
+
 /// <summary>Declares whether a unit has scattered out of integrity.</summary>
 /// <param name="UnitId">The unit.</param>
 /// <param name="IsDisorganised">True when it is out of integrity and owes a reorganise.</param>
@@ -140,6 +153,8 @@ public sealed record StarGruntWeaponLegalityDto(string Name, bool CanFire, strin
 /// <param name="Confidence">How much fight it has left.</param>
 /// <param name="IsDisorganised">True when it owes a reorganise before anything else.</param>
 /// <param name="IsInCover">True when it has something to hide behind.</param>
+/// <param name="NextMoveLeavesCover">True when its next move has been declared the risky sort.</param>
+/// <param name="ReactionTestCleared">True when it has already found the nerve for that move.</param>
 /// <param name="HasActivated">True when it has already gone this turn.</param>
 /// <param name="Weapons">What it is carrying.</param>
 /// <param name="CanActivate">True when it could be activated right now.</param>
@@ -161,6 +176,8 @@ public sealed record StarGruntUnitDto(
     string Confidence,
     bool IsDisorganised,
     bool IsInCover,
+    bool NextMoveLeavesCover,
+    bool ReactionTestCleared,
     bool HasActivated,
     IReadOnlyList<StarGruntWeaponDto> Weapons,
     bool CanActivate,

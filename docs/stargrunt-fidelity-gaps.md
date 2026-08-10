@@ -129,12 +129,26 @@ The squad leader is the first figure while he is standing, so a hit allocated th
 The marker is handed over exactly once - losing a leader suppresses the unit the moment it happens
 and does not keep suppressing it every time somebody else is shot.
 
-## Gap 7 - No reaction test, so leaving cover is never gated
+## Gap 7 - No reaction test, so leaving cover is never gated - FIXED 2026-08-10
 
 **Severity: medium.** The activation policy already reads `NextMoveLeavesCover` and
 `ReactionTestCleared` and refuses the move until the caller has passed the test - the seam is built
-and documented. The game layer never sets either flag and never offers the test, so the gate is
+and documented. The game layer never set either flag and never offered the test, so the gate stood
 permanently open.
+
+**Fixed.** Declaring that a move leaves cover is a player call - whether it does is an eyeball
+judgement, which is what the flag's own documentation always said - and the test is then offered
+against a threat level the player supplies.
+
+The shape follows the one difference from a confidence test: **failing costs the action, never a
+level.** So passing spends nothing by itself, because the move that follows spends the action;
+failing spends one and bars a second attempt at the same order in the same activation, leaving the
+unit to do something else with what it has left.
+
+That last part needed a small addition to the module's vocabulary. The action economy is derived
+from the steps in a frame, so a lost action has to *be* a step or it is not lost at all - hence
+`StarGruntAction.RefusedOrder`, which reads oddly in a list of things a unit chooses to do because
+it is the one thing there a unit does not choose.
 
 ## Gap 8 - Fatigue is not modelled - MOSTLY FIXED 2026-08-10
 
@@ -197,7 +211,7 @@ than a die. Rally will want the same value, so this unblocks gap 3 as well.
 2. ~~**Gap 2 and 3** - confidence tests, rally, reorganise.~~ **Done**, and they closed most of gap 8
    on the way, because rallying cannot be right without fatigue.
 3. ~~**Gap 4, 5 and 6** - casualty allocation onto figures.~~ **Done.**
-4. **Gap 7 and 8** - reaction tests and fatigue.
+4. ~~**Gap 7 and 8** - reaction tests and fatigue.~~ **Done**, bar fatigue that changes mid-game.
 5. **Gap 10** - decide whether support weapons are derived or declared.
 6. **Gap 9** - close assault, as its own piece of work.
 

@@ -161,6 +161,28 @@ public static class GroundCombatEndpoints
             .Produces<StarGruntSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/reaction-tests", (
+            Guid gameId,
+            StarGruntReactionTestRequest request,
+            IStarGruntGameService games) => Results.Ok(games.TakeReactionTest(gameId, request)))
+            .WithName("TakeStarGruntReactionTest")
+            .WithTags("StarGrunt")
+            .WithSummary("Rolls to see whether troops have the nerve for a risky order.")
+            .WithDescription("The same roll as a confidence test, with one difference: failing costs the action and never a confidence level. Passing spends nothing by itself.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/units/leaves-cover", (
+            Guid gameId,
+            StarGruntLeavesCoverRequest request,
+            IStarGruntGameService games) => Results.Ok(games.SetLeavesCover(gameId, request)))
+            .WithName("SetStarGruntLeavesCover")
+            .WithTags("StarGrunt")
+            .WithSummary("Declares that a unit's next move would take it out of cover.")
+            .WithDescription("Whether a move counts as leaving cover is an eyeball judgement at a table, so it is declared rather than computed.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/end", (Guid gameId, IStarGruntGameService games) =>
             Results.Ok(games.EndActivation(gameId)))
             .WithName("EndStarGruntActivation")

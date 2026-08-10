@@ -101,6 +101,19 @@ export function setDisorganised(gameId: string, unitId: string, isDisorganised: 
   return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/units/disorganised`, { unitId, isDisorganised });
 }
 
+/**
+ * Rolls to see whether troops have the nerve for a risky order. Failing costs the action and never
+ * a confidence level; passing spends nothing by itself.
+ */
+export function reactionTest(gameId: string, unitId: string, threatLevel: number) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/reaction-tests`, { unitId, threatLevel });
+}
+
+/** Declares that a unit's next move would take it out of cover. An eyeball call, not a computed one. */
+export function setLeavesCover(gameId: string, unitId: string, leavesCover: boolean) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/units/leaves-cover`, { unitId, leavesCover });
+}
+
 /** Closes the open activation. */
 export function endActivation(gameId: string) {
   return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/end`, {});

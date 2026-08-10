@@ -52,6 +52,12 @@ public interface IStarGruntGameService
     /// <summary>Declares whether a unit has scattered out of integrity.</summary>
     StarGruntSnapshotDto SetDisorganised(Guid gameId, StarGruntDisorganisedRequest request);
 
+    /// <summary>Rolls to see whether troops have the nerve for a risky order.</summary>
+    StarGruntSnapshotDto TakeReactionTest(Guid gameId, StarGruntReactionTestRequest request);
+
+    /// <summary>Declares that a unit's next move leaves cover.</summary>
+    StarGruntSnapshotDto SetLeavesCover(Guid gameId, StarGruntLeavesCoverRequest request);
+
     /// <summary>Closes the open activation.</summary>
     StarGruntSnapshotDto EndActivation(Guid gameId);
 
@@ -258,6 +264,20 @@ public sealed class StarGruntGameService(
     }
 
     /// <inheritdoc />
+    public StarGruntSnapshotDto TakeReactionTest(Guid gameId, StarGruntReactionTestRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.TakeReactionTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+    }
+
+    /// <inheritdoc />
+    public StarGruntSnapshotDto SetLeavesCover(Guid gameId, StarGruntLeavesCoverRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.SetNextMoveLeavesCover(new UnitId(request.UnitId), request.LeavesCover));
+    }
+
+    /// <inheritdoc />
     public StarGruntSnapshotDto EndActivation(Guid gameId) => Command(gameId, game => game.EndActivation());
 
     /// <inheritdoc />
@@ -413,6 +433,8 @@ public sealed class StarGruntGameService(
             status.Confidence.ToString(),
             status.IsDisorganised,
             status.IsInCover,
+            status.NextMoveLeavesCover,
+            status.ReactionTestCleared,
             hasActivated,
             [.. unit.Weapons.Select(weapon => new StarGruntWeaponDto(
                 weapon.Name,

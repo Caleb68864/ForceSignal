@@ -386,6 +386,8 @@ export type StarGruntUnit = {
   confidence: string;
   isDisorganised: boolean;
   isInCover: boolean;
+  nextMoveLeavesCover: boolean;
+  reactionTestCleared: boolean;
   hasActivated: boolean;
   weapons: StarGruntWeapon[];
   canActivate: boolean;

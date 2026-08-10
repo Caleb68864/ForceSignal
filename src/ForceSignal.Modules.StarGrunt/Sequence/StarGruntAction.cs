@@ -56,6 +56,17 @@ public enum StarGruntAction
 
     /// <summary>Settle into a prepared firing position.</summary>
     GoInPosition = 11,
+
+    /// <summary>
+    /// An order the troops would not carry out.
+    /// </summary>
+    /// <remarks>
+    /// Not something a unit chooses, which is why it reads oddly in this list: it is what is left of
+    /// an action after a failed reaction test. It belongs here rather than as an invented step kind
+    /// because the action economy is derived from the steps in a frame, so a lost action has to be a
+    /// step or it is not lost at all.
+    /// </remarks>
+    RefusedOrder = 12,
 }
 
 /// <summary>
@@ -145,6 +156,8 @@ public static class StarGruntActions
         StarGruntAction.RemoveSuppression => SuppressedAction.RemoveSuppression,
         StarGruntAction.Reorganise => SuppressedAction.Reorganise,
         StarGruntAction.Fire => SuppressedAction.Fire,
+        // A refusal costs the action whatever the unit's state, so it is never gated as a move.
+        StarGruntAction.RefusedOrder => SuppressedAction.Observe,
         _ => SuppressedAction.Move,
     };
 }
