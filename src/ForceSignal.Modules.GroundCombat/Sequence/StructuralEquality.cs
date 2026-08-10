@@ -22,9 +22,69 @@ namespace ForceSignal.Modules.GroundCombat.Sequence;
 /// one, and each of those is a place to be silently wrong. One correct equality costs a little code
 /// here and nothing anywhere else.
 /// </para>
+/// <para>
+/// <b>Why it is public.</b> It began internal, when the only records holding collections were the
+/// session's own. A game built around a session has the same problem for the same reason - it holds
+/// a roster and a set of statuses and wants the same restore-fidelity assertion - so the choice was
+/// between publishing this or letting each game write its own copy. A shared layer is exactly where
+/// a helper both games need belongs, and a second copy of an equality is a second chance to get one
+/// wrong.
+/// </para>
 /// </remarks>
-internal static class StructuralEquality
+public static class StructuralEquality
 {
+    /// <summary>Compares two maps key by key, order insignificant.</summary>
+    /// <typeparam name="TKey">The key type.</typeparam>
+    /// <typeparam name="TValue">The value type.</typeparam>
+    /// <param name="left">One map.</param>
+    /// <param name="right">The other.</param>
+    /// <returns>True when both hold the same keys against equal values.</returns>
+    public static bool Map<TKey, TValue>(ImmutableDictionary<TKey, TValue>? left, ImmutableDictionary<TKey, TValue>? right)
+        where TKey : notnull
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var (key, value) in left)
+        {
+            if (!right.TryGetValue(key, out var other) || !EqualityComparer<TValue>.Default.Equals(value, other))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Hashes a map without depending on enumeration order, which a map does not fix.</summary>
+    /// <typeparam name="TKey">The key type.</typeparam>
+    /// <typeparam name="TValue">The value type.</typeparam>
+    /// <param name="items">The map to hash.</param>
+    /// <returns>A hash that agrees with <see cref="Map{TKey,TValue}"/>.</returns>
+    public static int MapHash<TKey, TValue>(ImmutableDictionary<TKey, TValue>? items)
+        where TKey : notnull
+    {
+        if (items is null)
+        {
+            return 0;
+        }
+
+        var hash = items.Count;
+        foreach (var (key, value) in items)
+        {
+            hash ^= HashCode.Combine(key, value);
+        }
+
+        return hash;
+    }
+
     /// <summary>Compares two arrays element by element, order significant.</summary>
     public static bool Sequence<T>(ImmutableArray<T> left, ImmutableArray<T> right) =>
         left.IsDefault

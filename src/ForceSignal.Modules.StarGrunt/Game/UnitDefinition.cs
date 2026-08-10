@@ -74,4 +74,33 @@ public sealed record UnitDefinition
 
     /// <summary>How many figures it has when nothing has happened to it yet.</summary>
     public int FullStrength => Figures.Length;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Written by hand because the two collections above are <see cref="ImmutableArray{T}"/>, which
+    /// compares by reference: the generated record equality would be reference equality in a
+    /// record's clothes, and the restore-fidelity assertion this whole design rests on would be
+    /// guaranteed to fail. See <see cref="StructuralEquality"/>.
+    /// </remarks>
+    public bool Equals(UnitDefinition? other) =>
+        other is not null
+        && Id == other.Id
+        && Name == other.Name
+        && Side == other.Side
+        && Level == other.Level
+        && QualityDie == other.QualityDie
+        && LeadershipDie == other.LeadershipDie
+        && StructuralEquality.Sequence(Figures, other.Figures)
+        && StructuralEquality.Sequence(Weapons, other.Weapons);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(
+        Id,
+        Name,
+        Side,
+        Level,
+        QualityDie,
+        LeadershipDie,
+        StructuralEquality.SequenceHash(Figures),
+        StructuralEquality.SequenceHash(Weapons));
 }
