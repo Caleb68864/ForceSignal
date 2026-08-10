@@ -353,3 +353,69 @@ export type FleetExport = {
 };
 /// One job a damage control party can be put on.
 export type RepairJob = { kind: string; weaponId?: string | null; parties: number };
+
+/**
+ * StarGrunt II, which is its own game rather than a view of a match: no room code, no seats, one
+ * device passed around the table.
+ *
+ * Every die is a face count - 4, 6, 8, 10, 12 - that the user typed off their own record card. The
+ * app ships no stats, and nothing here works out whether an action is legal: that arrives on the
+ * unit, from the same checks the server enforces.
+ */
+export type StarGruntFigure = { armourDie: number };
+export type StarGruntWeapon = {
+  name: string;
+  impactDie: number;
+  isSupport: boolean;
+  isCloseRange: boolean;
+};
+export type StarGruntWeaponLegality = { name: string; canFire: boolean; blocker?: string | null };
+export type StarGruntUnit = {
+  id: string;
+  name: string;
+  side: string;
+  level: string;
+  qualityDie: number;
+  leadershipDie: number;
+  figuresAlive: number;
+  fullStrength: number;
+  figuresWounded: number;
+  suppressionMarkers: number;
+  confidence: string;
+  isDisorganised: boolean;
+  isInCover: boolean;
+  hasActivated: boolean;
+  weapons: StarGruntWeapon[];
+  canActivate: boolean;
+  activationBlocker?: string | null;
+  weaponLegality: StarGruntWeaponLegality[];
+};
+export type StarGruntSnapshot = {
+  gameId: string;
+  name: string;
+  turnNumber: number;
+  phase: string;
+  sides: string[];
+  activeSide?: string | null;
+  activatingUnitId?: string | null;
+  firstActivationChooser?: string | null;
+  units: StarGruntUnit[];
+  log: string[];
+  version: number;
+};
+export type StarGruntGameCreated = { gameId: string; snapshot: StarGruntSnapshot };
+export type FeatureFlags = { starGrunt: boolean; dirtside: boolean };
+/** A force as it is written to a file, so it survives the game it was built for. */
+export type StarGruntForceFile = {
+  formatVersion: number;
+  side: string;
+  units: {
+    id: string;
+    name: string;
+    level: string;
+    qualityDie: number;
+    leadershipDie: number;
+    figures: StarGruntFigure[];
+    weapons: StarGruntWeapon[];
+  }[];
+};

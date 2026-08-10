@@ -2844,3 +2844,42 @@ small,
   color: inherit;
   text-decoration: underline;
 }
+
+/* StarGrunt II. Deliberately built from the panel vocabulary the rest of the console already uses -
+   card-module, module-title, constraint-line, ship-readouts - rather than a second look. The game
+   is different; the screen someone reads at a table should not be. */
+.stargrunt {
+  display: grid;
+  gap: 14px;
+}
+
+.stargrunt-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.stargrunt-unit.activating {
+  border-color: var(--line-hot);
+  box-shadow: inset 0 0 26px rgba(71, 241, 255, 0.06);
+}
+
+/* A wiped-out squad stays on screen - the log refers to it, and the players want to see what it
+   cost - but it should not read as something still in the fight. */
+.stargrunt-unit.wiped {
+  opacity: 0.55;
+}
+
+.stargrunt-log {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.stargrunt-log li {
+  color: var(--muted);
+  font-size: 0.92rem;
+}

@@ -21,9 +21,12 @@ import {
   showError,
   writeStorage,
 } from './lib/api.ts';
+import { StarGruntView } from './components/ground/StarGruntView.tsx';
+import { readFeatures } from './lib/starGruntApi.ts';
 import type {
   DamageState,
   DraftOrder,
+  FeatureFlags,
   FiringDraft,
   FiringSolution as FiringSolutionType,
   FleetExport,
@@ -57,6 +60,10 @@ function App() {
   const [mapFocusShipId, setMapFocusShipId] = useState<string | null>(null);
   const [shipCardMode, setShipCardMode] = useState<'helm' | 'fire' | 'damage'>('helm');
   const [publicMode, setPublicMode] = useState(false);
+  // Which game this device is running. StarGrunt is a separate game rather than a view of a match -
+  // no room code, no seats - so it is a mode, not a tab. Offered only when the server has it on.
+  const [gameMode, setGameMode] = useState<'fullthrust' | 'stargrunt'>('fullthrust');
+  const [features, setFeatures] = useState<FeatureFlags>({ starGrunt: false, dirtside: false });
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
@@ -146,6 +153,14 @@ function App() {
   // The drafts hold the salts that make a locked order revealable, so this is the one write in the
   // app that must not be quietly lost. It is also written first, before the much larger snapshot
   // backup below, so a store that is filling up sheds the backup rather than the salts.
+  useEffect(() => {
+    // A server with the engine off has no StarGrunt routes at all, so this is the only way to know
+    // whether to offer it. A failure means no optional engines, which is the safe answer.
+    readFeatures()
+      .then(setFeatures)
+      .catch(() => setFeatures({ starGrunt: false, dirtside: false }));
+  }, []);
+
   useEffect(() => {
     if (!writeStorage(draftsKey, drafts) && Object.keys(drafts).length > 0) {
       localStorage.removeItem(snapshotBackupKey);
@@ -1144,6 +1159,15 @@ function App() {
             // The side panel that owns the toggle is hidden in public mode, so the exit lives here.
             <button className="ghost" type="button" onClick={() => setPublicMode(false)}>Exit Public Display</button>
           ) : null}
+          {features.starGrunt && !publicMode ? (
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => setGameMode((current) => (current === 'stargrunt' ? 'fullthrust' : 'stargrunt'))}
+            >
+              {gameMode === 'stargrunt' ? 'Back to Full Thrust' : 'StarGrunt II'}
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -1166,7 +1190,9 @@ function App() {
         <a href={officialRulesUrl} target="_blank" rel="noreferrer">Rules</a>
       </section>
 
-      {!session && pendingRestore ? (
+      {gameMode === 'stargrunt' ? <StarGruntView /> : null}
+
+      {gameMode === 'fullthrust' && !session && pendingRestore ? (
         <section className="panel seat-picker" aria-label="Claim a seat">
           <div>
             <span className="label">Restored room</span>
@@ -1187,7 +1213,7 @@ function App() {
           ))}
           <button className="ghost" type="button" onClick={() => setPendingRestore(null)}>Cancel</button>
         </section>
-      ) : !session ? (
+      ) : gameMode === 'stargrunt' ? null : !session ? (
         <section className="panel auth-grid" aria-label="Create or join match">
           <label>
             Display name
