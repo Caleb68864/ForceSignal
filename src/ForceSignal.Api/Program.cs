@@ -1,8 +1,10 @@
 using ForceSignal.Api.Endpoints;
 using ForceSignal.Api.Hubs;
 using ForceSignal.Application.Features;
+using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Features;
+using ForceSignal.Contracts.Ground;
 using ForceSignal.Contracts.Matches;
 using ForceSignal.Infrastructure.Persistence;
 using Microsoft.AspNetCore.RateLimiting;
@@ -71,6 +73,19 @@ builder.Services.AddSingleton<IMatchStore>(sp =>
 });
 builder.Services.AddSingleton<IMatchService>(sp =>
     new InMemoryMatchService(null, sp.GetRequiredService<IMatchStore>(), loadPersisted: true));
+
+// StarGrunt games go in a table of their own, in the same file. LoadAll hands back everything a
+// store holds and each service parses all of it, so a shared table would mean each game being
+// handed the other's saves at startup. Registered unconditionally: the flag governs whether any
+// route reaches this, and a service nobody can call costs a dictionary.
+builder.Services.AddSingleton<IStarGruntGameService>(sp =>
+{
+    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
+    IMatchStore groundStore = string.IsNullOrWhiteSpace(path)
+        ? NoMatchStore.Instance
+        : new SqliteMatchStore(path, "stargrunt_games");
+    return new StarGruntGameService(null, groundStore);
+});
 
 // Which optional game engines this server offers. Both ground-combat engines default to off: they
 // are built alongside the working Full Thrust game and must not be able to reach a table that

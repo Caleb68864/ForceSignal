@@ -1,4 +1,6 @@
 using ForceSignal.Application.Features;
+using ForceSignal.Application.Ground;
+using ForceSignal.Contracts.Ground;
 
 namespace ForceSignal.Api.Endpoints;
 
@@ -25,6 +27,112 @@ public static class GroundCombatEndpoints
             .WithName("GetStarGruntStatus")
             .WithTags("StarGrunt")
             .WithSummary("Reports that the StarGrunt engine is mounted on this server.");
+
+        app.MapPost("/api/stargrunt/games", (CreateStarGruntGameRequest request, IStarGruntGameService games) =>
+            Results.Ok(games.CreateGame(request)))
+            .WithName("CreateStarGruntGame")
+            .WithTags("StarGrunt")
+            .WithSummary("Starts a game.")
+            .Produces<StarGruntGameCreatedResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapGet("/api/stargrunt/games/{gameId:guid}", (Guid gameId, IStarGruntGameService games) =>
+            Results.Ok(games.GetSnapshot(gameId)))
+            .WithName("GetStarGruntGame")
+            .WithTags("StarGrunt")
+            .WithSummary("Reads a game.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/units", (
+            Guid gameId,
+            AddStarGruntUnitRequest request,
+            IStarGruntGameService games) => Results.Ok(games.AddUnit(gameId, request)))
+            .WithName("AddStarGruntUnit")
+            .WithTags("StarGrunt")
+            .WithSummary("Puts a unit on the table.")
+            .WithDescription("Every die is a face count the user typed off their own record card. This engine ships no stats.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/begin", (Guid gameId, IStarGruntGameService games) =>
+            Results.Ok(games.BeginTurn(gameId)))
+            .WithName("BeginStarGruntTurn")
+            .WithTags("StarGrunt")
+            .WithSummary("Opens the next turn.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/current/first-activator", (
+            Guid gameId,
+            ChooseFirstActivatorRequest request,
+            IStarGruntGameService games) => Results.Ok(games.ChooseFirstActivator(gameId, request)))
+            .WithName("ChooseStarGruntFirstActivator")
+            .WithTags("StarGrunt")
+            .WithSummary("Settles who takes the first activation this turn.")
+            .WithDescription("The side with fewer units on the table has the choice, and may take it or give it away.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations", (
+            Guid gameId,
+            BeginStarGruntActivationRequest request,
+            IStarGruntGameService games) => Results.Ok(games.BeginActivation(gameId, request)))
+            .WithName("BeginStarGruntActivation")
+            .WithTags("StarGrunt")
+            .WithSummary("Opens an activation.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/steps", (
+            Guid gameId,
+            StarGruntStepRequest request,
+            IStarGruntGameService games) => Results.Ok(games.TakeStep(gameId, request)))
+            .WithName("TakeStarGruntStep")
+            .WithTags("StarGrunt")
+            .WithSummary("Spends an action on something other than shooting.")
+            .WithDescription("Firing has a route of its own, because it has to name the weapon it spends.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/fire", (
+            Guid gameId,
+            StarGruntFireRequest request,
+            IStarGruntGameService games) => Results.Ok(games.Fire(gameId, request)))
+            .WithName("FireStarGruntWeapon")
+            .WithTags("StarGrunt")
+            .WithSummary("Fires one weapon at another unit.")
+            .WithDescription("Range and cover are declared by the players, as they are at a table. Nothing here computes line of sight.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/end", (Guid gameId, IStarGruntGameService games) =>
+            Results.Ok(games.EndActivation(gameId)))
+            .WithName("EndStarGruntActivation")
+            .WithTags("StarGrunt")
+            .WithSummary("Closes the open activation.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/current/pass", (
+            Guid gameId,
+            StarGruntPassRequest request,
+            IStarGruntGameService games) => Results.Ok(games.Pass(gameId, request)))
+            .WithName("PassStarGruntActivation")
+            .WithTags("StarGrunt")
+            .WithSummary("Declines to activate anything.")
+            .WithDescription("Legal only while you have fewer unactivated units than your opponent.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/current/end", (Guid gameId, IStarGruntGameService games) =>
+            Results.Ok(games.EndTurn(gameId)))
+            .WithName("EndStarGruntTurn")
+            .WithTags("StarGrunt")
+            .WithSummary("Ends the turn.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
 
         return app;
     }
