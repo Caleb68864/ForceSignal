@@ -32,7 +32,7 @@ namespace ForceSignal.Modules.StarGrunt.Game;
 /// record's clothes. See <see cref="StructuralEquality"/>.
 /// </para>
 /// </remarks>
-public sealed record StarGruntGame : IStarGruntBoard
+public sealed partial record StarGruntGame : IStarGruntBoard
 {
     /// <summary>What the players are calling this game.</summary>
     public required string Name { get; init; }
