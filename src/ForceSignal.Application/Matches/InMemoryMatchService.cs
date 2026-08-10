@@ -86,6 +86,12 @@ public interface IMatchService
     /// <summary>Declares a participant has finished plotting, leaving unordered ships to hold course.</summary>
     MatchSnapshotDto DeclareOrdersComplete(Guid matchId, DeclareOrdersCompleteRequest request);
 
+    /// <summary>
+    /// Resolves a draft movement order without committing it, so a client can show where a plot
+    /// lands without owning a second copy of the movement rules.
+    /// </summary>
+    OrderPreviewDto PreviewOrder(Guid matchId, PreviewOrderRequest request);
+
     /// <summary>Commits a hidden movement order.</summary>
     MatchSnapshotDto CommitOrder(Guid matchId, CommitOrderRequest request);
 

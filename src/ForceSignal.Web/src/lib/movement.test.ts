@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampTurnManeuvers, maxLegalTurn, plannedSegments, previewCourse, totalTurnSteps, usableThrust } from './movement.ts';
+import { clampTurnManeuvers, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from './movement.ts';
 import type { DraftOrder } from '../types.ts';
 
 const draft = (patch: Partial<DraftOrder> = {}): DraftOrder => ({
@@ -72,28 +72,6 @@ describe('previewCourse', () => {
   });
 });
 
-describe('plannedSegments', () => {
-  it('runs a straight leg when nothing turns', () => {
-    const segments = plannedSegments(12, 8, draft());
-    expect(segments).toHaveLength(1);
-    expect(segments[0]).toMatchObject({ course: 12, distance: 8 });
-  });
-
-  /**
-   * A plotted turn is made half at the start of the move and half at the mid-point, which is what
-   * puts a ship where the rulebook's worked examples say it ends up. Rounding down is why a
-   * single-point turn happens entirely at the mid-point rather than at the start.
-   */
-  it('splits a turn across the move rather than pivoting up front', () => {
-    const segments = plannedSegments(12, 8, draft({ turnManeuvers: [{ direction: 'Starboard', steps: 2 }] }));
-    expect(segments.length).toBeGreaterThan(1);
-    expect(segments.reduce((sum, s) => sum + s.distance, 0)).toBeCloseTo(8);
-    expect(segments[segments.length - 1].course).toBe(2);
-  });
-
-  it('holds a single-point turn until the mid-point', () => {
-    const segments = plannedSegments(12, 8, draft({ turnManeuvers: [{ direction: 'Starboard', steps: 1 }] }));
-    expect(segments[0].course).toBe(12);
-    expect(segments[segments.length - 1].course).toBe(1);
-  });
-});
+// The split-turn geometry these used to cover now has one implementation, on the server, and is
+// tested there: `InMemoryMatchServicePreviewTests` asserts that the preview walks the same
+// segments the move is resolved into, and that its endpoint is where the ship actually ends up.

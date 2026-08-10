@@ -31,6 +31,7 @@ import type {
   MatchSeat,
   MatchSnapshot,
   OrdnanceMarker,
+  OrderPreview,
   PendingRestore,
   RepairJob,
   SavedFleet,
@@ -565,6 +566,22 @@ function App() {
       order: toOrder(draft),
       salt: draft.salt,
     }));
+  }
+
+  /**
+   * Asks the server where a draft would put a ship. Read-only: it locks nothing, logs nothing, and
+   * deliberately does not touch the snapshot, so plotting does not wake the rest of the table.
+   */
+  async function previewOrder(ship: Ship, draft: DraftOrder) {
+    if (!session) {
+      throw new Error('A session is required to preview an order.');
+    }
+
+    return post<OrderPreview>(`/api/matches/${session.matchId}/turns/current/orders/preview`, {
+      participantToken: session.participantToken,
+      shipId: ship.id,
+      order: toOrder(draft),
+    });
   }
 
   async function reveal(ship: Ship) {
@@ -1794,6 +1811,7 @@ function App() {
                 onCreateOrdnance={(ship, patch) => createOrdnanceMarker(ship, patch).catch(showError(setMessage))}
                 onUpdateOrdnance={(marker, patch) => updateOrdnanceMarker(marker, patch).catch(showError(setMessage))}
                 onRemoveOrdnance={(marker) => removeOrdnanceMarker(marker).catch(showError(setMessage))}
+                onPreviewOrder={previewOrder}
                 onFire={(ship, draft) => fireWeapon(ship, draft)}
                 onFlyFighters={(ship, x, y) => moveFighterGroup(ship, x, y)}
               onCeaseFire={(ship) => ceaseFire(ship)}

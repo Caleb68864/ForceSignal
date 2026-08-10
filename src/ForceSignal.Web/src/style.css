@@ -1336,12 +1336,22 @@ small,
   pointer-events: none;
 }
 
-.movement-preview-overlay line {
+.movement-preview-overlay line,
+.movement-preview-overlay polyline {
+  fill: none;
   stroke: var(--fleet-color, var(--line-hot));
   stroke-width: 0.32;
   stroke-dasharray: 1.2 0.8;
+  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
   filter: drop-shadow(0 0 5px var(--fleet-color, var(--line-hot)));
+}
+
+/* A plot that ends against a table edge: the ship stops there rather than flying the whole leg. */
+.movement-preview-overlay.runs-off-table polyline,
+.movement-preview-overlay.runs-off-table circle {
+  stroke: var(--amber);
+  filter: drop-shadow(0 0 5px var(--amber));
 }
 
 .movement-preview-overlay circle {

@@ -56,6 +56,45 @@ public sealed class FullThrustLightCinematicRules : IOrderNormalizer, IOrderVali
         return System.Text.Json.JsonSerializer.Serialize(normalized, StableJson.Options);
     }
 
+    /// <summary>
+    /// The turn maneuvers an order actually amounts to, after the two ways of writing one - a
+    /// single steps-and-direction pair, or an explicit sequence - are reduced to the same thing.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so callers that need to reason about a plot's thrust cost, such as the plotting
+    /// preview, ask this profile rather than reimplementing the reduction. Malformed maneuvers are
+    /// dropped here exactly as they are everywhere else; <see cref="Validate"/> is what reports
+    /// them.
+    /// </remarks>
+    /// <param name="order">The order to reduce.</param>
+    /// <returns>The maneuvers in plotted order, each with a direction and a positive step count.</returns>
+    public static IReadOnlyList<TurnManeuver> ManeuversFor(MovementOrder order) => NormalizeManeuvers(order);
+
+    /// <summary>
+    /// Most turn steps still legal alongside a velocity change, given the thrust available.
+    /// </summary>
+    /// <remarks>
+    /// Turning is capped at half thrust rounded up, and turns and acceleration draw on the same
+    /// thrust, so the real ceiling is whichever of the two binds first. A ship at rest that is not
+    /// accelerating is the exception the rules carve out: it rotates to any heading for free, so
+    /// the ceiling is a full circle.
+    /// </remarks>
+    /// <param name="shipState">Where the ship is starting from.</param>
+    /// <param name="thrustRating">Thrust available, after any drive damage.</param>
+    /// <param name="velocityDelta">The velocity change being plotted alongside the turn.</param>
+    /// <returns>The largest legal total turn steps, never below zero.</returns>
+    public static int MaxTurnSteps(ShipMovementState shipState, int thrustRating, int velocityDelta)
+    {
+        if (shipState.Velocity == 0 && velocityDelta == 0)
+        {
+            return 12;
+        }
+
+        var turnCap = (int)Math.Ceiling(thrustRating / 2.0);
+        var thrustLeft = thrustRating - Math.Abs(velocityDelta);
+        return Math.Max(0, Math.Min(turnCap, thrustLeft));
+    }
+
     /// <inheritdoc />
     public OrderValidationResult Validate(ShipMovementState shipState, int thrustRating, MovementOrder order)
     {

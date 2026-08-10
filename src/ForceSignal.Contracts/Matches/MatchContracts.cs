@@ -224,6 +224,74 @@ public sealed record RevealOrderRequest(
     MovementOrder Order,
     string Salt);
 
+/// <summary>
+/// Asks where a draft order would put a ship, without committing to it.
+/// </summary>
+/// <remarks>
+/// No salt, because nothing is being committed to. A preview is a question about the caller's own
+/// ship and is answered from state the caller can already see, so it neither changes the match nor
+/// tells them anything new about anyone else's.
+/// </remarks>
+/// <param name="ParticipantToken">Session token of the ship's owner.</param>
+/// <param name="ShipId">The ship being plotted.</param>
+/// <param name="Order">The draft order, which does not have to be legal.</param>
+public sealed record PreviewOrderRequest(
+    string ParticipantToken,
+    Guid ShipId,
+    MovementOrder Order);
+
+/// <summary>A position on the table.</summary>
+/// <param name="X">Distance across the table, in mu.</param>
+/// <param name="Y">Distance up the table, in mu.</param>
+public sealed record TablePointDto(decimal X, decimal Y);
+
+/// <summary>
+/// Where a draft order would take a ship, resolved by the same rules that will fly the turn.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This exists so no client has to own a second copy of the movement rules. The split-turn
+/// geometry - pivot half at the start, run half the leg, pivot the rest - is subtle enough that a
+/// reimplementation drifts, and a preview that drifts from the resolver shows the player a course
+/// their ship does not fly.
+/// </para>
+/// <para>
+/// An illegal draft is answered rather than refused. A player editing an order passes through
+/// illegal states on the way to a legal one, and the map should keep showing them what they are
+/// building; <see cref="IsValid"/> and <see cref="Errors"/> say whether it could be locked.
+/// </para>
+/// </remarks>
+/// <param name="ShipId">The ship the preview is for.</param>
+/// <param name="IsValid">Whether this order could be locked as it stands.</param>
+/// <param name="Errors">Why it could not, in the resolver's own words.</param>
+/// <param name="UsableThrust">Thrust rating less drive damage.</param>
+/// <param name="ThrustSpent">Velocity change plus turn steps in this draft.</param>
+/// <param name="MaxTurnSteps">Most turn steps still legal alongside this draft's velocity change.</param>
+/// <param name="StartingVelocity">Velocity the ship is travelling at now.</param>
+/// <param name="StartingCourse">Course the ship is on now.</param>
+/// <param name="EndingVelocity">Velocity the ship would finish the turn at.</param>
+/// <param name="EndingCourse">Course the ship would finish the turn on.</param>
+/// <param name="Segments">The legs the move breaks into, in order.</param>
+/// <param name="Path">
+/// The ship's current position followed by the end of each leg, so a client can draw or animate
+/// the move without doing any geometry of its own.
+/// </param>
+/// <param name="RunsOffTable">Whether the plot would carry the ship into a table edge.</param>
+public sealed record OrderPreviewDto(
+    Guid ShipId,
+    bool IsValid,
+    IReadOnlyList<string> Errors,
+    int UsableThrust,
+    int ThrustSpent,
+    int MaxTurnSteps,
+    int StartingVelocity,
+    int StartingCourse,
+    int EndingVelocity,
+    int EndingCourse,
+    IReadOnlyList<MovementSegment> Segments,
+    IReadOnlyList<TablePointDto> Path,
+    bool RunsOffTable);
+
 /// <summary>Resolves one weapon mount firing at a target during the firing phase.</summary>
 /// <param name="ParticipantToken">Session token of the firing participant.</param>
 /// <param name="AttackerShipId">The firing ship.</param>

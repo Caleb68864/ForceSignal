@@ -9,7 +9,7 @@
 
 import { newId } from './api.ts';
 import { wrapCourse } from './geometry.ts';
-import type { DraftOrder, MovementSegment, Ship, TurnDirection, TurnManeuver } from '../types.ts';
+import type { DraftOrder, Ship, TurnDirection, TurnManeuver } from '../types.ts';
 
 export function turnManeuversForDraft(draft: DraftOrder): TurnManeuver[] {
   if (Array.isArray(draft.turnManeuvers) && draft.turnManeuvers.length > 0) {
@@ -102,52 +102,11 @@ export function appendTurnPatchForCourse(draft: DraftOrder, currentCourse: numbe
   const patch = turnPatchForCourse(currentCourse, targetCourse, remaining, draft.turnDirection);
   return turnPatchFromManeuvers([...existing, ...turnManeuversForDraft({ ...draft, ...patch })]);
 }
-/// The legs a plotted order will actually be flown as, mirroring the server: each plotted turn
-/// takes an equal share of the move and is made half at the start of its leg and half at the
-/// mid-point, with half rounded down. A straight line to the ending course would put the preview
-/// somewhere the ship never goes.
-export function plannedSegments(currentCourse: number, endingVelocity: number, draft: DraftOrder): MovementSegment[] {
-  const maneuvers = turnManeuversForDraft(draft);
-  if (maneuvers.length === 0) {
-    return [{ course: currentCourse, distance: endingVelocity }];
-  }
-
-  const halfLeg = endingVelocity / (maneuvers.length * 2);
-  const segments: MovementSegment[] = [];
-  const addLeg = (course: number, distance: number) => {
-    const last = segments[segments.length - 1];
-    if (last && last.course === course) {
-      last.distance += distance;
-      return;
-    }
-
-    segments.push({ course, distance });
-  };
-
-  let course = currentCourse;
-  for (const maneuver of maneuvers) {
-    const sign = maneuver.direction === 'Port' ? -1 : 1;
-    const openingPivot = Math.floor(maneuver.steps / 2);
-    course = wrapCourse(course + sign * openingPivot);
-    addLeg(course, halfLeg);
-    course = wrapCourse(course + sign * (maneuver.steps - openingPivot));
-    addLeg(course, halfLeg);
-  }
-
-  return segments;
-}
-export function estimateDraftEndpoint(ship: Ship, draft: DraftOrder, tableWidth: number, tableDepth: number): { x: number; y: number } {
-  const endingVelocity = Math.max(0, ship.currentVelocity + draft.velocityDelta);
-  let x = ship.positionX;
-  let y = ship.positionY;
-  for (const segment of plannedSegments(ship.currentCourse, endingVelocity, draft)) {
-    const radians = segment.course * Math.PI / 6;
-    x = Math.max(0, Math.min(tableWidth, x + Math.sin(radians) * segment.distance));
-    y = Math.max(0, Math.min(tableDepth, y - Math.cos(radians) * segment.distance));
-  }
-
-  return { x, y };
-}
+// Where a plotted order lands is deliberately not worked out here. The split-turn geometry - each
+// turn taking an equal share of the move, made half at the start of its leg and half at the
+// mid-point - used to be mirrored in this file, and a mirror is a second implementation that can
+// drift from the resolver that actually flies the turn. The server answers instead, through
+// `useOrderPreview`, so the preview cannot disagree with the move.
 export function toOrder(draft: DraftOrder) {
   const maneuvers = turnManeuversForDraft(draft);
   const turnSteps = maneuvers.reduce((sum, maneuver) => sum + maneuver.steps, 0);

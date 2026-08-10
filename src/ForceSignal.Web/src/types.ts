@@ -122,6 +122,28 @@ export type MovementResult = {
   endingCourse: number;
   segments?: MovementSegment[] | null;
 };
+/**
+ * Where a draft order would take a ship, answered by the server.
+ *
+ * The client works none of this out. The split-turn geometry lives in one place - the resolver
+ * that will fly the turn - so a preview cannot disagree with what actually happens.
+ */
+export type OrderPreview = {
+  shipId: string;
+  isValid: boolean;
+  errors: string[];
+  usableThrust: number;
+  thrustSpent: number;
+  maxTurnSteps: number;
+  startingVelocity: number;
+  startingCourse: number;
+  endingVelocity: number;
+  endingCourse: number;
+  segments: MovementSegment[];
+  /** The ship's current position, then the end of each leg. */
+  path: TablePoint[];
+  runsOffTable: boolean;
+};
 export type FiringResult = {
   attackerShipId: string;
   targetShipId: string;

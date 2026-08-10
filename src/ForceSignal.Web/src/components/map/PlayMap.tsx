@@ -12,10 +12,11 @@ import { ShipIcon } from '../../components/ShipCard.tsx';
 import { fighterMoveAllowance, fighterStatuses, firableArcs } from '../../constants.ts';
 import { courseAngle, distanceBetweenShips, mapPercent, rangeDiameterPercent, weaponArcAngle } from '../../lib/geometry.ts';
 import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance, tablePointFromClient, trailPointsForResult, viewportZoomedAt } from '../../lib/mapGeometry.ts';
-import { appendTurnPatchForCourse, draftFor, estimateDraftEndpoint, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
+import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
+import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
 import { arcBlocker, arcLabel, bearingArc, describeArcs, effectiveScreens, fighterEnduranceRange, fireControlBlocker, firingDraftFor, firingTargetOptions, firingTurnBlocker, isFighterGroup, needleTargets, torpedoToHitNumber, workingFireControl } from '../../lib/rules.ts';
-import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, Participant, Ship, TablePoint } from '../../types.ts';
+import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, Ship, TablePoint } from '../../types.ts';
 
 export function PlayMap({
   snapshot,
@@ -32,6 +33,7 @@ export function PlayMap({
   onCreateOrdnance,
   onUpdateOrdnance,
   onRemoveOrdnance,
+  onPreviewOrder,
   onFire,
   onCeaseFire,
   onFlyFighters,
@@ -50,6 +52,7 @@ export function PlayMap({
   onCreateOrdnance: (ship: Ship, patch: Partial<OrdnanceMarker>) => void;
   onUpdateOrdnance: (marker: OrdnanceMarker, patch: Partial<OrdnanceMarker>) => void;
   onRemoveOrdnance: (marker: OrdnanceMarker) => void;
+  onPreviewOrder: (ship: Ship, draft: DraftOrder) => Promise<OrderPreview>;
   onFire: (ship: Ship, draft: FiringDraft) => Promise<void>;
   onCeaseFire: (ship: Ship) => Promise<void>;
   onFlyFighters: (ship: Ship, x: number, y: number) => Promise<void>;
@@ -92,6 +95,10 @@ export function PlayMap({
   const selectedFleetColor = normalizeFleetColor(selectedFleet?.fleetColor);
   const selectedIsFighterGroup = selectedShip ? isFighterGroup(selectedShip) : false;
   const selectedIsCarrier = selectedShip ? normalizeShipIconKey(selectedShip.iconKey, selectedShip.className) === 'carrier' : false;
+  // Only ask about a hull this player can actually plot. A fighter group is flown rather than
+  // ordered, and someone else's ship is a request the server is right to refuse.
+  const previewSubject = selectedCanPlot && !selectedIsFighterGroup ? selectedShip : undefined;
+  const orderPreview = useOrderPreview(previewSubject, previewSubject ? selectedDraft ?? undefined : undefined, onPreviewOrder);
   const hoveredShip = hoveredShipId ? snapshot.ships.find((ship) => ship.id === hoveredShipId) : undefined;
   const ordnanceMarkers = snapshot.ordnanceMarkers ?? [];
   const contactRanges = selectedShip
@@ -616,10 +623,9 @@ export function PlayMap({
             snapshot={snapshot}
             focusedShipId={selectedShip?.id}
           />
-          {selectedShip && selectedDraft && inspectorMode === 'helm' ? (
+          {orderPreview && inspectorMode === 'helm' ? (
             <MovementPreviewOverlay
-              ship={selectedShip}
-              draft={selectedDraft}
+              preview={orderPreview}
               tableWidth={snapshot.tableWidth}
               tableDepth={snapshot.tableDepth}
               color={selectedFleetColor}
@@ -1491,40 +1497,52 @@ function MapFiringAssistant({
     </div>
   );
 }
+/**
+ * The course a plotted order will actually be flown, as the server resolved it.
+ *
+ * Drawn as the real polyline rather than a straight line to the endpoint, because a plotted turn
+ * is made half at the start of a leg and half at its mid-point: the ship does not travel the
+ * straight line between where it is and where it ends up, and a player reading range off the map
+ * needs to see the dog-leg it actually flies.
+ */
 function MovementPreviewOverlay({
-  ship,
-  draft,
+  preview,
   tableWidth,
   tableDepth,
   color,
 }: {
-  ship: Ship;
-  draft: DraftOrder;
+  preview: OrderPreview;
   tableWidth: number;
   tableDepth: number;
   color: string;
 }) {
-  const endpoint = estimateDraftEndpoint(ship, draft, tableWidth, tableDepth);
-  const startX = mapPercent(ship.positionX, tableWidth);
-  const startY = mapPercent(ship.positionY, tableDepth);
-  const endX = mapPercent(endpoint.x, tableWidth);
-  const endY = mapPercent(endpoint.y, tableDepth);
-  const hasMovement = Math.abs(endX - startX) > 0.1 || Math.abs(endY - startY) > 0.1;
-
-  if (!hasMovement && totalTurnSteps(draft) === 0 && draft.velocityDelta === 0) {
+  if (preview.path.length < 2) {
     return null;
   }
 
+  const points = preview.path.map((point) => ({
+    x: mapPercent(point.x, tableWidth),
+    y: mapPercent(point.y, tableDepth),
+  }));
+  const start = points[0];
+  const end = points[points.length - 1];
+  const hasMovement = points.some((point) => Math.abs(point.x - start.x) > 0.1 || Math.abs(point.y - start.y) > 0.1);
+
+  if (!hasMovement && preview.endingCourse === preview.startingCourse) {
+    return null;
+  }
+
+  const className = preview.runsOffTable
+    ? 'movement-preview-overlay runs-off-table'
+    : 'movement-preview-overlay';
+
   return (
-    <svg className="movement-preview-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <line
-        x1={startX}
-        y1={startY}
-        x2={endX}
-        y2={endY}
+    <svg className={className} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polyline
+        points={points.map((point) => `${point.x},${point.y}`).join(' ')}
         style={{ '--fleet-color': color } as CSSProperties}
       />
-      <circle cx={endX} cy={endY} r="1.2" style={{ '--fleet-color': color } as CSSProperties} />
+      <circle cx={end.x} cy={end.y} r="1.2" style={{ '--fleet-color': color } as CSSProperties} />
     </svg>
   );
 }

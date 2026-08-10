@@ -604,6 +604,21 @@ app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/commit", async (
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
 
+// Deliberately does not notify the hub: a preview changes nothing, and a player working out a
+// course would otherwise wake every other device at the table on every adjustment.
+app.MapPost("/api/matches/{matchId:guid}/turns/current/orders/preview", (
+    Guid matchId,
+    PreviewOrderRequest request,
+    IMatchService matches) => Results.Ok(matches.PreviewOrder(matchId, request)))
+    .WithName("PreviewMovementOrder")
+    .WithTags("Orders")
+    .WithSummary("Resolves a draft movement order without committing it.")
+    .WithDescription("Answers with the legs, path, and endpoint the turn would actually be flown as, so a client needs no movement rules of its own. An illegal draft is described rather than refused.")
+    .Produces<OrderPreviewDto>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status403Forbidden)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+
 app.MapPost("/api/matches/{matchId:guid}/fighters/move", async (
     Guid matchId,
     MoveFighterGroupRequest request,

@@ -692,31 +692,73 @@ public sealed partial class InMemoryMatchService
 
     private static (decimal X, decimal Y) EstimatePositionFromResult(decimal x, decimal y, MovementResult result, int tableWidth, int tableDepth)
     {
+        var (path, _) = WalkPath(x, y, result, tableWidth, tableDepth);
+        return (path[^1].X, path[^1].Y);
+    }
+
+    /// <summary>
+    /// Flies a resolved move leg by leg and records where the ship is at each turn of the helm:
+    /// the starting position first, then the end of every segment. Also reports whether the table
+    /// edge caught the ship somewhere along the way.
+    /// </summary>
+    /// <remarks>
+    /// Movement resolution and the plotting preview both go through here, which is the point. The
+    /// preview's whole job is to answer with the path the turn will actually take, and it can only
+    /// promise that while there is one walk of the segments rather than two.
+    /// </remarks>
+    private static (List<(decimal X, decimal Y)> Path, bool Clamped) WalkPath(
+        decimal x,
+        decimal y,
+        MovementResult result,
+        int tableWidth,
+        int tableDepth)
+    {
         var segments = result.Segments is { Count: > 0 }
             ? result.Segments
             : [new MovementSegment(result.EndingCourse, result.EndingVelocity)];
 
+        var path = new List<(decimal X, decimal Y)>(segments.Count + 1) { (x, y) };
         var currentX = x;
         var currentY = y;
+        var clamped = false;
         foreach (var segment in segments)
         {
-            (currentX, currentY) = EstimatePosition(currentX, currentY, segment.Distance, segment.Course, tableWidth, tableDepth);
+            bool stepClamped;
+            (currentX, currentY, stepClamped) = StepPosition(currentX, currentY, segment.Distance, segment.Course, tableWidth, tableDepth);
+            clamped |= stepClamped;
+            path.Add((currentX, currentY));
         }
 
-        return (currentX, currentY);
+        return (path, clamped);
     }
 
     private static (decimal X, decimal Y) EstimatePosition(decimal x, decimal y, decimal distance, int course, int tableWidth, int tableDepth)
     {
+        var (nextX, nextY, _) = StepPosition(x, y, distance, course, tableWidth, tableDepth);
+        return (nextX, nextY);
+    }
+
+    /// <summary>
+    /// Runs one leg and says whether the table edge cut it short. The flag is what lets the preview
+    /// warn a player that their plot leaves the table without the client measuring anything.
+    /// </summary>
+    private static (decimal X, decimal Y, bool Clamped) StepPosition(
+        decimal x,
+        decimal y,
+        decimal distance,
+        int course,
+        int tableWidth,
+        int tableDepth)
+    {
         var radians = course * Math.PI / 6;
-        var nextX = x + ((decimal)Math.Sin(radians) * distance);
-        var nextY = y - ((decimal)Math.Cos(radians) * distance);
         // Round to a thousandth of a measurement unit. The sine of a straight-down course is not
         // exactly zero in floating point, and without this the residue accumulates into positions
         // that read as 20.000000000000001 on a table measured in whole units.
-        return (
-            ClampPosition(Math.Round(nextX, 3), tableWidth),
-            ClampPosition(Math.Round(nextY, 3), tableDepth));
+        var nextX = Math.Round(x + ((decimal)Math.Sin(radians) * distance), 3);
+        var nextY = Math.Round(y - ((decimal)Math.Cos(radians) * distance), 3);
+        var clampedX = ClampPosition(nextX, tableWidth);
+        var clampedY = ClampPosition(nextY, tableDepth);
+        return (clampedX, clampedY, clampedX != nextX || clampedY != nextY);
     }
     /// <summary>
     /// Opens the firing phase with a die-off. Every player with a ship on the table rolls, highest
