@@ -18,6 +18,9 @@ public sealed class StarGruntGameServiceTests
     // because a turn whose shape depends on the dice is a test that passes some days.
     private static readonly int[] AKillAndAStop = [6, 7, 5, 4, 5, 3, 5, 9, 4];
 
+    /// <summary>The same firefight, then a recovery roll that beats leadership 2.</summary>
+    private static readonly int[] FirefightThenRecovery = [6, 7, 5, 4, 5, 3, 5, 9, 4, 6];
+
     [Fact]
     public void AWholeTurnCanBePlayedThroughTheService()
     {
@@ -49,11 +52,54 @@ public sealed class StarGruntGameServiceTests
             service.TakeStep(game, new StarGruntStepRequest("Move")));
         Assert.Contains("suppressed", pinned.Message, StringComparison.OrdinalIgnoreCase);
 
-        service.TakeStep(game, new StarGruntStepRequest("RemoveSuppression"));
+        // Getting its head back up is a command rather than a step, because it rolls. Scripted to
+        // fail here, so the squad stays pinned and the turn ends with it still down.
+        service.RemoveSuppression(game, new StarGruntUnitActionRequest("bravo"));
         service.EndActivation(game);
 
         var ended = service.EndTurn(game);
         Assert.Equal("TurnEnded", ended.Phase);
+    }
+
+    [Fact]
+    public void APinnedUnitCanGetItsHeadBackUpAndFightOn()
+    {
+        // Gap 1: before this existed, fire pinned a unit permanently and the game stopped after
+        // first contact. A whole-turn test did not show it, because it takes a second activation.
+        // Scripted so the volley suppresses and the recovery roll then beats leadership 2.
+        var service = new StarGruntGameService(new ScriptedQualityDice(FirefightThenRecovery));
+        var game = Table(service);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
+        service.Fire(game, new StarGruntFireRequest(
+            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportDice: [8], DistanceInches: 9, Cover: "Soft"));
+        service.EndActivation(game);
+
+        service.BeginActivation(game, new BeginStarGruntActivationRequest("red", "bravo"));
+        Assert.Equal(1, service.GetSnapshot(game).Units.Single(u => u.Id == "bravo").SuppressionMarkers);
+
+        var recovered = service.RemoveSuppression(game, new StarGruntUnitActionRequest("bravo"));
+
+        Assert.Equal(0, recovered.Units.Single(u => u.Id == "bravo").SuppressionMarkers);
+        // And it is genuinely back in the fight rather than merely showing a zero.
+        Assert.Null(Record.Exception(() => service.TakeStep(game, new StarGruntStepRequest("Move"))));
+    }
+
+    [Fact]
+    public void RemoveSuppressionCannotBeSentThroughTheGenericStepRoute()
+    {
+        // It rolls a die, and that route has no die source - the same reason firing has its own.
+        var service = new StarGruntGameService();
+        var game = Table(service);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
+
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+            service.TakeStep(game, new StarGruntStepRequest("RemoveSuppression")));
+
+        Assert.Contains("command of its own", refused.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -130,7 +176,7 @@ public sealed class StarGruntGameServiceTests
         var created = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
 
         Assert.Throws<InvalidOperationException>(() => service.AddUnit(created.GameId, new AddStarGruntUnitRequest(
-            "alpha", "Alpha Squad", "blue", "Squad", QualityDie: 7, LeadershipDie: 8, Figures: [], Weapons: [])));
+            "alpha", "Alpha Squad", "blue", "Squad", QualityDie: 7, LeadershipValue: 2, Figures: [], Weapons: [])));
     }
 
     [Fact]
@@ -156,7 +202,7 @@ public sealed class StarGruntGameServiceTests
         side,
         "Squad",
         QualityDie: 8,
-        LeadershipDie: 8,
+        LeadershipValue: 2,
         Figures: [.. Enumerable.Repeat(new StarGruntFigureDto(6), 8)],
         Weapons:
         [

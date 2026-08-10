@@ -18,13 +18,14 @@ import type { StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 
 const ladder = [4, 6, 8, 10, 12];
 const covers = ['None', 'Soft', 'Hard'];
-const unarmedActions = ['Move', 'Dash', 'Reorganise', 'Rally', 'Observe', 'Communicate', 'RemoveSuppression', 'GoInPosition'];
+// RemoveSuppression is missing on purpose: it rolls, so it has a command and a button of its own.
+const unarmedActions = ['Move', 'Dash', 'Reorganise', 'Rally', 'Observe', 'Communicate', 'GoInPosition'];
 
 type UnitForm = {
   name: string;
   side: string;
   qualityDie: number;
-  leadershipDie: number;
+  leadershipValue: number;
   figures: number;
   armourDie: number;
   weaponName: string;
@@ -51,7 +52,7 @@ export function StarGruntView() {
     name: 'Alpha Squad',
     side: 'blue',
     qualityDie: 8,
-    leadershipDie: 8,
+    leadershipValue: 2,
     figures: 8,
     armourDie: 6,
     weaponName: 'Rifles',
@@ -204,6 +205,18 @@ export function StarGruntView() {
                 {action}
               </button>
             ))}
+            {activating.suppressionMarkers > 0 ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run(
+                  () => api.removeSuppression(game, activating.id),
+                  `${activating.name} tried to get its head up.`,
+                )}
+              >
+                Get Heads Up ({activating.suppressionMarkers} pinned)
+              </button>
+            ) : null}
             <button
               type="button"
               disabled={busy}
@@ -244,7 +257,7 @@ export function StarGruntView() {
             side: unitForm.side,
             level: 'Squad',
             qualityDie: unitForm.qualityDie,
-            leadershipDie: unitForm.leadershipDie,
+            leadershipValue: unitForm.leadershipValue,
             figures: Array.from({ length: Math.max(1, unitForm.figures) }, () => ({ armourDie: unitForm.armourDie })),
             weapons: [{ name: unitForm.weaponName, impactDie: unitForm.impactDie, isSupport: false, isCloseRange: false }],
           }),
@@ -478,10 +491,10 @@ function AddUnitPanel({
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
         </select>
       </label>
-      <label>
+      <label title="Leadership Value from your record card: 1 to 3, and 1 is the best.">
         Leadership
-        <select value={form.leadershipDie} onChange={(event) => onChange({ leadershipDie: Number(event.target.value) })}>
-          {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
+        <select value={form.leadershipValue} onChange={(event) => onChange({ leadershipValue: Number(event.target.value) })}>
+          {[1, 2, 3].map((value) => <option key={value} value={value}>{value}{value === 1 ? ' (best)' : ''}</option>)}
         </select>
       </label>
       <label>

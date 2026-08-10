@@ -106,7 +106,7 @@ public sealed class StarGruntEndpointTests
 
         using var response = await client.PostAsJsonAsync(
             $"/api/stargrunt/games/{created!.GameId}/units",
-            new AddStarGruntUnitRequest("alpha", "Alpha", "blue", "Squad", 7, 8, [], []));
+            new AddStarGruntUnitRequest("alpha", "Alpha", "blue", "Squad", 7, 2, [], []));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -144,7 +144,7 @@ public sealed class StarGruntEndpointTests
         side,
         "Squad",
         QualityDie: 8,
-        LeadershipDie: 8,
+        LeadershipValue: 2,
         Figures: [.. Enumerable.Repeat(new StarGruntFigureDto(6), 8)],
         Weapons: [new StarGruntWeaponDto("Rifles", 10)]);
 

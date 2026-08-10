@@ -14,7 +14,7 @@ function unit(overrides: Partial<StarGruntUnit> = {}): StarGruntUnit {
     side: 'blue',
     level: 'Squad',
     qualityDie: 8,
-    leadershipDie: 8,
+    leadershipValue: 2,
     figuresAlive: 5,
     fullStrength: 8,
     figuresWounded: 1,
@@ -65,10 +65,11 @@ describe('fromForceFile', () => {
   });
 
   it('puts a die that is not on the ladder back onto it', () => {
-    const read = fromForceFile({ units: [{ name: 'Bravo', qualityDie: 7, leadershipDie: 'nonsense' }] });
+    const read = fromForceFile({ units: [{ name: 'Bravo', qualityDie: 7, leadershipValue: 9 }] });
 
     expect(read.units[0].qualityDie).toBe(8);
-    expect(read.units[0].leadershipDie).toBe(8);
+    // Leadership is a value from 1 to 3, not a die, so 9 is not a typo to keep.
+    expect(read.units[0].leadershipValue).toBe(2);
   });
 
   it('gives a squad of nobody one figure rather than none', () => {

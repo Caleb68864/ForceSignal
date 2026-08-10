@@ -31,7 +31,7 @@ export function addUnit(gameId: string, unit: {
   side: string;
   level: string;
   qualityDie: number;
-  leadershipDie: number;
+  leadershipValue: number;
   figures: { armourDie: number }[];
   weapons: { name: string; impactDie: number; isSupport: boolean; isCloseRange: boolean }[];
 }) {
@@ -70,6 +70,11 @@ export function fire(gameId: string, shot: {
   inPosition: boolean;
 }) {
   return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/fire`, shot);
+}
+
+/** Spends an action trying to shake off one suppression marker. One roll, one marker at best. */
+export function removeSuppression(gameId: string, unitId: string) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/remove-suppression`, { unitId });
 }
 
 /** Closes the open activation. */

@@ -18,9 +18,9 @@ on top of it today**: the rules modules implement mechanics the game never calls
 
 ---
 
-## Gap 1 - Suppression can never be removed, so the game stops after first contact
+## Gap 1 - Suppression can never be removed, so the game stops after first contact - FIXED 2026-08-10
 
-**Severity: critical. Nothing built on this is playable past a few turns.**
+**Severity: critical. Nothing built on this was playable past a few turns.**
 
 Fire adds a suppression marker through `Suppression.Add`. **Nothing anywhere removes one.**
 `Suppression.TryClear` exists, is tested, and is never called by the game layer; the
@@ -30,9 +30,14 @@ A suppressed unit may not move or fire. So the first squad shot at is pinned for
 game, and the game reaches a state where neither side can do anything but pass. A single turn of
 browser testing did not reveal this, because it takes a second activation to notice.
 
-**Required:** removing one marker costs one action; the unit rolls its quality die and must exceed
-its leadership value. The engine already does this - the game has to call it, and needs a die source
-in the command path the way `Fire` has one.
+**Fixed.** `RemoveSuppression` is a command of its own rather than a step, for the same reason
+firing is: it rolls, and the generic step route deliberately carries no die source. One action, one
+roll, one marker at best, and the action is spent whether or not it works - which is most of what
+suppression costs, since a unit under sustained fire is out of the fight for turns without taking a
+casualty. The step route now refuses the action by name rather than silently doing nothing.
+
+Fixing it turned up **gap 11**, below: the roll is against a Leadership *Value*, and the unit model
+had a leadership die.
 
 ## Gap 2 - Confidence never changes
 
@@ -109,6 +114,19 @@ support dice as a free-form list from the player instead of deriving which of th
 weapons are joining the volley. Defensible while the player is transcribing everything by hand, but
 the flag is currently dead weight and should either be used or dropped.
 
+## Gap 11 - Leadership was modelled as a die - FIXED 2026-08-10
+
+**Severity: high, and it blocked gap 1.** `UnitDefinition` carried a `LeadershipDie` on the quality
+ladder. The rules use a **Leadership Value** of 1 to 3, where 1 is best, printed on the activation
+marker - and every roll against a leader has to beat that number. Nothing in the game ever rolls a
+leadership die.
+
+Found while wiring gap 1: `Suppression.TryClear` takes an integer, and there was no honest way to
+pass it one. The engines were right and the model built on top of them was wrong.
+
+Now `LeadershipValue`, validated 1 to 3 at the boundary, and the screen offers those three rather
+than a die. Rally will want the same value, so this unblocks gap 3 as well.
+
 ---
 
 ## Not gaps - checked and correct
@@ -130,7 +148,7 @@ the flag is currently dead weight and should either be used or dropped.
 
 ## Suggested order of work
 
-1. **Gap 1** - suppression removal. Without it nothing else matters, because the game stops.
+1. ~~**Gap 1** - suppression removal.~~ **Done**, along with gap 11 which it uncovered.
 2. **Gap 2 and 3** - confidence tests, rally, reorganise. The morale half of the game.
 3. **Gap 4, 5 and 6** - casualty allocation onto figures, which gaps 5 and 6 both hang off.
 4. **Gap 7 and 8** - reaction tests and fatigue.

@@ -42,7 +42,7 @@ public sealed record StarGruntWeaponDto(string Name, int ImpactDie, bool IsSuppo
 /// <param name="Side">Which side it belongs to.</param>
 /// <param name="Level">Where it sits in the chain of command.</param>
 /// <param name="QualityDie">Its quality die, as a face count.</param>
-/// <param name="LeadershipDie">Its leadership die, as a face count.</param>
+/// <param name="LeadershipValue">Its Leadership Value, 1 to 3, where 1 is best.</param>
 /// <param name="Figures">The figures in it.</param>
 /// <param name="Weapons">What it is carrying.</param>
 public sealed record AddStarGruntUnitRequest(
@@ -51,7 +51,7 @@ public sealed record AddStarGruntUnitRequest(
     string Side,
     string Level,
     int QualityDie,
-    int LeadershipDie,
+    int LeadershipValue,
     IReadOnlyList<StarGruntFigureDto> Figures,
     IReadOnlyList<StarGruntWeaponDto> Weapons);
 
@@ -68,6 +68,10 @@ public sealed record BeginStarGruntActivationRequest(string Side, string UnitId)
 /// <summary>Spends one action on something that is not shooting.</summary>
 /// <param name="Action">The action taken: Move, Dash, Reorganise and so on.</param>
 public sealed record StarGruntStepRequest(string Action);
+
+/// <summary>An action a named unit takes that needs nothing but the unit.</summary>
+/// <param name="UnitId">The unit acting.</param>
+public sealed record StarGruntUnitActionRequest(string UnitId);
 
 /// <summary>Declines to activate anything.</summary>
 /// <param name="Side">The side passing.</param>
@@ -104,7 +108,7 @@ public sealed record StarGruntWeaponLegalityDto(string Name, bool CanFire, strin
 /// <param name="Side">Which side it is on.</param>
 /// <param name="Level">Its command level.</param>
 /// <param name="QualityDie">Its quality die, as a face count.</param>
-/// <param name="LeadershipDie">Its leadership die, as a face count.</param>
+/// <param name="LeadershipValue">Its Leadership Value, 1 to 3, where 1 is best.</param>
 /// <param name="FiguresAlive">Figures still standing.</param>
 /// <param name="FullStrength">Figures it started with.</param>
 /// <param name="FiguresWounded">Figures carrying a wound.</param>
@@ -123,7 +127,7 @@ public sealed record StarGruntUnitDto(
     string Side,
     string Level,
     int QualityDie,
-    int LeadershipDie,
+    int LeadershipValue,
     int FiguresAlive,
     int FullStrength,
     int FiguresWounded,

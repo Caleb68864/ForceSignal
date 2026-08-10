@@ -24,6 +24,12 @@ export function dieFrom(value: unknown, fallback = 8): number {
   return ladder.includes(die) ? die : fallback;
 }
 
+/** Puts a Leadership Value in range, 1 to 3, where 1 is the best. */
+export function leadershipFrom(value: unknown, fallback = 2): number {
+  const leadership = Number(value);
+  return Number.isInteger(leadership) && leadership >= 1 && leadership <= 3 ? leadership : fallback;
+}
+
 /** Everything one side has on the table, ready to write out. */
 export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForceFile {
   return {
@@ -36,7 +42,7 @@ export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForc
         name: unit.name,
         level: unit.level,
         qualityDie: unit.qualityDie,
-        leadershipDie: unit.leadershipDie,
+        leadershipValue: unit.leadershipValue,
         // Full strength rather than what is left: a force file is a roster, not a casualty return.
         figures: Array.from({ length: unit.fullStrength }, () => ({ armourDie: 6 })),
         weapons: unit.weapons.map((weapon) => ({
@@ -78,7 +84,7 @@ export function fromForceFile(payload: unknown): StarGruntForceFile {
         name: typeof unit.name === 'string' && unit.name.trim() ? unit.name.trim() : `Squad ${index + 1}`,
         level: typeof unit.level === 'string' && unit.level.trim() ? unit.level.trim() : 'Squad',
         qualityDie: dieFrom(unit.qualityDie),
-        leadershipDie: dieFrom(unit.leadershipDie),
+        leadershipValue: leadershipFrom(unit.leadershipValue),
         // A squad of nobody is not a squad; a squad of two hundred is a typo.
         figures: (figures.length > 0 ? figures : [{}])
           .slice(0, 40)

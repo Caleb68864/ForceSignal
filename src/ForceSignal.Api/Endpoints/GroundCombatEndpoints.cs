@@ -107,6 +107,17 @@ public static class GroundCombatEndpoints
             .Produces<StarGruntSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/remove-suppression", (
+            Guid gameId,
+            StarGruntUnitActionRequest request,
+            IStarGruntGameService games) => Results.Ok(games.RemoveSuppression(gameId, request)))
+            .WithName("RemoveStarGruntSuppression")
+            .WithTags("StarGrunt")
+            .WithSummary("Spends an action trying to get a pinned unit's head back up.")
+            .WithDescription("One action, one roll, one marker at best - the unit's quality die must exceed its leadership value. The action is spent whether or not it works.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/end", (Guid gameId, IStarGruntGameService games) =>
             Results.Ok(games.EndActivation(gameId)))
             .WithName("EndStarGruntActivation")

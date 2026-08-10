@@ -63,8 +63,15 @@ public sealed record UnitDefinition
     /// <summary>The unit's quality die, which also sets its range band.</summary>
     public QualityDie QualityDie { get; init; } = QualityDie.D8;
 
-    /// <summary>The die its leader throws for a confidence test.</summary>
-    public QualityDie LeadershipDie { get; init; } = QualityDie.D8;
+    /// <summary>
+    /// The leader's Leadership Value, from 1 to 3, where 1 is the best.
+    /// </summary>
+    /// <remarks>
+    /// A number rather than a die, which is what the rules use and what every roll against a leader
+    /// has to beat. It was modelled as a die at first and that was simply wrong: nothing in the game
+    /// ever rolls a leadership die, and the suppression and rally engines both take a value.
+    /// </remarks>
+    public int LeadershipValue { get; init; } = 2;
 
     /// <summary>The figures in it, at full strength.</summary>
     public ImmutableArray<FigureProfile> Figures { get; init; } = [];
@@ -89,7 +96,7 @@ public sealed record UnitDefinition
         && Side == other.Side
         && Level == other.Level
         && QualityDie == other.QualityDie
-        && LeadershipDie == other.LeadershipDie
+        && LeadershipValue == other.LeadershipValue
         && StructuralEquality.Sequence(Figures, other.Figures)
         && StructuralEquality.Sequence(Weapons, other.Weapons);
 
@@ -100,7 +107,7 @@ public sealed record UnitDefinition
         Side,
         Level,
         QualityDie,
-        LeadershipDie,
+        LeadershipValue,
         StructuralEquality.SequenceHash(Figures),
         StructuralEquality.SequenceHash(Weapons));
 }

@@ -36,6 +36,9 @@ public interface IStarGruntGameService
     /// <summary>Fires one weapon at another unit.</summary>
     StarGruntSnapshotDto Fire(Guid gameId, StarGruntFireRequest request);
 
+    /// <summary>Spends an action trying to shake off one suppression marker.</summary>
+    StarGruntSnapshotDto RemoveSuppression(Guid gameId, StarGruntUnitActionRequest request);
+
     /// <summary>Closes the open activation.</summary>
     StarGruntSnapshotDto EndActivation(Guid gameId);
 
@@ -189,6 +192,13 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
     }
 
     /// <inheritdoc />
+    public StarGruntSnapshotDto RemoveSuppression(Guid gameId, StarGruntUnitActionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.RemoveSuppression(new UnitId(request.UnitId), _dice));
+    }
+
+    /// <inheritdoc />
     public StarGruntSnapshotDto EndActivation(Guid gameId) => Command(gameId, game => game.EndActivation());
 
     /// <inheritdoc />
@@ -237,7 +247,7 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
             ? level
             : throw new InvalidOperationException($"'{request.Level}' is not a command level."),
         QualityDie = Die(request.QualityDie, nameof(request.QualityDie)),
-        LeadershipDie = Die(request.LeadershipDie, nameof(request.LeadershipDie)),
+        LeadershipValue = Leadership(request.LeadershipValue),
         Figures = [.. (request.Figures ?? []).Select(figure => new FigureProfile(Die(figure.ArmourDie, "armour")))],
         Weapons = [.. (request.Weapons ?? []).Select(weapon => new WeaponProfile
         {
@@ -250,6 +260,18 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
 
     private static string Required(string? value, string message) =>
         string.IsNullOrWhiteSpace(value) ? throw new InvalidOperationException(message) : value.Trim();
+
+    /// <summary>
+    /// Checks a Leadership Value is one the rules recognise.
+    /// </summary>
+    /// <remarks>
+    /// One to three, one being the best. Not a die: nothing rolls a leadership die, and every roll
+    /// against a leader has to beat this number.
+    /// </remarks>
+    private static int Leadership(int value) =>
+        value is >= 1 and <= 3
+            ? value
+            : throw new InvalidOperationException($"A Leadership Value of {value} is not one the rules use (1 to 3, 1 best).");
 
     /// <summary>Turns a face count into a rung of the ladder, refusing anything that is not one.</summary>
     private static QualityDie Die(int faces, string what) =>
@@ -266,9 +288,10 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
     /// Turns an action's name into a step.
     /// </summary>
     /// <remarks>
-    /// Fire and TransferAction are not reachable here: both have to name what they spend, so both
-    /// have their own command. Sending either through this route would build a step with an empty
-    /// resource set, which is exactly how a per-activation limit stops working.
+    /// Fire, TransferAction and RemoveSuppression are not reachable here. The first two have to name
+    /// what they spend, and a step built with an empty resource set is how a per-activation limit
+    /// stops working; the third rolls a die, and this route deliberately has no die source. Each has
+    /// a command of its own.
     /// </remarks>
     private static ActivationStep StepFor(string? action)
     {
@@ -277,8 +300,8 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
             throw new InvalidOperationException($"'{action}' is not an action a unit can take.");
         }
 
-        return parsed is StarGruntAction.Fire or StarGruntAction.TransferAction
-            ? throw new InvalidOperationException($"{parsed} has to name what it spends, so it has a command of its own.")
+        return parsed is StarGruntAction.Fire or StarGruntAction.TransferAction or StarGruntAction.RemoveSuppression
+            ? throw new InvalidOperationException($"{parsed} has a command of its own, because it names what it spends or rolls for it.")
             : StarGruntSteps.Simple(parsed);
     }
 
@@ -317,7 +340,7 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
             unit.Side.Value,
             unit.Level.ToString(),
             (int)unit.QualityDie,
-            (int)unit.LeadershipDie,
+            unit.LeadershipValue,
             status.FiguresAlive,
             unit.FullStrength,
             status.FiguresWounded,

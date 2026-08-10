@@ -86,7 +86,7 @@ public sealed class StarGruntPersistenceTests
         side,
         "Squad",
         QualityDie: 8,
-        LeadershipDie: 8,
+        LeadershipValue: 2,
         Figures: [.. Enumerable.Repeat(new StarGruntFigureDto(6), 8)],
         Weapons: [new StarGruntWeaponDto("Rifles", 10)]);
 

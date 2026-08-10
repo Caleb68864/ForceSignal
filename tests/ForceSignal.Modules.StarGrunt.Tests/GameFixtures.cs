@@ -30,7 +30,7 @@ internal static class GameFixtures
         Side = side,
         Level = CommandLevel.Squad,
         QualityDie = QualityDie.D8,
-        LeadershipDie = QualityDie.D8,
+        LeadershipValue = 2,
         Figures = [.. Enumerable.Repeat(new FigureProfile(QualityDie.D6), figures)],
         Weapons =
         [
