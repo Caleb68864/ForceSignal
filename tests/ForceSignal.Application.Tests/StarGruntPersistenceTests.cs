@@ -19,7 +19,7 @@ public sealed class StarGruntPersistenceTests
         first.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
         first.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
         var before = first.Fire(game, new StarGruntFireRequest(
-            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportDice: [8], DistanceInches: 9, Cover: "Soft"));
+            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportWeapons: [], DistanceInches: 9, Cover: "Soft"));
 
         // A second service over the same store is what a restart looks like.
         var after = new StarGruntGameService(null, store).GetSnapshot(game);

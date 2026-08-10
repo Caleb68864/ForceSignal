@@ -58,6 +58,8 @@ export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForc
           impactDie: weapon.impactDie,
           isSupport: weapon.isSupport,
           isCloseRange: weapon.isCloseRange,
+          supportFirepowerDie: weapon.supportFirepowerDie,
+          neverJoinsSquadFire: weapon.neverJoinsSquadFire,
         })),
       })),
   };
@@ -109,6 +111,8 @@ export function fromForceFile(payload: unknown): StarGruntForceFile {
               impactDie: dieFrom(entryWeapon.impactDie),
               isSupport: entryWeapon.isSupport === true,
               isCloseRange: entryWeapon.isCloseRange === true,
+              supportFirepowerDie: dieFrom(entryWeapon.supportFirepowerDie, 6),
+              neverJoinsSquadFire: entryWeapon.neverJoinsSquadFire === true,
             };
           }),
       };

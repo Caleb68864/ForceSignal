@@ -34,6 +34,26 @@ public sealed record WeaponProfile
     /// <summary>True when this is a support weapon, adding its own die to a volley.</summary>
     public bool IsSupport { get; init; }
 
+    /// <summary>
+    /// The die this weapon adds to the squad's volley when it is folded into small-arms fire.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="ImpactDie"/> and not derived from it. A support weapon folded into
+    /// squad fire adds <em>weight</em>, never its own heavier impact - so it contributes this die to
+    /// the roll while every hit is still resolved on the small arms. Both numbers come off the
+    /// user's own record card.
+    /// </remarks>
+    public QualityDie SupportFirepowerDie { get; init; } = QualityDie.D6;
+
+    /// <summary>
+    /// True when this weapon always needs an action of its own and can never be folded in.
+    /// </summary>
+    /// <remarks>
+    /// A property of the weapon on the user's card rather than a list of names here, because naming
+    /// the weapons the rule applies to would be shipping part of their weapon table.
+    /// </remarks>
+    public bool NeverJoinsSquadFire { get; init; }
+
     /// <summary>True when the weapon is effective only inside one range band.</summary>
     public bool IsCloseRange { get; init; }
 }

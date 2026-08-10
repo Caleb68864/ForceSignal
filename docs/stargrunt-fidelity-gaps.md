@@ -166,12 +166,29 @@ game - it is set once and never moves.
 resolution - initiating, terror effects, casualties in close combat, the routed-on-assault rule for
 broken units - is absent. Listed here so the fidelity picture is complete in one place.
 
-## Gap 10 - Support weapons are not distinguished when firing
+## Gap 10 - Support weapons are not distinguished when firing - FIXED 2026-08-10
 
-**Severity: low.** `WeaponProfile.IsSupport` is recorded and never read. The fire command takes
-support dice as a free-form list from the player instead of deriving which of the unit's own support
-weapons are joining the volley. Defensible while the player is transcribing everything by hand, but
-the flag is currently dead weight and should either be used or dropped.
+**Severity: low as written, and the write-up understated it.** `WeaponProfile.IsSupport` was
+recorded and never read, and the volley took support dice as a free-form list the player typed per
+shot.
+
+Reading the rule turned a tidy-up into a missing rule. Folding a support weapon into squad fire is a
+**trade**: it adds its die to the volley, and in exchange it **may not also fire on its own that
+activation**. With loose dice the app could not know a weapon had been used, so it could not hold
+anyone to the second half.
+
+**Fixed by naming the weapons instead of the dice.** A volley names which of the unit's own support
+weapons join it; their firepower dice come off the roster; and every weapon in the volley is spent
+in the frame, so the per-activation limit refuses the support weapon a second, separate shot without
+any new rule being written - the limit was already read off the steps.
+
+Two smaller things came with it. A support weapon carries a **support firepower die** distinct from
+its impact die, because folding one in adds weight and never its own heavier punch. And a weapon can
+be marked as **never joining squad fire**, since the rules exclude one man-portable type outright -
+a flag on the user's own card rather than a list of weapon names here, which would be shipping part
+of their table.
+
+The policy's weapon gate now checks every weapon a step names rather than only the first.
 
 ## Gap 11 - Leadership was modelled as a die - FIXED 2026-08-10
 
@@ -212,7 +229,8 @@ than a die. Rally will want the same value, so this unblocks gap 3 as well.
    on the way, because rallying cannot be right without fatigue.
 3. ~~**Gap 4, 5 and 6** - casualty allocation onto figures.~~ **Done.**
 4. ~~**Gap 7 and 8** - reaction tests and fatigue.~~ **Done**, bar fatigue that changes mid-game.
-5. **Gap 10** - decide whether support weapons are derived or declared.
+5. ~~**Gap 10** - decide whether support weapons are derived or declared.~~ **Done**: named, not
+   declared as dice, which is what made the trade enforceable.
 6. **Gap 9** - close assault, as its own piece of work.
 
 The first three items are all the same shape: the engine is built and tested, and the game layer

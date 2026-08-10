@@ -34,7 +34,7 @@ export function addUnit(gameId: string, unit: {
   leadershipValue: number;
   fatigue: string;
   figures: { armourDie: number }[];
-  weapons: { name: string; impactDie: number; isSupport: boolean; isCloseRange: boolean }[];
+  weapons: { name: string; impactDie: number; isSupport: boolean; isCloseRange: boolean; supportFirepowerDie: number; neverJoinsSquadFire: boolean }[];
 }) {
   return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/units`, unit);
 }
@@ -65,7 +65,7 @@ export function fire(gameId: string, shot: {
   targetId: string;
   weaponName: string;
   firepowerDie: number;
-  supportDice: number[];
+  supportWeapons: string[];
   distanceInches: number;
   cover: string;
   inPosition: boolean;

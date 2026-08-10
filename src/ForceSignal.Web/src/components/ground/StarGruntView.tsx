@@ -48,8 +48,7 @@ type ShotForm = {
   targetId: string;
   weaponName: string;
   firepowerDie: number;
-  supportDie: number;
-  useSupport: boolean;
+  supportWeapons: string[];
   distanceInches: number;
   cover: string;
   inPosition: boolean;
@@ -80,8 +79,7 @@ export function StarGruntView() {
     targetId: '',
     weaponName: '',
     firepowerDie: 8,
-    supportDie: 8,
-    useSupport: false,
+    supportWeapons: [],
     distanceInches: 10,
     cover: 'None',
     inPosition: false,
@@ -323,7 +321,7 @@ export function StarGruntView() {
               targetId: shot.targetId || targets[0]?.id || '',
               weaponName: shot.weaponName || activating.weapons[0]?.name || '',
               firepowerDie: shot.firepowerDie,
-              supportDice: shot.useSupport ? [shot.supportDie] : [],
+              supportWeapons: shot.supportWeapons,
               distanceInches: shot.distanceInches,
               cover: shot.cover,
               inPosition: shot.inPosition,
@@ -345,7 +343,14 @@ export function StarGruntView() {
             qualityDie: unitForm.qualityDie,
             leadershipValue: unitForm.leadershipValue,
             figures: Array.from({ length: Math.max(1, unitForm.figures) }, () => ({ armourDie: unitForm.armourDie })),
-            weapons: [{ name: unitForm.weaponName, impactDie: unitForm.impactDie, isSupport: false, isCloseRange: false }],
+            weapons: [{
+              name: unitForm.weaponName,
+              impactDie: unitForm.impactDie,
+              isSupport: false,
+              isCloseRange: false,
+              supportFirepowerDie: 6,
+              neverJoinsSquadFire: false,
+            }],
             fatigue: unitForm.fatigue,
           }),
           `${unitForm.name} joined ${unitForm.side}.`,
@@ -523,19 +528,20 @@ function FirePanel({
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
         </select>
       </label>
-      <label>
-        Support die
-        <select
-          value={shot.useSupport ? shot.supportDie : 0}
-          onChange={(event) => {
-            const value = Number(event.target.value);
-            onChange({ useSupport: value > 0, supportDie: value > 0 ? value : shot.supportDie });
-          }}
-        >
-          <option value={0}>None</option>
-          {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
-        </select>
-      </label>
+      {firer.weapons.filter((weapon) => weapon.isSupport && !weapon.neverJoinsSquadFire).map((weapon) => (
+        <label key={`support-${weapon.name}`} title="Adds its die to the volley. It cannot also fire on its own this activation.">
+          Add {weapon.name}
+          <input
+            type="checkbox"
+            checked={shot.supportWeapons.includes(weapon.name)}
+            onChange={(event) => onChange({
+              supportWeapons: event.target.checked
+                ? [...shot.supportWeapons, weapon.name]
+                : shot.supportWeapons.filter((name) => name !== weapon.name),
+            })}
+          />
+        </label>
+      ))}
       <label>
         Range
         <input

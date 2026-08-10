@@ -368,6 +368,8 @@ export type StarGruntWeapon = {
   impactDie: number;
   isSupport: boolean;
   isCloseRange: boolean;
+  supportFirepowerDie: number;
+  neverJoinsSquadFire: boolean;
 };
 export type StarGruntWeaponLegality = { name: string; canFire: boolean; blocker?: string | null };
 export type StarGruntUnit = {

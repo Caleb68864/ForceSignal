@@ -27,7 +27,7 @@ function unit(overrides: Partial<StarGruntUnit> = {}): StarGruntUnit {
     nextMoveLeavesCover: false,
     reactionTestCleared: false,
     hasActivated: false,
-    weapons: [{ name: 'Rifles', impactDie: 10, isSupport: false, isCloseRange: false }],
+    weapons: [{ name: 'Rifles', impactDie: 10, isSupport: false, isCloseRange: false, supportFirepowerDie: 6, neverJoinsSquadFire: false }],
     canActivate: true,
     activationBlocker: null,
     weaponLegality: [],

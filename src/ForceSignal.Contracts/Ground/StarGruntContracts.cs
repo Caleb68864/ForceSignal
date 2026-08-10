@@ -33,8 +33,16 @@ public sealed record StarGruntFigureDto(int ArmourDie);
 /// <param name="Name">What the card calls it.</param>
 /// <param name="ImpactDie">Its impact die, as a face count.</param>
 /// <param name="IsSupport">True when it is a support weapon.</param>
+/// <param name="SupportFirepowerDie">The die it adds to a squad volley, as a face count.</param>
+/// <param name="NeverJoinsSquadFire">True when it always needs an action of its own.</param>
 /// <param name="IsCloseRange">True when it is effective only inside one band.</param>
-public sealed record StarGruntWeaponDto(string Name, int ImpactDie, bool IsSupport = false, bool IsCloseRange = false);
+public sealed record StarGruntWeaponDto(
+    string Name,
+    int ImpactDie,
+    bool IsSupport = false,
+    bool IsCloseRange = false,
+    int SupportFirepowerDie = 6,
+    bool NeverJoinsSquadFire = false);
 
 /// <summary>Puts a unit on the table.</summary>
 /// <param name="Id">How the game will name it. Must be unique in the game.</param>
@@ -117,7 +125,11 @@ public sealed record StarGruntPassRequest(string Side);
 /// <param name="TargetId">The unit being shot at.</param>
 /// <param name="WeaponName">Which of the firer's weapons.</param>
 /// <param name="FirepowerDie">The small-arms firepower die, as a face count, off the user's table.</param>
-/// <param name="SupportDice">One face count per support weapon joining the volley.</param>
+/// <param name="SupportWeapons">
+/// Which of the unit's own support weapons are folded into this volley. Named rather than sent as
+/// loose dice, so the game knows they have been used: a weapon folded in may not also fire on its
+/// own that activation.
+/// </param>
 /// <param name="DistanceInches">How far apart the two units are, as measured at the table.</param>
 /// <param name="Cover">The target's cover: None, Soft or Hard.</param>
 /// <param name="InPosition">True when the target has settled into its ground.</param>
@@ -126,7 +138,7 @@ public sealed record StarGruntFireRequest(
     string TargetId,
     string WeaponName,
     int FirepowerDie,
-    IReadOnlyList<int> SupportDice,
+    IReadOnlyList<string> SupportWeapons,
     decimal DistanceInches,
     string Cover,
     bool InPosition = false);

@@ -37,7 +37,7 @@ public sealed class StarGruntGameServiceTests
 
         service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
         var fired = service.Fire(game, new StarGruntFireRequest(
-            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportDice: [8], DistanceInches: 9, Cover: "Soft"));
+            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportWeapons: [], DistanceInches: 9, Cover: "Soft"));
 
         Assert.Contains(fired.Log, entry => entry.Contains("Bravo Squad", StringComparison.Ordinal));
 
@@ -73,7 +73,7 @@ public sealed class StarGruntGameServiceTests
         service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
         service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
         service.Fire(game, new StarGruntFireRequest(
-            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportDice: [8], DistanceInches: 9, Cover: "Soft"));
+            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportWeapons: [], DistanceInches: 9, Cover: "Soft"));
         service.EndActivation(game);
 
         service.BeginActivation(game, new BeginStarGruntActivationRequest("red", "bravo"));

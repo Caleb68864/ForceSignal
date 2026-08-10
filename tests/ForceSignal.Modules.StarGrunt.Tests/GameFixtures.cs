@@ -35,7 +35,13 @@ internal static class GameFixtures
         Weapons =
         [
             new WeaponProfile { Name = "Rifles", ImpactDie = QualityDie.D8 },
-            new WeaponProfile { Name = "Squad Support", ImpactDie = QualityDie.D10, IsSupport = true },
+            new WeaponProfile
+            {
+                Name = "Squad Support",
+                ImpactDie = QualityDie.D10,
+                IsSupport = true,
+                SupportFirepowerDie = QualityDie.D8,
+            },
         ],
     };
 
@@ -74,7 +80,9 @@ internal static class GameFixtures
         Target = Bravo,
         WeaponName = "Rifles",
         FirepowerDie = QualityDie.D10,
-        SupportDice = [QualityDie.D8],
+        // The squad support is folded in, which is what makes this the rulebook's worked example:
+        // quality, small arms and one support die against the target's single range die.
+        SupportWeapons = ["Squad Support"],
         DistanceInches = 9,
         TargetPosture = new TargetPosture(CoverLevel.Soft),
     };

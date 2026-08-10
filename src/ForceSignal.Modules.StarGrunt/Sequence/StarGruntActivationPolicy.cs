@@ -334,7 +334,8 @@ public sealed class StarGruntActivationPolicy : IActivationPolicy
             return SequenceCheck.Allowed;
         }
 
-        if (StarGruntSteps.WeaponOf(step) is not { } weapon)
+        var weapons = StarGruntSteps.WeaponsOf(step).ToArray();
+        if (weapons.Length == 0)
         {
             return SequenceCheck.Refused("A fire action has to name the weapon it fires.");
         }
@@ -342,9 +343,19 @@ public sealed class StarGruntActivationPolicy : IActivationPolicy
         // Per activation, not per game turn. Reading it off the frame is the whole of the fix: a
         // transferred activation is a new frame, so the same weapon may fire again in the same turn,
         // and no flag anywhere has to be remembered or reset.
-        return frame.HasSpent(weapon)
-            ? SequenceCheck.Refused($"{weapon[StarGruntSteps.WeaponPrefix.Length..]} has already fired this activation.")
-            : SequenceCheck.Allowed;
+        //
+        // Every weapon the step names is checked, not just the first, because a volley may fold
+        // support weapons in - and each of those is spent by joining, so it cannot fire again alone.
+        foreach (var weapon in weapons)
+        {
+            if (frame.HasSpent(weapon))
+            {
+                return SequenceCheck.Refused(
+                    $"{weapon[StarGruntSteps.WeaponPrefix.Length..]} has already fired this activation.");
+            }
+        }
+
+        return SequenceCheck.Allowed;
     }
 
     private static SequenceCheck Transfers(

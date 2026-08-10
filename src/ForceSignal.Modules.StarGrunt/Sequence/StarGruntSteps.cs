@@ -52,6 +52,42 @@ public static class StarGruntSteps
         return ActivationStep.Of(Name(StarGruntAction.Fire), subject, WeaponPrefix + weapon);
     }
 
+    /// <summary>
+    /// Fire small arms with support weapons folded in, spending every weapon named.
+    /// </summary>
+    /// <param name="weapon">The small arms the volley is resolved on.</param>
+    /// <param name="supportWeapons">Support weapons adding their weight to it.</param>
+    /// <param name="subject">The element firing, or null for the whole squad.</param>
+    /// <returns>The step.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="supportWeapons"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="weapon"/> is blank.</exception>
+    /// <remarks>
+    /// All of them are spent, because a weapon folded into squad fire may not also fire on its own
+    /// that activation. Putting each into the frame's resources is what enforces it - the limit is
+    /// read off the steps rather than remembered anywhere.
+    /// </remarks>
+    public static ActivationStep Fire(string weapon, IEnumerable<string> supportWeapons, ElementId? subject = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(weapon);
+        ArgumentNullException.ThrowIfNull(supportWeapons);
+
+        var spent = new List<string> { WeaponPrefix + weapon };
+        spent.AddRange(supportWeapons.Select(name => WeaponPrefix + name));
+        return ActivationStep.Of(Name(StarGruntAction.Fire), subject, [.. spent]);
+    }
+
+    /// <summary>Every weapon a step spends.</summary>
+    /// <param name="step">The step.</param>
+    /// <returns>The weapon resources it names, which may be more than one.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="step"/> is null.</exception>
+    public static IEnumerable<string> WeaponsOf(ActivationStep step)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        return step.Consumes.IsDefaultOrEmpty
+            ? []
+            : step.Consumes.Where(name => name.StartsWith(WeaponPrefix, StringComparison.Ordinal));
+    }
+
     /// <summary>Hand a named subordinate a whole extra activation.</summary>
     /// <param name="beneficiary">The unit being sprung.</param>
     /// <param name="subject">The element making the call, or null.</param>

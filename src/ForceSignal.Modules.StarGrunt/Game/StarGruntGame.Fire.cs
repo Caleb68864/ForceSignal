@@ -37,8 +37,15 @@ public sealed record FireCommand
     /// <summary>The small-arms firepower die, from the user's own table.</summary>
     public required QualityDie FirepowerDie { get; init; }
 
-    /// <summary>One extra die per support weapon joining the volley.</summary>
-    public ImmutableArray<QualityDie> SupportDice { get; init; } = [];
+    /// <summary>
+    /// Which of the unit's own support weapons are being folded into this volley.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than handed over as loose dice, so the game knows which weapons have been used.
+    /// That is what lets it hold the squad to the trade the rules make: a weapon folded into squad
+    /// fire may not also fire on its own that activation.
+    /// </remarks>
+    public ImmutableArray<string> SupportWeapons { get; init; } = [];
 
     /// <summary>How far apart the two units are, as measured at the table.</summary>
     public decimal DistanceInches { get; init; }
@@ -101,13 +108,38 @@ public sealed partial record StarGruntGame
             return GameOutcome.Refused<StarGruntGame>($"{firer.Name} is not carrying anything called '{command.WeaponName}'.");
         }
 
+        var support = new List<WeaponProfile>();
+        foreach (var name in command.SupportWeapons)
+        {
+            var joining = firer.Weapons.FirstOrDefault(w => w.Name == name);
+            if (joining is null)
+            {
+                return GameOutcome.Refused<StarGruntGame>($"{firer.Name} is not carrying anything called '{name}'.");
+            }
+
+            if (!joining.IsSupport)
+            {
+                return GameOutcome.Refused<StarGruntGame>($"{joining.Name} is not a support weapon.");
+            }
+
+            if (joining.NeverJoinsSquadFire)
+            {
+                return GameOutcome.Refused<StarGruntGame>($"{joining.Name} only ever fires on its own.");
+            }
+
+            support.Add(joining);
+        }
+
         // Armour is the target's, and a unit whose figures differ takes the fire on the first of
         // them. Per-figure allocation is a refinement the rules allow and this slice does not need.
         var armour = target.Figures.IsDefaultOrEmpty ? QualityDie.D6 : target.Figures[0].ArmourDie;
 
         // Spend the action first. If the sequence refuses - wrong side's go, weapon already fired
         // this activation, no activation open at all - nothing has been rolled and nothing has moved.
-        var step = StarGruntSteps.Fire(weapon.Name);
+        // Every weapon in the volley is spent, which is what stops a support weapon firing again
+        // separately: the per-activation limit lives in the frame's resources and now sees all of
+        // them rather than only the small arms.
+        var step = StarGruntSteps.Fire(weapon.Name, support.Select(joining => joining.Name));
         var spent = TakeStep(step);
         if (!spent.IsAllowed)
         {
@@ -117,7 +149,7 @@ public sealed partial record StarGruntGame
         var outcome = new FireCombat(dice).Resolve(new FireAttempt(
             FirerQuality: firer.QualityDie,
             FirepowerDie: command.FirepowerDie,
-            SupportDice: [.. command.SupportDice],
+            SupportDice: [.. support.Select(joining => joining.SupportFirepowerDie)],
             ImpactDie: weapon.ImpactDie,
             TargetArmourDie: armour,
             DistanceInches: command.DistanceInches,
@@ -129,7 +161,7 @@ public sealed partial record StarGruntGame
         return GameOutcome.Allowed(
             spent.Value!
                 .WithStatus(command.Target, status => Absorb(status, landed))
-                .WithLog(Describe(firer, target, weapon, command, outcome, landed)));
+                .WithLog(Describe(firer, target, weapon, command, outcome, landed, support)));
     }
 
     /// <summary>What a volley did to particular figures.</summary>
@@ -227,11 +259,15 @@ public sealed partial record StarGruntGame
         WeaponProfile weapon,
         FireCommand command,
         FireOutcome outcome,
-        LandedHits landed)
+        LandedHits landed,
+        IReadOnlyList<WeaponProfile> support)
     {
         var range = command.DistanceInches.ToString("0.#", CultureInfo.InvariantCulture);
         var suppressed = outcome.Suppresses ? ", and it is suppressed" : string.Empty;
-        return $"{firer.Name} fired {weapon.Name} at {target.Name} at {range}: "
+        var joined = support.Count == 0
+            ? string.Empty
+            : $" with {string.Join(" and ", support.Select(weapon => weapon.Name))}";
+        return $"{firer.Name} fired {weapon.Name}{joined} at {target.Name} at {range}: "
             + $"{outcome.PotentialHits} potential hit{(outcome.PotentialHits == 1 ? string.Empty : "s")}, "
             + $"{landed.Killed} killed and {landed.Wounded} wounded{suppressed}."
             + (landed.LeaderHit ? " Its leader is down." : string.Empty);

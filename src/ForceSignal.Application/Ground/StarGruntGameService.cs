@@ -206,7 +206,7 @@ public sealed class StarGruntGameService(
             Target = new UnitId(request.TargetId),
             WeaponName = request.WeaponName,
             FirepowerDie = Die(request.FirepowerDie, nameof(request.FirepowerDie)),
-            SupportDice = [.. (request.SupportDice ?? []).Select(die => Die(die, nameof(request.SupportDice)))],
+            SupportWeapons = [.. request.SupportWeapons ?? []],
             DistanceInches = request.DistanceInches,
             TargetPosture = new TargetPosture(Cover(request.Cover), request.InPosition),
         };
@@ -337,6 +337,8 @@ public sealed class StarGruntGameService(
             ImpactDie = Die(weapon.ImpactDie, "impact"),
             IsSupport = weapon.IsSupport,
             IsCloseRange = weapon.IsCloseRange,
+            SupportFirepowerDie = Die(weapon.SupportFirepowerDie, "support firepower"),
+            NeverJoinsSquadFire = weapon.NeverJoinsSquadFire,
         })],
     };
 
@@ -440,7 +442,9 @@ public sealed class StarGruntGameService(
                 weapon.Name,
                 (int)weapon.ImpactDie,
                 weapon.IsSupport,
-                weapon.IsCloseRange))],
+                weapon.IsCloseRange,
+                (int)weapon.SupportFirepowerDie,
+                weapon.NeverJoinsSquadFire))],
             legality.CanActivate,
             legality.ActivationBlocker,
             [.. legality.Weapons.Select(weapon => new StarGruntWeaponLegalityDto(weapon.Name, weapon.CanFire, weapon.Blocker))]);

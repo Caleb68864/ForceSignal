@@ -52,7 +52,7 @@ public sealed class StarGruntEndpointTests
         await Post(client, $"/api/stargrunt/games/{game}/activations", new BeginStarGruntActivationRequest("blue", "alpha"));
 
         var fired = await Post(client, $"/api/stargrunt/games/{game}/activations/current/fire", new StarGruntFireRequest(
-            "alpha", "bravo", "Rifles", 10, [8], 9, "Soft"));
+            "alpha", "bravo", "Rifles", 10, [], 9, "Soft"));
 
         Assert.NotEmpty(fired!.Log);
         Assert.Equal("alpha", fired.ActivatingUnitId);
