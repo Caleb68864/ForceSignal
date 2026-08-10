@@ -29,12 +29,24 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
     private readonly SqliteConnection _connection;
     private readonly Lock _gate = new();
 
+    private readonly string _table;
+
     /// <summary>Opens the store, creating the file and its table if they are not there.</summary>
     /// <param name="databasePath">Where the file lives.</param>
-    /// <exception cref="ArgumentException">The path is blank.</exception>
-    public SqliteMatchStore(string databasePath)
+    /// <param name="tableName">
+    /// Which table to keep these in. Defaults to the Full Thrust matches table.
+    /// </param>
+    /// <remarks>
+    /// The table is a parameter because <see cref="LoadAll"/> hands back everything it holds and the
+    /// application parses all of it. Two games sharing one table would therefore mean each of them
+    /// being handed the other's saves at startup, which is not something either can do anything
+    /// sensible with. A store per game keeps that from being possible rather than merely unlikely.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The path is blank, or the table name is not a plain identifier.</exception>
+    public SqliteMatchStore(string databasePath, string tableName = "matches")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        _table = SafeIdentifier(tableName);
 
         var directory = Path.GetDirectoryName(Path.GetFullPath(databasePath));
         if (!string.IsNullOrEmpty(directory))
@@ -54,8 +66,8 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
         // is also what leaves the file readable if the process dies mid-write.
         Execute("PRAGMA journal_mode=WAL;");
         Execute("PRAGMA synchronous=NORMAL;");
-        Execute("""
-            CREATE TABLE IF NOT EXISTS matches (
+        Execute($"""
+            CREATE TABLE IF NOT EXISTS {_table} (
                 match_id   TEXT PRIMARY KEY,
                 state      TEXT NOT NULL,
                 written_at TEXT NOT NULL
@@ -71,8 +83,8 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
         lock (_gate)
         {
             using var command = _connection.CreateCommand();
-            command.CommandText = """
-                INSERT INTO matches (match_id, state, written_at)
+            command.CommandText = $"""
+                INSERT INTO {_table} (match_id, state, written_at)
                 VALUES ($id, $state, $now)
                 ON CONFLICT(match_id) DO UPDATE SET state = $state, written_at = $now;
                 """;
@@ -89,7 +101,7 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
         lock (_gate)
         {
             using var command = _connection.CreateCommand();
-            command.CommandText = "DELETE FROM matches WHERE match_id = $id;";
+            command.CommandText = $"DELETE FROM {_table} WHERE match_id = $id;";
             command.Parameters.AddWithValue("$id", matchId.ToString("n"));
             command.ExecuteNonQuery();
         }
@@ -102,7 +114,7 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
         {
             var stored = new List<StoredMatch>();
             using var command = _connection.CreateCommand();
-            command.CommandText = "SELECT match_id, state FROM matches ORDER BY written_at;";
+            command.CommandText = $"SELECT match_id, state FROM {_table} ORDER BY written_at;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -126,5 +138,31 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
         command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Checks a table name is a plain identifier before it is interpolated into SQL.
+    /// </summary>
+    /// <remarks>
+    /// A table name cannot be a query parameter, so it has to be interpolated - and anything
+    /// interpolated into SQL has to be proved safe first. Letters, digits and underscores only, and
+    /// not starting with a digit, which is every name this application will ever want.
+    /// </remarks>
+    /// <param name="tableName">The name to check.</param>
+    /// <returns>The name, when it is safe.</returns>
+    /// <exception cref="ArgumentException">It is blank or holds anything else.</exception>
+    private static string SafeIdentifier(string tableName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        var safe = tableName.Length <= 64
+            && !char.IsDigit(tableName[0])
+            && tableName.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');
+
+        return safe
+            ? tableName
+            : throw new ArgumentException(
+                $"'{tableName}' is not a plain table name. Use letters, digits and underscores only.",
+                nameof(tableName));
     }
 }

@@ -111,6 +111,37 @@ public sealed class SqliteMatchStoreTests : IDisposable
         Assert.Single(store.LoadAll());
     }
 
+    [Fact]
+    public void TwoGamesInOneFileDoNotSeeEachOthersSaves()
+    {
+        var path = Path.Combine(_directory, "shared.db");
+        using var matches = new SqliteMatchStore(path);
+        using var ground = new SqliteMatchStore(path, "stargrunt_games");
+        var spaceGame = Guid.NewGuid();
+        var groundGame = Guid.NewGuid();
+
+        matches.Save(spaceGame, "a fleet action");
+        ground.Save(groundGame, "a firefight");
+
+        // LoadAll hands back everything a store holds and the application parses all of it, so a
+        // shared table would mean each game being handed the other's saves at startup.
+        Assert.Equal(spaceGame, Assert.Single(matches.LoadAll()).MatchId);
+        Assert.Equal(groundGame, Assert.Single(ground.LoadAll()).MatchId);
+    }
+
+    [Theory]
+    [InlineData("matches; DROP TABLE matches--")]
+    [InlineData("2fast")]
+    [InlineData("has space")]
+    [InlineData("")]
+    public void ATableNameThatIsNotAPlainIdentifierIsRefused(string tableName)
+    {
+        // The name cannot be a query parameter, so it is interpolated - which means it has to be
+        // proved safe rather than trusted.
+        Assert.Throws<ArgumentException>(() =>
+            new SqliteMatchStore(Path.Combine(_directory, "guarded.db"), tableName));
+    }
+
     public void Dispose()
     {
         if (!Directory.Exists(_directory))

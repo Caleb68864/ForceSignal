@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
@@ -62,11 +63,44 @@ public interface IStarGruntGameService
 /// </para>
 /// </remarks>
 /// <param name="rollDie">Die source, injectable so tests can script a firefight.</param>
-public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null) : IStarGruntGameService
+/// <param name="store">
+/// Where games are written so they survive a restart. Defaults to keeping nothing, which is what a
+/// test and a throwaway session want.
+/// </param>
+public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMatchStore? store = null)
+    : IStarGruntGameService
 {
     private readonly IQualityDiceRoller _dice = rollDie ?? new QualityDiceRoller();
+    private readonly IMatchStore _store = store ?? NoMatchStore.Instance;
     private readonly Lock _gate = new();
-    private readonly Dictionary<Guid, Held> _games = [];
+    private readonly Dictionary<Guid, Held> _games = RestoreAll(store);
+
+    /// <summary>
+    /// Brings back whatever the store was holding, so a restart resumes the games rather than
+    /// ending them.
+    /// </summary>
+    /// <remarks>
+    /// A save that cannot be read is skipped rather than allowed to stop the others loading. It is
+    /// almost always a game written by an older shape of the code, and losing one is better than
+    /// refusing to start.
+    /// </remarks>
+    private static Dictionary<Guid, Held> RestoreAll(IMatchStore? store)
+    {
+        var games = new Dictionary<Guid, Held>();
+        foreach (var saved in store?.LoadAll() ?? [])
+        {
+            try
+            {
+                games[saved.MatchId] = new Held(StarGruntGameSerialization.Restore(saved.State), 1);
+            }
+            catch (ArgumentException)
+            {
+                // Not a StarGrunt game, or not one this version understands.
+            }
+        }
+
+        return games;
+    }
 
     /// <inheritdoc />
     public StarGruntGameCreatedResponse CreateGame(CreateStarGruntGameRequest request)
@@ -77,7 +111,9 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null) : I
         lock (_gate)
         {
             var id = Guid.NewGuid();
-            _games[id] = new Held(StarGruntGame.Create(name), 1);
+            var game = StarGruntGame.Create(name);
+            _games[id] = new Held(game, 1);
+            _store.Save(id, StarGruntGameSerialization.Save(game));
             return new StarGruntGameCreatedResponse(id, ToSnapshot(id, _games[id]));
         }
     }
@@ -184,6 +220,11 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null) : I
     {
         var held = new Held(game, _games[gameId].Version + 1);
         _games[gameId] = held;
+
+        // Written inside the lock, like the Full Thrust store: the alternative has a window where
+        // the game has moved on and the disk has not, and a crash in that window loses the turn
+        // nobody wants to replay.
+        _store.Save(gameId, StarGruntGameSerialization.Save(game));
         return ToSnapshot(gameId, held);
     }
 
