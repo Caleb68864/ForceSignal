@@ -53,7 +53,7 @@ ForceSignal.Modules.GroundCombat      shared by both games
 ForceSignal.Modules.StarGrunt         figure scale
     Combat/      range bands, the fire sequence vs dispersed targets            [BUILT]
     Morale/      confidence, fatigue, suppression 0-3                           [BUILT]
-    Assault/     close assault                                                  [BUILT]
+    Assault/     close assault                                                  [TODO]
 
 ForceSignal.Modules.Dirtside          vehicle scale
     Combat/      two-stage hit and damage resolution                            [BUILT]
