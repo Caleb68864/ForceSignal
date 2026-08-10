@@ -9,8 +9,10 @@
  * because that is how the game is played: with a tape measure and an eyeball.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ApiRequestError, newId } from '../../lib/api.ts';
+import { fromForceFile, toForceFile } from '../../lib/forceIo.ts';
+import { downloadText } from '../../lib/format.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 
@@ -55,6 +57,8 @@ export function StarGruntView() {
     weaponName: 'Rifles',
     impactDie: 10,
   });
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const [importSide, setImportSide] = useState('blue');
   const [shot, setShot] = useState<ShotForm>({
     targetId: '',
     weaponName: '',
@@ -247,6 +251,68 @@ export function StarGruntView() {
           `${unitForm.name} joined ${unitForm.side}.`,
         )}
       />
+
+      <div className="card-module" aria-label="Force transfer">
+        <span className="label module-title">Force transfer</span>
+        <p className="constraint-line">
+          A force is a lot of dice to type. Export writes the roster at full strength with a format
+          version, so the file still opens later.
+        </p>
+        <label>
+          Side
+          <input value={importSide} onChange={(event) => setImportSide(event.target.value)} />
+        </label>
+        <div className="quick-actions">
+          {snapshot.sides.map((side) => (
+            <button
+              key={`export-${side}`}
+              className="ghost"
+              type="button"
+              onClick={() => {
+                downloadText(
+                  `${side}-force.json`,
+                  'application/json',
+                  JSON.stringify(toForceFile(side, snapshot.units), null, 2),
+                );
+                setMessage(`Exported ${side}.`);
+              }}
+            >
+              Export {side}
+            </button>
+          ))}
+          <button className="ghost" type="button" onClick={() => fileInput.current?.click()}>Import Force</button>
+        </div>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) {
+              return;
+            }
+
+            try {
+              const force = fromForceFile(JSON.parse(await file.text()));
+              const side = importSide.trim() || force.side;
+              for (const imported of force.units) {
+                // Fresh ids: the same file may be imported for both sides, and a game cannot hold
+                // two units under one name.
+                await api.addUnit(game, { ...imported, id: newId(), side });
+              }
+
+              setSnapshot(await api.readGame(game));
+              setMessage(`Imported ${force.units.length} unit(s) into ${side}.`);
+            } catch (error) {
+              setMessage(error instanceof ApiRequestError || error instanceof Error
+                ? error.message
+                : 'That file could not be read.');
+            }
+          }}
+        />
+      </div>
 
       <div className="card-module" aria-label="StarGrunt log">
         <span className="label module-title">Log</span>
