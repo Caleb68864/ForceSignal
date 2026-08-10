@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using ForceSignal.Modules.GroundCombat.Dice;
+using ForceSignal.Modules.StarGrunt.Combat;
 using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Game;
 using ForceSignal.Modules.StarGrunt.Sequence;
@@ -51,4 +52,20 @@ internal static class GameFixtures
             .BeginTurn().Value!
             .ChooseFirstActivator(Blue, takeIt: true).Value!
             .BeginActivation(Blue, Alpha).Value!;
+
+    /// <summary>The worked firefight's dice: three through, two hits, one of them a kill.</summary>
+    public static readonly int[] AKillAndAStop = [6, 7, 5, 4, 5, 3, 5, 9, 4];
+
+    /// <summary>Alpha's rifles at Bravo, just over one band away and in soft cover.</summary>
+    /// <returns>The volley.</returns>
+    public static FireCommand Volley() => new()
+    {
+        Firer = Alpha,
+        Target = Bravo,
+        WeaponName = "Rifles",
+        FirepowerDie = QualityDie.D10,
+        SupportDice = [QualityDie.D8],
+        DistanceInches = 9,
+        TargetPosture = new TargetPosture(CoverLevel.Soft),
+    };
 }

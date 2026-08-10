@@ -42,6 +42,14 @@ public sealed partial record StarGruntGame
             return GameOutcome.Refused<StarGruntGame>($"There is no unit called '{unit}' on the table.");
         }
 
+        // Casualties are the game's business, not the sequence's: the shared layer alternates
+        // between units and has no idea any of them can die. Without this a squad that had been
+        // wiped out kept its place in the alternation and could still be activated.
+        if (Status(unit).IsWipedOut)
+        {
+            return GameOutcome.Refused<StarGruntGame>($"{Unit(unit).Name} has been wiped out.");
+        }
+
         return Apply(
             GroundCombatSequence.CanBeginActivation(Session, side, unit),
             () => GroundCombatSequence.BeginActivation(Session, side, unit));

@@ -16,15 +16,12 @@ namespace ForceSignal.Modules.StarGrunt.Tests;
 /// </remarks>
 public sealed class GameFireTests
 {
-    // The worked firefight from FireCombatTests: three dice through, two hits, one of them a kill.
-    private static readonly int[] AKillAndAStop = [6, 7, 5, 4, 5, 3, 5, 9, 4];
-
     [Fact]
     public void FireTakesCasualtiesOffTheTarget()
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(Volley(), new ScriptedDice(AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
 
         Assert.Equal(7, after.Status(GameFixtures.Bravo).FiguresAlive);
     }
@@ -34,7 +31,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(Volley(), new ScriptedDice(AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
 
         Assert.Equal(1, after.Status(GameFixtures.Bravo).SuppressionMarkers);
     }
@@ -45,7 +42,7 @@ public sealed class GameFireTests
         var game = GameFixtures.Firefight()
             .WithStatus(GameFixtures.Bravo, status => status with { SuppressionMarkers = 3 });
 
-        var after = game.Fire(Volley(), new ScriptedDice(AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
 
         Assert.Equal(3, after.Status(GameFixtures.Bravo).SuppressionMarkers);
     }
@@ -55,7 +52,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(Volley(), new ScriptedDice(AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
 
         Assert.Contains(after.Log, entry => entry.Contains("Bravo Squad", StringComparison.Ordinal));
     }
@@ -65,7 +62,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(Volley(), new ScriptedDice(AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
 
         Assert.Contains(after.Session.CurrentFrame!.Steps, step => step.Kind.Contains("Fire", StringComparison.Ordinal));
     }
@@ -74,9 +71,9 @@ public sealed class GameFireTests
     public void TheSameWeaponCannotFireTwiceInOneActivation()
     {
         var game = GameFixtures.Firefight()
-            .Fire(Volley(), new ScriptedDice(AKillAndAStop)).Value!;
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
 
-        var again = game.Fire(Volley(), new ScriptedDice(AKillAndAStop));
+        var again = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
 
         Assert.False(again.IsAllowed);
         Assert.False(string.IsNullOrWhiteSpace(again.Reason));
@@ -87,7 +84,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var refused = game.Fire(Volley() with { Target = new UnitId("ghost") }, new ScriptedDice(AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley() with { Target = new UnitId("ghost") }, new ScriptedDice(GameFixtures.AKillAndAStop));
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("ghost", refused.Reason!, StringComparison.Ordinal);
@@ -98,7 +95,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var refused = game.Fire(Volley() with { WeaponName = "Railgun" }, new ScriptedDice(AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley() with { WeaponName = "Railgun" }, new ScriptedDice(GameFixtures.AKillAndAStop));
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("Railgun", refused.Reason!, StringComparison.Ordinal);
@@ -110,7 +107,7 @@ public sealed class GameFireTests
         var game = GameFixtures.Firefight()
             .WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 0 });
 
-        var refused = game.Fire(Volley(), new ScriptedDice(AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
 
         Assert.False(refused.IsAllowed);
     }
@@ -120,19 +117,9 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.TwoSquadGame();
 
-        var refused = game.Fire(Volley(), new ScriptedDice(AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
 
         Assert.False(refused.IsAllowed);
     }
 
-    private static FireCommand Volley() => new()
-    {
-        Firer = GameFixtures.Alpha,
-        Target = GameFixtures.Bravo,
-        WeaponName = "Rifles",
-        FirepowerDie = QualityDie.D10,
-        SupportDice = [QualityDie.D8],
-        DistanceInches = 9,
-        TargetPosture = new TargetPosture(CoverLevel.Soft),
-    };
 }
