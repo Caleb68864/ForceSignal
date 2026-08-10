@@ -105,6 +105,63 @@ public sealed partial class InMemoryMatchService
     }
 
     /// <summary>
+    /// How far a fighter group can still get: its remaining endurance spent at its current speed,
+    /// never past the reach its layer allows.
+    /// </summary>
+    private static int FighterReach(ShipState ship)
+    {
+        var remaining = Math.Max(0, ship.FighterEnduranceMax - ship.FighterEnduranceUsed);
+        var velocityReach = Math.Max(1, ship.CurrentVelocity) * Math.Max(1, remaining);
+        var maxRange = ship.FighterMaxRange > 0 ? ship.FighterMaxRange : 24;
+        return Math.Max(1, Math.Min(maxRange, velocityReach));
+    }
+
+    /// <summary>
+    /// Systems damage control could actually bring back. Hull damage is not on the list - parties
+    /// patch systems, not structure - and neither is anything a needle beam cut out, which is
+    /// removed rather than broken.
+    /// </summary>
+    /// <remarks>
+    /// The test each system is held to is the one <c>PlanRepair</c> enforces, down to the needled
+    /// count: a system whose damage is all needle work is gone rather than broken, so it must not
+    /// be offered as a job the server would then refuse.
+    /// </remarks>
+    private static List<SystemOptionDto> RepairableSystemsOn(ShipState ship)
+    {
+        var jobs = new List<SystemOptionDto>();
+        if (IsRepairable(ship.FireControlDamage, ship.NeedledFireControl))
+        {
+            jobs.Add(new SystemOptionDto("firecon", "Fire control", "FireControl"));
+        }
+
+        // Drives are lost in two steps, so the needled steps count against the same ladder.
+        var driveSteps = ship.DriveDamage > 0 ? ship.DriveDamage >= ship.ThrustRating ? 2 : 1 : 0;
+        if (IsRepairable(driveSteps, ship.NeedledDrives))
+        {
+            jobs.Add(new SystemOptionDto("drive", "Drives", "Drive"));
+        }
+
+        if (IsRepairable(ship.ScreenDamage, ship.NeedledScreens))
+        {
+            jobs.Add(new SystemOptionDto("screen", "Screen generator", "Screen"));
+        }
+
+        if (IsRepairable(ship.FighterBayDamage, ship.NeedledBays))
+        {
+            jobs.Add(new SystemOptionDto("bay", "Fighter bay", "FighterBay"));
+        }
+
+        jobs.AddRange(ship.Weapons
+            .Where(mount => mount.IsDestroyed && !mount.IsNeedleKilled)
+            .Select(mount => new SystemOptionDto($"mount-{mount.Id}", mount.Name, "Weapon", mount.Id)));
+
+        return jobs;
+    }
+
+    /// <summary>Whether damage to a system is something parties could work on, or all needle work.</summary>
+    private static bool IsRepairable(int damage, int needled) => damage > 0 && damage - needled > 0;
+
+    /// <summary>
     /// Everything that has to be true before a shot may be taken, asked once.
     /// </summary>
     /// <remarks>

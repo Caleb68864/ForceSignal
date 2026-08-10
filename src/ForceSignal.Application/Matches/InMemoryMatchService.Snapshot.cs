@@ -67,7 +67,11 @@ public sealed partial class InMemoryMatchService
             s.NeedledScreens,
             s.NeedledBays,
             s.FighterRelaunchTurn,
-            s.FighterGroundedForGame)).ToArray(),
+            s.FighterGroundedForGame,
+            EffectiveScreens(s),
+            WorkingFireControl(s),
+            FighterReach(s),
+            RepairableSystemsOn(s))).ToArray(),
         match.Ships.Select(s =>
         {
             match.Commitments.TryGetValue(s.Id, out var commitment);

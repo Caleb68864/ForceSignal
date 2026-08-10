@@ -7,7 +7,7 @@
 
 import { csvEscape, formatLogTime, formatPhase, formatRulesProfile } from './format.ts';
 import { normalizeOrdnanceStatus } from './normalize.ts';
-import { effectiveScreens, isFighterGroup } from './rules.ts';
+import { isFighterGroup } from './rules.ts';
 import type { MatchSnapshot } from '../types.ts';
 
 export function matchLogToCsv(snapshot: MatchSnapshot) {
@@ -23,7 +23,7 @@ export function matchLogToCsv(snapshot: MatchSnapshot) {
     ...snapshot.ships.map((ship) => [
       'ship',
       ship.name,
-      `pos ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)}, V${ship.currentVelocity}/C${ship.currentCourse}, hull ${ship.hullDamage}/${ship.hullMax}, armor ${ship.armorDamage}/${ship.armorMax}, screens ${effectiveScreens(ship)}${ship.isDestroyed ? ', destroyed' : ''}`,
+      `pos ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)}, V${ship.currentVelocity}/C${ship.currentCourse}, hull ${ship.hullDamage}/${ship.hullMax}, armor ${ship.armorDamage}/${ship.armorMax}, screens ${ship.effectiveScreens}${ship.isDestroyed ? ', destroyed' : ''}`,
     ]),
     ...(snapshot.ordnanceMarkers ?? []).map((marker) => [
       'ordnance',

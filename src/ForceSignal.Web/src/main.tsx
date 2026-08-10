@@ -5,7 +5,7 @@ import './style.css';
 import { CourseCompass, DamageControl, DamageControlPanel, DamageMeter, FiringConsole, PreTurnChecklist, ShipEditor, ShipProfileFields } from './components/ShipCard.tsx';
 import { PlayMap } from './components/map/PlayMap.tsx';
 import { carrierImportRank, fleetPoints, nextShipName, shipsPoints } from './lib/fleetMath.ts';
-import { captureDamageState, effectiveScreens, firingDraftFor, focusedFirstShips } from './lib/rules.ts';
+import { captureDamageState, firingDraftFor, focusedFirstShips } from './lib/rules.ts';
 import { normalizeMatchSnapshot } from './lib/normalize.ts';
 import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
 import { fleetExportToCsv, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
@@ -1531,7 +1531,7 @@ function App() {
                       {status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
                       {ship.hullDamage > 0 || ship.armorDamage > 0 ? <span className="warn">Damage recorded</span> : <span>Undamaged</span>}
                       {ship.fireControlDamage + ship.driveDamage + ship.weaponDamage > 0 ? <span className="danger">Systems degraded</span> : null}
-                      {effectiveScreens(ship) > 0 ? <span>Screens {effectiveScreens(ship)}</span> : null}
+                      {ship.effectiveScreens > 0 ? <span>Screens {ship.effectiveScreens}</span> : null}
                     </div>
 
                     {canEdit ? (
@@ -1577,7 +1577,7 @@ function App() {
                       </div>
                       <div>
                         <span className="label">Screens</span>
-                        <strong>{effectiveScreens(ship)}</strong>
+                        <strong>{ship.effectiveScreens}</strong>
                       </div>
                       <div>
                         <span className="label">Pos</span>

@@ -15,7 +15,7 @@ import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance,
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
 import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
-import { describeArcs, effectiveScreens, fighterEnduranceRange, firingDraftFor, firingTargetOptions, isFighterGroup } from '../../lib/rules.ts';
+import { describeArcs, firingDraftFor, firingTargetOptions, isFighterGroup } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, Ship, TablePoint, FiringSolution } from '../../types.ts';
 
@@ -918,7 +918,7 @@ export function PlayMap({
             </div>
             <div>
               <span className="label">Screens</span>
-              <strong>{effectiveScreens(selectedShip)}</strong>
+              <strong>{selectedShip.effectiveScreens}</strong>
             </div>
           </div>
         </div>
@@ -1003,7 +1003,7 @@ function MapContactCard({
         </div>
         <div>
           <dt>Armor</dt>
-          <dd>{ship.armorDamage}/{ship.armorMax}{effectiveScreens(ship) > 0 ? ` · screens ${effectiveScreens(ship)}` : ''}</dd>
+          <dd>{ship.armorDamage}/{ship.armorMax}{ship.effectiveScreens > 0 ? ` · screens ${ship.effectiveScreens}` : ''}</dd>
         </div>
         <div>
           <dt>Systems</dt>
@@ -1019,7 +1019,7 @@ function FighterRangeOverlay({ ship, ships, tableWidth, tableDepth }: { ship: Sh
   }
 
   const maxRange = ship.fighterMaxRange || 24;
-  const enduranceRange = fighterEnduranceRange(ship);
+  const enduranceRange = ship.fighterReach;
   const homeCarrier = ship.homeCarrierShipId
     ? ships.find((candidate) => candidate.id === ship.homeCarrierShipId)
     : null;

@@ -70,6 +70,12 @@ export type Ship = {
   fighterStatus: FighterStatus;
   homeCarrierShipId?: string | null;
   pointsValue: number;
+  // Worked out by the server. A screen rating is what the ship was built with; these are what it
+  // still has, and the arithmetic that gets from one to the other lives in one place.
+  effectiveScreens: number;
+  workingFireControl: number;
+  fighterReach: number;
+  repairableSystems: SystemOption[];
 };
 export type WeaponMount = {
   id: string;

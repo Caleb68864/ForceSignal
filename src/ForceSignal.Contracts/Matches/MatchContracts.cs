@@ -468,7 +468,15 @@ public sealed record ShipDto(
     int NeedledScreens = 0,
     int NeedledBays = 0,
     int FighterRelaunchTurn = 0,
-    bool FighterGroundedForGame = false);
+    bool FighterGroundedForGame = false,
+    // Worked out here rather than by whoever is drawing the ship. Each is a small subtraction, but
+    // a small subtraction copied into every client is still a second place for the rule to live -
+    // and a screen rating is what a ship was built with, not what it still generates. Defaulted so
+    // a snapshot exported before they existed still restores.
+    int EffectiveScreens = 0,
+    int WorkingFireControl = 0,
+    int FighterReach = 0,
+    IReadOnlyList<SystemOptionDto>? RepairableSystems = null);
 
 /// <summary>Commit/reveal status for a ship order.</summary>
 public sealed record OrderStatusDto(Guid ShipId, Guid OwnerParticipantId, bool IsCommitted, bool IsRevealed, bool VerificationFailed);

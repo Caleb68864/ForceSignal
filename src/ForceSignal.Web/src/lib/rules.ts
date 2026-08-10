@@ -12,23 +12,6 @@ import { distanceBetweenShips } from './geometry.ts';
 import { normalizeOrdnanceStatus, normalizeShipIconKey } from './normalize.ts';
 import type { DamageState, FiringArc, FiringDraft, MatchSnapshot, Ship, ShipForm } from '../types.ts';
 
-/// The hull damage track as boxes per row: four rows, remainder weighted to the upper rows.
-export function hullRowsFor(hullMax: number): number[] {
-  if (hullMax <= 0) {
-    return [];
-  }
-
-  if (hullMax < 4) {
-    return Array.from({ length: hullMax }, () => 1);
-  }
-
-  const baseSize = Math.floor(hullMax / 4);
-  const remainder = hullMax % 4;
-  return Array.from({ length: 4 }, (_, index) => baseSize + (index < remainder ? 1 : 0));
-}
-export function hullRowsOf(ship: Ship): number[] {
-  return ship.hullRows && ship.hullRows.length > 0 ? ship.hullRows : hullRowsFor(ship.hullMax);
-}
 export function arcLabel(arc: FiringArc) {
   return arcLabels[arc] ?? arc;
 }
@@ -47,15 +30,6 @@ export function describeArcs(arcs: FiringArc[]) {
 // actually allowed. Keeping a copy here meant keeping an incomplete one - it knew nothing about
 // ammunition, spent mounts, fighter endurance or the fire control a needle beam claims - so the
 // console offered shots the server then refused.
-/// Screen levels still generating, after whatever has been shot away. The rating a ship carries is
-/// what it was built with, so anything shown to the table has to subtract the damage.
-export function effectiveScreens(ship: Ship) {
-  return Math.max(0, ship.screenRating - (ship.screenDamage ?? 0));
-}
-/// Fire control systems still working. Each one holds a single target ship for the turn.
-export function workingFireControl(ship: Ship) {
-  return Math.max(0, (ship.fireControlMax ?? 1) - ship.fireControlDamage);
-}
 export function isFighterGroup(ship: Pick<Ship, 'iconKey' | 'className'>) {
   return normalizeShipIconKey(ship.iconKey, ship.className) === 'fighter-group'
     || (ship.className ?? '').toLowerCase().includes('fighter');
@@ -64,40 +38,11 @@ export function isFighterGroupForm(form: Pick<ShipForm, 'iconKey' | 'className'>
   return normalizeShipIconKey(form.iconKey, form.className) === 'fighter-group'
     || form.className.toLowerCase().includes('fighter');
 }
-export function fighterEnduranceRange(ship: Ship) {
-  const remaining = Math.max(0, ship.fighterEnduranceMax - ship.fighterEnduranceUsed);
-  const velocityReach = Math.max(1, ship.currentVelocity) * Math.max(1, remaining);
-  const maxRange = ship.fighterMaxRange || 24;
-  return Math.max(1, Math.min(maxRange, velocityReach));
-}
-/// Systems on a ship that damage control could actually bring back. Hull damage and dead parties are
-/// never on the list, and neither is anything a needle beam cut out.
-export function repairableSystems(ship: Ship): { key: string; label: string; kind: string; weaponId?: string }[] {
-  const jobs: { key: string; label: string; kind: string; weaponId?: string }[] = [];
-  if (ship.fireControlDamage > 0) {
-    jobs.push({ key: 'firecon', label: 'Fire control', kind: 'FireControl' });
-  }
-
-  if (ship.driveDamage > 0) {
-    jobs.push({ key: 'drive', label: 'Drives', kind: 'Drive' });
-  }
-
-  if ((ship.screenDamage ?? 0) > 0) {
-    jobs.push({ key: 'screen', label: 'Screen generator', kind: 'Screen' });
-  }
-
-  if ((ship.fighterBayDamage ?? 0) > 0) {
-    jobs.push({ key: 'bay', label: 'Fighter bay', kind: 'FighterBay' });
-  }
-
-  for (const mount of ship.weapons) {
-    if (mount.isDestroyed && !mount.isNeedleKilled) {
-      jobs.push({ key: `mount-${mount.id}`, label: mount.name, kind: 'Weapon', weaponId: mount.id });
-    }
-  }
-
-  return jobs;
-}
+// The hull row split, screens and fire control still generating, a fighter group's reach, and the
+// systems damage control could bring back all used to be worked out here. They are fields on the
+// ship in the snapshot now: each is a small subtraction, but a small subtraction copied into the
+// client is still a second place for the rule to live, and a screen rating is what a ship was
+// built with rather than what it still generates.
 export function firingDraftFor(ship: Ship, ships: Ship[], drafts: Record<string, FiringDraft>, ownedShipIds?: Set<string>): FiringDraft {
   const current = drafts[ship.id];
   const isTargetable = (candidate: Ship) => candidate.id !== ship.id && !candidate.isDestroyed;

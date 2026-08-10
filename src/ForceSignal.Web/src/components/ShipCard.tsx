@@ -9,7 +9,7 @@ import { newId } from '../lib/api.ts';
 import { courseAngle, courseFromPoint, distanceBetweenShips, wrapCourse } from '../lib/geometry.ts';
 import { formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, turnPatchForCourse, turnPatchFromManeuvers } from '../lib/movement.ts';
 import { normalizeShipIconKey } from '../lib/normalize.ts';
-import { arcLabel, buildPreTurnChecklist, describeArcs, firingTargetOptions, isFighterGroupForm, repairableSystems } from '../lib/rules.ts';
+import { arcLabel, buildPreTurnChecklist, describeArcs, firingTargetOptions, isFighterGroupForm } from '../lib/rules.ts';
 import { useFiringSolution } from '../lib/useFiringSolution.ts';
 import { newWeaponMount, updateWeapon } from '../lib/weapons.ts';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, FiringSolution, MatchSnapshot, RepairJob, Ship, ShipForm, ShipIconKey, TurnDirection, WeaponKind } from '../types.ts';
@@ -658,7 +658,7 @@ export function CourseCompass({
 export function DamageControlPanel({ ship, onRepair }: { ship: Ship; onRepair: (jobs: RepairJob[]) => void }) {
   const [assignments, setAssignments] = useState<Record<string, number>>({});
   const parties = ship.damageControlParties ?? 0;
-  const jobs = repairableSystems(ship);
+  const jobs = ship.repairableSystems;
   const spent = Object.values(assignments).reduce((total, count) => total + count, 0);
   const needleLosses = ship.weapons.filter((mount) => mount.isNeedleKilled).length;
 
