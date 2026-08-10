@@ -82,34 +82,52 @@ the screen has a button to say so.
 Fatigue came with them, which closes most of gap 8: it caps where confidence starts and how far a
 rally can bring it back, and rallying is simply wrong without it.
 
-## Gap 4 - Wounds are paired across the squad rather than per figure
+## Gap 4 - Wounds are paired across the squad rather than per figure - FIXED 2026-08-10
 
-**Severity: high - it kills more people than the rules do.**
+**Severity: high - it killed more people than the rules do.**
 
 Wounds and kills are allocated **randomly across the squad's figures**, and a figure taking two
 wound results *in one resolution* is dead. The code totals the volley's wounds and converts every
 two of them into a death regardless of who they landed on.
 
 With two wounds against an eight-figure squad the rules kill somebody roughly one time in eight;
-the code kills somebody every time. The fire engine deliberately does not attribute hits to
-individual figures, so fixing this means allocating hits to figures at the point of application -
-which is where the rules put it.
+the code killed somebody every time.
 
-## Gap 5 - Lingering wounds are recorded and never used
+**Fixed.** Hits are allocated to figures at the point of application, through an `IFigureAllocator`
+kept separate from the die source - it is a choice among the figures standing, not a die roll, and a
+test needs to be able to say exactly where each hit went. A figure taking two wound results in one
+resolution dies; wounds from separate volleys never pair, because the rule is scoped to a single
+resolution.
+
+The randomness is the rule rather than flavour, which the fix proved immediately: making allocation
+real turned a serialization test non-deterministic, because a kill landing on the leader suppresses
+the squad a second time. Every scripted volley in the tests now scripts its allocation too.
+
+## Gap 5 - Lingering wounds are recorded and never used - FIXED 2026-08-10
 
 **Severity: low, but actively misleading.** `FiguresWounded` accumulates across resolutions, is
 carried in the snapshot and is shown on the unit card. Nothing ever reads it. Since the death rule
 is scoped to a single resolution, a wound that does not pair inside that resolution has no further
 mechanical life.
 
-**Required:** either give it a meaning the rules support, or stop displaying a number that means
-nothing. The audit's reading is that it has no lasting effect and should go.
+**Fixed, and the audit's first reading was wrong.** Checked against the source: a wounded figure is
+a **casualty**, not a trooper fighting on hurt. It comes out of the fighting strength and stays with
+the unit, which has to carry it - a squad cannot carry more casualties than it has fit troops, and
+carrying them makes it encumbered.
 
-## Gap 6 - A leader casualty does not suppress the squad
+So the count means something after all, and something the player needs: **each untreated casualty
+raises the threat level** on the confidence table, and abandoning wounded raises it further. It is
+now labelled Casualties on the card rather than Wounded, and a wound moves a figure from the
+fighting strength into it.
+
+## Gap 6 - A leader casualty does not suppress the squad - FIXED 2026-08-10
 
 **Severity: medium.** Errata: a wounded or killed squad leader automatically hands the squad a
 suppression marker. Casualties are applied with no notion of who was hit, so this never fires.
-Related to gap 4 - both need casualties to land on identified figures.
+**Fixed**, and it depended on gap 4: the marker cannot be handed over without knowing who was hit.
+The squad leader is the first figure while he is standing, so a hit allocated there is a hit on him.
+The marker is handed over exactly once - losing a leader suppresses the unit the moment it happens
+and does not keep suppressing it every time somebody else is shot.
 
 ## Gap 7 - No reaction test, so leaving cover is never gated
 
@@ -178,7 +196,7 @@ than a die. Rally will want the same value, so this unblocks gap 3 as well.
 1. ~~**Gap 1** - suppression removal.~~ **Done**, along with gap 11 which it uncovered.
 2. ~~**Gap 2 and 3** - confidence tests, rally, reorganise.~~ **Done**, and they closed most of gap 8
    on the way, because rallying cannot be right without fatigue.
-3. **Gap 4, 5 and 6** - casualty allocation onto figures, which gaps 5 and 6 both hang off.
+3. ~~**Gap 4, 5 and 6** - casualty allocation onto figures.~~ **Done.**
 4. **Gap 7 and 8** - reaction tests and fatigue.
 5. **Gap 10** - decide whether support weapons are derived or declared.
 6. **Gap 9** - close assault, as its own piece of work.

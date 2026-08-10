@@ -423,7 +423,7 @@ function UnitCard({
       <div className="ship-readouts">
         <div><span className="label">Side</span><strong>{unit.side}</strong></div>
         <div><span className="label">Figures</span><strong>{unit.figuresAlive}/{unit.fullStrength}</strong></div>
-        <div><span className="label">Wounded</span><strong>{unit.figuresWounded}</strong></div>
+        <div><span className="label">Casualties</span><strong>{unit.figuresWounded}</strong></div>
         <div><span className="label">Suppression</span><strong>{unit.suppressionMarkers}</strong></div>
         <div><span className="label">Confidence</span><strong>{unit.confidence}</strong></div>
         <div><span className="label">Fatigue</span><strong>{unit.fatigue}</strong></div>
@@ -433,6 +433,7 @@ function UnitCard({
         {wiped ? 'Wiped out.' : unit.canActivate ? 'Ready to activate.' : unit.activationBlocker ?? 'Not now.'}
         {unit.isInCover ? ' In cover.' : ''}
         {unit.isDisorganised ? ' Disorganised.' : ''}
+        {unit.isLeaderDown ? ' Leader down.' : ''}
       </p>
       <div className="quick-actions">
         <button type="button" disabled={busy || !unit.canActivate} onClick={onActivate}>Activate</button>

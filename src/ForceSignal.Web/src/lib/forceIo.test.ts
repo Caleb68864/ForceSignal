@@ -19,6 +19,7 @@ function unit(overrides: Partial<StarGruntUnit> = {}): StarGruntUnit {
     figuresAlive: 5,
     fullStrength: 8,
     figuresWounded: 1,
+    isLeaderDown: false,
     suppressionMarkers: 2,
     confidence: 'Shaken',
     isDisorganised: false,

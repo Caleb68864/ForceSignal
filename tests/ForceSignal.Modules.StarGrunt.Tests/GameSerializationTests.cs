@@ -27,7 +27,7 @@ public sealed class GameSerializationTests
     public void AGameMidActivationComesBackTheSame()
     {
         var game = GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         var restored = StarGruntGameSerialization.Restore(StarGruntGameSerialization.Save(game));
 
@@ -38,7 +38,7 @@ public sealed class GameSerializationTests
     public void CasualtiesAndSuppressionSurviveTheTrip()
     {
         var game = GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         var restored = StarGruntGameSerialization.Restore(StarGruntGameSerialization.Save(game));
 
@@ -50,7 +50,7 @@ public sealed class GameSerializationTests
     public void ARestoredGameCanBePlayedOn()
     {
         var game = GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         var restored = StarGruntGameSerialization.Restore(StarGruntGameSerialization.Save(game));
 
@@ -62,7 +62,7 @@ public sealed class GameSerializationTests
     public void TheLogComesBackInOrder()
     {
         var game = GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         var restored = StarGruntGameSerialization.Restore(StarGruntGameSerialization.Save(game));
 

@@ -21,7 +21,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         Assert.Equal(7, after.Status(GameFixtures.Bravo).FiguresAlive);
     }
@@ -31,7 +31,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         Assert.Equal(1, after.Status(GameFixtures.Bravo).SuppressionMarkers);
     }
@@ -42,7 +42,7 @@ public sealed class GameFireTests
         var game = GameFixtures.Firefight()
             .WithStatus(GameFixtures.Bravo, status => status with { SuppressionMarkers = 3 });
 
-        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         Assert.Equal(3, after.Status(GameFixtures.Bravo).SuppressionMarkers);
     }
@@ -52,7 +52,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         Assert.Contains(after.Log, entry => entry.Contains("Bravo Squad", StringComparison.Ordinal));
     }
@@ -62,7 +62,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
         Assert.Contains(after.Session.CurrentFrame!.Steps, step => step.Kind.Contains("Fire", StringComparison.Ordinal));
     }
@@ -71,9 +71,9 @@ public sealed class GameFireTests
     public void TheSameWeaponCannotFireTwiceInOneActivation()
     {
         var game = GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop)).Value!;
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
 
-        var again = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
+        var again = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
 
         Assert.False(again.IsAllowed);
         Assert.False(string.IsNullOrWhiteSpace(again.Reason));
@@ -84,7 +84,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var refused = game.Fire(GameFixtures.Volley() with { Target = new UnitId("ghost") }, new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley() with { Target = new UnitId("ghost") }, new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("ghost", refused.Reason!, StringComparison.Ordinal);
@@ -95,7 +95,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.Firefight();
 
-        var refused = game.Fire(GameFixtures.Volley() with { WeaponName = "Railgun" }, new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley() with { WeaponName = "Railgun" }, new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("Railgun", refused.Reason!, StringComparison.Ordinal);
@@ -107,7 +107,7 @@ public sealed class GameFireTests
         var game = GameFixtures.Firefight()
             .WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 0 });
 
-        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("nobody left", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -118,7 +118,7 @@ public sealed class GameFireTests
     {
         var game = GameFixtures.TwoSquadGame();
 
-        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("Nothing is activated", refused.Reason!, StringComparison.Ordinal);

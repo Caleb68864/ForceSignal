@@ -61,10 +61,14 @@ public sealed partial record StarGruntGame
     /// per-activation weapon limit honest - the limit lives in the frame's spent resources, so it is
     /// the sequence layer that refuses a second volley from the same weapon, not a flag kept here.
     /// </remarks>
-    public GameOutcome<StarGruntGame> Fire(FireCommand command, IQualityDiceRoller dice)
+    public GameOutcome<StarGruntGame> Fire(
+        FireCommand command,
+        IQualityDiceRoller dice,
+        IFigureAllocator? allocator = null)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(dice);
+        allocator ??= new FigureAllocator();
 
         if (!HasUnit(command.Firer))
         {
@@ -120,31 +124,100 @@ public sealed partial record StarGruntGame
             TargetPosture: command.TargetPosture,
             IsCloseRangeWeapon: weapon.IsCloseRange));
 
+        var landed = Allocate(targetStatus, outcome, allocator);
+
         return GameOutcome.Allowed(
             spent.Value!
-                .WithStatus(command.Target, status => Absorb(status, outcome))
-                .WithLog(Describe(firer, target, weapon, command, outcome)));
+                .WithStatus(command.Target, status => Absorb(status, landed))
+                .WithLog(Describe(firer, target, weapon, command, outcome, landed)));
+    }
+
+    /// <summary>What a volley did to particular figures.</summary>
+    /// <param name="Killed">Figures killed outright or by a second wound.</param>
+    /// <param name="Wounded">Figures put out of the fight but still with the unit.</param>
+    /// <param name="LeaderHit">True when one of them was the squad leader.</param>
+    private readonly record struct LandedHits(int Killed, int Wounded, bool LeaderHit);
+
+    /// <summary>The squad leader is the first figure while he is on his feet.</summary>
+    private const int LeaderFigure = 0;
+
+    /// <summary>
+    /// Decides which figures a volley's hits landed on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each hit picks a figure at random from those still standing. A figure taking two wound
+    /// results <em>in this resolution</em> is dead; one taking a single wound is a casualty the
+    /// squad carries. Wounds from separate volleys never pair - the rule is scoped to one
+    /// resolution, and a trooper wounded last turn is already out of the fighting strength.
+    /// </para>
+    /// <para>
+    /// Doing this deterministically, which is what this code used to do, converts every two wounds
+    /// into a death and kills roughly eight times more men than the rules do on a full squad. The
+    /// randomness is the rule, not decoration.
+    /// </para>
+    /// </remarks>
+    private static LandedHits Allocate(UnitStatus status, FireOutcome outcome, IFigureAllocator allocator)
+    {
+        var standing = status.FiguresAlive;
+        if (standing <= 0)
+        {
+            return new LandedHits(0, 0, false);
+        }
+
+        var woundsPerFigure = new Dictionary<int, int>();
+        var killedFigures = new HashSet<int>();
+
+        foreach (var hit in outcome.Hits)
+        {
+            if (hit.Effect == HitEffect.Stopped)
+            {
+                continue;
+            }
+
+            var figure = allocator.Pick(standing);
+            if (hit.Effect == HitEffect.Kill)
+            {
+                killedFigures.Add(figure);
+                continue;
+            }
+
+            woundsPerFigure[figure] = woundsPerFigure.GetValueOrDefault(figure) + 1;
+        }
+
+        foreach (var pair in woundsPerFigure)
+        {
+            if (pair.Value >= 2)
+            {
+                killedFigures.Add(pair.Key);
+            }
+        }
+
+        var wounded = woundsPerFigure.Count(entry => entry.Value == 1 && !killedFigures.Contains(entry.Key));
+        var leaderHit = !status.IsLeaderDown
+            && (killedFigures.Contains(LeaderFigure) || woundsPerFigure.ContainsKey(LeaderFigure));
+
+        return new LandedHits(Math.Min(standing, killedFigures.Count), wounded, leaderHit);
     }
 
     /// <summary>Puts a volley's casualties and suppression onto the unit that took it.</summary>
     /// <remarks>
-    /// Two wounds on one figure in a single resolution is a death, which is why the wounds are paired
-    /// off here rather than simply counted. The odd one out stays a wound.
+    /// A wounded figure comes out of the fighting strength and stays with the unit: the rules treat
+    /// it as a casualty the squad carries, and each untreated one raises the threat level the player
+    /// reads off their own table.
     /// </remarks>
-    private static UnitStatus Absorb(UnitStatus status, FireOutcome outcome)
+    private static UnitStatus Absorb(UnitStatus status, LandedHits landed)
     {
-        var deathsFromWounds = outcome.Wounds / 2;
-        var lingering = outcome.Wounds % 2;
-        var killed = Math.Min(status.FiguresAlive, outcome.Kills + deathsFromWounds);
+        var killed = Math.Min(status.FiguresAlive, landed.Killed);
+        var wounded = Math.Min(status.FiguresAlive - killed, landed.Wounded);
 
         return status with
         {
-            FiguresAlive = status.FiguresAlive - killed,
-            FiguresWounded = Math.Min(status.FiguresAlive - killed, status.FiguresWounded + lingering),
-            // The cap is the suppression rule's, asked rather than restated.
-            SuppressionMarkers = outcome.Suppresses
-                ? Suppression.Add(status.SuppressionMarkers)
-                : status.SuppressionMarkers,
+            FiguresAlive = status.FiguresAlive - killed - wounded,
+            FiguresWounded = status.FiguresWounded + wounded,
+            IsLeaderDown = status.IsLeaderDown || landed.LeaderHit,
+            SuppressionMarkers = Suppression.Add(
+                landed.LeaderHit ? Suppression.Add(status.SuppressionMarkers) : status.SuppressionMarkers),
         };
     }
 
@@ -153,12 +226,14 @@ public sealed partial record StarGruntGame
         UnitDefinition target,
         WeaponProfile weapon,
         FireCommand command,
-        FireOutcome outcome)
+        FireOutcome outcome,
+        LandedHits landed)
     {
         var range = command.DistanceInches.ToString("0.#", CultureInfo.InvariantCulture);
         var suppressed = outcome.Suppresses ? ", and it is suppressed" : string.Empty;
         return $"{firer.Name} fired {weapon.Name} at {target.Name} at {range}: "
             + $"{outcome.PotentialHits} potential hit{(outcome.PotentialHits == 1 ? string.Empty : "s")}, "
-            + $"{outcome.Kills} killed and {outcome.Wounds} wounded{suppressed}.";
+            + $"{landed.Killed} killed and {landed.Wounded} wounded{suppressed}."
+            + (landed.LeaderHit ? " Its leader is down." : string.Empty);
     }
 }

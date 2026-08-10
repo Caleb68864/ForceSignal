@@ -134,7 +134,8 @@ public sealed record StarGruntWeaponLegalityDto(string Name, bool CanFire, strin
 /// <param name="Fatigue">How worn it is, which caps its confidence.</param>
 /// <param name="FiguresAlive">Figures still standing.</param>
 /// <param name="FullStrength">Figures it started with.</param>
-/// <param name="FiguresWounded">Figures carrying a wound.</param>
+/// <param name="FiguresWounded">Casualties the squad is carrying, out of the fight.</param>
+/// <param name="IsLeaderDown">True once the squad leader has been hit.</param>
 /// <param name="SuppressionMarkers">Suppression on it, from none to three.</param>
 /// <param name="Confidence">How much fight it has left.</param>
 /// <param name="IsDisorganised">True when it owes a reorganise before anything else.</param>
@@ -155,6 +156,7 @@ public sealed record StarGruntUnitDto(
     int FiguresAlive,
     int FullStrength,
     int FiguresWounded,
+    bool IsLeaderDown,
     int SuppressionMarkers,
     string Confidence,
     bool IsDisorganised,

@@ -53,6 +53,16 @@ internal static class GameFixtures
             .ChooseFirstActivator(Blue, takeIt: true).Value!
             .BeginActivation(Blue, Alpha).Value!;
 
+    /// <summary>
+    /// Sends every hit to a rifleman rather than the squad leader.
+    /// </summary>
+    /// <remarks>
+    /// Allocation is random in the rules, so a test that leaves it to chance is a test that passes
+    /// some days: a kill landing on the leader suppresses the squad a second time. Tests that are
+    /// not about who was hit say so here.
+    /// </remarks>
+    public static ScriptedAllocator HitsARifleman() => new(4, 4, 4, 4);
+
     /// <summary>The worked firefight's dice: three through, two hits, one of them a kill.</summary>
     public static readonly int[] AKillAndAStop = [6, 7, 5, 4, 5, 3, 5, 9, 4];
 

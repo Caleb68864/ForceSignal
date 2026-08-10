@@ -25,10 +25,23 @@ public sealed record UnitStatus
     public int FiguresAlive { get; init; }
 
     /// <summary>
-    /// Figures carrying a wound. Two wounds on one figure in a single resolution is a death, so
-    /// these are the ones that survived a single hit rather than a running total of hurt.
+    /// Casualties the squad is still carrying.
     /// </summary>
+    /// <remarks>
+    /// A wounded figure is out of the fight rather than fighting on hurt: it comes off
+    /// <see cref="FiguresAlive"/> and sits here, where the squad has to carry it. The count is not
+    /// decoration - each untreated casualty raises the threat level a player reads off their own
+    /// table, and abandoning them raises it further.
+    /// </remarks>
     public int FiguresWounded { get; init; }
+
+    /// <summary>True once the squad leader has been hit.</summary>
+    /// <remarks>
+    /// Kept so the errata's marker is handed over exactly once. Losing a leader suppresses the
+    /// unit the moment it happens; it does not keep suppressing it every time somebody else is
+    /// shot.
+    /// </remarks>
+    public bool IsLeaderDown { get; init; }
 
     /// <summary>Suppression markers on the unit, from none to three.</summary>
     public int SuppressionMarkers { get; init; }

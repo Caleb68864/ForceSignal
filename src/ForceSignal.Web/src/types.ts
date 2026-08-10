@@ -381,6 +381,7 @@ export type StarGruntUnit = {
   figuresAlive: number;
   fullStrength: number;
   figuresWounded: number;
+  isLeaderDown: boolean;
   suppressionMarkers: number;
   confidence: string;
   isDisorganised: boolean;

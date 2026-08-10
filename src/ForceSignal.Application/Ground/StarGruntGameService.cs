@@ -83,10 +83,14 @@ public interface IStarGruntGameService
 /// Where games are written so they survive a restart. Defaults to keeping nothing, which is what a
 /// test and a throwaway session want.
 /// </param>
-public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMatchStore? store = null)
+public sealed class StarGruntGameService(
+    IQualityDiceRoller? rollDie = null,
+    IMatchStore? store = null,
+    IFigureAllocator? allocator = null)
     : IStarGruntGameService
 {
     private readonly IQualityDiceRoller _dice = rollDie ?? new QualityDiceRoller();
+    private readonly IFigureAllocator _allocator = allocator ?? new FigureAllocator();
     private readonly IMatchStore _store = store ?? NoMatchStore.Instance;
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, Held> _games = RestoreAll(store);
@@ -201,7 +205,7 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
             TargetPosture = new TargetPosture(Cover(request.Cover), request.InPosition),
         };
 
-        return Command(gameId, game => game.Fire(command, _dice));
+        return Command(gameId, game => game.Fire(command, _dice, _allocator));
     }
 
     /// <inheritdoc />
@@ -404,6 +408,7 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
             status.FiguresAlive,
             unit.FullStrength,
             status.FiguresWounded,
+            status.IsLeaderDown,
             status.SuppressionMarkers,
             status.Confidence.ToString(),
             status.IsDisorganised,
