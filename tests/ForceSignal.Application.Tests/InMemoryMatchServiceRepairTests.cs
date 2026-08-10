@@ -191,6 +191,37 @@ public sealed class InMemoryMatchServiceRepairTests
     }
 
     [Fact]
+    public void Snapshot_DoesNotOfferARepairJobForAMountANeedleCutOut()
+    {
+        // The snapshot advertises repair jobs so a screen can offer them, and it must never offer
+        // one the repair path would then refuse. Found by mutation testing: removing the needled
+        // guard from the advertised list broke nothing, because no test had ever needled anything
+        // before reading it.
+        var table = RepairTable.Build();
+        table.NeedleTheMount();
+
+        var ship = table.ShipIn(table.Service.GetSnapshot(table.MatchId));
+
+        Assert.DoesNotContain(ship.RepairableSystems!, job => job.WeaponId == table.MountId);
+    }
+
+    [Fact]
+    public void Snapshot_DoesNotOfferARepairJobForAFireControlANeedleCutOut()
+    {
+        // Fire control, drives, screens and bays are guarded by a count rather than a flag: damage
+        // that is all needle work is gone rather than broken. The mount test above does not reach
+        // that guard, which mutation testing is how anyone found out.
+        var table = RepairTable.Build();
+        table.NeedleTheFireControl();
+
+        var ship = table.ShipIn(table.Service.GetSnapshot(table.MatchId));
+
+        Assert.True(ship.FireControlDamage > 0);
+        Assert.Equal(ship.FireControlDamage, ship.NeedledFireControl);
+        Assert.DoesNotContain(ship.RepairableSystems!, job => job.Kind == "FireControl");
+    }
+
+    [Fact]
     public void AttemptRepairs_RefusesDuringTheFiringPhase()
     {
         var table = RepairTable.Build();
@@ -314,8 +345,13 @@ public sealed class InMemoryMatchServiceRepairTests
                 ship.DriveDamage, ship.WeaponDamage, ScreenDamage: 1));
         }
 
+        /// <summary>Has a needle beam cut the fire control out, which puts it past repair.</summary>
+        public void NeedleTheFireControl() => Needle(ShipSystemKind.FireControl, null);
+
         /// <summary>Has a needle beam cut the mount out, which puts it past repair.</summary>
-        public void NeedleTheMount()
+        public void NeedleTheMount() => Needle(ShipSystemKind.Weapon, MountId);
+
+        private void Needle(ShipSystemKind system, Guid? weaponId)
         {
             var firing = IntoFiringPhase();
             if (firing.FiringParticipantId != firing.Participants.Single(p => p.Role != "Owner").Id)
@@ -327,7 +363,7 @@ public sealed class InMemoryMatchServiceRepairTests
             Dice.Script(6);
             Service.FireWeapon(MatchId, new FireWeaponRequest(
                 OpponentToken, EnemyId, ShipId, EnemyNeedleId, 6,
-                TargetSystem: ShipSystemKind.Weapon, TargetSystemWeaponId: MountId));
+                TargetSystem: system, TargetSystemWeaponId: weaponId));
             Service.CeaseFire(MatchId, new CeaseFireRequest(OpponentToken, EnemyId));
             Service.AdvanceTurn(MatchId, OwnerToken);
         }

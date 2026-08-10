@@ -66,6 +66,9 @@ public sealed class GameLegalityTests
     {
         var legality = GameFixtures.Firefight().LegalityFor(GameFixtures.Alpha);
 
+        // Asserted non-empty first: Assert.All over nothing passes, which would make this test
+        // green for a unit that had been given no weapons at all.
+        Assert.NotEmpty(legality.Weapons);
         Assert.All(legality.Weapons, weapon => Assert.True(weapon.CanFire));
     }
 
@@ -77,6 +80,7 @@ public sealed class GameLegalityTests
 
         var legality = game.LegalityFor(GameFixtures.Alpha);
 
+        Assert.NotEmpty(legality.Weapons);
         Assert.All(legality.Weapons, weapon => Assert.False(weapon.CanFire));
     }
 

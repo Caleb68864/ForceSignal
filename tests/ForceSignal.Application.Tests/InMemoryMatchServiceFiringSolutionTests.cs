@@ -89,6 +89,7 @@ public sealed class InMemoryMatchServiceFiringSolutionTests
 
         Assert.Contains(solution.NeedleTargets, option => option.Kind == "FireControl");
         Assert.Contains(solution.NeedleTargets, option => option.Kind == "Weapon");
+        Assert.NotEmpty(solution.NeedleTargets);
         Assert.All(solution.NeedleTargets, option => Assert.False(string.IsNullOrWhiteSpace(option.Label)));
     }
 
@@ -125,7 +126,7 @@ public sealed class InMemoryMatchServiceFiringSolutionTests
     {
         var table = FiringTable.Create();
 
-        Assert.ThrowsAny<Exception>(() => table.Service.GetFiringSolution(table.MatchId, new FiringSolutionRequest(
+        Assert.Throws<UnauthorizedAccessException>(() => table.Service.GetFiringSolution(table.MatchId, new FiringSolutionRequest(
             table.OpponentToken, table.BlueLead.Id, table.RedLead.Id, table.BlueWeaponId, 10)));
     }
 

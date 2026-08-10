@@ -70,6 +70,7 @@ public sealed class StarGruntGameServiceTests
         Assert.True(alpha.CanActivate);
         Assert.False(bravo.CanActivate);
         Assert.False(string.IsNullOrWhiteSpace(bravo.ActivationBlocker));
+        Assert.NotEmpty(alpha.WeaponLegality);
         Assert.All(alpha.WeaponLegality, weapon => Assert.False(weapon.CanFire));
     }
 

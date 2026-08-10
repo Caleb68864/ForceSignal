@@ -36,6 +36,48 @@ public sealed class InMemoryMatchServicePreviewTests
     }
 
     [Fact]
+    public void PreviewOrder_PutsTheShipWhereTheGeometrySays()
+    {
+        // Pinned to worked-out numbers rather than only to agreement with resolution. The
+        // round-trip test above compares the preview with the move, so a change that moves both -
+        // the rounding, the trigonometry, the clamp - keeps them equal and passes. Mutation testing
+        // found exactly that: rounding positions to whole units instead of thousandths broke no
+        // test in the suite.
+        //
+        // Blue Lead sits at 20,24 on course 3 at velocity 6. Course 3 is a quarter turn clockwise
+        // from straight up, so a leg of 6 runs due right: 26,24 and no change in depth.
+        var table = PreviewTable.Create();
+
+        var preview = table.Service.PreviewOrder(table.MatchId, new PreviewOrderRequest(
+            table.OwnerToken,
+            table.Ship.Id,
+            new MovementOrder(0, 0, TurnDirection.None)));
+
+        Assert.Equal(26m, preview.Path[^1].X);
+        Assert.Equal(24m, preview.Path[^1].Y);
+    }
+
+    [Fact]
+    public void PreviewOrder_KeepsPositionsToAThousandthOfAUnit()
+    {
+        // The rounding exists so a course whose sine is not exactly zero does not accumulate into
+        // 20.000000000000001 on a table measured in whole units. Rounding harder would silently
+        // snap every ship to a grid it does not play on.
+        var table = PreviewTable.Create();
+
+        var preview = table.Service.PreviewOrder(table.MatchId, new PreviewOrderRequest(
+            table.OwnerToken,
+            table.Ship.Id,
+            new MovementOrder(0, 0, TurnDirection.None, [new TurnManeuver(TurnDirection.Starboard, 1)])));
+
+        // A one-point turn ends on course 4, which is 120 degrees: a leg with a fractional
+        // component in both axes. Whole-unit rounding would make both of these integers.
+        var end = preview.Path[^1];
+        Assert.NotEqual(decimal.Round(end.X, 0), end.X);
+        Assert.Equal(decimal.Round(end.X, 3), end.X);
+    }
+
+    [Fact]
     public void PreviewOrder_WalksTheSameSegmentsTheMoveIsResolvedInto()
     {
         var table = PreviewTable.Create();
@@ -181,7 +223,7 @@ public sealed class InMemoryMatchServicePreviewTests
     {
         var table = PreviewTable.Create();
 
-        Assert.ThrowsAny<Exception>(() => table.Service.PreviewOrder(table.MatchId, new PreviewOrderRequest(
+        Assert.Throws<UnauthorizedAccessException>(() => table.Service.PreviewOrder(table.MatchId, new PreviewOrderRequest(
             table.OpponentToken,
             table.Ship.Id,
             new MovementOrder(1, 0, TurnDirection.None))));
@@ -192,7 +234,7 @@ public sealed class InMemoryMatchServicePreviewTests
     {
         var table = PreviewTable.Create();
 
-        Assert.ThrowsAny<Exception>(() => table.Service.PreviewOrder(table.MatchId, new PreviewOrderRequest(
+        Assert.Throws<UnauthorizedAccessException>(() => table.Service.PreviewOrder(table.MatchId, new PreviewOrderRequest(
             "not-a-token",
             table.Ship.Id,
             new MovementOrder(1, 0, TurnDirection.None))));

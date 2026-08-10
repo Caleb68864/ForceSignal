@@ -110,6 +110,7 @@ public sealed class GameFireTests
         var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
 
         Assert.False(refused.IsAllowed);
+        Assert.Contains("nobody left", refused.Reason!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -120,6 +121,6 @@ public sealed class GameFireTests
         var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
 
         Assert.False(refused.IsAllowed);
+        Assert.Contains("Nothing is activated", refused.Reason!, StringComparison.Ordinal);
     }
-
 }
