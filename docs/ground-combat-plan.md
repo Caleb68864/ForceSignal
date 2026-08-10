@@ -53,6 +53,8 @@ ForceSignal.Modules.GroundCombat      shared by both games
 ForceSignal.Modules.StarGrunt         figure scale
     Combat/      range bands, the fire sequence vs dispersed targets            [BUILT]
     Morale/      confidence, fatigue, suppression 0-3                           [BUILT]
+    Sequence/    activation policy, steps, command levels                       [BUILT]
+    Game/        the game as a value: roster, statuses, session, legality       [BUILT]
     Assault/     close assault                                                  [TODO]
 
 ForceSignal.Modules.Dirtside          vehicle scale
@@ -158,7 +160,21 @@ Two more to honour when the surrounding systems are built:
    is a named constant.
 4. **StarGrunt close assault** — heavily psychological, leaning on reaction and confidence at both
    ends, and resolving entirely within one game turn.
-5. **The unit and force model, then contracts, then the API surface** behind the flags.
+5. ~~**The unit and force model, then contracts, then the API surface** behind the flags.~~
+   **Done for StarGrunt**, as a playable slice: see
+   `plans/2026-08-10-stargrunt-play-design.md`. `StarGruntGame` is the caller `IStarGruntBoard` was
+   always written for - an immutable value holding the roster, the per-unit statuses and the
+   session, with every command a pure function returning a new game or a refusal. `Application`
+   adds a lock, an id, a version and the wire mapping; nothing else. The whole game therefore still
+   lives in a module with no dependencies, which is what a client that is not a browser would need.
+
+   The snapshot carries a legality projection - what each unit may do and why not - computed from
+   the same checks the commands enforce, with tests asserting the two produce the same sentence.
+   That is deliberately built before any client existed: the Full Thrust console grew its own copy
+   of the firing rules, that copy was incomplete, and removing it took two rounds of work.
+
+   Still out: close assault, fog of war, positions, two-device play, a saved force library, and
+   Dirtside's whole client.
 6. **Icons.** Neither game uses NATO symbology, so the whole visual language is status markers and
    can be original. The vault already carries a clean-room vocabulary in
    `Dirtside II/Reference/dsii_markers.scad` — plain lettered discs reproducing none of GZG's

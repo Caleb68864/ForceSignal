@@ -102,5 +102,26 @@ public sealed partial record StarGruntGame
     private GameOutcome<StarGruntGame> Apply(SequenceCheck check, Func<GroundCombatSession> transition) =>
         check.IsAllowed
             ? GameOutcome.Allowed(this with { Session = transition() })
-            : GameOutcome.Refused<StarGruntGame>(check.Reason!);
+            : GameOutcome.Refused<StarGruntGame>(Humanise(check.Reason!));
+
+    /// <summary>
+    /// Puts unit names into a refusal in place of the ids the sequence layer had to use.
+    /// </summary>
+    /// <remarks>
+    /// The shared layer never interprets a unit id - it only compares them - so when it has to name
+    /// a unit in a sentence, an id is all it has to name it with. Ids are whatever the caller chose,
+    /// and when the caller is a screen generating them they are GUIDs. Translating here is the
+    /// game's job because the game is the first layer that knows both.
+    /// </remarks>
+    /// <param name="reason">The sentence as the sequence layer wrote it.</param>
+    /// <returns>The same sentence, with any unit id replaced by that unit's name.</returns>
+    internal string Humanise(string reason)
+    {
+        foreach (var unit in Units.Values)
+        {
+            reason = reason.Replace(unit.Id.Value, unit.Name, StringComparison.Ordinal);
+        }
+
+        return reason;
+    }
 }

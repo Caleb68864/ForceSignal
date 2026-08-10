@@ -116,6 +116,28 @@ public sealed class GameLegalityTests
     }
 
     [Fact]
+    public void ARefusalNamesTheUnitRatherThanItsId()
+    {
+        // Ids are whatever the caller chose - a GUID, when the screen generated them - and the
+        // sequence layer can only speak in them, because ids are all it has. The game knows the
+        // names, so it is the game's job to say one. Found by playing a turn and being told
+        // "792acd18-a794-4831-baef-03ea0d731578 is still activated".
+        var game = StarGruntGame.Create("Hill 43")
+            .WithUnit(GameFixtures.Squad(new UnitId("6f1b0d0e-uuid-like"), "Alpha Squad", GameFixtures.Blue))
+            .WithUnit(GameFixtures.Squad(new UnitId("9c2a4f7b-uuid-like"), "Bravo Squad", GameFixtures.Red))
+            .BeginTurn().Value!
+            .ChooseFirstActivator(GameFixtures.Blue, takeIt: true).Value!
+            .BeginActivation(GameFixtures.Blue, new UnitId("6f1b0d0e-uuid-like")).Value!;
+
+        // Activating a second unit while the first is still going hits the guard that names it.
+        var refused = game.BeginActivation(GameFixtures.Blue, new UnitId("9c2a4f7b-uuid-like"));
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("Alpha Squad", refused.Reason!, StringComparison.Ordinal);
+        Assert.DoesNotContain("uuid-like", refused.Reason!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AskingChangesNothing()
     {
         var game = GameFixtures.Firefight();

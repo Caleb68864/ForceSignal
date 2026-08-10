@@ -86,6 +86,6 @@ public sealed partial record StarGruntGame
         // The same step Fire spends, checked the same way. Asking the sequence rather than reasoning
         // about frames here is what keeps the per-activation limit in one place.
         var check = GroundCombatSequence.CanTakeStep(Session, StarGruntSteps.Fire(weapon.Name), Policy());
-        return new WeaponLegality(weapon.Name, check.IsAllowed, check.Reason);
+        return new WeaponLegality(weapon.Name, check.IsAllowed, check.Reason is null ? null : Humanise(check.Reason));
     }
 }
