@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.StarGrunt.Morale;
 using ForceSignal.Modules.StarGrunt.Sequence;
 
 namespace ForceSignal.Modules.StarGrunt.Game;
@@ -73,6 +74,16 @@ public sealed record UnitDefinition
     /// </remarks>
     public int LeadershipValue { get; init; } = 2;
 
+    /// <summary>
+    /// How worn the unit is, which caps where its confidence starts and how far it can be rallied.
+    /// </summary>
+    /// <remarks>
+    /// A scenario property rather than something that changes mid-game, so it sits with the
+    /// definition. Added because rallying is wrong without it: a tired unit cannot be lifted past
+    /// Steady however well it rolls.
+    /// </remarks>
+    public FatigueLevel Fatigue { get; init; } = FatigueLevel.Fresh;
+
     /// <summary>The figures in it, at full strength.</summary>
     public ImmutableArray<FigureProfile> Figures { get; init; } = [];
 
@@ -97,6 +108,7 @@ public sealed record UnitDefinition
         && Level == other.Level
         && QualityDie == other.QualityDie
         && LeadershipValue == other.LeadershipValue
+        && Fatigue == other.Fatigue
         && StructuralEquality.Sequence(Figures, other.Figures)
         && StructuralEquality.Sequence(Weapons, other.Weapons);
 
@@ -107,7 +119,7 @@ public sealed record UnitDefinition
         Side,
         Level,
         QualityDie,
-        LeadershipValue,
+        HashCode.Combine(LeadershipValue, Fatigue),
         StructuralEquality.SequenceHash(Figures),
         StructuralEquality.SequenceHash(Weapons));
 }

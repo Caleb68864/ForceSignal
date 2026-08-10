@@ -43,6 +43,7 @@ public sealed record StarGruntWeaponDto(string Name, int ImpactDie, bool IsSuppo
 /// <param name="Level">Where it sits in the chain of command.</param>
 /// <param name="QualityDie">Its quality die, as a face count.</param>
 /// <param name="LeadershipValue">Its Leadership Value, 1 to 3, where 1 is best.</param>
+/// <param name="Fatigue">How worn it is: Fresh, Tired or Exhausted.</param>
 /// <param name="Figures">The figures in it.</param>
 /// <param name="Weapons">What it is carrying.</param>
 public sealed record AddStarGruntUnitRequest(
@@ -53,7 +54,8 @@ public sealed record AddStarGruntUnitRequest(
     int QualityDie,
     int LeadershipValue,
     IReadOnlyList<StarGruntFigureDto> Figures,
-    IReadOnlyList<StarGruntWeaponDto> Weapons);
+    IReadOnlyList<StarGruntWeaponDto> Weapons,
+    string Fatigue = "Fresh");
 
 /// <summary>Settles who takes the first activation this turn.</summary>
 /// <param name="Side">The side making the choice.</param>
@@ -72,6 +74,26 @@ public sealed record StarGruntStepRequest(string Action);
 /// <summary>An action a named unit takes that needs nothing but the unit.</summary>
 /// <param name="UnitId">The unit acting.</param>
 public sealed record StarGruntUnitActionRequest(string UnitId);
+
+/// <summary>
+/// Puts a unit's nerve to the test after something bad has happened to it.
+/// </summary>
+/// <param name="UnitId">The unit under strain.</param>
+/// <param name="ThreatLevel">
+/// How serious it was, read off the player's own threat table. Not supplied by this app: the table
+/// is rated against the force's mission motivation and belongs to the user's rules.
+/// </param>
+public sealed record StarGruntConfidenceTestRequest(string UnitId, int ThreatLevel);
+
+/// <summary>Spends a command element's action steadying a subordinate.</summary>
+/// <param name="RallyingUnitId">The command element, which spends the action.</param>
+/// <param name="RalliedUnitId">The unit being steadied, which does the rolling.</param>
+public sealed record StarGruntRallyRequest(string RallyingUnitId, string RalliedUnitId);
+
+/// <summary>Declares whether a unit has scattered out of integrity.</summary>
+/// <param name="UnitId">The unit.</param>
+/// <param name="IsDisorganised">True when it is out of integrity and owes a reorganise.</param>
+public sealed record StarGruntDisorganisedRequest(string UnitId, bool IsDisorganised);
 
 /// <summary>Declines to activate anything.</summary>
 /// <param name="Side">The side passing.</param>
@@ -109,6 +131,7 @@ public sealed record StarGruntWeaponLegalityDto(string Name, bool CanFire, strin
 /// <param name="Level">Its command level.</param>
 /// <param name="QualityDie">Its quality die, as a face count.</param>
 /// <param name="LeadershipValue">Its Leadership Value, 1 to 3, where 1 is best.</param>
+/// <param name="Fatigue">How worn it is, which caps its confidence.</param>
 /// <param name="FiguresAlive">Figures still standing.</param>
 /// <param name="FullStrength">Figures it started with.</param>
 /// <param name="FiguresWounded">Figures carrying a wound.</param>
@@ -128,6 +151,7 @@ public sealed record StarGruntUnitDto(
     string Level,
     int QualityDie,
     int LeadershipValue,
+    string Fatigue,
     int FiguresAlive,
     int FullStrength,
     int FiguresWounded,

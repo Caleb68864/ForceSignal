@@ -118,6 +118,49 @@ public static class GroundCombatEndpoints
             .Produces<StarGruntSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/confidence-tests", (
+            Guid gameId,
+            StarGruntConfidenceTestRequest request,
+            IStarGruntGameService games) => Results.Ok(games.TakeConfidenceTest(gameId, request)))
+            .WithName("TakeStarGruntConfidenceTest")
+            .WithTags("StarGrunt")
+            .WithSummary("Puts a unit's nerve to the test.")
+            .WithDescription("Not an action and not tied to an activation: a test is taken the moment something happens, to whichever unit it happened to. The threat level comes off the player's own table.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/rally", (
+            Guid gameId,
+            StarGruntRallyRequest request,
+            IStarGruntGameService games) => Results.Ok(games.Rally(gameId, request)))
+            .WithName("RallyStarGruntUnit")
+            .WithTags("StarGrunt")
+            .WithSummary("Spends a command element's action steadying a subordinate.")
+            .WithDescription("The action belongs to the rallying unit and the roll belongs to the rallied one, against both leadership values added together.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/reorganise", (
+            Guid gameId,
+            StarGruntUnitActionRequest request,
+            IStarGruntGameService games) => Results.Ok(games.Reorganise(gameId, request)))
+            .WithName("ReorganiseStarGruntUnit")
+            .WithTags("StarGrunt")
+            .WithSummary("Spends an action putting a scattered unit back in order.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/units/disorganised", (
+            Guid gameId,
+            StarGruntDisorganisedRequest request,
+            IStarGruntGameService games) => Results.Ok(games.SetDisorganised(gameId, request)))
+            .WithName("SetStarGruntDisorganised")
+            .WithTags("StarGrunt")
+            .WithSummary("Declares whether a unit has scattered out of integrity.")
+            .WithDescription("Integrity is measured with a ruler at the table, so this is declared rather than computed.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/end", (Guid gameId, IStarGruntGameService games) =>
             Results.Ok(games.EndActivation(gameId)))
             .WithName("EndStarGruntActivation")

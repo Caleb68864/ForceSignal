@@ -15,6 +15,7 @@ function unit(overrides: Partial<StarGruntUnit> = {}): StarGruntUnit {
     level: 'Squad',
     qualityDie: 8,
     leadershipValue: 2,
+    fatigue: 'Fresh',
     figuresAlive: 5,
     fullStrength: 8,
     figuresWounded: 1,

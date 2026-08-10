@@ -30,6 +30,13 @@ export function leadershipFrom(value: unknown, fallback = 2): number {
   return Number.isInteger(leadership) && leadership >= 1 && leadership <= 3 ? leadership : fallback;
 }
 
+const fatigues = ['Fresh', 'Tired', 'Exhausted'];
+
+/** Keeps a fatigue level to one the rules name, falling back to rested. */
+export function fatigueFrom(value: unknown, fallback = 'Fresh'): string {
+  return typeof value === 'string' && fatigues.includes(value) ? value : fallback;
+}
+
 /** Everything one side has on the table, ready to write out. */
 export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForceFile {
   return {
@@ -43,6 +50,7 @@ export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForc
         level: unit.level,
         qualityDie: unit.qualityDie,
         leadershipValue: unit.leadershipValue,
+        fatigue: unit.fatigue,
         // Full strength rather than what is left: a force file is a roster, not a casualty return.
         figures: Array.from({ length: unit.fullStrength }, () => ({ armourDie: 6 })),
         weapons: unit.weapons.map((weapon) => ({
@@ -85,6 +93,7 @@ export function fromForceFile(payload: unknown): StarGruntForceFile {
         level: typeof unit.level === 'string' && unit.level.trim() ? unit.level.trim() : 'Squad',
         qualityDie: dieFrom(unit.qualityDie),
         leadershipValue: leadershipFrom(unit.leadershipValue),
+        fatigue: fatigueFrom(unit.fatigue),
         // A squad of nobody is not a squad; a squad of two hundred is a typo.
         figures: (figures.length > 0 ? figures : [{}])
           .slice(0, 40)

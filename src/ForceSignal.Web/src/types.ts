@@ -377,6 +377,7 @@ export type StarGruntUnit = {
   level: string;
   qualityDie: number;
   leadershipValue: number;
+  fatigue: string;
   figuresAlive: number;
   fullStrength: number;
   figuresWounded: number;
@@ -415,6 +416,7 @@ export type StarGruntForceFile = {
     level: string;
     qualityDie: number;
     leadershipValue: number;
+    fatigue: string;
     figures: StarGruntFigure[];
     weapons: StarGruntWeapon[];
   }[];

@@ -39,25 +39,48 @@ casualty. The step route now refuses the action by name rather than silently doi
 Fixing it turned up **gap 11**, below: the roll is against a Leadership *Value*, and the unit model
 had a leadership die.
 
-## Gap 2 - Confidence never changes
+## Gap 2 - Confidence never changes - FIXED 2026-08-10
 
 **Severity: high.** `ConfidenceLadder` implements the test, the ladder and the two-level failure,
 and the game layer never calls any of it. Every unit is permanently Confident. The unit card shows a
 confidence level that is decoration.
 
-**Required:** a confidence test is triggered by threat events, rolled as quality die against
-leadership plus threat, failing by a level and by two on a bad enough roll. Note the errata: tests
-are triggered only by *basic* threat entries, and the "+" entries only modify a test already
-triggered. Treating every entry as a trigger makes units test far too often.
+**Fixed.** `TakeConfidenceTest` rolls the quality die against leadership plus threat, dropping a
+level on a miss and two on a bad one.
 
-## Gap 3 - Rally and Reorganise are buttons that do nothing
+Two shape decisions worth recording. It is **not an action and not tied to an activation**: a test
+is taken the moment the triggering event happens, to whichever unit it happened to, which is usually
+a unit that has not gone yet and may never go this turn. And the **threat level is supplied, not
+derived** - it comes from a table rated against the force's mission motivation, and that table is
+the user's own, exactly like the firepower die. What the app owns is the procedure.
+
+Because the level is declared, the errata about only *basic* entries triggering a test is the
+player's to apply when they read their table. The app never decides that a test is owed.
+
+## Gap 3 - Rally and Reorganise are buttons that do nothing - FIXED 2026-08-10
 
 **Severity: high.** Both are offered by the screen, both spend an action, neither has any effect.
 Rally should restore one confidence level on a successful roll against the summed leadership values
 of both units, after a successful communication, capped by fatigue and never above Confident.
 Reorganise should clear the disorganised state.
 
-These are the same class of bug as gap 1: the action economy is honoured, the consequence is not.
+**Fixed.** Both are commands rather than steps now, and the generic step route refuses them by name.
+
+Rally puts the action on the **rallying** unit and the roll on the **rallied** one, against both
+leadership values added together - unusual enough to be worth saying out loud. One level per
+success, never past what fatigue allows, and refused up front when there is nothing to gain so a
+commander cannot waste an action finding out.
+
+Writing it turned up a rule I had missed entirely: **only a superior command element may rally**, so
+two squads cannot talk each other round. The check is on command level, and the screen only offers
+rally against subordinates on the same side.
+
+Reorganise clears the disorganised state. Whether a unit is scattered is measured with a ruler at
+the table, so it is declared rather than computed - the same stance taken on cover and range - and
+the screen has a button to say so.
+
+Fatigue came with them, which closes most of gap 8: it caps where confidence starts and how far a
+rally can bring it back, and rallying is simply wrong without it.
 
 ## Gap 4 - Wounds are paired across the squad rather than per figure
 
@@ -95,11 +118,15 @@ Related to gap 4 - both need casualties to land on identified figures.
 and documented. The game layer never sets either flag and never offers the test, so the gate is
 permanently open.
 
-## Gap 8 - Fatigue is not modelled
+## Gap 8 - Fatigue is not modelled - MOSTLY FIXED 2026-08-10
 
 **Severity: medium.** Fatigue sets the starting confidence cap - Fresh, Tired and Exhausted each
-cap where a unit begins and how far it can be rallied back. `Confidence.cs` supports it. The unit
-model has no fatigue field, so every unit is Fresh forever and rallying has no ceiling.
+cap where a unit begins and how far it can be rallied back.
+
+**Fixed as far as rallying needs**, because rallying is wrong without it. Fatigue is now a scenario
+property of the unit, set when it is added and carried in force files, and it both sets opening
+confidence and caps recovery. What is still missing is anything that *changes* fatigue during a
+game - it is set once and never moves.
 
 ## Gap 9 - Close assault is not built at all
 
@@ -149,7 +176,8 @@ than a die. Rally will want the same value, so this unblocks gap 3 as well.
 ## Suggested order of work
 
 1. ~~**Gap 1** - suppression removal.~~ **Done**, along with gap 11 which it uncovered.
-2. **Gap 2 and 3** - confidence tests, rally, reorganise. The morale half of the game.
+2. ~~**Gap 2 and 3** - confidence tests, rally, reorganise.~~ **Done**, and they closed most of gap 8
+   on the way, because rallying cannot be right without fatigue.
 3. **Gap 4, 5 and 6** - casualty allocation onto figures, which gaps 5 and 6 both hang off.
 4. **Gap 7 and 8** - reaction tests and fatigue.
 5. **Gap 10** - decide whether support weapons are derived or declared.

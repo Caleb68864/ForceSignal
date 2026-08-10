@@ -32,6 +32,7 @@ export function addUnit(gameId: string, unit: {
   level: string;
   qualityDie: number;
   leadershipValue: number;
+  fatigue: string;
   figures: { armourDie: number }[];
   weapons: { name: string; impactDie: number; isSupport: boolean; isCloseRange: boolean }[];
 }) {
@@ -75,6 +76,29 @@ export function fire(gameId: string, shot: {
 /** Spends an action trying to shake off one suppression marker. One roll, one marker at best. */
 export function removeSuppression(gameId: string, unitId: string) {
   return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/remove-suppression`, { unitId });
+}
+
+/**
+ * Puts a unit's nerve to the test. Not an action - it happens the moment something bad does, to
+ * whichever unit it happened to. The threat level comes off the player's own table.
+ */
+export function confidenceTest(gameId: string, unitId: string, threatLevel: number) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/confidence-tests`, { unitId, threatLevel });
+}
+
+/** Spends a command element's action steadying a subordinate. */
+export function rally(gameId: string, rallyingUnitId: string, ralliedUnitId: string) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/rally`, { rallyingUnitId, ralliedUnitId });
+}
+
+/** Spends an action putting a scattered unit back in order. */
+export function reorganise(gameId: string, unitId: string) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/reorganise`, { unitId });
+}
+
+/** Declares whether a unit has scattered out of integrity. Measured with a ruler, not computed. */
+export function setDisorganised(gameId: string, unitId: string, isDisorganised: boolean) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/units/disorganised`, { unitId, isDisorganised });
 }
 
 /** Closes the open activation. */

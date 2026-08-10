@@ -18,8 +18,18 @@ import type { StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 
 const ladder = [4, 6, 8, 10, 12];
 const covers = ['None', 'Soft', 'Hard'];
-// RemoveSuppression is missing on purpose: it rolls, so it has a command and a button of its own.
-const unarmedActions = ['Move', 'Dash', 'Reorganise', 'Rally', 'Observe', 'Communicate', 'GoInPosition'];
+// Only the actions that are pure declarations live here. Anything that rolls or names another unit
+// - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
+// because this route carries no die source and no second unit.
+const unarmedActions = ['Move', 'Dash', 'Observe', 'Communicate', 'GoInPosition'];
+const threatLevels = [1, 2, 3, 4, 5, 6];
+const commandLadder = ['Squad', 'Platoon', 'Company', 'Battalion', 'Regiment'];
+
+/** Where a command level sits on the ladder, for deciding who may rally whom. */
+function commandRank(level: string) {
+  const rank = commandLadder.indexOf(level);
+  return rank < 0 ? 0 : rank;
+}
 
 type UnitForm = {
   name: string;
@@ -30,6 +40,8 @@ type UnitForm = {
   armourDie: number;
   weaponName: string;
   impactDie: number;
+  fatigue: string;
+  level: string;
 };
 
 type ShotForm = {
@@ -57,9 +69,13 @@ export function StarGruntView() {
     armourDie: 6,
     weaponName: 'Rifles',
     impactDie: 10,
+    fatigue: 'Fresh',
+    level: 'Squad',
   });
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [importSide, setImportSide] = useState('blue');
+  // Read off the player's own threat table, which this app does not ship.
+  const [threatLevel, setThreatLevel] = useState(2);
   const [shot, setShot] = useState<ShotForm>({
     targetId: '',
     weaponName: '',
@@ -175,6 +191,20 @@ export function StarGruntView() {
         </div>
       </div>
 
+      <div className="card-module">
+        <span className="label module-title">Confidence test</span>
+        <p className="constraint-line">
+          Taken the moment something bad happens, to whichever unit it happened to - not an action, and
+          not only on its own go. The threat level is the one your own table gives the event.
+        </p>
+        <label>
+          Threat level
+          <select value={threatLevel} onChange={(event) => setThreatLevel(Number(event.target.value))}>
+            {threatLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+          </select>
+        </label>
+      </div>
+
       <div className="stargrunt-roster">
         {snapshot.units.map((unit) => (
           <UnitCard
@@ -185,6 +215,14 @@ export function StarGruntView() {
             onActivate={() => run(
               () => api.beginActivation(game, unit.side, unit.id),
               `${unit.name} activated.`,
+            )}
+            onTest={() => run(
+              () => api.confidenceTest(game, unit.id, threatLevel),
+              `${unit.name} tested its nerve.`,
+            )}
+            onToggleDisorganised={() => run(
+              () => api.setDisorganised(game, unit.id, !unit.isDisorganised),
+              `${unit.name} is ${unit.isDisorganised ? 'back in order' : 'disorganised'}.`,
             )}
           />
         ))}
@@ -205,6 +243,31 @@ export function StarGruntView() {
                 {action}
               </button>
             ))}
+            {activating.isDisorganised ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run(() => api.reorganise(game, activating.id), `${activating.name} reorganised.`)}
+              >
+                Reorganise
+              </button>
+            ) : null}
+            {snapshot.units
+              // Rallying comes from above, so only subordinates on the same side are offered.
+              .filter((other) => other.id !== activating.id
+                && other.side === activating.side
+                && commandRank(other.level) < commandRank(activating.level))
+              .map((other) => (
+                <button
+                  key={`rally-${other.id}`}
+                  className="ghost"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => run(() => api.rally(game, activating.id, other.id), `Rallying ${other.name}.`)}
+                >
+                  Rally {other.name}
+                </button>
+              ))}
             {activating.suppressionMarkers > 0 ? (
               <button
                 type="button"
@@ -255,11 +318,12 @@ export function StarGruntView() {
             id: newId(),
             name: unitForm.name,
             side: unitForm.side,
-            level: 'Squad',
+            level: unitForm.level,
             qualityDie: unitForm.qualityDie,
             leadershipValue: unitForm.leadershipValue,
             figures: Array.from({ length: Math.max(1, unitForm.figures) }, () => ({ armourDie: unitForm.armourDie })),
             weapons: [{ name: unitForm.weaponName, impactDie: unitForm.impactDie, isSupport: false, isCloseRange: false }],
+            fatigue: unitForm.fatigue,
           }),
           `${unitForm.name} joined ${unitForm.side}.`,
         )}
@@ -342,11 +406,15 @@ function UnitCard({
   isActivating,
   busy,
   onActivate,
+  onTest,
+  onToggleDisorganised,
 }: {
   unit: StarGruntUnit;
   isActivating: boolean;
   busy: boolean;
   onActivate: () => void;
+  onTest: () => void;
+  onToggleDisorganised: () => void;
 }) {
   const wiped = unit.figuresAlive <= 0;
   return (
@@ -358,6 +426,7 @@ function UnitCard({
         <div><span className="label">Wounded</span><strong>{unit.figuresWounded}</strong></div>
         <div><span className="label">Suppression</span><strong>{unit.suppressionMarkers}</strong></div>
         <div><span className="label">Confidence</span><strong>{unit.confidence}</strong></div>
+        <div><span className="label">Fatigue</span><strong>{unit.fatigue}</strong></div>
         <div><span className="label">Quality</span><strong>D{unit.qualityDie}</strong></div>
       </div>
       <p className="constraint-line">
@@ -365,7 +434,13 @@ function UnitCard({
         {unit.isInCover ? ' In cover.' : ''}
         {unit.isDisorganised ? ' Disorganised.' : ''}
       </p>
-      <button type="button" disabled={busy || !unit.canActivate} onClick={onActivate}>Activate</button>
+      <div className="quick-actions">
+        <button type="button" disabled={busy || !unit.canActivate} onClick={onActivate}>Activate</button>
+        <button className="ghost" type="button" disabled={busy} onClick={onTest}>Confidence Test</button>
+        <button className="ghost" type="button" disabled={busy} onClick={onToggleDisorganised}>
+          {unit.isDisorganised ? 'In Order' : 'Scattered'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -511,6 +586,18 @@ function AddUnitPanel({
         Armour
         <select value={form.armourDie} onChange={(event) => onChange({ armourDie: Number(event.target.value) })}>
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
+        </select>
+      </label>
+      <label title="Rallying comes from above, so a commander needs a level above the units it steadies.">
+        Command level
+        <select value={form.level} onChange={(event) => onChange({ level: event.target.value })}>
+          {commandLadder.map((level) => <option key={level} value={level}>{level}</option>)}
+        </select>
+      </label>
+      <label title="Sets where confidence starts and how far a rally can bring it back.">
+        Fatigue
+        <select value={form.fatigue} onChange={(event) => onChange({ fatigue: event.target.value })}>
+          {['Fresh', 'Tired', 'Exhausted'].map((level) => <option key={level} value={level}>{level}</option>)}
         </select>
       </label>
       <label>

@@ -5,6 +5,7 @@ using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Combat;
 using ForceSignal.Modules.StarGrunt.Game;
+using ForceSignal.Modules.StarGrunt.Morale;
 using ForceSignal.Modules.StarGrunt.Sequence;
 
 namespace ForceSignal.Application.Ground;
@@ -38,6 +39,18 @@ public interface IStarGruntGameService
 
     /// <summary>Spends an action trying to shake off one suppression marker.</summary>
     StarGruntSnapshotDto RemoveSuppression(Guid gameId, StarGruntUnitActionRequest request);
+
+    /// <summary>Puts a unit's nerve to the test.</summary>
+    StarGruntSnapshotDto TakeConfidenceTest(Guid gameId, StarGruntConfidenceTestRequest request);
+
+    /// <summary>Spends a command element's action steadying a subordinate.</summary>
+    StarGruntSnapshotDto Rally(Guid gameId, StarGruntRallyRequest request);
+
+    /// <summary>Spends an action putting a scattered unit back in order.</summary>
+    StarGruntSnapshotDto Reorganise(Guid gameId, StarGruntUnitActionRequest request);
+
+    /// <summary>Declares whether a unit has scattered out of integrity.</summary>
+    StarGruntSnapshotDto SetDisorganised(Guid gameId, StarGruntDisorganisedRequest request);
 
     /// <summary>Closes the open activation.</summary>
     StarGruntSnapshotDto EndActivation(Guid gameId);
@@ -199,6 +212,48 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
     }
 
     /// <inheritdoc />
+    public StarGruntSnapshotDto TakeConfidenceTest(Guid gameId, StarGruntConfidenceTestRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.TakeConfidenceTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+    }
+
+    /// <inheritdoc />
+    public StarGruntSnapshotDto Rally(Guid gameId, StarGruntRallyRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.Rally(new UnitId(request.RallyingUnitId), new UnitId(request.RalliedUnitId), _dice));
+    }
+
+    /// <inheritdoc />
+    public StarGruntSnapshotDto Reorganise(Guid gameId, StarGruntUnitActionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.Reorganise(new UnitId(request.UnitId)));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Unit integrity is measured with a ruler at the table, so this is a declaration rather than a
+    /// calculation - the same stance taken on cover and range.
+    /// </remarks>
+    public StarGruntSnapshotDto SetDisorganised(Guid gameId, StarGruntDisorganisedRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        lock (_gate)
+        {
+            var held = Find(gameId);
+            var unit = new UnitId(request.UnitId);
+            if (!held.Game.HasUnit(unit))
+            {
+                throw new InvalidOperationException($"There is no unit called '{request.UnitId}' on the table.");
+            }
+
+            return Store(gameId, held.Game.WithStatus(unit, status => status with { IsDisorganised = request.IsDisorganised }));
+        }
+    }
+
+    /// <inheritdoc />
     public StarGruntSnapshotDto EndActivation(Guid gameId) => Command(gameId, game => game.EndActivation());
 
     /// <inheritdoc />
@@ -248,6 +303,9 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
             : throw new InvalidOperationException($"'{request.Level}' is not a command level."),
         QualityDie = Die(request.QualityDie, nameof(request.QualityDie)),
         LeadershipValue = Leadership(request.LeadershipValue),
+        Fatigue = Enum.TryParse<FatigueLevel>(request.Fatigue, ignoreCase: true, out var fatigue)
+            ? fatigue
+            : throw new InvalidOperationException($"'{request.Fatigue}' is not a fatigue level (Fresh, Tired, Exhausted)."),
         Figures = [.. (request.Figures ?? []).Select(figure => new FigureProfile(Die(figure.ArmourDie, "armour")))],
         Weapons = [.. (request.Weapons ?? []).Select(weapon => new WeaponProfile
         {
@@ -301,6 +359,7 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
         }
 
         return parsed is StarGruntAction.Fire or StarGruntAction.TransferAction or StarGruntAction.RemoveSuppression
+                or StarGruntAction.Rally or StarGruntAction.Reorganise
             ? throw new InvalidOperationException($"{parsed} has a command of its own, because it names what it spends or rolls for it.")
             : StarGruntSteps.Simple(parsed);
     }
@@ -341,6 +400,7 @@ public sealed class StarGruntGameService(IQualityDiceRoller? rollDie = null, IMa
             unit.Level.ToString(),
             (int)unit.QualityDie,
             unit.LeadershipValue,
+            unit.Fatigue.ToString(),
             status.FiguresAlive,
             unit.FullStrength,
             status.FiguresWounded,

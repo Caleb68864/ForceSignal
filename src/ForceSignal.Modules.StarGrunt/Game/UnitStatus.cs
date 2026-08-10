@@ -1,4 +1,5 @@
 using ForceSignal.Modules.GroundCombat.Morale;
+using ForceSignal.Modules.StarGrunt.Morale;
 using ForceSignal.Modules.StarGrunt.Sequence;
 
 namespace ForceSignal.Modules.StarGrunt.Game;
@@ -60,7 +61,12 @@ public sealed record UnitStatus
     public static UnitStatus ForFullStrength(UnitDefinition unit)
     {
         ArgumentNullException.ThrowIfNull(unit);
-        return new UnitStatus { FiguresAlive = unit.FullStrength };
+        return new UnitStatus
+        {
+            FiguresAlive = unit.FullStrength,
+            // Where a unit starts is set by how worn it is, not by optimism.
+            Confidence = Morale.Confidence.StartingLevel(unit.Fatigue),
+        };
     }
 
     /// <summary>The state the activation rules read, for a unit at this command level.</summary>
