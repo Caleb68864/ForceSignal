@@ -232,6 +232,42 @@ public sealed class DirtsideGameTests
     }
 
     [Fact]
+    public void AGunThatFailsPutsTheFirersOwnSystemsDownAndLeavesTheTargetAlone()
+    {
+        // The chit that says the firer's own systems failed replaces the result rather than adding to
+        // it: the shot is treated as never fired, so nothing reaches the target. Both halves matter,
+        // and the second half is the one that was wrong - the log said the gun had failed while the
+        // roster showed the vehicle in perfect order, because the whole entry was skipped before the
+        // firer was considered. Found by playing a turn through the API rather than by reading it.
+        var after = GameFixtures.Activated()
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.SystemsDownFirer))).Value!;
+
+        Assert.True(after.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne).IsSystemsDown);
+        Assert.False(after.Status(GameFixtures.Bravo).Element(GameFixtures.BravoOne).IsDestroyed);
+        Assert.False(after.Status(GameFixtures.Bravo).Element(GameFixtures.BravoOne).IsDamaged);
+        Assert.Contains(after.Log, entry => entry.Contains("the gun failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnElementWithItsSystemsDownCannotFireAgain()
+    {
+        var after = GameFixtures.Activated()
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.SystemsDownFirer))).Value!
+            .EndActivation();
+
+        // It cannot fire again this activation anyway - it has spent its combat action - so the
+        // check that matters is the one the refusal gives.
+        Assert.Contains(
+            "systems down",
+            GameFixtures.Activated()
+                .WithStatus(GameFixtures.Alpha, status => status.WithElement(
+                    GameFixtures.AlphaOne, element => element with { IsSystemsDown = true }))
+                .WhyFireIsRefused(Shot())!,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.False(after.IsAllowed);
+    }
+
+    [Fact]
     public void TwoGamesBuiltTheSameWayAreEqual()
     {
         // The dictionaries underneath compare by reference, so this is a real assertion rather than a

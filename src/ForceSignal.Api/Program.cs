@@ -87,6 +87,15 @@ builder.Services.AddSingleton<IStarGruntGameService>(sp =>
     return new StarGruntGameService(null, groundStore);
 });
 
+builder.Services.AddSingleton<IDirtsideGameService>(sp =>
+{
+    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
+    IMatchStore groundStore = string.IsNullOrWhiteSpace(path)
+        ? NoMatchStore.Instance
+        : new SqliteMatchStore(path, "dirtside_games");
+    return new DirtsideGameService(null, groundStore);
+});
+
 // Which optional game engines this server offers. Both ground-combat engines default to off: they
 // are built alongside the working Full Thrust game and must not be able to reach a table that
 // turned up to play it. See FeatureFlags for why the flag is checked in more than one place.
@@ -839,7 +848,10 @@ static string[] ReadDeploymentWarnings(
 
     if (features.Dirtside)
     {
-        warnings.Add("Dirtside ground combat is enabled and is still in development.");
+        warnings.Add(
+            "Dirtside ground combat is enabled. Direct fire and the activation sequence are playable; "
+            + "opportunity fire, area-defence interception, close assault and indirect fire are not yet "
+            + "reachable from this API.");
     }
 
     if (environment.IsDevelopment())

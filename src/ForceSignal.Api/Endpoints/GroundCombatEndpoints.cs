@@ -264,10 +264,139 @@ public static class GroundCombatEndpoints
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        app.MapGet("/api/dirtside/status", () => Results.Ok(new { engine = "Dirtside", status = "in-development" }))
+        app.MapGet("/api/dirtside/status", () => Results.Ok(new { engine = "Dirtside", status = "playable" }))
             .WithName("GetDirtsideStatus")
             .WithTags("Dirtside")
             .WithSummary("Reports that the Dirtside engine is mounted on this server.");
+
+        app.MapPost("/api/dirtside/games", (CreateDirtsideGameRequest request, IDirtsideGameService games) =>
+            Results.Ok(games.CreateGame(request)))
+            .WithName("CreateDirtsideGame")
+            .WithTags("Dirtside")
+            .WithSummary("Starts a game.")
+            .Produces<DirtsideGameCreatedResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapGet("/api/dirtside/games/{gameId:guid}", (Guid gameId, IDirtsideGameService games) =>
+            Results.Ok(games.GetSnapshot(gameId)))
+            .WithName("GetDirtsideGame")
+            .WithTags("Dirtside")
+            .WithSummary("Reads a game without changing it.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/units", (
+            Guid gameId,
+            AddDirtsidePlatoonRequest request,
+            IDirtsideGameService games) => Results.Ok(games.AddPlatoon(gameId, request)))
+            .WithName("AddDirtsidePlatoon")
+            .WithTags("Dirtside")
+            .WithSummary("Puts a platoon on the table.")
+            .WithDescription("Every number comes off the player's own record card. This app ships no stats.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/turns", (Guid gameId, IDirtsideGameService games) =>
+            Results.Ok(games.BeginTurn(gameId)))
+            .WithName("BeginDirtsideTurn")
+            .WithTags("Dirtside")
+            .WithSummary("Opens the next turn.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/turns/current/first-activator", (
+            Guid gameId,
+            ChooseDirtsideFirstActivatorRequest request,
+            IDirtsideGameService games) => Results.Ok(games.ChooseFirstActivator(gameId, request)))
+            .WithName("ChooseDirtsideFirstActivator")
+            .WithTags("Dirtside")
+            .WithSummary("Settles who takes the first activation this turn.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations", (
+            Guid gameId,
+            BeginDirtsideActivationRequest request,
+            IDirtsideGameService games) => Results.Ok(games.BeginActivation(gameId, request)))
+            .WithName("BeginDirtsideActivation")
+            .WithTags("Dirtside")
+            .WithSummary("Turns a platoon's marker over and starts its activation.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/moves", (
+            Guid gameId,
+            MoveDirtsideElementRequest request,
+            IDirtsideGameService games) => Results.Ok(games.MoveElement(gameId, request)))
+            .WithName("MoveDirtsideElement")
+            .WithTags("Dirtside")
+            .WithSummary("Moves one element.")
+            .WithDescription("Whether the move covered more than half its movement is measured with a tape at the table, so it is sent rather than worked out.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/stand-down", (
+            Guid gameId,
+            DirtsideStandDownRequest request,
+            IDirtsideGameService games) => Results.Ok(games.StandDown(gameId, request)))
+            .WithName("DirtsideStandDown")
+            .WithTags("Dirtside")
+            .WithSummary("Declares that an element is sitting this activation out.")
+            .WithDescription("A decision with teeth: an element that sits out has given up its go for the whole turn. The activation cannot close until every element has said what it is doing.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/sensors", (
+            Guid gameId,
+            DirtsideSensorsRequest request,
+            IDirtsideGameService games) => Results.Ok(games.SetAreaDefenceSensors(gameId, request)))
+            .WithName("SetDirtsideAreaDefenceSensors")
+            .WithTags("Dirtside")
+            .WithSummary("Switches an element's area-defence sensors on or off.")
+            .WithDescription("Spends the element's one combat action, which is the price of a standing reaction: live sensors intercept on anybody's activation for the rest of the turn.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/fire", (
+            Guid gameId,
+            DirtsideFireRequest request,
+            IDirtsideGameService games) => Results.Ok(games.Fire(gameId, request)))
+            .WithName("FireDirtsideWeapon")
+            .WithTags("Dirtside")
+            .WithSummary("Fires one element's weapon at one designated element.")
+            .WithDescription("The declaration is binding: a shot at something an earlier shot destroyed is refused rather than re-pointed, because that is the cost of information the player did not have.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/end", (
+            Guid gameId,
+            IDirtsideGameService games) => Results.Ok(games.EndActivation(gameId)))
+            .WithName("EndDirtsideActivation")
+            .WithTags("Dirtside")
+            .WithSummary("Closes the open activation.")
+            .WithDescription("Refused while any element still on the table has not said what it is doing, and the refusal names them.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/turns/current/pass", (
+            Guid gameId,
+            DirtsidePassRequest request,
+            IDirtsideGameService games) => Results.Ok(games.Pass(gameId, request)))
+            .WithName("PassDirtsideActivation")
+            .WithTags("Dirtside")
+            .WithSummary("Declines to activate anything.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/turns/current/end", (
+            Guid gameId,
+            IDirtsideGameService games) => Results.Ok(games.EndTurn(gameId)))
+            .WithName("EndDirtsideTurn")
+            .WithTags("Dirtside")
+            .WithSummary("Closes the turn.")
+            .WithDescription("Clears what only lasted the turn: an element that moved over half its movement has not done so next turn.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
 
         return app;
     }

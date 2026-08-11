@@ -5,6 +5,7 @@
     <ProjectReference Include="..\ForceSignal.Contracts\ForceSignal.Contracts.csproj" />
     <ProjectReference Include="..\ForceSignal.Modules.FullThrust\ForceSignal.Modules.FullThrust.csproj" />
     <ProjectReference Include="..\ForceSignal.Modules.StarGrunt\ForceSignal.Modules.StarGrunt.csproj" />
+    <ProjectReference Include="..\ForceSignal.Modules.Dirtside\ForceSignal.Modules.Dirtside.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

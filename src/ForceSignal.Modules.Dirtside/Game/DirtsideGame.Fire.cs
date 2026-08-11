@@ -192,6 +192,16 @@ public sealed partial record DirtsideGame
         var game = this;
         foreach (var damage in result.Damage)
         {
+            // A shot can put the firer's own systems down, and one of the ways it does that is a
+            // misfire in which nothing reached the target at all. So this is applied before the
+            // target is considered, not after: written the other way round, the log said the gun had
+            // failed and the roster showed the vehicle in perfect order. Found by playing a turn.
+            if (damage.FirerSystemsDown)
+            {
+                game = game.WithStatus(command.Firer, status => status.WithElement(
+                    command.Element, element => element with { IsSystemsDown = true }));
+            }
+
             if (damage.ShotNeverHappened)
             {
                 continue;
@@ -205,14 +215,6 @@ public sealed partial record DirtsideGame
                     IsDamaged = element.IsDamaged || damage.TargetDamaged,
                     IsSystemsDown = element.IsSystemsDown || damage.TargetSystemsDown,
                 }));
-
-            // A shot can put the firer's own systems down, which is why this is applied to the
-            // shooter's roster rather than only reported.
-            if (damage.FirerSystemsDown)
-            {
-                game = game.WithStatus(command.Firer, status => status.WithElement(
-                    command.Element, element => element with { IsSystemsDown = true }));
-            }
         }
 
         return game.WithLog(Describe(firerName, targetName, result));
@@ -238,9 +240,9 @@ public sealed partial record DirtsideGame
         }
 
         var effects = result.Damage
-            .Where(damage => !damage.ShotNeverHappened)
             .Select(damage =>
-                damage.CatastrophicKill ? "a catastrophic kill"
+                damage.ShotNeverHappened ? "the gun failed and nothing left it"
+                : damage.CatastrophicKill ? "a catastrophic kill"
                 : damage.TargetDestroyed ? "knocked out"
                 : damage.TargetDamaged ? "damaged"
                 : damage.Immobilised ? "immobilised"
@@ -248,7 +250,9 @@ public sealed partial record DirtsideGame
                 : "no effect")
             .ToArray();
 
-        var firerDown = result.FirerSystemsDown ? " The firer's own systems went down." : string.Empty;
+        var firerDown = result.FirerSystemsDown
+            ? $" {firerName} has its own systems down and takes no combat action until they are back."
+            : string.Empty;
         return $"{firerName} fired on {targetName} at {band}: {rolls}. "
             + $"{result.Hits} hit(s): {string.Join(", ", effects)}.{firerDown}";
     }

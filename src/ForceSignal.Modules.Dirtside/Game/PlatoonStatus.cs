@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 using ForceSignal.Modules.Dirtside.Combat;
 using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.Dirtside.Sequence;
@@ -58,6 +59,13 @@ public sealed record PlatoonStatus
     public bool ReactionTestCleared { get; init; }
 
     /// <summary>What has happened to each element, by id.</summary>
+    /// <remarks>
+    /// Not written directly to JSON: a record struct cannot be a property name, so
+    /// <see cref="DirtsideGameSerialization"/> lifts these out alongside the element they belong to
+    /// and puts them back on restore. The alternative was a key converter in the shared layer, which
+    /// would change how every session serializes to solve a problem only this type has.
+    /// </remarks>
+    [JsonIgnore]
     public ImmutableDictionary<ElementId, ElementStatus> Elements { get; init; } =
         ImmutableDictionary<ElementId, ElementStatus>.Empty;
 
