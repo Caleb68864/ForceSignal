@@ -34,8 +34,14 @@ the user's to enter from their own legally obtained rules. Concretely:
 
 - No weapon tables, armour tables, quality-to-stat tables, army lists, faction background, points
   values, artwork, or rule text.
-- Quality dice, firepower ratings, impact and armour dice, threat levels, and chit-validity colours
-  are all **inputs**, entered on a user's own record card.
+- Quality dice, firepower ratings, impact and armour dice, threat levels, close-combat weapon
+  shifts, and chit-validity colours are all **inputs**, entered on a user's own record card.
+- The line to hold: the engine owns **procedures** - what is rolled against what, what shifts what,
+  what order things happen in - and the player owns every **number** those procedures read. Close
+  assault was written the other way round first, with the charge threats, the weapon shifts and the
+  bands for a downed figure hard-coded, on the reasoning that they were small enough to work out
+  rather than look up. That reasoning is how the line gets crossed, so it was undone before this
+  repo went anywhere public.
 - The damage-chit pot composition is exposed as configuration rather than baked in, for the same
   reason — and because the published distribution is not fully verified.
 - The vault's `Force Building/{NAC,ESU,FSE,NSL}` notes and `Community/Faction Army Lists` are the

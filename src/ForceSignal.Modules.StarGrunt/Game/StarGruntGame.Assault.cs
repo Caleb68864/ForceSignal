@@ -9,13 +9,13 @@ using ForceSignal.Modules.StarGrunt.Sequence;
 namespace ForceSignal.Modules.StarGrunt.Game;
 
 /// <summary>One pair of figures, as the two players have paired them off over the table.</summary>
-/// <param name="AttackerWeapon">What the charging figure has to hand.</param>
-/// <param name="DefenderWeapon">What the receiving figure has.</param>
+/// <param name="AttackerShift">Die types the charging figure's close-combat weapon is worth.</param>
+/// <param name="DefenderShift">Die types the receiving figure's is worth.</param>
 /// <param name="AttackerPowerArmour">True when the charging figure is in power armour.</param>
 /// <param name="DefenderPowerArmour">True when the receiving figure is.</param>
 public readonly record struct MeleePairing(
-    CloseCombatWeapon AttackerWeapon = CloseCombatWeapon.None,
-    CloseCombatWeapon DefenderWeapon = CloseCombatWeapon.None,
+    int AttackerShift = 0,
+    int DefenderShift = 0,
     bool AttackerPowerArmour = false,
     bool DefenderPowerArmour = false);
 
@@ -26,21 +26,31 @@ public sealed partial record StarGruntGame
     /// </summary>
     /// <param name="attacker">The unit charging, which spends its whole activation on this.</param>
     /// <param name="defender">The single unit being charged.</param>
+    /// <param name="threatLevel">What the charge asks of them, off the player's own table.</param>
     /// <param name="dice">Where the die result comes from.</param>
     /// <returns>The game with the charge declared, or why it could not be.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="dice"/> is null.</exception>
     /// <remarks>
-    /// The threat comes from the attacker's own confidence rather than from a table, so the app can
-    /// work it out: a confident unit charges for nothing, a steady one hesitates, a shaken one has
-    /// to be talked into it, and a unit that has already lost its nerve will not go at all.
+    /// The threat comes off the player's own table, like every other threat level here. What the app
+    /// owns is the rule beside it: a unit that has already lost its nerve will not go at all, however
+    /// it is asked.
     ///
     /// A charge costs the whole activation even when the move to contact needs only one action, so
     /// both are spent here. Failing the test loses the first action and leaves the second for
     /// something that is not another charge, which is the reaction rule already in place.
     /// </remarks>
-    public GameOutcome<StarGruntGame> DeclareCloseAssault(UnitId attacker, UnitId defender, IQualityDiceRoller dice)
+    public GameOutcome<StarGruntGame> DeclareCloseAssault(
+        UnitId attacker,
+        UnitId defender,
+        int threatLevel,
+        IQualityDiceRoller dice)
     {
         ArgumentNullException.ThrowIfNull(dice);
+
+        if (threatLevel < 0)
+        {
+            return GameOutcome.Refused<StarGruntGame>("A threat level cannot be less than nothing.");
+        }
 
         if (!HasUnit(attacker) || !HasUnit(defender))
         {
@@ -60,13 +70,13 @@ public sealed partial record StarGruntGame
         }
 
         var status = Status(attacker);
-        if (CloseAssault.ChargeThreat(status.Confidence) is not { } threat)
+        if (!CloseAssault.CanCharge(status.Confidence))
         {
             return GameOutcome.Refused<StarGruntGame>(
                 $"{charging.Name} is {status.Confidence} and will not charge anyone.");
         }
 
-        var test = Confidence.React(charging.QualityDie, charging.LeadershipValue, threat, dice);
+        var test = Confidence.React(charging.QualityDie, charging.LeadershipValue, threatLevel, dice);
         var step = StarGruntSteps.Simple(test.Passed ? StarGruntAction.CloseAssault : StarGruntAction.RefusedOrder);
         var spent = TakeStep(step);
         if (!spent.IsAllowed)
@@ -195,8 +205,8 @@ public sealed partial record StarGruntGame
         foreach (var pairing in pairings)
         {
             var exchange = CloseAssault.Fight(
-                new Combatant(charging.QualityDie, pairing.AttackerWeapon, pairing.AttackerPowerArmour),
-                new Combatant(receiving.QualityDie, pairing.DefenderWeapon, pairing.DefenderPowerArmour, defendersInCover),
+                new Combatant(charging.QualityDie, pairing.AttackerShift, pairing.AttackerPowerArmour),
+                new Combatant(receiving.QualityDie, pairing.DefenderShift, pairing.DefenderPowerArmour, defendersInCover),
                 dice);
 
             attackerDown += exchange.AttackerDown ? 1 : 0;
@@ -221,6 +231,8 @@ public sealed partial record StarGruntGame
     /// <param name="unit">The unit whose downed figures are being settled.</param>
     /// <param name="downed">How many of its figures went down.</param>
     /// <param name="wonTheAssault">True when its side holds the ground at the finish.</param>
+    /// <param name="deadUpTo">The highest roll that means dead, off the player's own table.</param>
+    /// <param name="woundedUpTo">The highest roll that means wounded.</param>
     /// <param name="dice">Where the die results come from.</param>
     /// <returns>The game with the fates settled, or why they could not be.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="dice"/> is null.</exception>
@@ -233,9 +245,17 @@ public sealed partial record StarGruntGame
         UnitId unit,
         int downed,
         bool wonTheAssault,
+        int deadUpTo,
+        int woundedUpTo,
         IQualityDiceRoller dice)
     {
         ArgumentNullException.ThrowIfNull(dice);
+
+        if (deadUpTo < 1 || woundedUpTo < deadUpTo)
+        {
+            return GameOutcome.Refused<StarGruntGame>(
+                "The bands have to climb: dead at the bottom, then wounded, then stunned above it.");
+        }
 
         if (!HasUnit(unit))
         {
@@ -253,7 +273,7 @@ public sealed partial record StarGruntGame
 
         for (var figure = 0; figure < downed; figure++)
         {
-            switch (CloseAssault.Fate(dice))
+            switch (CloseAssault.Fate(dice.Roll(QualityDie.D6), deadUpTo, woundedUpTo))
             {
                 case DownedFate.Dead:
                     dead++;

@@ -114,7 +114,11 @@ public sealed record StarGruntLeavesCoverRequest(string UnitId, bool LeavesCover
 /// <summary>Declares a close assault and rolls the attacker's nerve to make it.</summary>
 /// <param name="AttackerId">The unit charging, which spends its whole activation on this.</param>
 /// <param name="DefenderId">The single unit being charged.</param>
-public sealed record StarGruntChargeRequest(string AttackerId, string DefenderId);
+/// <param name="ThreatLevel">
+/// What the charge asks of the attackers, off the player's own table. Supplied rather than looked
+/// up here, like every other threat level in this app.
+/// </param>
+public sealed record StarGruntChargeRequest(string AttackerId, string DefenderId, int ThreatLevel = 0);
 
 /// <summary>Rolls the defender's nerve to stand and receive a charge.</summary>
 /// <param name="AttackerId">The unit charging.</param>
@@ -126,13 +130,17 @@ public sealed record StarGruntChargeRequest(string AttackerId, string DefenderId
 public sealed record StarGruntStandRequest(string AttackerId, string DefenderId, bool Terror = false);
 
 /// <summary>One pair of figures, as the players have paired them off over the table.</summary>
-/// <param name="AttackerWeapon">What the charging figure has to hand: None, Firearm, Edged or ShotgunOrFlame.</param>
-/// <param name="DefenderWeapon">What the receiving figure has.</param>
+/// <param name="AttackerShift">
+/// How many die types the charging figure's close-combat weapon is worth, off the player's own
+/// table. The app knows a weapon shifts the die and that the shift is open; it does not know what
+/// any particular weapon is worth.
+/// </param>
+/// <param name="DefenderShift">What the receiving figure's weapon is worth.</param>
 /// <param name="AttackerPowerArmour">True when the charging figure is in power armour.</param>
 /// <param name="DefenderPowerArmour">True when the receiving figure is.</param>
 public sealed record StarGruntMeleePairingDto(
-    string AttackerWeapon = "None",
-    string DefenderWeapon = "None",
+    int AttackerShift = 0,
+    int DefenderShift = 0,
     bool AttackerPowerArmour = false,
     bool DefenderPowerArmour = false);
 
@@ -151,7 +159,14 @@ public sealed record StarGruntMeleeRequest(
 /// <param name="UnitId">The unit whose downed figures are being settled.</param>
 /// <param name="Downed">How many of its figures went down.</param>
 /// <param name="WonTheAssault">True when its side holds the ground at the finish.</param>
-public sealed record StarGruntSettleDownedRequest(string UnitId, int Downed, bool WonTheAssault);
+/// <param name="DeadUpTo">The highest roll that means dead, off the player's own table.</param>
+/// <param name="WoundedUpTo">The highest roll that means wounded; above it is stunned.</param>
+public sealed record StarGruntSettleDownedRequest(
+    string UnitId,
+    int Downed,
+    bool WonTheAssault,
+    int DeadUpTo = 0,
+    int WoundedUpTo = 0);
 
 /// <summary>Declares whether a unit has scattered out of integrity.</summary>
 /// <param name="UnitId">The unit.</param>

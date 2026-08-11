@@ -14,17 +14,17 @@ namespace ForceSignal.Modules.StarGrunt.Tests;
 public sealed class CloseAssaultTests
 {
     [Theory]
-    [InlineData(ConfidenceLevel.Confident, 0)]
-    [InlineData(ConfidenceLevel.Steady, 1)]
-    [InlineData(ConfidenceLevel.Shaken, 3)]
-    public void TheNerveAChargeAsksFollowsFromHowTheUnitFeels(ConfidenceLevel confidence, int expected) =>
-        Assert.Equal(expected, CloseAssault.ChargeThreat(confidence));
+    [InlineData(ConfidenceLevel.Confident)]
+    [InlineData(ConfidenceLevel.Steady)]
+    [InlineData(ConfidenceLevel.Shaken)]
+    public void AUnitWithAnyNerveLeftCanBeOrderedToCharge(ConfidenceLevel confidence) =>
+        Assert.True(CloseAssault.CanCharge(confidence));
 
     [Theory]
     [InlineData(ConfidenceLevel.Broken)]
     [InlineData(ConfidenceLevel.Routed)]
     public void AUnitThatHasLostItsNerveWillNotCharge(ConfidenceLevel confidence) =>
-        Assert.Null(CloseAssault.ChargeThreat(confidence));
+        Assert.False(CloseAssault.CanCharge(confidence));
 
     [Fact]
     public void PowerArmourCountsDoubleInTheOdds()
@@ -77,10 +77,10 @@ public sealed class CloseAssaultTests
     [Fact]
     public void TheRulebooksShotgunAgainstPowerArmourComesOutAsWritten()
     {
-        // A shotgun-armed Regular (D8 shifted +2 to D12) against a Veteran in power armour (D10).
-        // The Regular rolls 10; the trooper rolls 3, doubled to 6. The shotgun wins.
+        // A Regular whose weapon is worth two shifts (D8 to D12) against a Veteran in power armour
+        // (D10). The Regular rolls 10; the trooper rolls 3, doubled to 6. The bigger die wins.
         var exchange = CloseAssault.Fight(
-            new Combatant(QualityDie.D8, CloseCombatWeapon.ShotgunOrFlame),
+            new Combatant(QualityDie.D8, WeaponShift: 2),
             new Combatant(QualityDie.D10, PowerArmour: true),
             new ScriptedDice(10, 3));
 
@@ -96,7 +96,7 @@ public sealed class CloseAssaultTests
         // leftover steps are taken off his opponent instead. Asserted on the dice each man ends up
         // throwing rather than on the rolls, because that is where the rule actually lands.
         var exchange = CloseAssault.Fight(
-            new Combatant(QualityDie.D12, CloseCombatWeapon.ShotgunOrFlame),
+            new Combatant(QualityDie.D12, WeaponShift: 2),
             new Combatant(QualityDie.D8),
             new ScriptedDice(12, 4));
 
@@ -123,14 +123,24 @@ public sealed class CloseAssaultTests
     }
 
     [Theory]
+    // The bands are the player's; what is pinned here is that they read low-to-high, worst first.
     [InlineData(1, DownedFate.Dead)]
     [InlineData(2, DownedFate.Dead)]
     [InlineData(3, DownedFate.Wounded)]
     [InlineData(4, DownedFate.Wounded)]
     [InlineData(5, DownedFate.Stunned)]
     [InlineData(6, DownedFate.Stunned)]
-    public void WhatBecomesOfADownedFigureIsRolledAtTheEnd(int roll, DownedFate expected) =>
-        Assert.Equal(expected, CloseAssault.Fate(new ScriptedDice(roll)));
+    public void ADownedFigureIsReadAgainstTheBandsThePlayerSupplies(int roll, DownedFate expected) =>
+        Assert.Equal(expected, CloseAssault.Fate(roll, deadUpTo: 2, woundedUpTo: 4));
+
+    [Fact]
+    public void BandsOfADifferentShapeAreReadJustTheSame()
+    {
+        // Nothing here assumes a D6 or the usual thirds: a kinder table is read as written.
+        Assert.Equal(DownedFate.Dead, CloseAssault.Fate(1, deadUpTo: 1, woundedUpTo: 3));
+        Assert.Equal(DownedFate.Wounded, CloseAssault.Fate(3, deadUpTo: 1, woundedUpTo: 3));
+        Assert.Equal(DownedFate.Stunned, CloseAssault.Fate(4, deadUpTo: 1, woundedUpTo: 3));
+    }
 
     [Fact]
     public void TheSideThatCameOffWorstTestsItsNerveFirst()

@@ -102,6 +102,10 @@ public interface IStarGruntGameService
 /// Where games are written so they survive a restart. Defaults to keeping nothing, which is what a
 /// test and a throwaway session want.
 /// </param>
+/// <param name="allocator">
+/// Who catches the hits, injectable so a test can script allocation as well as the dice. Defaults
+/// to spreading them evenly across the figures still standing.
+/// </param>
 public sealed class StarGruntGameService(
     IQualityDiceRoller? rollDie = null,
     IMatchStore? store = null,
@@ -295,7 +299,7 @@ public sealed class StarGruntGameService(
     {
         ArgumentNullException.ThrowIfNull(request);
         return Command(gameId, game => game.DeclareCloseAssault(
-            new UnitId(request.AttackerId), new UnitId(request.DefenderId), _dice));
+            new UnitId(request.AttackerId), new UnitId(request.DefenderId), request.ThreatLevel, _dice));
     }
 
     /// <inheritdoc />
@@ -311,8 +315,8 @@ public sealed class StarGruntGameService(
     {
         ArgumentNullException.ThrowIfNull(request);
         var pairings = (request.Pairings ?? []).Select(pairing => new MeleePairing(
-            CloseCombat(pairing.AttackerWeapon),
-            CloseCombat(pairing.DefenderWeapon),
+            pairing.AttackerShift,
+            pairing.DefenderShift,
             pairing.AttackerPowerArmour,
             pairing.DefenderPowerArmour)).ToArray();
 
@@ -329,15 +333,13 @@ public sealed class StarGruntGameService(
     {
         ArgumentNullException.ThrowIfNull(request);
         return Command(gameId, game => game.SettleTheDowned(
-            new UnitId(request.UnitId), request.Downed, request.WonTheAssault, _dice));
+            new UnitId(request.UnitId),
+            request.Downed,
+            request.WonTheAssault,
+            request.DeadUpTo,
+            request.WoundedUpTo,
+            _dice));
     }
-
-    /// <summary>Reads a close-combat weapon name, refusing anything that is not one.</summary>
-    private static CloseCombatWeapon CloseCombat(string? weapon) =>
-        Enum.TryParse<CloseCombatWeapon>(weapon, ignoreCase: true, out var parsed)
-            ? parsed
-            : throw new InvalidOperationException(
-                $"'{weapon}' is not a close-combat weapon (None, Firearm, Edged, ShotgunOrFlame).");
 
     /// <inheritdoc />
     public StarGruntSnapshotDto EndActivation(Guid gameId) => Command(gameId, game => game.EndActivation());

@@ -11,10 +11,10 @@ namespace ForceSignal.Modules.StarGrunt.Tests;
 public sealed class GameAssaultTests
 {
     [Fact]
-    public void AConfidentSquadChargesWithoutHesitating()
+    public void AChargeAtNoThreatGoesInOnAnyDecentRoll()
     {
-        // Confident is threat zero, so any roll above leadership 2 carries it in.
-        var after = Activated().DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, new ScriptedDice(6));
+        // Threat zero, so any roll above leadership 2 carries it in.
+        var after = Activated().DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, threatLevel: 0, new ScriptedDice(6));
 
         Assert.True(after.IsAllowed);
         Assert.Contains(after.Value!.Log, entry => entry.Contains("went in on", StringComparison.Ordinal));
@@ -25,7 +25,7 @@ public sealed class GameAssaultTests
     {
         var game = Activated().WithStatus(GameFixtures.Alpha, status => status with { Confidence = ConfidenceLevel.Broken });
 
-        var refused = game.DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, new ScriptedDice(6));
+        var refused = game.DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, threatLevel: 0, new ScriptedDice(6));
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("will not charge", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -36,10 +36,11 @@ public sealed class GameAssaultTests
     {
         // A charge is a reaction test, so refusing it costs the action and leaves confidence alone.
         // Shaken going in, shaken coming out, and one action gone.
+        // The threat is the player's; what is tested here is what a failed test does.
         var shaken = Activated()
             .WithStatus(GameFixtures.Alpha, status => status with { Confidence = ConfidenceLevel.Shaken });
 
-        var after = shaken.DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, new ScriptedDice(1)).Value!;
+        var after = shaken.DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, threatLevel: 3, new ScriptedDice(1)).Value!;
 
         Assert.Equal(
             shaken.Status(GameFixtures.Alpha).Confidence,
@@ -53,7 +54,7 @@ public sealed class GameAssaultTests
         // The rules give the whole activation to a close assault even when the move to contact needs
         // only one action. Found by playing one in a browser and noticing the squad still had an
         // action in hand afterwards.
-        var after = Activated().DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, new ScriptedDice(6)).Value!;
+        var after = Activated().DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, threatLevel: 0, new ScriptedDice(6)).Value!;
 
         var refused = after.TakeStep(StarGruntSteps.Simple(StarGruntAction.Observe));
 
@@ -67,7 +68,7 @@ public sealed class GameAssaultTests
         // Costing the whole activation is also what forbids this, without a rule of its own.
         var game = Activated().TakeStep(StarGruntSteps.Simple(StarGruntAction.Observe)).Value!;
 
-        var refused = game.DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, new ScriptedDice(6));
+        var refused = game.DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, threatLevel: 0, new ScriptedDice(6));
 
         Assert.False(refused.IsAllowed);
     }
@@ -77,7 +78,7 @@ public sealed class GameAssaultTests
     {
         var game = Activated().WithUnit(GameFixtures.Squad(new UnitId("charlie"), "Charlie Squad", GameFixtures.Blue));
 
-        var refused = game.DeclareCloseAssault(GameFixtures.Alpha, new UnitId("charlie"), new ScriptedDice(6));
+        var refused = game.DeclareCloseAssault(GameFixtures.Alpha, new UnitId("charlie"), threatLevel: 0, new ScriptedDice(6));
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("own side", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -163,7 +164,7 @@ public sealed class GameAssaultTests
         var after = Activated().FightMeleeRound(
             GameFixtures.Alpha,
             GameFixtures.Bravo,
-            [new MeleePairing(AttackerWeapon: CloseCombatWeapon.ShotgunOrFlame)],
+            [new MeleePairing(AttackerShift: 2)],
             defendersInCover: false,
             new ScriptedDice(9, 2)).Value!;
 
@@ -175,7 +176,7 @@ public sealed class GameAssaultTests
     {
         var game = Activated().WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 6 });
 
-        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 2, wonTheAssault: true, new ScriptedDice(5, 3)).Value!;
+        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 2, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, new ScriptedDice(5, 3)).Value!;
 
         // One stunned man back on his feet, one wounded who is a casualty rather than a rifle.
         Assert.Equal(7, after.Status(GameFixtures.Alpha).FiguresAlive);
@@ -187,7 +188,7 @@ public sealed class GameAssaultTests
     {
         var game = Activated().WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 6 });
 
-        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 1, wonTheAssault: false, new ScriptedDice(5)).Value!;
+        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 1, wonTheAssault: false, deadUpTo: 2, woundedUpTo: 4, new ScriptedDice(5)).Value!;
 
         Assert.Equal(6, after.Status(GameFixtures.Alpha).FiguresAlive);
         Assert.Contains(after.Log, entry => entry.Contains("left to the victors", StringComparison.Ordinal));
@@ -196,9 +197,29 @@ public sealed class GameAssaultTests
     [Fact]
     public void SettlingNobodyIsRefused()
     {
-        var refused = Activated().SettleTheDowned(GameFixtures.Alpha, downed: 0, wonTheAssault: true, new ScriptedDice(5));
+        var refused = Activated().SettleTheDowned(GameFixtures.Alpha, downed: 0, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, new ScriptedDice(5));
 
         Assert.False(refused.IsAllowed);
+    }
+
+    [Fact]
+    public void AThreatLevelBelowNothingIsRefused()
+    {
+        var refused = Activated().DeclareCloseAssault(
+            GameFixtures.Alpha, GameFixtures.Bravo, threatLevel: -1, new ScriptedDice(6));
+
+        Assert.False(refused.IsAllowed);
+    }
+
+    [Fact]
+    public void BandsThatDoNotClimbAreRefused()
+    {
+        // Wounded has to sit above dead, or the roll reads as nonsense.
+        var refused = Activated().SettleTheDowned(
+            GameFixtures.Alpha, downed: 1, wonTheAssault: true, deadUpTo: 4, woundedUpTo: 2, new ScriptedDice(3));
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("climb", refused.Reason!, StringComparison.OrdinalIgnoreCase);
     }
 
     private static StarGruntGame Activated() =>

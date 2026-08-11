@@ -188,6 +188,13 @@ contact needs only one action, and the action cost said otherwise - so a squad c
 still have an action in hand. Costing it both is also what forbids doing something else first and
 then charging, without a rule of its own. Fixed, with tests.
 
+**Corrected after the fact:** this first shipped with the charge threats, the close-combat weapon
+shifts and the bands for a downed figure written into the code, which is exactly the thing the
+content policy says not to do. They are supplied now, like every other threat level here. What the
+engine kept is the procedure and the two rules that are not numbers: a unit that has lost its nerve
+will not charge however it is asked, and cover is worth a step to a defender for the first round
+only.
+
 **Also not modelled: the assault as a tracked state.** The app helps with each step - the charge, the
 stand, a round of melee, the fates - rather than holding a multi-round assault and walking the
 players through it. Whether that is worth building is a question for after somebody has played one.

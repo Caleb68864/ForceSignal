@@ -190,7 +190,7 @@ public static class GroundCombatEndpoints
             .WithName("DeclareStarGruntCharge")
             .WithTags("StarGrunt")
             .WithSummary("Declares a close assault and rolls the attacker's nerve to make it.")
-            .WithDescription("The threat comes from the attacker's own confidence, so it is worked out here. A unit that has already lost its nerve will not charge at all.")
+            .WithDescription("The threat level is supplied, off the player's own table. What is enforced here is the rule beside it: a unit that has already lost its nerve will not charge at all.")
             .Produces<StarGruntSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -223,7 +223,7 @@ public static class GroundCombatEndpoints
             .WithName("SettleStarGruntDowned")
             .WithTags("StarGrunt")
             .WithSummary("Rolls what became of the figures a unit had downed.")
-            .WithDescription("Rolled once the assault is over, because a stunned man gets up again on the winning side and is taken on the losing one.")
+            .WithDescription("Rolled once the assault is over, because a stunned man gets up again on the winning side and is taken on the losing one. The bands that read the roll are supplied.")
             .Produces<StarGruntSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 

@@ -24,7 +24,6 @@ const covers = ['None', 'Soft', 'Hard'];
 const unarmedActions = ['Move', 'Dash', 'Observe', 'Communicate', 'GoInPosition'];
 const threatLevels = [1, 2, 3, 4, 5, 6];
 const commandLadder = ['Squad', 'Platoon', 'Company', 'Battalion', 'Regiment'];
-const closeCombatWeapons = ['None', 'Firearm', 'Edged', 'ShotgunOrFlame'];
 
 /** Where a command level sits on the ladder, for deciding who may rally whom. */
 function commandRank(level: string) {
@@ -80,8 +79,13 @@ export function StarGruntView() {
     defenderId: '',
     terror: false,
     pairs: 1,
-    attackerWeapon: 'None',
-    defenderWeapon: 'None',
+    threatLevel: 0,
+    attackerShift: 0,
+    defenderShift: 0,
+    downed: 1,
+    wonTheAssault: true,
+    deadUpTo: 2,
+    woundedUpTo: 4,
     defendersInCover: true,
   });
   const [shot, setShot] = useState<ShotForm>({
@@ -322,9 +326,11 @@ export function StarGruntView() {
           <div className="card-module" aria-label="Close assault">
             <span className="label module-title">Close assault</span>
             <p className="constraint-line">
-              A charge spends the whole activation. The nerve it asks comes from this unit's own
-              confidence; the nerve to stand comes from the odds. Who fights whom is yours to pair off
-              on the table - the attacker takes one each, the defender allocates the rest.
+              A charge spends the whole activation. Threat levels, weapon shifts and the bands that
+              read a downed figure all come off your own tables. What this works out is the odds the
+              defenders face, and it will not let a unit that has lost its nerve charge at all. Who
+              fights whom is yours to pair off - the attacker takes one each, the defender allocates
+              the rest.
             </p>
             <label>
               Target
@@ -355,23 +361,35 @@ export function StarGruntView() {
                 onChange={(event) => setAssault((current) => ({ ...current, pairs: Number(event.target.value) }))}
               />
             </label>
-            <label>
-              Attacker CC weapon
-              <select
-                value={assault.attackerWeapon}
-                onChange={(event) => setAssault((current) => ({ ...current, attackerWeapon: event.target.value }))}
-              >
-                {closeCombatWeapons.map((weapon) => <option key={weapon} value={weapon}>{weapon}</option>)}
-              </select>
+            <label title="What the charge asks of the attackers, off your own table.">
+              Charge threat
+              <input
+                type="number"
+                min="0"
+                max="9"
+                value={assault.threatLevel}
+                onChange={(event) => setAssault((current) => ({ ...current, threatLevel: Number(event.target.value) }))}
+              />
             </label>
-            <label>
-              Defender CC weapon
-              <select
-                value={assault.defenderWeapon}
-                onChange={(event) => setAssault((current) => ({ ...current, defenderWeapon: event.target.value }))}
-              >
-                {closeCombatWeapons.map((weapon) => <option key={weapon} value={weapon}>{weapon}</option>)}
-              </select>
+            <label title="Die types the attacker's close-combat weapon is worth, off your own table.">
+              Attacker shift
+              <input
+                type="number"
+                min="0"
+                max="4"
+                value={assault.attackerShift}
+                onChange={(event) => setAssault((current) => ({ ...current, attackerShift: Number(event.target.value) }))}
+              />
+            </label>
+            <label title="Die types the defender's close-combat weapon is worth.">
+              Defender shift
+              <input
+                type="number"
+                min="0"
+                max="4"
+                value={assault.defenderShift}
+                onChange={(event) => setAssault((current) => ({ ...current, defenderShift: Number(event.target.value) }))}
+              />
             </label>
             <label title="Cover helps a defender in the first round only, once the attackers are in among them.">
               Defenders in cover
@@ -386,7 +404,7 @@ export function StarGruntView() {
                 type="button"
                 disabled={busy || targets.length === 0}
                 onClick={() => run(
-                  () => api.declareCharge(game, activating.id, assault.defenderId || targets[0].id),
+                  () => api.declareCharge(game, activating.id, assault.defenderId || targets[0].id, assault.threatLevel),
                   `${activating.name} was ordered in.`,
                 )}
               >
@@ -412,8 +430,8 @@ export function StarGruntView() {
                     attackerId: activating.id,
                     defenderId: assault.defenderId || targets[0].id,
                     pairings: Array.from({ length: Math.max(1, assault.pairs) }, () => ({
-                      attackerWeapon: assault.attackerWeapon,
-                      defenderWeapon: assault.defenderWeapon,
+                      attackerShift: assault.attackerShift,
+                      defenderShift: assault.defenderShift,
                       attackerPowerArmour: false,
                       defenderPowerArmour: false,
                     })),
@@ -423,6 +441,69 @@ export function StarGruntView() {
                 )}
               >
                 Fight Round
+              </button>
+            </div>
+            <p className="constraint-line">
+              Once somebody holds the ground, count this unit's down and read them off your own
+              table. A stunned man gets up again on the winning side and is taken on the losing one,
+              which is why it waits until the fighting stops.
+            </p>
+            <label>
+              Down
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={assault.downed}
+                onChange={(event) => setAssault((current) => ({ ...current, downed: Number(event.target.value) }))}
+              />
+            </label>
+            <label title="Rolls up to and including this are dead.">
+              Dead up to
+              <input
+                type="number"
+                min="1"
+                max="12"
+                value={assault.deadUpTo}
+                onChange={(event) => setAssault((current) => ({ ...current, deadUpTo: Number(event.target.value) }))}
+              />
+            </label>
+            <label title="Rolls above dead and up to this are wounded; anything higher is stunned.">
+              Wounded up to
+              <input
+                type="number"
+                min="1"
+                max="12"
+                value={assault.woundedUpTo}
+                onChange={(event) => setAssault((current) => ({ ...current, woundedUpTo: Number(event.target.value) }))}
+              />
+            </label>
+            <label title="True when this unit's side holds the ground at the finish.">
+              Held the ground
+              <input
+                type="checkbox"
+                checked={assault.wonTheAssault}
+                onChange={(event) => setAssault((current) => ({ ...current, wonTheAssault: event.target.checked }))}
+              />
+            </label>
+            <div className="quick-actions">
+              <button
+                className="ghost"
+                type="button"
+                disabled={busy}
+                onClick={() => run(
+                  () => api.settleTheDowned(
+                    game,
+                    activating.id,
+                    assault.downed,
+                    assault.wonTheAssault,
+                    assault.deadUpTo,
+                    assault.woundedUpTo,
+                  ),
+                  `${activating.name} counted its down.`,
+                )}
+              >
+                Settle Downed
               </button>
             </div>
           </div>

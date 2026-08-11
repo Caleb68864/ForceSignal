@@ -3,36 +3,20 @@ using ForceSignal.Modules.GroundCombat.Morale;
 
 namespace ForceSignal.Modules.StarGrunt.Assault;
 
-/// <summary>What a close-combat weapon does to the die its owner throws.</summary>
-/// <remarks>
-/// The shifts themselves are the user's, off their own card - what lives here is the fact that a
-/// weapon shifts the die at all, and that the shift is an open one.
-/// </remarks>
-public enum CloseCombatWeapon
-{
-    /// <summary>Nothing but a ranged weapon in his hands.</summary>
-    None = 0,
-
-    /// <summary>A pistol or machine pistol.</summary>
-    Firearm = 1,
-
-    /// <summary>A sword, an axe, a power sword.</summary>
-    Edged = 2,
-
-    /// <summary>A shotgun or a flame weapon, which are worth more at arm's length.</summary>
-    ShotgunOrFlame = 3,
-}
-
 /// <summary>One figure squaring up in a melee.</summary>
 /// <param name="Quality">The figure's quality die.</param>
-/// <param name="Weapon">What he has to hand.</param>
+/// <param name="WeaponShift">
+/// How many die types his close-combat weapon is worth, read off the player's own table. Nothing
+/// here knows what a sword or a shotgun is worth; what it knows is that a weapon shifts the die and
+/// that the shift is an open one.
+/// </param>
 /// <param name="PowerArmour">True when he is in power armour, which doubles his score.</param>
 /// <param name="InCoverThisRound">
 /// True when he is a defender still getting the benefit of cover, which is the first round only.
 /// </param>
 public readonly record struct Combatant(
     QualityDie Quality,
-    CloseCombatWeapon Weapon = CloseCombatWeapon.None,
+    int WeaponShift = 0,
     bool PowerArmour = false,
     bool InCoverThisRound = false);
 
@@ -92,18 +76,17 @@ public enum DownedFate
 public static class CloseAssault
 {
     /// <summary>
-    /// How much nerve a charge asks of the unit making it, given how it feels about the world.
+    /// Whether a unit in this state of mind will go in at all.
     /// </summary>
     /// <param name="confidence">The attacker's confidence.</param>
-    /// <returns>The threat level for the reaction test, or null when it will not charge at all.</returns>
-    public static int? ChargeThreat(ConfidenceLevel confidence) => confidence switch
-    {
-        ConfidenceLevel.Confident => 0,
-        ConfidenceLevel.Steady => 1,
-        ConfidenceLevel.Shaken => 3,
-        // A unit that has already lost its nerve does not find it by being asked to charge.
-        _ => null,
-    };
+    /// <returns>True when it can be ordered to charge.</returns>
+    /// <remarks>
+    /// A rule rather than a number, which is why it lives here while the threat the charge asks does
+    /// not: a unit that has already lost its nerve does not find it by being told to charge. How
+    /// much nerve the charge costs a unit that will go is a threat level off the player's own table,
+    /// like every other threat level in this app.
+    /// </remarks>
+    public static bool CanCharge(ConfidenceLevel confidence) => confidence > ConfidenceLevel.Broken;
 
     /// <summary>
     /// A side's weight for the odds, counting a figure in power armour as two men.
@@ -152,9 +135,9 @@ public static class CloseAssault
 
         var dice = QualityDice.ShiftOpposed(
             attacker.Quality,
-            Steps(attacker.Weapon),
+            attacker.WeaponShift,
             defender.Quality,
-            Steps(defender.Weapon) + (defender.InCoverThisRound ? 1 : 0));
+            defender.WeaponShift + (defender.InCoverThisRound ? CoverShift : 0));
 
         var attackerScore = roller.Roll(dice.Actor) * (attacker.PowerArmour ? 2 : 1);
         var defenderScore = roller.Roll(dice.Opponent) * (defender.PowerArmour ? 2 : 1);
@@ -169,26 +152,22 @@ public static class CloseAssault
     }
 
     /// <summary>
-    /// Rolls what became of a figure that went down, once the whole assault is over.
+    /// Reads one roll against the bands a player's own table gives for a downed figure.
     /// </summary>
-    /// <param name="roller">Die source.</param>
+    /// <param name="roll">What the die showed.</param>
+    /// <param name="deadUpTo">The highest roll that means dead.</param>
+    /// <param name="woundedUpTo">The highest roll that means wounded; anything above it is stunned.</param>
     /// <returns>His fate.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="roller"/> is null.</exception>
     /// <remarks>
-    /// Left until the end on purpose: a man down in the first round may be picked up by whoever
-    /// holds the ground at the finish, and that is not known while the fighting is still going on.
+    /// The bands are supplied rather than known here, for the same reason every other threshold in
+    /// this app is. What the engine owns is the shape - worst outcome low, best outcome high, and
+    /// the roll left until the end of the assault because a man down in the first round may be
+    /// picked up by whoever holds the ground at the finish.
     /// </remarks>
-    public static DownedFate Fate(IQualityDiceRoller roller)
-    {
-        ArgumentNullException.ThrowIfNull(roller);
-
-        return roller.Roll(QualityDie.D6) switch
-        {
-            <= 2 => DownedFate.Dead,
-            <= 4 => DownedFate.Wounded,
-            _ => DownedFate.Stunned,
-        };
-    }
+    public static DownedFate Fate(int roll, int deadUpTo, int woundedUpTo) =>
+        roll <= deadUpTo ? DownedFate.Dead
+        : roll <= woundedUpTo ? DownedFate.Wounded
+        : DownedFate.Stunned;
 
     /// <summary>
     /// Which side has to test its nerve first between rounds, and at what threat.
@@ -206,11 +185,13 @@ public static class CloseAssault
         int defenderCasualties) =>
         (attackerCasualties > defenderCasualties, Math.Max(0, attackerCasualties), Math.Max(0, defenderCasualties));
 
-    /// <summary>How many die types a close-combat weapon is worth.</summary>
-    private static int Steps(CloseCombatWeapon weapon) => weapon switch
-    {
-        CloseCombatWeapon.Firearm or CloseCombatWeapon.Edged => 1,
-        CloseCombatWeapon.ShotgunOrFlame => 2,
-        _ => 0,
-    };
+    /// <summary>
+    /// What cover is worth to a defender in the first round of a melee.
+    /// </summary>
+    /// <remarks>
+    /// One step, and named rather than inlined because it is the one shift in a close combat this
+    /// engine owns: it is a property of being charged in cover rather than of any weapon, and it
+    /// stops mattering the moment the attackers are in among them.
+    /// </remarks>
+    private const int CoverShift = 1;
 }

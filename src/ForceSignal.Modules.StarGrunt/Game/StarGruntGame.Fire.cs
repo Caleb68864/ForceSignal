@@ -68,6 +68,10 @@ public sealed partial record StarGruntGame
     /// per-activation weapon limit honest - the limit lives in the frame's spent resources, so it is
     /// the sequence layer that refuses a second volley from the same weapon, not a flag kept here.
     /// </remarks>
+    /// <param name="allocator">
+    /// Who catches the hits, injectable so a test can put a round where it needs it. Defaults to
+    /// spreading them evenly across the figures still standing.
+    /// </param>
     public GameOutcome<StarGruntGame> Fire(
         FireCommand command,
         IQualityDiceRoller dice,
@@ -260,7 +264,7 @@ public sealed partial record StarGruntGame
         FireCommand command,
         FireOutcome outcome,
         LandedHits landed,
-        IReadOnlyList<WeaponProfile> support)
+        List<WeaponProfile> support)
     {
         var range = command.DistanceInches.ToString("0.#", CultureInfo.InvariantCulture);
         var suppressed = outcome.Suppresses ? ", and it is suppressed" : string.Empty;
