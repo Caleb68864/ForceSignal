@@ -114,6 +114,31 @@ export function setLeavesCover(gameId: string, unitId: string, leavesCover: bool
   return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/units/leaves-cover`, { unitId, leavesCover });
 }
 
+/** Declares a close assault. The nerve it asks comes from the attacker's own confidence. */
+export function declareCharge(gameId: string, attackerId: string, defenderId: string) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/charge`, { attackerId, defenderId });
+}
+
+/** Rolls the defender's nerve to stand. The threat comes from the odds, doubled by terror. */
+export function defenderStands(gameId: string, attackerId: string, defenderId: string, terror: boolean) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/assaults/stand`, { attackerId, defenderId, terror });
+}
+
+/** Fights one round of melee. Who fights whom is the players' call, not the app's. */
+export function fightMelee(gameId: string, melee: {
+  attackerId: string;
+  defenderId: string;
+  pairings: { attackerWeapon: string; defenderWeapon: string; attackerPowerArmour: boolean; defenderPowerArmour: boolean }[];
+  defendersInCover: boolean;
+}) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/assaults/melee`, melee);
+}
+
+/** Rolls what became of a unit's downed figures, once somebody has won the ground. */
+export function settleTheDowned(gameId: string, unitId: string, downed: number, wonTheAssault: boolean) {
+  return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/assaults/downed`, { unitId, downed, wonTheAssault });
+}
+
 /** Closes the open activation. */
 export function endActivation(gameId: string) {
   return post<StarGruntSnapshot>(`/api/stargrunt/games/${gameId}/activations/current/end`, {});

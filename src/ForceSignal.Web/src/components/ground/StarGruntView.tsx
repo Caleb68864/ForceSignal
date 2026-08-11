@@ -24,6 +24,7 @@ const covers = ['None', 'Soft', 'Hard'];
 const unarmedActions = ['Move', 'Dash', 'Observe', 'Communicate', 'GoInPosition'];
 const threatLevels = [1, 2, 3, 4, 5, 6];
 const commandLadder = ['Squad', 'Platoon', 'Company', 'Battalion', 'Regiment'];
+const closeCombatWeapons = ['None', 'Firearm', 'Edged', 'ShotgunOrFlame'];
 
 /** Where a command level sits on the ladder, for deciding who may rally whom. */
 function commandRank(level: string) {
@@ -75,6 +76,14 @@ export function StarGruntView() {
   const [importSide, setImportSide] = useState('blue');
   // Read off the player's own threat table, which this app does not ship.
   const [threatLevel, setThreatLevel] = useState(2);
+  const [assault, setAssault] = useState({
+    defenderId: '',
+    terror: false,
+    pairs: 1,
+    attackerWeapon: 'None',
+    defenderWeapon: 'None',
+    defendersInCover: true,
+  });
   const [shot, setShot] = useState<ShotForm>({
     targetId: '',
     weaponName: '',
@@ -308,6 +317,114 @@ export function StarGruntView() {
             >
               End Activation
             </button>
+          </div>
+
+          <div className="card-module" aria-label="Close assault">
+            <span className="label module-title">Close assault</span>
+            <p className="constraint-line">
+              A charge spends the whole activation. The nerve it asks comes from this unit's own
+              confidence; the nerve to stand comes from the odds. Who fights whom is yours to pair off
+              on the table - the attacker takes one each, the defender allocates the rest.
+            </p>
+            <label>
+              Target
+              <select
+                value={assault.defenderId || targets[0]?.id || ''}
+                onChange={(event) => setAssault((current) => ({ ...current, defenderId: event.target.value }))}
+              >
+                {targets.map((target) => (
+                  <option key={target.id} value={target.id}>{target.name} · {target.figuresAlive} figures</option>
+                ))}
+              </select>
+            </label>
+            <label title="Agreed between the players before the game, not something this app decides.">
+              Terror
+              <input
+                type="checkbox"
+                checked={assault.terror}
+                onChange={(event) => setAssault((current) => ({ ...current, terror: event.target.checked }))}
+              />
+            </label>
+            <label>
+              Pairs
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={assault.pairs}
+                onChange={(event) => setAssault((current) => ({ ...current, pairs: Number(event.target.value) }))}
+              />
+            </label>
+            <label>
+              Attacker CC weapon
+              <select
+                value={assault.attackerWeapon}
+                onChange={(event) => setAssault((current) => ({ ...current, attackerWeapon: event.target.value }))}
+              >
+                {closeCombatWeapons.map((weapon) => <option key={weapon} value={weapon}>{weapon}</option>)}
+              </select>
+            </label>
+            <label>
+              Defender CC weapon
+              <select
+                value={assault.defenderWeapon}
+                onChange={(event) => setAssault((current) => ({ ...current, defenderWeapon: event.target.value }))}
+              >
+                {closeCombatWeapons.map((weapon) => <option key={weapon} value={weapon}>{weapon}</option>)}
+              </select>
+            </label>
+            <label title="Cover helps a defender in the first round only, once the attackers are in among them.">
+              Defenders in cover
+              <input
+                type="checkbox"
+                checked={assault.defendersInCover}
+                onChange={(event) => setAssault((current) => ({ ...current, defendersInCover: event.target.checked }))}
+              />
+            </label>
+            <div className="quick-actions">
+              <button
+                type="button"
+                disabled={busy || targets.length === 0}
+                onClick={() => run(
+                  () => api.declareCharge(game, activating.id, assault.defenderId || targets[0].id),
+                  `${activating.name} was ordered in.`,
+                )}
+              >
+                Charge
+              </button>
+              <button
+                className="ghost"
+                type="button"
+                disabled={busy || targets.length === 0}
+                onClick={() => run(
+                  () => api.defenderStands(game, activating.id, assault.defenderId || targets[0].id, assault.terror),
+                  'The defenders were tested.',
+                )}
+              >
+                Defender Stands?
+              </button>
+              <button
+                className="ghost"
+                type="button"
+                disabled={busy || targets.length === 0}
+                onClick={() => run(
+                  () => api.fightMelee(game, {
+                    attackerId: activating.id,
+                    defenderId: assault.defenderId || targets[0].id,
+                    pairings: Array.from({ length: Math.max(1, assault.pairs) }, () => ({
+                      attackerWeapon: assault.attackerWeapon,
+                      defenderWeapon: assault.defenderWeapon,
+                      attackerPowerArmour: false,
+                      defenderPowerArmour: false,
+                    })),
+                    defendersInCover: assault.defendersInCover,
+                  }),
+                  'A round of melee was fought.',
+                )}
+              >
+                Fight Round
+              </button>
+            </div>
           </div>
 
           <FirePanel

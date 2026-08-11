@@ -183,6 +183,50 @@ public static class GroundCombatEndpoints
             .Produces<StarGruntSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/charge", (
+            Guid gameId,
+            StarGruntChargeRequest request,
+            IStarGruntGameService games) => Results.Ok(games.DeclareCharge(gameId, request)))
+            .WithName("DeclareStarGruntCharge")
+            .WithTags("StarGrunt")
+            .WithSummary("Declares a close assault and rolls the attacker's nerve to make it.")
+            .WithDescription("The threat comes from the attacker's own confidence, so it is worked out here. A unit that has already lost its nerve will not charge at all.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/assaults/stand", (
+            Guid gameId,
+            StarGruntStandRequest request,
+            IStarGruntGameService games) => Results.Ok(games.DefenderStands(gameId, request)))
+            .WithName("StarGruntDefenderStands")
+            .WithTags("StarGrunt")
+            .WithSummary("Rolls the defender's nerve to stand and receive a charge.")
+            .WithDescription("The threat comes from the odds, counted off the roster with power armour worth two men, and terror doubles it.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/assaults/melee", (
+            Guid gameId,
+            StarGruntMeleeRequest request,
+            IStarGruntGameService games) => Results.Ok(games.FightMelee(gameId, request)))
+            .WithName("FightStarGruntMelee")
+            .WithTags("StarGrunt")
+            .WithSummary("Fights one round of melee, one exchange per pairing.")
+            .WithDescription("Who fights whom is sent in rather than worked out: the attacker pairs off one figure per defender and the defender allocates the leftovers, which is a decision between two people.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapPost("/api/stargrunt/games/{gameId:guid}/assaults/downed", (
+            Guid gameId,
+            StarGruntSettleDownedRequest request,
+            IStarGruntGameService games) => Results.Ok(games.SettleTheDowned(gameId, request)))
+            .WithName("SettleStarGruntDowned")
+            .WithTags("StarGrunt")
+            .WithSummary("Rolls what became of the figures a unit had downed.")
+            .WithDescription("Rolled once the assault is over, because a stunned man gets up again on the winning side and is taken on the losing one.")
+            .Produces<StarGruntSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/end", (Guid gameId, IStarGruntGameService games) =>
             Results.Ok(games.EndActivation(gameId)))
             .WithName("EndStarGruntActivation")

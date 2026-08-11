@@ -111,6 +111,48 @@ public sealed record StarGruntReactionTestRequest(string UnitId, int ThreatLevel
 /// <param name="LeavesCover">True when the move is the risky sort.</param>
 public sealed record StarGruntLeavesCoverRequest(string UnitId, bool LeavesCover);
 
+/// <summary>Declares a close assault and rolls the attacker's nerve to make it.</summary>
+/// <param name="AttackerId">The unit charging, which spends its whole activation on this.</param>
+/// <param name="DefenderId">The single unit being charged.</param>
+public sealed record StarGruntChargeRequest(string AttackerId, string DefenderId);
+
+/// <summary>Rolls the defender's nerve to stand and receive a charge.</summary>
+/// <param name="AttackerId">The unit charging.</param>
+/// <param name="DefenderId">The unit being charged.</param>
+/// <param name="Terror">
+/// True when the attackers frighten people. Agreed between the players before the game, so it is
+/// sent rather than looked up.
+/// </param>
+public sealed record StarGruntStandRequest(string AttackerId, string DefenderId, bool Terror = false);
+
+/// <summary>One pair of figures, as the players have paired them off over the table.</summary>
+/// <param name="AttackerWeapon">What the charging figure has to hand: None, Firearm, Edged or ShotgunOrFlame.</param>
+/// <param name="DefenderWeapon">What the receiving figure has.</param>
+/// <param name="AttackerPowerArmour">True when the charging figure is in power armour.</param>
+/// <param name="DefenderPowerArmour">True when the receiving figure is.</param>
+public sealed record StarGruntMeleePairingDto(
+    string AttackerWeapon = "None",
+    string DefenderWeapon = "None",
+    bool AttackerPowerArmour = false,
+    bool DefenderPowerArmour = false);
+
+/// <summary>Fights one round of melee, one exchange per pairing.</summary>
+/// <param name="AttackerId">The charging unit.</param>
+/// <param name="DefenderId">The receiving unit.</param>
+/// <param name="Pairings">Who is fighting whom, which the players decide between them.</param>
+/// <param name="DefendersInCover">True in the first round only, while the cover still counts.</param>
+public sealed record StarGruntMeleeRequest(
+    string AttackerId,
+    string DefenderId,
+    IReadOnlyList<StarGruntMeleePairingDto> Pairings,
+    bool DefendersInCover = false);
+
+/// <summary>Rolls what became of the figures a unit had downed, now the assault is over.</summary>
+/// <param name="UnitId">The unit whose downed figures are being settled.</param>
+/// <param name="Downed">How many of its figures went down.</param>
+/// <param name="WonTheAssault">True when its side holds the ground at the finish.</param>
+public sealed record StarGruntSettleDownedRequest(string UnitId, int Downed, bool WonTheAssault);
+
 /// <summary>Declares whether a unit has scattered out of integrity.</summary>
 /// <param name="UnitId">The unit.</param>
 /// <param name="IsDisorganised">True when it is out of integrity and owes a reorganise.</param>

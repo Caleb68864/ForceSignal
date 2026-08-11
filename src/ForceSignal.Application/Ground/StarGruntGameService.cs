@@ -3,6 +3,7 @@ using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.StarGrunt.Assault;
 using ForceSignal.Modules.StarGrunt.Combat;
 using ForceSignal.Modules.StarGrunt.Game;
 using ForceSignal.Modules.StarGrunt.Morale;
@@ -57,6 +58,18 @@ public interface IStarGruntGameService
 
     /// <summary>Declares that a unit's next move leaves cover.</summary>
     StarGruntSnapshotDto SetLeavesCover(Guid gameId, StarGruntLeavesCoverRequest request);
+
+    /// <summary>Declares a close assault and rolls the attacker's nerve to make it.</summary>
+    StarGruntSnapshotDto DeclareCharge(Guid gameId, StarGruntChargeRequest request);
+
+    /// <summary>Rolls the defender's nerve to stand and receive a charge.</summary>
+    StarGruntSnapshotDto DefenderStands(Guid gameId, StarGruntStandRequest request);
+
+    /// <summary>Fights one round of melee.</summary>
+    StarGruntSnapshotDto FightMelee(Guid gameId, StarGruntMeleeRequest request);
+
+    /// <summary>Rolls what became of the figures a unit had downed.</summary>
+    StarGruntSnapshotDto SettleTheDowned(Guid gameId, StarGruntSettleDownedRequest request);
 
     /// <summary>Closes the open activation.</summary>
     StarGruntSnapshotDto EndActivation(Guid gameId);
@@ -276,6 +289,55 @@ public sealed class StarGruntGameService(
         ArgumentNullException.ThrowIfNull(request);
         return Command(gameId, game => game.SetNextMoveLeavesCover(new UnitId(request.UnitId), request.LeavesCover));
     }
+
+    /// <inheritdoc />
+    public StarGruntSnapshotDto DeclareCharge(Guid gameId, StarGruntChargeRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.DeclareCloseAssault(
+            new UnitId(request.AttackerId), new UnitId(request.DefenderId), _dice));
+    }
+
+    /// <inheritdoc />
+    public StarGruntSnapshotDto DefenderStands(Guid gameId, StarGruntStandRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.DefenderStands(
+            new UnitId(request.AttackerId), new UnitId(request.DefenderId), request.Terror, _dice));
+    }
+
+    /// <inheritdoc />
+    public StarGruntSnapshotDto FightMelee(Guid gameId, StarGruntMeleeRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var pairings = (request.Pairings ?? []).Select(pairing => new MeleePairing(
+            CloseCombat(pairing.AttackerWeapon),
+            CloseCombat(pairing.DefenderWeapon),
+            pairing.AttackerPowerArmour,
+            pairing.DefenderPowerArmour)).ToArray();
+
+        return Command(gameId, game => game.FightMeleeRound(
+            new UnitId(request.AttackerId),
+            new UnitId(request.DefenderId),
+            pairings,
+            request.DefendersInCover,
+            _dice));
+    }
+
+    /// <inheritdoc />
+    public StarGruntSnapshotDto SettleTheDowned(Guid gameId, StarGruntSettleDownedRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.SettleTheDowned(
+            new UnitId(request.UnitId), request.Downed, request.WonTheAssault, _dice));
+    }
+
+    /// <summary>Reads a close-combat weapon name, refusing anything that is not one.</summary>
+    private static CloseCombatWeapon CloseCombat(string? weapon) =>
+        Enum.TryParse<CloseCombatWeapon>(weapon, ignoreCase: true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException(
+                $"'{weapon}' is not a close-combat weapon (None, Firearm, Edged, ShotgunOrFlame).");
 
     /// <inheritdoc />
     public StarGruntSnapshotDto EndActivation(Guid gameId) => Command(gameId, game => game.EndActivation());

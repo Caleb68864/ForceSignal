@@ -160,11 +160,32 @@ property of the unit, set when it is added and carried in force files, and it bo
 confidence and caps recovery. What is still missing is anything that *changes* fatigue during a
 game - it is set once and never moves.
 
-## Gap 9 - Close assault is not built at all
+## Gap 9 - Close assault is not built at all - FIXED 2026-08-10
 
 **Severity: known and previously recorded.** Item 4 of `ground-combat-plan.md`. The whole
 resolution - initiating, terror effects, casualties in close combat, the routed-on-assault rule for
-broken units - is absent. Listed here so the fidelity picture is complete in one place.
+broken units - was absent.
+
+**Fixed.** The engine holds the procedure and the two threat levels a close assault needs, both of
+which are countable rather than tabled: the nerve a charge asks follows from the attacker's own
+confidence, and the nerve to stand follows from the odds, with power armour worth two men and terror
+doubling the result. The melee is the rulebook's, including the parts that catch people out - a tie
+settles nothing, weapon shifts are open so an overflow comes off the opponent's die, power armour
+doubles the score after the roll rather than the die before it, and cover helps a defender in the
+first round only. The rulebook's shotgun-against-power-armour example runs as a fixture.
+
+What became of a downed figure is rolled at the end rather than when he falls, because a stunned man
+gets up again on the winning side and is taken on the losing one - which is not known while the
+fighting is still going on.
+
+**Deliberately not modelled: who fights whom.** The attacker pairs one figure per defender and the
+defender allocates the leftovers, and that rule exists precisely to stop an attacker choosing to gang
+up on leaders and specialists. It is a decision between two people over a table, so the pairing is
+sent in and the app rolls it.
+
+**Also not modelled: the assault as a tracked state.** The app helps with each step - the charge, the
+stand, a round of melee, the fates - rather than holding a multi-round assault and walking the
+players through it. Whether that is worth building is a question for after somebody has played one.
 
 ## Gap 10 - Support weapons are not distinguished when firing - FIXED 2026-08-10
 
@@ -231,7 +252,8 @@ than a die. Rally will want the same value, so this unblocks gap 3 as well.
 4. ~~**Gap 7 and 8** - reaction tests and fatigue.~~ **Done**, bar fatigue that changes mid-game.
 5. ~~**Gap 10** - decide whether support weapons are derived or declared.~~ **Done**: named, not
    declared as dice, which is what made the trade enforceable.
-6. **Gap 9** - close assault, as its own piece of work.
+6. ~~**Gap 9** - close assault, as its own piece of work.~~ **Done**, bar the assault-as-state
+   question above.
 
 The first three items are all the same shape: the engine is built and tested, and the game layer
 has to call it. That is a day's work, not a rewrite, and it is the difference between a screen that
