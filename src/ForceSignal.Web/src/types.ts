@@ -226,8 +226,8 @@ export type MatchSnapshot = {
   matchLog: MatchLogEntry[];
   version: number;
   pointsLimit: number;
-  // Which layer of the rules this match is played under. The layers replace parts of one another.
-  rulesLayer?: string;
+  // Every number this match is played against, supplied by the players. This app ships none.
+  rules?: RulesProfile;
   // The ship part-way through its fire. Its threshold checks roll when the volley closes.
   firingShipId?: string | null;
   // Whose turn it is to pick a ship and fire it, and which ships have already had their turn.
@@ -425,4 +425,87 @@ export type StarGruntForceFile = {
     figures: StarGruntFigure[];
     weapons: StarGruntWeapon[];
   }[];
+};
+
+/** What one beam die scores against one level of screening. */
+export type BeamDamageEntry = { dieFace: number; screenLevel: number; damage: number };
+
+/** What one point-defence die shoots down. */
+export type PointDefenseEntry = { dieFace: number; kills: number };
+
+/** What a landed fighter group's turnaround roll means for it. */
+export type TurnaroundEntry = { dieFace: number; isGroundedForGame: boolean; turnsBeforeRelaunch: number };
+
+/**
+ * Every number a match is played against, off the players' own rulebook and record cards.
+ *
+ * ForceSignal ships none of these. There is deliberately no default profile here or on the server:
+ * a blank one is what a new match starts from, and the server refuses to play against an incomplete
+ * one rather than filling the gaps in with somebody's published numbers.
+ */
+export type RulesProfile = {
+  name: string;
+  dieFaces: number;
+  beamDamage: BeamDamageEntry[];
+  beamRangeBandWidth: number;
+  maxScreenLevel: number;
+  torpedoMaximumRange: number;
+  torpedoBandWidth: number;
+  torpedoBestToHit: number;
+  needleBeamRange: number;
+  needleSystemKillRoll: number;
+  enhancedNeedleBeams: boolean;
+  needleHullDamageRoll: number;
+  thresholdRows: 'FixedRows' | 'ByShipClass';
+  thresholdRowCount: number;
+  escortRowCount: number;
+  cruiserRowCount: number;
+  maxPartiesPerJob: number;
+  repairRollWithOneParty: number;
+  repairBestRoll: number;
+  fighterMoveAllowance: number;
+  carrierRatesFollowBays: boolean;
+  trueCarrierAllowance: number;
+  otherShipAllowance: number;
+  carrierTurnaroundRoll: boolean;
+  turnaround: TurnaroundEntry[];
+  pointDefenseRange: number;
+  pointDefenseKills: PointDefenseEntry[];
+  pointDefenseChainOnFace: number;
+  missilesPerSalvo: number;
+  salvoAttackRadius: number;
+};
+
+/** A profile with nothing filled in - the starting point for entering your own numbers. */
+export const blankRulesProfile: RulesProfile = {
+  name: '',
+  dieFaces: 0,
+  beamDamage: [],
+  beamRangeBandWidth: 0,
+  maxScreenLevel: 0,
+  torpedoMaximumRange: 0,
+  torpedoBandWidth: 0,
+  torpedoBestToHit: 0,
+  needleBeamRange: 0,
+  needleSystemKillRoll: 0,
+  enhancedNeedleBeams: false,
+  needleHullDamageRoll: 0,
+  thresholdRows: 'FixedRows',
+  thresholdRowCount: 0,
+  escortRowCount: 0,
+  cruiserRowCount: 0,
+  maxPartiesPerJob: 0,
+  repairRollWithOneParty: 0,
+  repairBestRoll: 0,
+  fighterMoveAllowance: 0,
+  carrierRatesFollowBays: false,
+  trueCarrierAllowance: 0,
+  otherShipAllowance: 0,
+  carrierTurnaroundRoll: false,
+  turnaround: [],
+  pointDefenseRange: 0,
+  pointDefenseKills: [],
+  pointDefenseChainOnFace: 0,
+  missilesPerSalvo: 0,
+  salvoAttackRadius: 0,
 };

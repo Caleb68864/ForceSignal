@@ -3,44 +3,55 @@ using ForceSignal.Modules.FullThrust.Combat;
 
 namespace ForceSignal.Modules.FullThrust.Tests;
 
+/// <summary>
+/// Beam fire, played against <see cref="TestRules.Invented"/> - an eight-sided die, ten-mu bands,
+/// and a screen table that is nobody's published one. Every expected number below is read off that
+/// profile, so these tests fail if the engine ever starts remembering a table of its own.
+/// </summary>
 public sealed class FullThrustLightFiringRulesTests
 {
     private readonly FullThrustLightFiringRules _rules = new();
+    private static readonly RulesProfile Rules = TestRules.Invented;
 
     [Theory]
-    // Unscreened: 4 and 5 score one, 6 scores two, 1-3 miss.
+    // Unscreened: the top two faces score two, the two below them one, the rest nothing.
     [InlineData(1, 0, 0)]
-    [InlineData(3, 0, 0)]
-    [InlineData(4, 0, 1)]
+    [InlineData(4, 0, 0)]
     [InlineData(5, 0, 1)]
-    [InlineData(6, 0, 2)]
-    // Level 1 ignores 4s.
-    [InlineData(4, 1, 0)]
-    [InlineData(5, 1, 1)]
-    [InlineData(6, 1, 2)]
-    // Level 2 caps every hit at one point.
-    [InlineData(4, 2, 0)]
-    [InlineData(5, 2, 1)]
-    [InlineData(6, 2, 1)]
-    // Level 3 ignores everything but a 6.
-    [InlineData(4, 3, 0)]
-    [InlineData(5, 3, 0)]
-    [InlineData(6, 3, 1)]
-    public void DieDamage_FollowsTheScreenDowngradeTable(int die, int screenLevel, int expected)
+    [InlineData(6, 0, 1)]
+    [InlineData(7, 0, 2)]
+    [InlineData(8, 0, 2)]
+    // One level of screening flattens every hit to a single point and stops the 5 entirely.
+    [InlineData(5, 1, 0)]
+    [InlineData(6, 1, 1)]
+    [InlineData(8, 1, 1)]
+    // Two levels stop everything but the top face.
+    [InlineData(6, 2, 0)]
+    [InlineData(7, 2, 0)]
+    [InlineData(8, 2, 1)]
+    public void ADieScoresWhatTheProfileSaysItScores(int die, int screenLevel, int expected) =>
+        Assert.Equal(expected, Rules.BeamDamageFor(die, screenLevel));
+
+    [Fact]
+    public void AScreenLevelAboveTheProfilesCeilingIsHeldToIt()
     {
-        Assert.Equal(expected, FullThrustLightFiringRules.DieDamage(die, screenLevel));
+        // The profile stops at two, so a ship somehow carrying three is read as carrying two rather
+        // than falling off the end of the table into scoring nothing.
+        Assert.Equal(Rules.BeamDamageFor(8, 2), Rules.BeamDamageFor(8, 3));
     }
 
     [Fact]
-    public void Resolve_RollsOneDiePerClassAndScoresTheRolledFaces()
+    public void OneDieIsRolledPerClassAndTheFacesAreScored()
     {
-        var result = Dice(6, 4, 5).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
-            Range: 11,
-            TargetScreenRating: 0,
-            AttackerWeaponDamage: 0));
+        var result = Dice(8, 6, 5).Resolve(
+            new FiringSolution(
+                new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
+                Range: 9,
+                TargetScreenRating: 0,
+                AttackerWeaponDamage: 0),
+            Rules);
 
-        Assert.Equal([6, 4, 5], result.DiceRolls);
+        Assert.Equal([8, 6, 5], result.DiceRolls);
         Assert.Equal(3, result.RawDice);
         Assert.Equal(0, result.RangePenalty);
         Assert.Equal(0, result.ScreenReduction);
@@ -48,58 +59,59 @@ public sealed class FullThrustLightFiringRulesTests
     }
 
     [Fact]
-    public void Resolve_ScreensDowngradeDiceInsteadOfRemovingThem()
+    public void ScreensDowngradeDiceInsteadOfRemovingThem()
     {
-        // The same roll against each screen level: dice are still rolled, only their effect drops.
-        var unscreened = Dice(6, 4, 5).Resolve(Solution(0));
-        var level1 = Dice(6, 4, 5).Resolve(Solution(1));
-        var level2 = Dice(6, 4, 5).Resolve(Solution(2));
-        var level3 = Dice(6, 4, 5).Resolve(Solution(3));
+        // The same roll against each screen level: the dice are still rolled, only their effect drops.
+        var unscreened = Dice(8, 6, 5).Resolve(Solution(0), Rules);
+        var level1 = Dice(8, 6, 5).Resolve(Solution(1), Rules);
+        var level2 = Dice(8, 6, 5).Resolve(Solution(2), Rules);
 
         Assert.Equal(4, unscreened.Damage);
-        Assert.Equal(3, level1.Damage); // the 4 is ignored
-        Assert.Equal(2, level2.Damage); // the 6 is capped at one
-        Assert.Equal(1, level3.Damage); // only the 6 counts, for one
+        Assert.Equal(2, level1.Damage); // the 8 is flattened to one and the 5 stopped
+        Assert.Equal(1, level2.Damage); // only the 8 gets through, for one
 
         // Every level rolled the full three dice: screens reduce damage, not dice.
-        Assert.All(new[] { unscreened, level1, level2, level3 }, result => Assert.Equal(3, result.DiceRolls.Count));
+        Assert.All(new[] { unscreened, level1, level2 }, result => Assert.Equal(3, result.DiceRolls.Count));
         Assert.Equal(0, unscreened.ScreenReduction);
-        Assert.Equal(1, level1.ScreenReduction);
-        Assert.Equal(2, level2.ScreenReduction);
-        Assert.Equal(3, level3.ScreenReduction);
+        Assert.Equal(2, level1.ScreenReduction);
+        Assert.Equal(3, level2.ScreenReduction);
 
         static FiringSolution Solution(int screens) => new(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]), 11, screens, 0);
+            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]), 9, screens, 0);
     }
 
     [Fact]
-    public void Resolve_ASingleDieMountCanStillHurtAScreenedTarget()
+    public void ASingleDieMountCanStillHurtAScreenedTarget()
     {
         // The old subtraction model made this impossible: one die minus one screen was always zero.
-        var result = Dice(6).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-1 Beam", 1, 12, [FiringArc.Fore]),
-            Range: 9,
-            TargetScreenRating: 1,
-            AttackerWeaponDamage: 0));
+        var result = Dice(8).Resolve(
+            new FiringSolution(
+                new WeaponAttackProfile("Class-1 Beam", 1, 12, [FiringArc.Fore]),
+                Range: 9,
+                TargetScreenRating: 1,
+                AttackerWeaponDamage: 0),
+            Rules);
 
-        Assert.Equal(2, result.Damage);
+        Assert.Equal(1, result.Damage);
     }
 
     [Theory]
-    // A beam loses one die per full 12mu band, so band boundaries are inclusive.
+    // The profile bands every ten mu, and a range on a band edge belongs to the nearer band.
     [InlineData(1, 0)]
-    [InlineData(12, 0)]
-    [InlineData(13, 1)]
-    [InlineData(24, 1)]
-    [InlineData(25, 2)]
-    [InlineData(36, 2)]
-    public void Resolve_LosesOneDiePerTwelveUnitBand(int range, int expectedPenalty)
+    [InlineData(10, 0)]
+    [InlineData(11, 1)]
+    [InlineData(20, 1)]
+    [InlineData(21, 2)]
+    [InlineData(30, 2)]
+    public void ADieIsLostPerFullBandTheProfileSets(int range, int expectedPenalty)
     {
-        var result = Dice(6, 6, 6).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
-            range,
-            TargetScreenRating: 0,
-            AttackerWeaponDamage: 0));
+        var result = Dice(8, 8, 8).Resolve(
+            new FiringSolution(
+                new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
+                range,
+                TargetScreenRating: 0,
+                AttackerWeaponDamage: 0),
+            Rules);
 
         Assert.Equal(expectedPenalty, result.RangePenalty);
         Assert.Equal(3 - expectedPenalty, result.DiceRolls.Count);
@@ -107,13 +119,33 @@ public sealed class FullThrustLightFiringRulesTests
     }
 
     [Fact]
-    public void Resolve_WeaponDamageRemovesDiceBeforeTheyAreRolled()
+    public void ABandWidthFromADifferentProfileMovesTheBoundary()
     {
-        var result = Dice(6, 6, 6).Resolve(new FiringSolution(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
-            Range: 6,
-            TargetScreenRating: 0,
-            AttackerWeaponDamage: 2));
+        // Nothing about twelve, or ten, is written into the engine: hand it a different width and
+        // the same range falls in a different band.
+        var narrow = Rules with { BeamRangeBandWidth = 5 };
+
+        var result = Dice(8, 8, 8).Resolve(
+            new FiringSolution(
+                new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
+                Range: 9,
+                TargetScreenRating: 0,
+                AttackerWeaponDamage: 0),
+            narrow);
+
+        Assert.Equal(1, result.RangePenalty);
+    }
+
+    [Fact]
+    public void WeaponDamageRemovesDiceBeforeTheyAreRolled()
+    {
+        var result = Dice(8, 8, 8).Resolve(
+            new FiringSolution(
+                new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
+                Range: 6,
+                TargetScreenRating: 0,
+                AttackerWeaponDamage: 2),
+            Rules);
 
         Assert.Equal(2, result.SystemPenalty);
         Assert.Single(result.DiceRolls);
@@ -121,42 +153,48 @@ public sealed class FullThrustLightFiringRulesTests
     }
 
     [Fact]
-    public void Validate_RejectsOutOfRangeFire()
+    public void OutOfRangeFireIsRejected()
     {
-        var result = _rules.Validate(new FiringSolution(
-            new WeaponAttackProfile("Needle Beam", 1, 12, [FiringArc.Fore]),
-            Range: 13,
-            TargetScreenRating: 0,
-            AttackerWeaponDamage: 0));
+        var result = _rules.Validate(
+            new FiringSolution(
+                new WeaponAttackProfile("Needle Beam", 1, 12, [FiringArc.Fore]),
+                Range: 13,
+                TargetScreenRating: 0,
+                AttackerWeaponDamage: 0),
+            Rules);
 
         Assert.False(result.IsValid);
         Assert.Contains("out of range", result.Errors[0]);
     }
 
     [Fact]
-    public void Validate_RefusesToFireThroughTheAftBlindSpot()
+    public void NothingFiresThroughTheAftBlindSpot()
     {
         // An all-round mount still cannot shoot dead astern: every weapon has that arc blacked out.
-        var result = _rules.Validate(new FiringSolution(
-            new WeaponAttackProfile("Class-2 Beam", 2, 24, [.. FiringArcs.Firable]),
-            Range: 6,
-            TargetScreenRating: 0,
-            AttackerWeaponDamage: 0,
-            TargetArc: FiringArc.Aft));
+        var result = _rules.Validate(
+            new FiringSolution(
+                new WeaponAttackProfile("Class-2 Beam", 2, 24, [.. FiringArcs.Firable]),
+                Range: 6,
+                TargetScreenRating: 0,
+                AttackerWeaponDamage: 0,
+                TargetArc: FiringArc.Aft),
+            Rules);
 
         Assert.False(result.IsValid);
         Assert.Contains("aft arc", result.Errors[0]);
     }
 
     [Fact]
-    public void Validate_RefusesAnArcTheMountDoesNotBearThrough()
+    public void AnArcTheMountDoesNotBearThroughIsRefused()
     {
-        var result = _rules.Validate(new FiringSolution(
-            new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
-            Range: 6,
-            TargetScreenRating: 0,
-            AttackerWeaponDamage: 0,
-            TargetArc: FiringArc.AftPort));
+        var result = _rules.Validate(
+            new FiringSolution(
+                new WeaponAttackProfile("Class-3 Beam", 3, 36, [FiringArc.Fore]),
+                Range: 6,
+                TargetScreenRating: 0,
+                AttackerWeaponDamage: 0,
+                TargetArc: FiringArc.AftPort),
+            Rules);
 
         Assert.False(result.IsValid);
         Assert.Contains("does not bear", result.Errors[0]);
@@ -164,16 +202,16 @@ public sealed class FullThrustLightFiringRulesTests
     }
 
     [Fact]
-    public void Validate_AcceptsAnyArcAMultiArcBatteryBearsThrough()
+    public void AnyArcAMultiArcBatteryBearsThroughIsAccepted()
     {
-        // A battery may bear through several adjacent arcs, which is how published ships are drawn.
+        // A battery may bear through several adjacent arcs, which is how ships are usually drawn.
         var battery = new WeaponAttackProfile(
             "Class-2 Beam", 2, 24, [FiringArc.ForePort, FiringArc.Fore, FiringArc.ForeStarboard]);
 
         Assert.All(
             new[] { FiringArc.ForePort, FiringArc.Fore, FiringArc.ForeStarboard },
-            arc => Assert.True(_rules.Validate(new FiringSolution(battery, 6, 0, 0, arc)).IsValid));
-        Assert.False(_rules.Validate(new FiringSolution(battery, 6, 0, 0, FiringArc.AftStarboard)).IsValid);
+            arc => Assert.True(_rules.Validate(new FiringSolution(battery, 6, 0, 0, arc), Rules).IsValid));
+        Assert.False(_rules.Validate(new FiringSolution(battery, 6, 0, 0, FiringArc.AftStarboard), Rules).IsValid);
     }
 
     /// <summary>Firing rules fed a fixed sequence of die faces, cycling if more are needed.</summary>

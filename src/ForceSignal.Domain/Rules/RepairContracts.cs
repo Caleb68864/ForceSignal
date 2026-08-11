@@ -17,11 +17,11 @@ public sealed record RepairAttempt(RepairJob Job, int Needed, int Roll, bool IsR
 public interface IRepairResolver
 {
     /// <summary>Most parties that can usefully work one job.</summary>
-    int MaxPartiesPerJob { get; }
+    int MaxPartiesPerJob(RulesProfile rules);
 
     /// <summary>The number a job needs, given how many parties are on it.</summary>
-    int NeededFor(int parties);
+    int NeededFor(int parties, RulesProfile rules);
 
     /// <summary>Rolls one job. All the parties on a job make a single roll between them.</summary>
-    RepairAttempt Resolve(RepairJob job);
+    RepairAttempt Resolve(RepairJob job, RulesProfile rules);
 }

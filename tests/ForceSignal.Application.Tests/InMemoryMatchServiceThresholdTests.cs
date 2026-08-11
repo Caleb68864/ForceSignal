@@ -13,20 +13,21 @@ public sealed class InMemoryMatchServiceThresholdTests
     [Fact]
     public void FireWeapon_ThatCompletesAHullRow_RollsForEverySurvivingSystem()
     {
-        // Every die a 6: the attack lands hard, and the threshold rolls that follow come off the
-        // same stream. A 6 never loses a system, so this isolates the check itself from its losses.
-        var table = ThresholdTable.Build(fallbackFace: 6, targetHull: 12, targetScreens: 1);
+        // Every die the top face: the attack lands hard, and the threshold rolls that follow come
+        // off the same stream. The top face never loses a system, so this isolates the check itself
+        // from its losses.
+        var table = ThresholdTable.Build(fallbackFace: 8, targetHull: 9, targetScreens: 0);
 
         table.Fire();
         var result = table.CeaseFire();
 
         var target = result.Ships.Single(s => s.Id == table.TargetId);
-        // Three 6s through level-1 screens is 6 damage, which completes two rows of a 12-box hull.
+        // Three unscreened top faces is 6 damage, which completes two rows of a 9-box hull.
         Assert.Equal(6, target.HullDamage);
         Assert.Equal(2, target.HullRowsCompleted);
-        Assert.Equal([3, 3, 3, 3], target.HullRows);
+        Assert.Equal([3, 3, 3], target.HullRows);
         var check = Assert.Single(result.MatchLog, entry => entry.Category == "Threshold");
-        Assert.Contains("completed hull row 2 of 4", check.Message, StringComparison.Ordinal);
+        Assert.Contains("completed hull row 2 of 3", check.Message, StringComparison.Ordinal);
         // Two rows in one attack: the second threshold, one point worse for the extra row.
         Assert.Contains("+1 rows in one attack", check.Message, StringComparison.Ordinal);
         Assert.Contains("systems lost on 3 or less", check.Message, StringComparison.Ordinal);
@@ -36,9 +37,9 @@ public sealed class InMemoryMatchServiceThresholdTests
     [Fact]
     public void FireWeapon_WhenThresholdRollsAreLow_KnocksOutSystemsAndSaysWhat()
     {
-        // Sixes for the attack dice, then ones for the threshold rolls, so everything is lost.
-        var table = ThresholdTable.Build(targetHull: 12, targetScreens: 2);
-        table.Dice.Script(6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1);
+        // Top faces for the attack dice, then ones for the threshold rolls, so everything is lost.
+        var table = ThresholdTable.Build(targetHull: 9, targetScreens: 2, fallbackFace: 8);
+        table.Dice.Script(8, 8, 8, 1, 1, 1, 1, 1, 1, 1, 1);
 
         table.Fire();
         var result = table.CeaseFire();
@@ -61,8 +62,8 @@ public sealed class InMemoryMatchServiceThresholdTests
     [Fact]
     public void FireWeapon_ThatDoesNotFinishARow_RollsNoThresholdCheck()
     {
-        // A single 4 through no screens is one point of damage: not enough to finish a row of three.
-        var table = ThresholdTable.Build(fallbackFace: 4, targetHull: 12, targetScreens: 0, attackDice: 1);
+        // A single die on this profile's one-point face is not enough to finish a row of four.
+        var table = ThresholdTable.Build(fallbackFace: 5, targetHull: 12, targetScreens: 0, attackDice: 1);
 
         table.Fire();
         var result = table.CeaseFire();
@@ -75,7 +76,7 @@ public sealed class InMemoryMatchServiceThresholdTests
     public void FireWeapon_ThatDestroysTheShip_RollsNoThresholdCheck()
     {
         // A 4-box hull dies to a single volley, and a dead ship rolls nothing.
-        var table = ThresholdTable.Build(fallbackFace: 6, targetHull: 4, targetScreens: 0);
+        var table = ThresholdTable.Build(fallbackFace: 8, targetHull: 4, targetScreens: 0);
 
         table.Fire();
         var result = table.CeaseFire();
@@ -99,9 +100,9 @@ public sealed class InMemoryMatchServiceThresholdTests
     [Fact]
     public void FireWeapon_LostDrivesReduceTheThrustAvailableForOrders()
     {
-        // Sixes for the attack, then a 1 on the drive roll and 6s for everything else.
-        var table = ThresholdTable.Build(targetHull: 12, targetScreens: 0, fallbackFace: 6);
-        table.Dice.Script(6, 6, 6, 1);
+        // Top faces for the attack, then a 1 on the drive roll and top faces for everything else.
+        var table = ThresholdTable.Build(targetHull: 9, targetScreens: 0, fallbackFace: 8);
+        table.Dice.Script(8, 8, 8, 1);
 
         table.Fire();
         var result = table.CeaseFire();
@@ -131,7 +132,7 @@ public sealed class InMemoryMatchServiceThresholdTests
         {
             var dice = new ScriptedDice { Fallback = fallbackFace };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Threshold Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Threshold Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

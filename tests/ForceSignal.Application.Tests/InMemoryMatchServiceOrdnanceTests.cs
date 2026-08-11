@@ -26,7 +26,7 @@ public sealed class InMemoryMatchServiceOrdnanceTests
         Assert.Equal(8, target.ArmorDamage);
         Assert.Equal(8, target.HullDamage);
         var strike = firing.MatchLog.Last(entry => entry.Category == "Ordnance");
-        Assert.Contains("4 of 6 missiles arrived", strike.Message, StringComparison.Ordinal);
+        Assert.Contains("4 of 4 missiles arrived", strike.Message, StringComparison.Ordinal);
         Assert.Contains("ignoring screens", strike.Message, StringComparison.Ordinal);
         Assert.Equal("Resolved", firing.OrdnanceMarkers.Single().Status);
     }
@@ -36,13 +36,14 @@ public sealed class InMemoryMatchServiceOrdnanceTests
     {
         var table = OrdnanceTable.Build(targetPointDefense: 2);
         table.LaunchSalvo(aimX: 20, aimY: 20);
-        // Arrival 5, two point defence dice of 4 and 5 stop two, three survivors roll 1s.
-        table.Dice.Script(5, 4, 5, 1, 1, 1);
+        // Arrival high enough to fill the salvo, then two point defence dice that stop one between
+        // them, and the three survivors roll the lowest face there is.
+        table.Dice.Script(8, 7, 1, 1, 1, 1);
 
         var firing = table.RunToFiring();
 
         var strike = firing.MatchLog.Last(entry => entry.Category == "Ordnance");
-        Assert.Contains("stopped 2", strike.Message, StringComparison.Ordinal);
+        Assert.Contains("stopped 1", strike.Message, StringComparison.Ordinal);
         Assert.Contains("3 got through", strike.Message, StringComparison.Ordinal);
         var target = firing.Ships.Single(ship => ship.Id == table.TargetId);
         Assert.Equal(3, target.ArmorDamage + target.HullDamage);
@@ -59,7 +60,7 @@ public sealed class InMemoryMatchServiceOrdnanceTests
 
         Assert.Equal("Expired", firing.OrdnanceMarkers.Single().Status);
         Assert.Contains(firing.MatchLog, entry => entry.Category == "Ordnance"
-            && entry.Message.Contains("found nothing within 6", StringComparison.Ordinal));
+            && entry.Message.Contains($"found nothing within {TestRules.Invented.SalvoAttackRadius}", StringComparison.Ordinal));
         var target = firing.Ships.Single(ship => ship.Id == table.TargetId);
         Assert.Equal(0, target.HullDamage + target.ArmorDamage);
     }
@@ -67,19 +68,20 @@ public sealed class InMemoryMatchServiceOrdnanceTests
     [Fact]
     public void AdvanceTurn_SalvoDamageThatFillsAHullRowRollsAThresholdCheck()
     {
-        // Missile damage lands like any other, so it can take systems with it. Six missiles arrive
-        // and each rolls a six: 36 points, half onto eight armour boxes and the rest into the hull.
+        // Missile damage lands like any other, so it can take systems with it. The whole salvo
+        // arrives and every missile rolls the top face: 32 points, half of it onto eight armour
+        // boxes - which is all the armour there is - and the remaining 24 into the hull.
         var table = OrdnanceTable.Build(targetPointDefense: 0);
         table.LaunchSalvo(aimX: 20, aimY: 20);
-        table.Dice.Script(6, 6, 6, 6, 6, 6, 6);
+        table.Dice.Script(8, 8, 8, 8, 8);
 
         var firing = table.RunToFiring();
 
         var target = firing.Ships.Single(ship => ship.Id == table.TargetId);
         Assert.Equal(8, target.ArmorDamage);
-        Assert.Equal(28, target.HullDamage);
-        // A 40-box hull runs in rows of ten, so 28 points completes the second row.
-        Assert.Equal(2, target.HullRowsCompleted);
+        Assert.Equal(24, target.HullDamage);
+        // A 40-box hull in three rows runs 14/13/13, so 24 points completes the first.
+        Assert.Equal(1, target.HullRowsCompleted);
         Assert.Contains(firing.MatchLog, entry => entry.Category == "Threshold");
     }
 
@@ -99,8 +101,9 @@ public sealed class InMemoryMatchServiceOrdnanceTests
     {
         var table = OrdnanceTable.Build(targetPointDefense: 0);
         table.RunToFiring();
-        // Six fighters, so six dice. Level-2 screens cap each 4 at nothing, so script 5s instead.
-        table.Dice.Script(5, 5, 5, 5, 5, 5);
+        // Six fighters, so six dice. The target's screens stop everything but the top face under
+        // this profile, so that is what they roll.
+        table.Dice.Script(8, 8, 8, 8, 8, 8);
 
         var result = table.FighterStrike();
 
@@ -128,10 +131,11 @@ public sealed class InMemoryMatchServiceOrdnanceTests
     {
         var table = OrdnanceTable.Build(targetPointDefense: 2);
         table.RunToFiring();
-        // First system rolls a 6 for two kills and a reroll of 4 for one more; second rolls a 4.
-        table.Dice.Script(6, 4, 4, 5, 5);
+        // The first system rolls the chaining face for two kills and chains into one more; the
+        // second takes one. Four down, and the range is inside what this profile's turrets reach.
+        table.Dice.Script(8, 7, 7, 8, 8);
 
-        var result = table.FighterStrike(range: 6);
+        var result = table.FighterStrike(range: 4);
 
         var defense = Assert.Single(result.MatchLog, entry => entry.Category == "PointDefense");
         Assert.Contains("shot down 4 of 6 fighter(s)", defense.Message, StringComparison.Ordinal);
@@ -146,10 +150,10 @@ public sealed class InMemoryMatchServiceOrdnanceTests
     {
         var table = OrdnanceTable.Build(targetPointDefense: 3);
         table.RunToFiring();
-        // Sixes chain into far more kills than the group has fighters.
-        table.Dice.Script(6, 6, 6, 6, 1, 1, 1);
+        // The chaining face runs into far more kills than the group has fighters.
+        table.Dice.Script(8, 8, 8, 8, 1, 1, 1);
 
-        var result = table.FighterStrike(range: 6);
+        var result = table.FighterStrike(range: 4);
 
         Assert.Empty(result.FiringResults);
         Assert.True(result.Ships.Single(ship => ship.Id == table.FighterGroupId).IsDestroyed);
@@ -232,7 +236,7 @@ public sealed class InMemoryMatchServiceOrdnanceTests
         {
             var dice = new ScriptedDice { Fallback = 4 };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Ordnance Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Ordnance Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

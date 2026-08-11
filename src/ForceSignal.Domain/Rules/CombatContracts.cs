@@ -221,10 +221,10 @@ public interface IFiringResolver
     /// <summary>Validates a firing solution before damage resolution.</summary>
     /// <param name="solution">The shot being attempted.</param>
     /// <param name="rules">The layer being played, or null for the light cinematic default.</param>
-    FiringValidationResult Validate(FiringSolution solution, RulesProfile? rules = null);
+    FiringValidationResult Validate(FiringSolution solution, RulesProfile rules);
 
     /// <summary>Resolves a valid firing solution into damage and attack modifiers.</summary>
     /// <param name="solution">The shot being resolved.</param>
     /// <param name="rules">The layer being played, or null for the light cinematic default.</param>
-    FiringResult Resolve(FiringSolution solution, RulesProfile? rules = null);
+    FiringResult Resolve(FiringSolution solution, RulesProfile rules);
 }

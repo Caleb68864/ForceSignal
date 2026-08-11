@@ -92,7 +92,7 @@ public sealed class InMemoryMatchServiceRangeCheckTests
         public static RangeTable Build()
         {
             var service = new InMemoryMatchService(() => 4);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Range Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Range Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

@@ -3,62 +3,63 @@ using ForceSignal.Modules.FullThrust.Damage;
 
 namespace ForceSignal.Modules.FullThrust.Tests;
 
+/// <summary>
+/// Threshold checks, played against <see cref="TestRules.Invented"/>, whose hulls are drawn in three
+/// rows rather than anybody's published four.
+/// </summary>
 public sealed class FullThrustLightThresholdRulesTests
 {
     private readonly FullThrustLightThresholdRules _rules = new();
+    private static readonly RulesProfile Rules = TestRules.Invented;
 
     [Theory]
-    // An even hull splits four ways.
-    [InlineData(12, new[] { 3, 3, 3, 3 })]
-    [InlineData(8, new[] { 2, 2, 2, 2 })]
+    // An even hull splits three ways.
+    [InlineData(12, new[] { 4, 4, 4 })]
+    [InlineData(9, new[] { 3, 3, 3 })]
     // Remainders go to the upper rows first.
-    [InlineData(10, new[] { 3, 3, 2, 2 })]
-    [InlineData(9, new[] { 3, 2, 2, 2 })]
-    [InlineData(6, new[] { 2, 2, 1, 1 })]
-    // A hull too small to split four ways gets one box per row.
-    [InlineData(3, new[] { 1, 1, 1 })]
+    [InlineData(10, new[] { 4, 3, 3 })]
+    [InlineData(11, new[] { 4, 4, 3 })]
+    [InlineData(8, new[] { 3, 3, 2 })]
+    // A hull too small to split that many ways gets one box per row.
+    [InlineData(2, new[] { 1, 1 })]
     [InlineData(1, new[] { 1 })]
     [InlineData(0, new int[0])]
-    public void HullRows_SplitsTheTrackIntoFourRowsWeightedToTheTop(int hullMax, int[] expected)
-    {
-        Assert.Equal(expected, _rules.HullRows(hullMax));
-    }
+    public void TheTrackSplitsIntoTheProfilesRowsWeightedToTheTop(int hullMax, int[] expected) =>
+        Assert.Equal(expected, _rules.HullRows(hullMax, Rules));
 
     [Theory]
-    // A 12-box hull has rows of three, so a row completes every third point.
+    // A 12-box hull in three rows has rows of four, so a row completes every fourth point.
     [InlineData(0, 0)]
-    [InlineData(2, 0)]
-    [InlineData(3, 1)]
-    [InlineData(5, 1)]
-    [InlineData(6, 2)]
-    [InlineData(9, 3)]
-    // The last row completing is the ship's destruction rather than a fourth check.
-    [InlineData(12, 4)]
+    [InlineData(3, 0)]
+    [InlineData(4, 1)]
+    [InlineData(7, 1)]
+    [InlineData(8, 2)]
+    // The last row completing is the ship's destruction rather than another check.
+    [InlineData(12, 3)]
     // Damage beyond the hull cannot complete more rows than the ship has.
-    [InlineData(20, 4)]
-    public void RowsCompleted_CountsRowsFullyCrossedOff(int hullDamage, int expected)
-    {
-        Assert.Equal(expected, _rules.RowsCompleted(hullDamage, 12));
-    }
+    [InlineData(20, 3)]
+    public void RowsFullyCrossedOffAreCounted(int hullDamage, int expected) =>
+        Assert.Equal(expected, _rules.RowsCompleted(hullDamage, 12, Rules));
 
     [Theory]
-    // Full Thrust Light knocks systems out on low rolls, one number deeper per threshold.
+    // A system is knocked out on a low roll, one number deeper per threshold reached.
     [InlineData(1, 0, 1)]
     [InlineData(2, 0, 2)]
-    [InlineData(3, 0, 3)]
     // An attack that tears through extra rows makes the same check one point worse per row.
+    [InlineData(1, 1, 2)]
     [InlineData(2, 1, 3)]
-    [InlineData(3, 1, 4)]
-    [InlineData(3, 2, 5)]
-    public void Resolve_WorsensTheKillNumberWithDepthAndExtraRows(int threshold, int extra, int expectedLostOn)
+    [InlineData(2, 2, 4)]
+    public void TheKillNumberWorsensWithDepthAndExtraRows(int threshold, int extra, int expectedLostOn)
     {
-        var result = Dice(6).Resolve(new ThresholdCheck(threshold, extra, [new ShipSystem(ShipSystemKind.Drive, "Drives")]));
+        var result = Dice(8).Resolve(
+            new ThresholdCheck(threshold, extra, [new ShipSystem(ShipSystemKind.Drive, "Drives")]),
+            Rules);
 
         Assert.Equal(expectedLostOn, result.LostOn);
     }
 
     [Fact]
-    public void Resolve_RollsOneDiePerSurvivingSystem()
+    public void OneDieIsRolledPerSurvivingSystem()
     {
         var systems = new[]
         {
@@ -68,46 +69,49 @@ public sealed class FullThrustLightThresholdRulesTests
         };
 
         // At the first threshold only a 1 kills, so the drive dies and the rest survive.
-        var result = Dice(1, 4, 6).Resolve(new ThresholdCheck(1, 0, systems));
+        var result = Dice(1, 4, 8).Resolve(new ThresholdCheck(1, 0, systems), Rules);
 
         Assert.Equal(3, result.Rolls.Count);
-        Assert.Equal([1, 4, 6], result.Rolls.Select(roll => roll.Die));
+        Assert.Equal([1, 4, 8], result.Rolls.Select(roll => roll.Die));
         Assert.Equal(1, result.LostOn);
         var lost = Assert.Single(result.Lost);
         Assert.Equal(ShipSystemKind.Drive, lost.Kind);
     }
 
     [Fact]
-    public void Resolve_AtTheThirdThresholdLosesEverythingRollingThreeOrLess()
+    public void EverythingRollingAtOrUnderTheNumberIsLost()
     {
         var systems = Enumerable.Range(1, 6)
             .Select(index => new ShipSystem(ShipSystemKind.Weapon, $"Mount {index}", Guid.NewGuid()))
             .ToArray();
 
-        var result = Dice(1, 2, 3, 4, 5, 6).Resolve(new ThresholdCheck(3, 0, systems));
+        // The deepest check this profile reaches, torn one row deeper still: everything on 3 or less.
+        var result = Dice(1, 2, 3, 4, 5, 6).Resolve(new ThresholdCheck(2, 1, systems), Rules);
 
         Assert.Equal(3, result.LostOn);
         Assert.Equal(["Mount 1", "Mount 2", "Mount 3"], result.Lost.Select(system => system.Name));
     }
 
     [Fact]
-    public void Resolve_WithNoSurvivingSystemsRollsNothing()
+    public void NoSurvivingSystemsRollsNothing()
     {
-        var result = _rules.Resolve(new ThresholdCheck(2, 0, []));
+        var result = _rules.Resolve(new ThresholdCheck(2, 0, []), Rules);
 
         Assert.Empty(result.Rolls);
         Assert.Empty(result.Lost);
     }
 
     [Fact]
-    public void Resolve_NeverRollsDeeperThanTheThirdThreshold()
+    public void NoCheckIsRolledDeeperThanTheLastRowShortOfDeath()
     {
-        // Completing the fourth row destroys the ship, so a check is never made for it. A caller
-        // that asks anyway is clamped rather than producing a kill-everything check.
-        var result = Dice(4).Resolve(new ThresholdCheck(4, 0, [new ShipSystem(ShipSystemKind.Screen, "Screens")]));
+        // Completing the final row destroys the ship, so a check is never made for it. A caller that
+        // asks anyway is clamped rather than producing a kill-everything check.
+        var result = Dice(4).Resolve(
+            new ThresholdCheck(9, 0, [new ShipSystem(ShipSystemKind.Screen, "Screens")]),
+            Rules);
 
-        Assert.Equal(3, result.Threshold);
-        Assert.Equal(3, result.LostOn);
+        Assert.Equal(2, result.Threshold);
+        Assert.Equal(2, result.LostOn);
     }
 
     [Theory]
@@ -115,32 +119,23 @@ public sealed class FullThrustLightThresholdRulesTests
     [InlineData(ShipClassBand.Cruiser)]
     [InlineData(ShipClassBand.Capital)]
     [InlineData(null)]
-    public void RowCountFor_IsFourUnderBothShippedLayersWhateverTheHullIs(ShipClassBand? band)
-    {
-        // Four rows for every hull is the Fleet Book rule, and the light cinematic profile keeps it
-        // deliberately. Rows by class belong to the second edition, which has no profile here.
-        Assert.Equal(4, FullThrustLightThresholdRules.RowCountFor(RulesProfile.LightCinematic, band));
-        Assert.Equal(4, FullThrustLightThresholdRules.RowCountFor(RulesProfile.FleetBook, band));
-    }
+    public void AFixedRowProfileDrawsTheSameTrackWhateverTheHullIs(ShipClassBand? band) =>
+        Assert.Equal(Rules.ThresholdRowCount, FullThrustLightThresholdRules.RowCountFor(Rules, band));
 
     [Theory]
-    // The second edition sizes the track by band: an escort two rows and one threshold, a cruiser
-    // three and two, a capital four and three. A band nobody could work out gets the full four.
+    // Sized by band, a smaller hull faces fewer checks. A band nobody could work out falls back to
+    // the profile's own row count.
     [InlineData(ShipClassBand.Escort, 2)]
     [InlineData(ShipClassBand.Cruiser, 3)]
-    [InlineData(ShipClassBand.Capital, 4)]
-    [InlineData(null, 4)]
-    public void RowCountFor_SizesTheTrackByBandWhenTheLayerAsksForIt(ShipClassBand? band, int expected)
-    {
-        var byClass = RulesProfile.LightCinematic with { ThresholdRows = ThresholdRowMode.ByShipClass };
-
-        Assert.Equal(expected, FullThrustLightThresholdRules.RowCountFor(byClass, band));
-    }
+    [InlineData(ShipClassBand.Capital, 3)]
+    [InlineData(null, 3)]
+    public void ByClassProfilesSizeTheTrackToTheBand(ShipClassBand? band, int expected) =>
+        Assert.Equal(expected, FullThrustLightThresholdRules.RowCountFor(TestRules.WithRowsByClass, band));
 
     [Fact]
-    public void HullRows_SplitsIntoHoweverManyRowsTheLayerAsksFor()
+    public void TheTrackSplitsIntoHoweverManyRowsItIsAskedFor()
     {
-        // A twelve-box escort under a by-class layer runs 6/6 and faces one check instead of three.
+        // A twelve-box hull in two rows runs 6/6 and faces one check instead of two.
         Assert.Equal([6, 6], FullThrustLightThresholdRules.HullRowsFor(12, rowCount: 2));
         Assert.Equal([4, 4, 4], FullThrustLightThresholdRules.HullRowsFor(12, rowCount: 3));
         // Remainders still weight to the upper rows.
@@ -152,10 +147,8 @@ public sealed class FullThrustLightThresholdRulesTests
     [InlineData(2, 1)]
     [InlineData(3, 2)]
     [InlineData(4, 3)]
-    public void DeepestThresholdFor_StopsOneRowShortBecauseTheLastRowIsDeath(int rowCount, int expected)
-    {
+    public void TheDeepestCheckStopsOneRowShortBecauseTheLastRowIsDeath(int rowCount, int expected) =>
         Assert.Equal(expected, FullThrustLightThresholdRules.DeepestThresholdFor(rowCount));
-    }
 
     /// <summary>Threshold rules fed a fixed sequence of die faces, cycling if more are needed.</summary>
     private static FullThrustLightThresholdRules Dice(params int[] faces)

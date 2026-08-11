@@ -61,8 +61,10 @@ public sealed partial class InMemoryMatchService
                 shot.Blocker,
                 FiringArcs.Describe(shot.TargetArc),
                 mapRange,
-                RangeDisagreesWithMap(request.Range, mapRange, weapon.Kind),
-                weapon.Kind == WeaponKind.PulseTorpedo ? FullThrustLightPulseTorpedoRules.ToHitNumber(request.Range) : null,
+                RangeDisagreesWithMap(request.Range, mapRange, weapon.Kind, match.Rules),
+                weapon.Kind == WeaponKind.PulseTorpedo
+                    ? FullThrustLightPulseTorpedoRules.ToHitNumber(request.Range, match.Rules)
+                    : null,
                 WorkingFireControl(attacker),
                 engagedTargetCount,
                 EffectiveScreens(target),

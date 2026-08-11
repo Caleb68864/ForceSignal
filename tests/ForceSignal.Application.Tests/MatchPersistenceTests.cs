@@ -20,7 +20,7 @@ public sealed class MatchPersistenceTests
     {
         var store = new InMemoryTestStore();
         var before = new InMemoryMatchService(null, store, loadPersisted: true);
-        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Long Game"));
+        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Long Game", Rules: TestRules.Invented));
         var fleet = before.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Watch", "Custom")).Fleets.Single();
         before.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
 
@@ -42,7 +42,7 @@ public sealed class MatchPersistenceTests
         // ids and makes everybody claim their seat again.
         var store = new InMemoryTestStore();
         var before = new InMemoryMatchService(null, store, loadPersisted: true);
-        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Same Seat"));
+        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Same Seat", Rules: TestRules.Invented));
         var fleet = before.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         var shipId = before.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant")).Ships.Single().Id;
 
@@ -61,7 +61,7 @@ public sealed class MatchPersistenceTests
         // hash surviving is enough for the reveal to go through exactly as it would have.
         var store = new InMemoryTestStore();
         var before = new InMemoryMatchService(null, store, loadPersisted: true);
-        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Mid Turn"));
+        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Mid Turn", Rules: TestRules.Invented));
         var fleet = before.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         var shipId = before.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant")).Ships.Single().Id;
         before.SetReady(owner.MatchId, owner.ParticipantToken, true);
@@ -87,7 +87,7 @@ public sealed class MatchPersistenceTests
         // board would simply stop moving with nothing on screen to say why.
         var store = new InMemoryTestStore();
         var before = new InMemoryMatchService(null, store, loadPersisted: true);
-        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Versioned"));
+        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Versioned", Rules: TestRules.Invented));
         for (var i = 0; i < 5; i++)
         {
             before.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, $"Fleet {i}", null));
@@ -108,7 +108,7 @@ public sealed class MatchPersistenceTests
     {
         var store = new InMemoryTestStore();
         var before = new InMemoryMatchService(null, store, loadPersisted: true);
-        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Log"));
+        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Log", Rules: TestRules.Invented));
         before.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null));
         var written = before.GetSnapshot(owner.MatchId).MatchLog;
 
@@ -129,12 +129,12 @@ public sealed class MatchPersistenceTests
     {
         var store = new InMemoryTestStore();
         var service = new InMemoryMatchService(null, store, loadPersisted: true);
-        var first = service.CreateMatch(new CreateMatchRequest("Blue", "First"));
+        var first = service.CreateMatch(new CreateMatchRequest("Blue", "First", Rules: TestRules.Invented));
 
         // Push past the concurrent ceiling so the oldest is retired.
         for (var i = 0; i < 520; i++)
         {
-            service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}"));
+            service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}", Rules: TestRules.Invented));
         }
 
         Assert.Throws<InvalidOperationException>(() => service.GetSnapshot(first.MatchId));
@@ -148,7 +148,7 @@ public sealed class MatchPersistenceTests
     {
         var store = new InMemoryTestStore();
         var before = new InMemoryMatchService(null, store, loadPersisted: true);
-        var good = before.CreateMatch(new CreateMatchRequest("Blue", "Readable"));
+        var good = before.CreateMatch(new CreateMatchRequest("Blue", "Readable", Rules: TestRules.Invented));
         store.Save(Guid.NewGuid(), "{ this is not a match }");
 
         var after = new InMemoryMatchService(null, store, loadPersisted: true);
@@ -163,7 +163,7 @@ public sealed class MatchPersistenceTests
         // start leaving files behind.
         var store = new InMemoryTestStore();
         var service = new InMemoryMatchService();
-        service.CreateMatch(new CreateMatchRequest("Blue", "Ephemeral"));
+        service.CreateMatch(new CreateMatchRequest("Blue", "Ephemeral", Rules: TestRules.Invented));
 
         Assert.Empty(store.LoadAll());
     }

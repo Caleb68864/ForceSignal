@@ -98,7 +98,7 @@ public sealed class InMemoryMatchServiceDerivedShipFieldsTests
     public void Snapshot_GivesAFighterGroupTheReachItsEnduranceStillBuys()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Derived Fields"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Derived Fields", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Wing", null)).Fleets.Single();
         var group = service.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken,
@@ -123,7 +123,7 @@ public sealed class InMemoryMatchServiceDerivedShipFieldsTests
     private static (InMemoryMatchService Service, Guid MatchId, string Token, Guid ShipId) Table()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Derived Fields"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Derived Fields", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Home Watch", null)).Fleets.Single();
         var ship = service.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken,

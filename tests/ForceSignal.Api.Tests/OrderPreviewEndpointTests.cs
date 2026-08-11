@@ -106,7 +106,7 @@ public sealed class OrderPreviewEndpointTests
 
     private static async Task<(Guid MatchId, string Token, Guid ShipId, string JoinCode)> SetUpMatch(HttpClient client)
     {
-        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Preview Endpoint", 72, 48)))
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Preview Endpoint", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>(JsonOptions);
         var fleet = (await (await client.PostAsJsonAsync($"/api/matches/{created!.MatchId}/fleets",
             new CreateFleetRequest(created.ParticipantToken, "Blue Watch", null, "#47f1ff")))

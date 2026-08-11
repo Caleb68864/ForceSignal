@@ -109,7 +109,7 @@ public sealed partial class InMemoryMatchService
             var hullApplied = target.HullDamage - hullBefore;
 
             var mapRange = MapRangeBetween(attacker, target);
-            var rangeDisagreed = RangeDisagreesWithMap(request.Range, mapRange, weapon.Kind);
+            var rangeDisagreed = RangeDisagreesWithMap(request.Range, mapRange, weapon.Kind, match.Rules);
 
             var firingResult = new FiringResultState(
                 attacker.Id,
@@ -280,7 +280,7 @@ public sealed partial class InMemoryMatchService
         var threshold = Math.Min(rowsAfter, FullThrustLightThresholdRules.DeepestThresholdFor(rows.Count));
         var extra = rowsAfter - rowsBefore - 1;
         var systems = SurvivingSystems(target);
-        var result = _thresholdRules.Resolve(new ThresholdCheck(threshold, extra, systems));
+        var result = _thresholdRules.Resolve(new ThresholdCheck(threshold, extra, systems), match.Rules);
 
         var losses = new List<string>();
         foreach (var system in result.Lost)
@@ -417,11 +417,11 @@ public sealed partial class InMemoryMatchService
             Math.Pow((double)(target.PositionX - attacker.PositionX), 2)
             + Math.Pow((double)(target.PositionY - attacker.PositionY), 2)), 1);
     /// <summary>
-    /// How wide a range band is for this weapon: a beam loses a die every 12mu, a torpedo's to-hit
-    /// number worsens every 6mu.
+    /// How wide a range band is for this weapon. Both widths are the player's; which one a weapon
+    /// reads is the app's business.
     /// </summary>
-    private static int RangeBandWidth(WeaponKind kind) =>
-        kind == WeaponKind.PulseTorpedo ? FullThrustLightPulseTorpedoRules.BandWidth : 12;
+    private static int RangeBandWidth(WeaponKind kind, RulesProfile rules) =>
+        Math.Max(1, kind == WeaponKind.PulseTorpedo ? rules.TorpedoBandWidth : rules.BeamRangeBandWidth);
     /// <summary>
     /// Whether a declared range disagrees with the map enough to be worth saying. The table is the
     /// authority on distance, so this never refuses a shot - it flags the two cases a player would
@@ -429,9 +429,9 @@ public sealed partial class InMemoryMatchService
     /// the dice, or the two numbers are simply far apart, which usually means a mistyped range or a
     /// ship that was never dragged to where it actually sits.
     /// </summary>
-    private static bool RangeDisagreesWithMap(int declaredRange, decimal mapRange, WeaponKind kind)
+    private static bool RangeDisagreesWithMap(int declaredRange, decimal mapRange, WeaponKind kind, RulesProfile rules)
     {
-        var bandWidth = RangeBandWidth(kind);
+        var bandWidth = RangeBandWidth(kind, rules);
         var declaredBand = Math.Max(0, declaredRange - 1) / bandWidth;
         var mappedBand = (int)Math.Max(0, Math.Ceiling(mapRange) - 1) / bandWidth;
         return declaredBand != mappedBand || Math.Abs(declaredRange - mapRange) > bandWidth / 2m;
@@ -443,13 +443,13 @@ public sealed partial class InMemoryMatchService
     /// </summary>
     private void ResolvePointDefenseAgainstFighters(MatchState match, ShipState fighters, ShipState target, int range)
     {
-        if (target.PointDefenseSystems <= 0 || range > _pointDefenseRules.Range)
+        if (target.PointDefenseSystems <= 0 || range > _pointDefenseRules.RangeFor(match.Rules))
         {
             return;
         }
 
         var incoming = SurvivingFighters(fighters);
-        var defense = _pointDefenseRules.Resolve(target.PointDefenseSystems, incoming);
+        var defense = _pointDefenseRules.Resolve(target.PointDefenseSystems, incoming, match.Rules);
         if (defense.Kills > 0)
         {
             fighters.HullDamage = ClampDamage(fighters.HullDamage + defense.Kills, fighters.HullMax);
@@ -474,7 +474,7 @@ public sealed partial class InMemoryMatchService
                 .Where(ship => !IsDestroyed(ship)
                     && match.Fleets.Single(f => f.Id == ship.FleetId).OwnerParticipantId != marker.OwnerParticipantId)
                 .Select(ship => (Ship: ship, Range: DistanceToMarker(marker, ship)))
-                .Where(entry => entry.Range <= _salvoRules.AttackRadius)
+                .Where(entry => entry.Range <= _salvoRules.AttackRadiusFor(match.Rules))
                 .OrderBy(entry => entry.Range)
                 .Select(entry => entry.Ship)
                 .FirstOrDefault();
@@ -485,11 +485,11 @@ public sealed partial class InMemoryMatchService
                 match.AddLog(
                     "Ordnance",
                     match.Phase.ToString(),
-                    $"{marker.Name} found nothing within {_salvoRules.AttackRadius} of its point of aim and was wasted.");
+                    $"{marker.Name} found nothing within {_salvoRules.AttackRadiusFor(match.Rules)} of its point of aim and was wasted.");
                 continue;
             }
 
-            var attack = _salvoRules.Resolve(target.PointDefenseSystems);
+            var attack = _salvoRules.Resolve(target.PointDefenseSystems, match.Rules);
             var damageBefore = CaptureDamage(target);
             var hullBefore = target.HullDamage;
             var (armorApplied, hullApplied) = ApplyMissileDamage(target, attack.Damage);

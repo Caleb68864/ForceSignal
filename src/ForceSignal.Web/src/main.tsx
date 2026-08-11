@@ -26,6 +26,7 @@ import { readFeatures } from './lib/starGruntApi.ts';
 import type {
   DamageState,
   DraftOrder,
+  RulesProfile,
   FeatureFlags,
   FiringDraft,
   FiringSolution as FiringSolutionType,
@@ -44,6 +45,8 @@ import type {
   ShipForm,
   TurnDirection,
   } from './types.ts';
+import { blankRulesProfile } from './types.ts';
+import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
 
 function App() {
   const [displayName, setDisplayName] = useState('Admiral');
@@ -942,18 +945,18 @@ function App() {
     setMessage(`${ship.name} finished firing. Any threshold checks it earned have been rolled.`);
   }
 
-  async function updateRulesLayer(layer: string) {
+  async function updateRulesProfile(rules: RulesProfile) {
     if (!session) {
       return;
     }
 
-    const switched = await post<MatchSnapshot>(`/api/matches/${session.matchId}/rules-layer`, {
+    const switched = await post<MatchSnapshot>(`/api/matches/${session.matchId}/rules-profile`, {
       participantToken: session.participantToken,
-      rulesLayer: layer,
+      rules,
     });
     applySnapshot(switched);
-    setMessage(switched.matchLog.find((entry) => entry.message.startsWith('Rules layer set'))?.message
-      ?? `Rules layer set to ${layer}.`);
+    setMessage(switched.matchLog.find((entry) => entry.message.startsWith('Playing against'))?.message
+      ?? `Now playing against '${rules.name}'.`);
   }
 
   async function updatePointsLimit() {
@@ -1267,26 +1270,15 @@ function App() {
               </div>
               <button className="ghost" onClick={() => updateTable().catch(showError(setMessage))}>Set Table</button>
             </div>
-            <div className="table-setup">
-              <span className="label">Rules layer</span>
-              <div className="table-fields">
-                <label>
-                  Layer
-                  <select
-                    value={snapshot?.rulesLayer ?? 'LightCinematic'}
-                    disabled={snapshot?.phase !== 'FleetSetup'}
-                    onChange={(event) => updateRulesLayer(event.target.value).catch(showError(setMessage))}
-                  >
-                    <option value="LightCinematic">Light / 2nd edition</option>
-                    <option value="FleetBook">Fleet Book</option>
-                  </select>
-                </label>
-              </div>
-              <p className="privacy">
-                Settled during fleet setup. The Fleet Book layer drops level-three screens, flies fighter
-                groups 24 instead of 12, and reaches 12 with a needle beam instead of 9.
-              </p>
-            </div>
+            <RulesProfileEditor
+              value={snapshot?.rules ?? blankRulesProfile}
+              editable={snapshot?.phase === 'FleetSetup'}
+              onApply={(rules) => {
+                if (snapshot?.phase === 'FleetSetup') {
+                  updateRulesProfile(rules).catch(showError(setMessage));
+                }
+              }}
+            />
             <div className="table-setup">
               <span className="label">Points per player</span>
               <div className="table-fields">
@@ -1424,7 +1416,7 @@ function App() {
                     <ShipProfileFields
                       form={shipForm}
                       onChange={setShipForm}
-                      maxScreenLevel={snapshot?.rulesLayer === 'FleetBook' ? 2 : 3}
+                      maxScreenLevel={snapshot?.rules?.maxScreenLevel ?? 0}
                     />
                     <button onClick={() => run(createShipFromForm)} disabled={busy}>Add Ship</button>
                   </div>

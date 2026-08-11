@@ -63,9 +63,12 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
     }
 
     [Fact]
-    public void UpdateFighterOperations_LetsATrueCarrierWorkTwoGroupsATurnAndNoMore()
+    public void UpdateFighterOperations_LetsATrueCarrierWorkTheGroupsItsProfileAllowsAndNoMore()
     {
-        var table = CarrierTable.Build(bays: 3, secondGroup: true, thirdGroup: true);
+        // This profile lets a carrier work two groups a turn, which is a number it supplies rather
+        // than one the app knows.
+        var twoGroupCarriers = TestRules.Invented with { TrueCarrierAllowance = 2 };
+        var table = CarrierTable.Build(bays: 3, secondGroup: true, thirdGroup: true, rules: twoGroupCarriers);
 
         table.Launch();
         table.Launch(secondGroup: true);
@@ -161,10 +164,10 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
     }
 
     [Fact]
-    public void UpdateFighterOperations_UnderTheFleetBookLayerLaunchesOneGroupPerOperationalBay()
+    public void UpdateFighterOperations_WhenTheProfileFollowsTheBaysLaunchesOneGroupPerOperationalBay()
     {
         // The same warship that manages one group a turn under the light layer puts up a group for
-        // every bay it has under the Fleet Book, which is the whole point of the amendment: the
+        // every bay it has under a bay-rate profile, which is the whole point of the amendment: the
         // launch rate follows the ship's fittings rather than what the fleet list calls it.
         var light = CarrierTable.Build(bays: 3, secondGroup: true, thirdGroup: true, carrierIsWarship: true);
         light.Launch();
@@ -174,7 +177,7 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
             StringComparison.Ordinal);
 
         var fleetBook = CarrierTable.Build(
-            bays: 3, secondGroup: true, thirdGroup: true, carrierIsWarship: true, layer: "FleetBook");
+            bays: 3, secondGroup: true, thirdGroup: true, carrierIsWarship: true, rules: TestRules.WithBayRates);
         fleetBook.Launch();
         fleetBook.Launch(secondGroup: true);
         var third = fleetBook.Launch(thirdGroup: true);
@@ -185,11 +188,11 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
     }
 
     [Fact]
-    public void UpdateFighterOperations_UnderTheFleetBookLayerRecoversHalfTheBays()
+    public void UpdateFighterOperations_WhenTheProfileFollowsTheBaysRecoversHalfTheBays()
     {
         // Two bays recover one group a turn - half, rounded up. The second is refused, and the
         // refusal names the bays rather than a group count, because that is what sets the rate now.
-        var table = CarrierTable.Build(bays: 2, secondGroup: true, layer: "FleetBook");
+        var table = CarrierTable.Build(bays: 2, secondGroup: true, rules: TestRules.WithBayRates);
         table.Launch();
         table.Launch(secondGroup: true);
         table.NextTurn();
@@ -202,11 +205,11 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
     }
 
     [Fact]
-    public void UpdateFighterOperations_UnderTheFleetBookLayerLaunchesAndRecoversInTheSameTurn()
+    public void UpdateFighterOperations_WhenTheProfileFollowsTheBaysLaunchesAndRecoversInTheSameTurn()
     {
-        // Launch and recovery draw on separate allowances under the Fleet Book, so a deck can be
+        // Launch and recovery draw on separate allowances under a bay-rate profile, so a deck can be
         // working in both directions at once. Under the light layer they share one budget.
-        var table = CarrierTable.Build(bays: 2, secondGroup: true, layer: "FleetBook");
+        var table = CarrierTable.Build(bays: 2, secondGroup: true, rules: TestRules.WithBayRates);
         table.Launch();
         table.NextTurn();
 
@@ -220,11 +223,11 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
     }
 
     [Fact]
-    public void UpdateFighterOperations_UnderTheFleetBookLayerRollsTurnaroundOnRecovery()
+    public void UpdateFighterOperations_WhenTheProfileFollowsTheBaysRollsTurnaroundOnRecovery()
     {
         // A 1 on the turnaround roll writes the group off for the rest of the game, so the deck it
         // just landed on is the last one it sees. The light layer rolls nothing at all.
-        var table = CarrierTable.Build(bays: 2, layer: "FleetBook");
+        var table = CarrierTable.Build(bays: 2, rules: TestRules.WithBayRates);
         table.Launch();
         table.NextTurn();
 
@@ -242,9 +245,9 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
     [Fact]
     public void UpdateFighterOperations_TurnaroundHoldsAGroupOnTheDeckForTheTurnsItRolled()
     {
-        // A 2 through 5 needs a full turn on the deck, so the group launches on the second turn
-        // after landing rather than the next one.
-        var table = CarrierTable.Build(bays: 2, layer: "FleetBook");
+        // This profile gives the 3 a full turn on the deck, so the group launches on the second
+        // turn after landing rather than the next one.
+        var table = CarrierTable.Build(bays: 2, rules: TestRules.WithBayRates);
         table.Launch();
         table.NextTurn();
         table.Dice.Script(3);
@@ -260,10 +263,10 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
     }
 
     [Fact]
-    public void UpdateFighterOperations_UnderTheLightLayerARecoveredGroupNeedsNoTurnaround()
+    public void UpdateFighterOperations_WithNoTurnaroundRollARecoveredGroupGoesStraightBackOut()
     {
-        // Nothing holds a group on the deck under the light layer: the only limit is the one group
-        // a turn the ship may work, so it is straight back out the following turn.
+        // Nothing holds a group on the deck when the profile does not roll for turnaround: the only
+        // limit is the groups a turn the ship may work, so it is straight back out next turn.
         var table = CarrierTable.Build(bays: 2);
         table.Launch();
         table.NextTurn();
@@ -299,11 +302,11 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
             bool thirdGroup = false,
             bool carrierIsWarship = false,
             int damageDie = 4,
-            string layer = "LightCinematic")
+            RulesProfile? rules = null)
         {
             var dice = new ScriptedDice { Fallback = damageDie };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Carrier Table", RulesLayer: layer));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Carrier Table", Rules: rules ?? TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -335,7 +338,7 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
                 opponent.ParticipantToken, "Raider", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: 6, HullMax: 20, ArmorMax: 0,
                 StartX: 20, StartY: 28, FireControlMax: 1,
-                Weapons: [new WeaponMountDto(enemyMount, "Class-3 Beam", 3, 36, [FiringArc.Fore])]))
+                Weapons: [new WeaponMountDto(enemyMount, "Class-4 Beam", 4, 36, [FiringArc.Fore])]))
                 .Ships.Single(s => s.Name == "Raider");
 
             service.SetReady(owner.MatchId, owner.ParticipantToken, true);
@@ -412,9 +415,10 @@ public sealed class InMemoryMatchServiceCarrierOperationsTests
                 Service.CeaseFire(MatchId, new CeaseFireRequest(OwnerToken, CarrierId));
             }
 
-            // A 20-box hull runs in rows of five, so six 6s put it past the first row.
-            Dice.Script(6, 6, 6);
-            Service.FireWeapon(MatchId, new FireWeaponRequest(OpponentToken, EnemyId, CarrierId, EnemyMount, 12));
+            // A 20-box hull in this profile's three rows runs 7/7/6, and four unscreened top faces
+            // are eight points - just past the first row.
+            Dice.Script(8, 8, 8, 8);
+            Service.FireWeapon(MatchId, new FireWeaponRequest(OpponentToken, EnemyId, CarrierId, EnemyMount, 6));
             return Service.CeaseFire(MatchId, new CeaseFireRequest(OpponentToken, EnemyId));
         }
     }

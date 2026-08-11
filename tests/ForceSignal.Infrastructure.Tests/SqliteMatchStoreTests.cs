@@ -76,7 +76,7 @@ public sealed class SqliteMatchStoreTests : IDisposable
         using (var store = new SqliteMatchStore(DatabasePath))
         {
             var service = new InMemoryMatchService(null, store, loadPersisted: true);
-            owner = service.CreateMatch(new CreateMatchRequest("Blue", "Through The File"));
+            owner = service.CreateMatch(new CreateMatchRequest("Blue", "Through The File", Rules: TestRules.Invented));
             var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
             service.CreateShip(fleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24));

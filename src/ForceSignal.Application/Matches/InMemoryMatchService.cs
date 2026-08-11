@@ -45,7 +45,7 @@ public interface IMatchService
     MatchSnapshotDto UpdateTable(Guid matchId, UpdateMatchTableRequest request);
 
     /// <summary>Switches the rules layer the match is played under.</summary>
-    MatchSnapshotDto UpdateRulesLayer(Guid matchId, UpdateRulesLayerRequest request);
+    MatchSnapshotDto UpdateRulesProfile(Guid matchId, UpdateRulesProfileRequest request);
 
     /// <summary>Sets the agreed points ceiling per player. Zero means unlimited.</summary>
     MatchSnapshotDto UpdatePointsLimit(Guid matchId, UpdateMatchPointsLimitRequest request);
@@ -240,7 +240,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             var joinCode = CreateJoinCode();
             var match = new MatchState(matchId, joinCode, NormalizeText(request.MatchName, "Space Fleet Match"), participant)
             {
-                Rules = RulesProfile.Parse(request.RulesLayer),
+                Rules = (request.Rules ?? RulesProfile.Empty).Normalized(),
                 TableWidth = Math.Clamp(request.TableWidth, 24, 144),
                 TableDepth = Math.Clamp(request.TableDepth, 24, 96)
             };
@@ -371,7 +371,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
         }
     }
 
-    public MatchSnapshotDto UpdateRulesLayer(Guid matchId, UpdateRulesLayerRequest request)
+    public MatchSnapshotDto UpdateRulesProfile(Guid matchId, UpdateRulesProfileRequest request)
     {
         lock (_gate)
         {
@@ -387,26 +387,41 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                 throw new InvalidOperationException("The rules layer is settled during fleet setup, before a shot is fired.");
             }
 
-            match.Rules = RulesProfile.Parse(request.RulesLayer);
-            // Screens above the new layer's ceiling come down with it, so no ship keeps a level the
-            // layer does not have.
+            var supplied = (request.Rules ?? RulesProfile.Empty).Normalized();
+            if (supplied.Validate() is { Count: > 0 } gaps)
+            {
+                throw new InvalidOperationException(
+                    "That profile is not complete enough to play against. " + string.Join(" ", gaps));
+            }
+
+            match.Rules = supplied;
+            // Screens above the new profile's ceiling come down with it, so no ship keeps a level
+            // the profile does not have.
             foreach (var ship in match.Ships)
             {
                 ship.ScreenRating = Math.Min(ship.ScreenRating, match.Rules.MaxScreenLevel);
                 ship.ScreenDamage = ClampDamage(ship.ScreenDamage, ship.ScreenRating);
             }
 
+            // The log reports the numbers back rather than describing them, so it stays a record of
+            // what this match is being played against and never becomes a copy of anyone's rulebook.
             match.AddLog(
                 "Setup",
                 match.Phase.ToString(),
-                $"Rules layer set to {match.Rules.Layer}: screens up to level {match.Rules.MaxScreenLevel}, fighter groups fly {match.Rules.FighterMoveAllowance}, needle beams reach {match.Rules.NeedleBeamRange}"
-                    + (match.Rules.EnhancedNeedleBeams ? " and hole the hull on a 5 or 6, ignoring armour" : string.Empty)
+                $"Playing against '{match.Rules.Name}': d{match.Rules.DieFaces}, screens to level "
+                    + $"{match.Rules.MaxScreenLevel}, beams band every {match.Rules.BeamRangeBandWidth}, "
+                    + $"hulls in {match.Rules.ThresholdRowCount} rows, fighter groups fly "
+                    + $"{match.Rules.FighterMoveAllowance}, needles reach {match.Rules.NeedleBeamRange}"
+                    + (match.Rules.EnhancedNeedleBeams
+                        ? $" and hole the hull on {match.Rules.NeedleHullDamageRoll} or better"
+                        : string.Empty)
                     + (match.Rules.CarrierRatesFollowBays
-                        ? ", flight operations run at one group per bay out and half the bays back"
-                        : ", carriers work two groups a turn and other ships one")
+                        ? ", flight operations following the bays"
+                        : $", carriers working {match.Rules.TrueCarrierAllowance} groups a turn and other ships "
+                            + $"{match.Rules.OtherShipAllowance}")
                     + (match.Rules.CarrierTurnaroundRoll ? ", and a recovered group rolls for turnaround" : string.Empty)
                     + ".");
-            match.Touch("RulesLayerChanged");
+            match.Touch("RulesProfileChanged");
             return ToSnapshot(match);
         }
     }
@@ -805,7 +820,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             // parties, so budgeting against the requested number silently debited a ship for parties
             // that then sat idle - the player was penalised for a number the form had accepted.
             // Summing as a long also keeps two absurd numbers from overflowing into a passing check.
-            var assigned = jobs.Sum(job => (long)PartiesFor(job));
+            var assigned = jobs.Sum(job => (long)PartiesFor(job, match.Rules));
             if (assigned > ship.DamageControlParties)
             {
                 throw new InvalidOperationException(
@@ -813,12 +828,12 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             }
 
             // Every job is checked before a single die is rolled, so a bad assignment cannot half-run.
-            var planned = jobs.Select(job => PlanRepair(ship, job)).ToArray();
+            var planned = jobs.Select(job => PlanRepair(ship, job, match.Rules)).ToArray();
 
             var outcomes = new List<string>();
             foreach (var job in planned)
             {
-                var attempt = _repairRules.Resolve(job);
+                var attempt = _repairRules.Resolve(job, match.Rules);
                 var name = DescribeRepairTarget(ship, job);
                 if (attempt.IsRepaired)
                 {
@@ -850,12 +865,12 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     /// How many parties a requested job actually takes. One place, so the budget check and the roll
     /// can never disagree about it.
     /// </summary>
-    private int PartiesFor(RepairJobDto job) =>
-        Math.Clamp(job.Parties <= 0 ? 1 : job.Parties, 1, _repairRules.MaxPartiesPerJob);
+    private int PartiesFor(RepairJobDto job, RulesProfile rules) =>
+        Math.Clamp(job.Parties <= 0 ? 1 : job.Parties, 1, _repairRules.MaxPartiesPerJob(rules));
 
-    private RepairJob PlanRepair(ShipState ship, RepairJobDto job)
+    private RepairJob PlanRepair(ShipState ship, RepairJobDto job, RulesProfile rules)
     {
-        var parties = PartiesFor(job);
+        var parties = PartiesFor(job, rules);
         switch (job.Kind)
         {
             case ShipSystemKind.FireControl:
@@ -1181,7 +1196,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             return;
         }
 
-        var turnaround = _carrierRules.RollTurnaround();
+        var turnaround = _carrierRules.RollTurnaround(match.Rules);
         group.FighterGroundedForGame = turnaround.IsGroundedForGame;
         group.FighterRelaunchTurn = turnaround.IsGroundedForGame
             ? 0

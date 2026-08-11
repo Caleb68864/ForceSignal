@@ -5,16 +5,20 @@ using ForceSignal.Domain.Rules;
 namespace ForceSignal.Application.Tests;
 
 /// <summary>
-/// A needle beam snipes a named system rather than breaking hull. It ignores screens, takes the system
-/// outright on a 6, and needs a fire control system of its own that can direct nothing else that turn.
+/// A needle beam snipes a named system rather than breaking hull. It ignores screens, takes the
+/// system outright on the profile's kill roll, and needs a fire control system of its own that can
+/// direct nothing else that turn.
 /// </summary>
+/// <remarks>
+/// Played against <see cref="TestRules.Invented"/>, whose needle kills on an 8.
+/// </remarks>
 public sealed class InMemoryMatchServiceNeedleBeamTests
 {
     [Fact]
-    public void FireWeapon_NeedleTakesTheNamedSystemOnASixWithoutTouchingTheHull()
+    public void FireWeapon_NeedleTakesTheNamedSystemOnItsKillRollWithoutTouchingTheHull()
     {
         var table = NeedleTable.Build(fireControlMax: 2);
-        table.Dice.Script(6);
+        table.Dice.Script(8);
 
         var result = table.Needle(ShipSystemKind.FireControl);
 
@@ -31,10 +35,10 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
     }
 
     [Fact]
-    public void FireWeapon_NeedleDoesNothingOnAnythingLessThanASix()
+    public void FireWeapon_NeedleDoesNothingBelowItsKillRoll()
     {
         var table = NeedleTable.Build(fireControlMax: 2);
-        table.Dice.Script(5);
+        table.Dice.Script(7);
 
         var result = table.Needle(ShipSystemKind.FireControl);
 
@@ -47,9 +51,9 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
     [Fact]
     public void FireWeapon_NeedleIgnoresScreensEntirely()
     {
-        // The target carries level-3 screens, which would cap a beam die at a single point.
-        var table = NeedleTable.Build(fireControlMax: 2, targetScreens: 3);
-        table.Dice.Script(6);
+        // The target carries the profile's heaviest screens, which would flatten a beam die.
+        var table = NeedleTable.Build(fireControlMax: 2, targetScreens: 2);
+        table.Dice.Script(8);
 
         var result = table.Needle(ShipSystemKind.Drive);
 
@@ -61,7 +65,7 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
     public void FireWeapon_NeedleCanSnipeANamedMount()
     {
         var table = NeedleTable.Build(fireControlMax: 2);
-        table.Dice.Script(6);
+        table.Dice.Script(8);
 
         var result = table.Needle(ShipSystemKind.Weapon, table.TargetMountId);
 
@@ -96,7 +100,7 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
         // A needle needs a firecon to itself. With only one aboard, the needle may fire - and that is
         // the ship's whole turn of shooting.
         var table = NeedleTable.Build(fireControlMax: 1);
-        table.Dice.Script(6);
+        table.Dice.Script(8);
 
         table.Needle(ShipSystemKind.FireControl);
 
@@ -111,11 +115,11 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
     {
         // Two firecons: the needle spends one, and the beam then has one left for its own target.
         var table = NeedleTable.Build(fireControlMax: 2);
-        table.Dice.Script(6);
+        table.Dice.Script(8);
         table.Needle(ShipSystemKind.FireControl);
 
         // The beam can still engage, because one firecon remains.
-        table.Dice.Script(4, 4, 4);
+        table.Dice.Script(8, 8, 8);
         table.Beam();
 
         // A third call has nothing left to direct it.
@@ -127,10 +131,10 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
     public void NeedleLosses_SurviveAnExportAndRestoreSoTheyStayBeyondDamageControl()
     {
         var table = NeedleTable.Build(fireControlMax: 2);
-        table.Dice.Script(6);
+        table.Dice.Script(8);
         table.Needle(ShipSystemKind.FireControl);
 
-        table.Dice.Script(6);
+        table.Dice.Script(8);
         table.SecondNeedle(ShipSystemKind.Weapon, table.TargetMountId);
 
         var exported = table.Service.GetSnapshot(table.MatchId);
@@ -194,7 +198,7 @@ public sealed class InMemoryMatchServiceNeedleBeamTests
         {
             var dice = new ScriptedDice { Fallback = 4 };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Needle Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Needle Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

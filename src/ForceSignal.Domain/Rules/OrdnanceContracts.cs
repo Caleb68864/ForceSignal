@@ -10,13 +10,13 @@ public sealed record PointDefenseResult(IReadOnlyList<int> Rolls, int Kills, int
 public interface IPointDefenseResolver
 {
     /// <summary>Range at which point defence can engage, in mu.</summary>
-    int Range { get; }
+    int RangeFor(RulesProfile rules);
 
     /// <summary>
     /// Rolls a die per working system against an incoming threat. Allocation is declared before
     /// rolling, so anything killed beyond what was incoming is wasted rather than carried over.
     /// </summary>
-    PointDefenseResult Resolve(int systems, int incoming);
+    PointDefenseResult Resolve(int systems, int incoming, RulesProfile rules);
 }
 
 /// <summary>One salvo of missiles resolving against a ship.</summary>
@@ -40,11 +40,11 @@ public sealed record SalvoAttackResult(
 public interface ISalvoMissileResolver
 {
     /// <summary>Missiles in a full salvo.</summary>
-    int SalvoSize { get; }
+    int SalvoSizeFor(RulesProfile rules);
 
     /// <summary>How close an enemy must be to the point of aim to be attacked, in mu.</summary>
-    int AttackRadius { get; }
+    int AttackRadiusFor(RulesProfile rules);
 
     /// <summary>Rolls arrivals, lets the target's point defence answer, then rolls damage.</summary>
-    SalvoAttackResult Resolve(int targetPointDefenseSystems);
+    SalvoAttackResult Resolve(int targetPointDefenseSystems, RulesProfile rules);
 }

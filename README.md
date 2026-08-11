@@ -12,8 +12,13 @@ Use your own legally obtained rules and fleet data. ForceSignal links outward to
 
 ## Content Policy
 
-- Do not bundle official PDFs, rule text, ship SSDs, fleet lists, faction background, logos, artwork, or pasted Fleet Book tables in this repo or app.
-- JSON/CSV fleet import and export are for user-owned data.
+- Do not bundle official PDFs, rule text, ship SSDs, fleet lists, faction background, logos, artwork, or pasted tables in this repo or app.
+- **The engine owns procedures; the player owns every number those procedures read.** What is rolled
+  against what, what shifts what, and what order things happen in are code. Die faces, damage
+  tables, range bands, thresholds and reach are entered by the player and shipped by nobody. There
+  is deliberately no default profile, and `docs/rules-profile-template.json` is blank rather than
+  typical. A default that happens to be somebody's published numbers is still those numbers.
+- JSON/CSV fleet import and export are for user-owned data, and so is the rules profile.
 - Do not ship official Ground Zero Games fleets as sample data.
 - If compatibility wording is used publicly, get written permission from Ground Zero Games first.
 

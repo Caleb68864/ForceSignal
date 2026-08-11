@@ -56,7 +56,7 @@ public sealed class ApiHardeningTests
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
-        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Blank Token", 72, 48)))
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Blank Token", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>();
         Assert.NotNull(created);
 
@@ -76,7 +76,7 @@ public sealed class ApiHardeningTests
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
-        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "No Token", 72, 48)))
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "No Token", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>();
         Assert.NotNull(created);
 
@@ -154,7 +154,7 @@ public sealed class ApiHardeningTests
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
-        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Typo Room", 72, 48)))
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Typo Room", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>();
         Assert.NotNull(created);
 
@@ -177,7 +177,7 @@ public sealed class ApiHardeningTests
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
-        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Private", 72, 48)))
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Private", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>();
         Assert.NotNull(created);
 
@@ -188,7 +188,7 @@ public sealed class ApiHardeningTests
         Assert.Equal(HttpStatusCode.Forbidden, anonymous.StatusCode);
 
         // A token from a different match is no better.
-        var other = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Red", "Elsewhere", 72, 48)))
+        var other = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Red", "Elsewhere", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>();
         using var wrongMatch = new HttpRequestMessage(HttpMethod.Get, $"/api/matches/{created.MatchId}/snapshot");
         wrongMatch.Headers.TryAddWithoutValidation("X-Participant-Token", other!.ParticipantToken);

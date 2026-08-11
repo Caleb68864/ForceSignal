@@ -12,17 +12,17 @@ namespace ForceSignal.Application.Tests;
 public sealed class InMemoryMatchServiceRepairTests
 {
     [Fact]
-    public void AttemptRepairs_BringsFireControlBackOnASix()
+    public void AttemptRepairs_BringsFireControlBackOnTheNumberOnePartyNeeds()
     {
         var table = RepairTable.Build();
         table.BreakFireControl();
-        table.Dice.Script(6);
+        table.Dice.Script(7);
 
         var result = table.Repair(new RepairJobDto(ShipSystemKind.FireControl, null, 1));
 
         Assert.Equal(0, table.ShipIn(result).FireControlDamage);
         Assert.Contains(result.MatchLog, entry => entry.Category == "Repair"
-            && entry.Message.Contains("fire control back online (needed 6, rolled 6)", StringComparison.Ordinal));
+            && entry.Message.Contains("fire control back online (needed 7, rolled 7)", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class InMemoryMatchServiceRepairTests
     {
         var table = RepairTable.Build();
         table.BreakFireControl();
-        table.Dice.Script(5);
+        table.Dice.Script(6);
 
         var result = table.Repair(new RepairJobDto(ShipSystemKind.FireControl, null, 1));
 
@@ -41,15 +41,15 @@ public sealed class InMemoryMatchServiceRepairTests
     [Fact]
     public void AttemptRepairs_LowersTheNumberNeededWhenPartiesCrowdAJob()
     {
-        // Three parties on one job repair on a 4 or better, and they roll once between them.
+        // A second party on one job lowers the number by one, and they roll once between them.
         var table = RepairTable.Build(parties: 3);
         table.BreakFireControl();
-        table.Dice.Script(4);
+        table.Dice.Script(6);
 
-        var result = table.Repair(new RepairJobDto(ShipSystemKind.FireControl, null, 3));
+        var result = table.Repair(new RepairJobDto(ShipSystemKind.FireControl, null, 2));
 
         Assert.Equal(0, table.ShipIn(result).FireControlDamage);
-        Assert.Contains(result.MatchLog, entry => entry.Message.Contains("needed 4, rolled 4", StringComparison.Ordinal));
+        Assert.Contains(result.MatchLog, entry => entry.Message.Contains("needed 6, rolled 6", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class InMemoryMatchServiceRepairTests
     {
         var table = RepairTable.Build();
         table.BreakTheMount();
-        table.Dice.Script(6);
+        table.Dice.Script(7);
 
         var result = table.Repair(new RepairJobDto(ShipSystemKind.Weapon, table.MountId, 1));
 
@@ -70,13 +70,13 @@ public sealed class InMemoryMatchServiceRepairTests
         // Drives were lost outright: one success gets half the thrust back, a second clears the rest.
         var table = RepairTable.Build(parties: 2);
         table.KillDrives();
-        table.Dice.Script(6);
+        table.Dice.Script(7);
 
         var half = table.Repair(new RepairJobDto(ShipSystemKind.Drive, null, 1));
         Assert.Equal(2, table.ShipIn(half).DriveDamage);
 
         table.NextTurn();
-        table.Dice.Script(6);
+        table.Dice.Script(7);
         var whole = table.Repair(new RepairJobDto(ShipSystemKind.Drive, null, 1));
         Assert.Equal(0, table.ShipIn(whole).DriveDamage);
     }
@@ -112,7 +112,7 @@ public sealed class InMemoryMatchServiceRepairTests
         // Jobs are assigned before any dice, so a bad one stops the whole attempt rather than half-running.
         var table = RepairTable.Build(parties: 2);
         table.BreakFireControl();
-        table.Dice.Script(6, 6);
+        table.Dice.Script(7, 7);
 
         Assert.Throws<InvalidOperationException>(() => table.Repair(
             new RepairJobDto(ShipSystemKind.FireControl, null, 1),
@@ -120,7 +120,7 @@ public sealed class InMemoryMatchServiceRepairTests
 
         // The fire control job never rolled, so the damage is still there and the turn is not spent.
         Assert.Equal(1, table.Ship().FireControlDamage);
-        table.Dice.Script(6);
+        table.Dice.Script(7);
         Assert.Equal(0, table.ShipIn(table.Repair(new RepairJobDto(ShipSystemKind.FireControl, null, 1))).FireControlDamage);
     }
 
@@ -157,7 +157,7 @@ public sealed class InMemoryMatchServiceRepairTests
         // Screens record what the ship was built with, so there is a level to restore toward.
         var table = RepairTable.Build();
         table.BreakScreens();
-        table.Dice.Script(6);
+        table.Dice.Script(7);
 
         var result = table.Repair(new RepairJobDto(ShipSystemKind.Screen, null, 1));
 
@@ -237,13 +237,14 @@ public sealed class InMemoryMatchServiceRepairTests
     [Fact]
     public void AttemptRepairs_BudgetsOnlyThePartiesAJobCanActuallyUse()
     {
-        // A job takes at most three parties. Budgeting against the number asked for meant a ship
-        // with five parties putting "five" on one job passed the check and then rolled with three,
-        // silently spending two parties on nothing - penalised for a number the form accepted.
+        // A job takes only as many parties as the profile allows. Budgeting against the number
+        // asked for meant a ship with five parties putting "five" on one job passing the check and
+        // then rolling with two, silently spending three parties on nothing - penalised for a
+        // number the form had accepted.
         var table = RepairTable.Build(parties: 5);
         table.BreakFireControl();
         table.BreakScreens();
-        table.Dice.Script(4, 6);
+        table.Dice.Script(6, 7);
 
         var result = table.Repair(
             new RepairJobDto(ShipSystemKind.FireControl, null, 5),
@@ -298,7 +299,7 @@ public sealed class InMemoryMatchServiceRepairTests
         {
             var dice = new ScriptedDice { Fallback = 4 };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Repair Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Repair Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -360,7 +361,8 @@ public sealed class InMemoryMatchServiceRepairTests
                 Service.CeaseFire(MatchId, new CeaseFireRequest(OwnerToken, ShipId));
             }
 
-            Dice.Script(6);
+            // The needle has to actually take the system, so it rolls the profile's kill number.
+            Dice.Script(8);
             Service.FireWeapon(MatchId, new FireWeaponRequest(
                 OpponentToken, EnemyId, ShipId, EnemyNeedleId, 6,
                 TargetSystem: system, TargetSystemWeaponId: weaponId));

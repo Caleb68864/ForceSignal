@@ -10,7 +10,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_FromFleetSetupExport_RebuildsTableFleetsShipsAndLog()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Restore Source", 96, 72));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Restore Source", 96, 72, Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Watch", "Test", "#f5c766")).Fleets.Single();
         service.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4,
@@ -58,7 +58,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_FromFiringExport_KeepsPhaseSpentWeaponsAndTrails()
     {
         var source = new InMemoryMatchService(() => 6);
-        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Firing Source"));
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Firing Source", Rules: TestRules.Invented));
         var opponent = source.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
         var blueFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
         var redFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null)).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
@@ -107,7 +107,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_FromOrdersLockedExport_FallsBackToOrderEntry()
     {
         var source = new InMemoryMatchService();
-        var owner = source.CreateMatch(new CreateMatchRequest("Solo", "Locked Source"));
+        var owner = source.CreateMatch(new CreateMatchRequest("Solo", "Locked Source", Rules: TestRules.Invented));
         var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         var ship = source.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Lone Star", "Cruiser", 4, 6, 3, 12, 2, StartX: 20, StartY: 24)).Ships.Single();
@@ -128,7 +128,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_FromMovementExport_AppliesRestoredOrdersExactlyOnce()
     {
         var source = new InMemoryMatchService();
-        var owner = source.CreateMatch(new CreateMatchRequest("Solo", "Movement Source"));
+        var owner = source.CreateMatch(new CreateMatchRequest("Solo", "Movement Source", Rules: TestRules.Invented));
         var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         var ship = source.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Lone Star", "Cruiser", 4, 6, 3, 12, 2, StartX: 20, StartY: 24)).Ships.Single();
@@ -163,7 +163,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void ClaimedSeat_CommandsOnlyItsOwnFleets_AndCannotBeClaimedTwice()
     {
         var source = new InMemoryMatchService();
-        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Ownership Source"));
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Ownership Source", Rules: TestRules.Invented));
         var opponent = source.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
         var blueFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
         var redFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null)).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
@@ -207,7 +207,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         // Restoring a backup of a match that is still live must not make ship lookups ambiguous:
         // the by-ship-id endpoints scan every match in the store.
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Live Source"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Live Source", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         var liveShip = service.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24)).Ships.Single();
@@ -233,7 +233,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void JoinMatch_OnRestoredMatchWithUnclaimedSeats_DoesNotMintANewParticipant()
     {
         var source = new InMemoryMatchService();
-        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Join Source"));
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Join Source", Rules: TestRules.Invented));
         source.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
         var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         source.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
@@ -261,7 +261,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_CarriesOrdnanceMarkersAndSeatReadiness()
     {
         var source = new InMemoryMatchService();
-        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Ordnance Source"));
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Ordnance Source", Rules: TestRules.Invented));
         var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         var carrier = source.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Home Plate", "Carrier", 4, 4, 3, 14, 5, StartX: 12, StartY: 20, IconKey: "carrier")).Ships.Single(s => s.Name == "Home Plate");
@@ -307,7 +307,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void ClaimSeat_ForAnUnknownSeat_IsRejectedAsNotFound()
     {
         var source = new InMemoryMatchService();
-        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Unknown Seat Source"));
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Unknown Seat Source", Rules: TestRules.Invented));
         var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         source.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
 
@@ -328,7 +328,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_RejectedPayload_LeavesTheStoreUntouched()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Atomic Source"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Atomic Source", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         service.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
         var exported = service.GetSnapshot(owner.MatchId);
@@ -353,7 +353,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_KeepsEveryWeaponMountEvenWhenAnEntryIsMalformed()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Weapon Source"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Weapon Source", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         service.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24,
@@ -434,7 +434,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_RejectsUnusableSnapshots()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Reject Source"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Reject Source", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         service.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
         var good = service.GetSnapshot(owner.MatchId);
@@ -449,7 +449,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void RestoreMatch_ClampsHandEditedValues()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Clamp Source"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Clamp Source", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Watch", null)).Fleets.Single();
         service.CreateShip(fleet.Id, new CreateShipRequest(owner.ParticipantToken, "Valiant", "Cruiser", 4, 0, 3, 12, 2, StartX: 20, StartY: 24));
         var exported = service.GetSnapshot(owner.MatchId);
@@ -474,7 +474,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         Assert.Equal(20, ship.ThrustRating);
         Assert.Equal(80, ship.HullMax);
         Assert.Equal(0, ship.HullDamage);
-        Assert.Equal(3, ship.ScreenRating);
+        Assert.Equal(TestRules.Invented.MaxScreenLevel, ship.ScreenRating);
         Assert.Equal(0, ship.CurrentVelocity);
         Assert.InRange(ship.CurrentCourse, 1, 12);
     }
@@ -491,7 +491,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         public static RestoreFixture TwoFleetsReady(string matchName)
         {
             var service = new InMemoryMatchService();
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", matchName));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", matchName, Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -511,7 +511,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     public void EmptyToken_NeverAuthenticates()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Seat Guard"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Seat Guard", Rules: TestRules.Invented));
 
         Assert.False(service.IsMatchParticipant(owner.MatchId, string.Empty));
         Assert.False(service.IsMatchParticipant(owner.MatchId, "   "));
@@ -524,7 +524,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     {
         var dice = new ScriptedDice { Fallback = 4 };
         var service = new InMemoryMatchService(dice.Next);
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Mid Volley"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Mid Volley", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
         var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
             .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

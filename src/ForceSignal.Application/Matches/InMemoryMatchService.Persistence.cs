@@ -86,7 +86,7 @@ public sealed partial class InMemoryMatchService
         match.JoinCode,
         match.Name,
         match.Phase.ToString(),
-        match.Rules.Layer.ToString(),
+        match.Rules,
         match.TurnNumber,
         match.TableWidth,
         match.TableDepth,
@@ -137,7 +137,7 @@ public sealed partial class InMemoryMatchService
         var match = new MatchState(persisted.Id, persisted.JoinCode, persisted.Name, seats[0])
         {
             Phase = Enum.TryParse<MatchPhase>(persisted.Phase, out var phase) ? phase : MatchPhase.FleetSetup,
-            Rules = RulesProfile.Parse(persisted.RulesLayer),
+            Rules = (persisted.Rules ?? RulesProfile.Empty).Normalized(),
             TurnNumber = persisted.TurnNumber,
             TableWidth = persisted.TableWidth,
             TableDepth = persisted.TableDepth,
@@ -276,7 +276,7 @@ public sealed partial class InMemoryMatchService
         string JoinCode,
         string Name,
         string Phase,
-        string RulesLayer,
+        RulesProfile? Rules,
         int TurnNumber,
         int TableWidth,
         int TableDepth,

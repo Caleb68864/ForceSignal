@@ -29,8 +29,11 @@ public sealed partial class InMemoryMatchService
         public string Name { get; } = name;
         public MatchPhase Phase { get; set; } = MatchPhase.FleetSetup;
 
-        /// <summary>The layer of the rules this match is played under.</summary>
-        public RulesProfile Rules { get; set; } = RulesProfile.LightCinematic;
+        /// <summary>
+        /// The numbers this match is played against. Blank until the players supply them, because
+        /// this app ships none of its own.
+        /// </summary>
+        public RulesProfile Rules { get; set; } = RulesProfile.Empty;
 
         /// <summary>The ship part-way through its fire, if any. Its threshold checks are still owed.</summary>
         public Guid? FiringShipId { get; set; }

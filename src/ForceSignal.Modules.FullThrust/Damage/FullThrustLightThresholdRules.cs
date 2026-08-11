@@ -3,59 +3,52 @@ using ForceSignal.Domain.Rules;
 namespace ForceSignal.Modules.FullThrust.Damage;
 
 /// <summary>
-/// Threshold checks for the light cinematic rules set. The hull is drawn as four rows; completing
-/// a row makes every surviving system roll to stay alive. Full Thrust Light knocks a system out on
-/// a low roll - a 1 at the first threshold, 1-2 at the second, 1-3 at the third - and an attack
-/// that tears through more than one row rolls once against the deepest row, one point worse for
-/// each extra row passed.
+/// Threshold checks. The hull is drawn as a number of rows; completing a row makes every surviving
+/// system roll to stay alive, and an attack that tears through more than one row rolls once against
+/// the deepest row reached, one point worse for each extra row passed.
 /// </summary>
+/// <remarks>
+/// How many rows a track has, and whether that count follows the hull's size band, are the player's.
+/// What lives here is how a track is divided - as evenly as the hull allows, remainder to the upper
+/// rows - and the rule that completing the last row is the ship's destruction rather than another
+/// check.
+/// </remarks>
 /// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
 public sealed class FullThrustLightThresholdRules(Func<int>? rollDie = null) : IThresholdResolver
 {
-    /// <summary>
-    /// Rows in a hull damage track under both layers ForceSignal ships. The last row ending is the
-    /// ship's destruction.
-    /// </summary>
-    /// <remarks>
-    /// Four rows for every hull is the Fleet Book rule, and it is also what the light cinematic
-    /// profile uses. Rows by class band - an escort two rows and one threshold, a cruiser three and
-    /// two, a capital four and three - is the *second edition* rule, and ForceSignal has no
-    /// second-edition profile: its light cinematic profile covers the light set and the second
-    /// edition together, and keeps four rows deliberately, so a light hull stays under threshold
-    /// pressure rather than dying with its systems intact. <see cref="RowCountFor"/> can size the
-    /// track by band, and a layer selects that with <see cref="ThresholdRowMode.ByShipClass"/>;
-    /// neither shipped layer does.
-    /// </remarks>
-    public const int RowCount = 4;
-
-    /// <summary>Deepest row that still rolls a check. Completing the last row destroys the ship.</summary>
-    public const int DeepestThreshold = RowCount - 1;
-
     private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
 
     /// <inheritdoc />
-    public IReadOnlyList<int> HullRows(int hullMax, RulesProfile? rules = null, ShipClassBand? band = null) =>
+    public IReadOnlyList<int> HullRows(int hullMax, RulesProfile rules, ShipClassBand? band = null) =>
         HullRowsFor(hullMax, RowCountFor(rules, band));
 
     /// <inheritdoc />
-    public int RowsCompleted(int hullDamage, int hullMax, RulesProfile? rules = null, ShipClassBand? band = null) =>
+    public int RowsCompleted(int hullDamage, int hullMax, RulesProfile rules, ShipClassBand? band = null) =>
         RowsCompletedFor(hullDamage, hullMax, RowCountFor(rules, band));
 
     /// <summary>
-    /// How many rows this layer draws for a hull of this size band. A layer that does not size the
-    /// track by class, and a band nobody could work out, both get the full four rows.
+    /// How many rows this profile draws for a hull of this size band. A profile that does not size
+    /// the track by class, and a band nobody could work out, both get the profile's row count.
     /// </summary>
-    /// <param name="rules">The layer being played, or null for the light cinematic default.</param>
+    /// <param name="rules">The profile being played against.</param>
     /// <param name="band">The hull's size band, or null when it is unknown.</param>
-    public static int RowCountFor(RulesProfile? rules, ShipClassBand? band) =>
-        (rules ?? RulesProfile.LightCinematic).ThresholdRows == ThresholdRowMode.ByShipClass
-            ? band switch
-            {
-                ShipClassBand.Escort => 2,
-                ShipClassBand.Cruiser => 3,
-                _ => RowCount,
-            }
-            : RowCount;
+    /// <exception cref="ArgumentNullException"><paramref name="rules"/> is null.</exception>
+    public static int RowCountFor(RulesProfile rules, ShipClassBand? band)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+
+        if (rules.ThresholdRows != ThresholdRowMode.ByShipClass)
+        {
+            return Math.Max(1, rules.ThresholdRowCount);
+        }
+
+        return band switch
+        {
+            ShipClassBand.Escort when rules.EscortRowCount > 0 => rules.EscortRowCount,
+            ShipClassBand.Cruiser when rules.CruiserRowCount > 0 => rules.CruiserRowCount,
+            _ => Math.Max(1, rules.ThresholdRowCount),
+        };
+    }
 
     /// <summary>
     /// The hull's damage track as the number of boxes per row, top down. Rows are as even as the
@@ -63,7 +56,7 @@ public sealed class FullThrustLightThresholdRules(Func<int>? rollDie = null) : I
     /// </summary>
     /// <param name="hullMax">Hull boxes the ship was built with.</param>
     /// <param name="rowCount">Rows to divide the track into.</param>
-    public static int[] HullRowsFor(int hullMax, int rowCount = RowCount)
+    public static int[] HullRowsFor(int hullMax, int rowCount)
     {
         var rows = Math.Max(1, rowCount);
         if (hullMax <= 0)
@@ -86,7 +79,7 @@ public sealed class FullThrustLightThresholdRules(Func<int>? rollDie = null) : I
     /// <param name="hullDamage">Damage recorded against the hull.</param>
     /// <param name="hullMax">Hull boxes the ship was built with.</param>
     /// <param name="rowCount">Rows the track is divided into.</param>
-    public static int RowsCompletedFor(int hullDamage, int hullMax, int rowCount = RowCount)
+    public static int RowsCompletedFor(int hullDamage, int hullMax, int rowCount)
     {
         var completed = 0;
         var remaining = Math.Clamp(hullDamage, 0, Math.Max(0, hullMax));
@@ -112,15 +105,20 @@ public sealed class FullThrustLightThresholdRules(Func<int>? rollDie = null) : I
     public static int DeepestThresholdFor(int rowCount) => Math.Max(1, rowCount - 1);
 
     /// <inheritdoc />
-    public ThresholdCheckResult Resolve(ThresholdCheck check)
+    public ThresholdCheckResult Resolve(ThresholdCheck check, RulesProfile rules)
     {
+        ArgumentNullException.ThrowIfNull(check);
+        ArgumentNullException.ThrowIfNull(rules);
+
+        var faces = Math.Max(1, rules.DieFaces);
+
         // The deepest row reached sets the number, then one point worse per extra row torn through.
-        var threshold = Math.Clamp(check.Threshold, 1, DeepestThreshold);
-        var lostOn = Math.Clamp(threshold + Math.Max(0, check.ExtraThresholds), 1, 6);
+        var threshold = Math.Clamp(check.Threshold, 1, DeepestThresholdFor(Math.Max(1, rules.ThresholdRowCount)));
+        var lostOn = Math.Clamp(threshold + Math.Max(0, check.ExtraThresholds), 1, faces);
         var rolls = check.Systems
             .Select(system =>
             {
-                var die = Math.Clamp(_rollDie(), 1, 6);
+                var die = Math.Clamp(_rollDie(), 1, faces);
                 return new ThresholdRoll(system, die, die <= lostOn);
             })
             .ToArray();

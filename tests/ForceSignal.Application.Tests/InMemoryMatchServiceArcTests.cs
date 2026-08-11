@@ -83,7 +83,7 @@ public sealed class InMemoryMatchServiceArcTests
     public void CreateShip_ExpandsTheLegacyFourArcMountNames()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Legacy Arcs"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Legacy Arcs", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
 
         var ship = service.CreateShip(fleet.Id, new CreateShipRequest(
@@ -118,7 +118,7 @@ public sealed class InMemoryMatchServiceArcTests
     public void CreateShip_StripsTheAftArcFromAnyMountThatAsksForIt()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Blind Spot"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Blind Spot", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
 
         var ship = service.CreateShip(fleet.Id, new CreateShipRequest(
@@ -134,7 +134,7 @@ public sealed class InMemoryMatchServiceArcTests
         public static ArcTable Build(int attackerCourse, decimal targetX, decimal targetY, IReadOnlyList<FiringArc> mountArcs)
         {
             var service = new InMemoryMatchService(() => 6);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Arc Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Arc Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

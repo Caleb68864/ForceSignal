@@ -124,15 +124,15 @@ public interface IThresholdResolver
     /// <param name="hullMax">Hull boxes the ship was built with.</param>
     /// <param name="rules">The layer being played, or null for the light cinematic default.</param>
     /// <param name="band">The hull's size band, where the layer sizes the track by class.</param>
-    IReadOnlyList<int> HullRows(int hullMax, RulesProfile? rules = null, ShipClassBand? band = null);
+    IReadOnlyList<int> HullRows(int hullMax, RulesProfile rules, ShipClassBand? band = null);
 
     /// <summary>How many hull rows are fully crossed off at this much damage.</summary>
     /// <param name="hullDamage">Damage recorded against the hull.</param>
     /// <param name="hullMax">Hull boxes the ship was built with.</param>
     /// <param name="rules">The layer being played, or null for the light cinematic default.</param>
     /// <param name="band">The hull's size band, where the layer sizes the track by class.</param>
-    int RowsCompleted(int hullDamage, int hullMax, RulesProfile? rules = null, ShipClassBand? band = null);
+    int RowsCompleted(int hullDamage, int hullMax, RulesProfile rules, ShipClassBand? band = null);
 
     /// <summary>Rolls one die per surviving system and reports what was knocked out.</summary>
-    ThresholdCheckResult Resolve(ThresholdCheck check);
+    ThresholdCheckResult Resolve(ThresholdCheck check, RulesProfile rules);
 }

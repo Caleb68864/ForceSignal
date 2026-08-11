@@ -1,0 +1,53 @@
+{
+  "$comment": [
+    "A blank rules profile. Every value is zero, empty or false on purpose: ForceSignal ships no",
+    "rules numbers, so this is a form to fill in from your own rulebook and record cards, not a",
+    "starting suggestion. Import it in the app under Rules profile, or fill it in here and import",
+    "the file. A section your table does not use can be left at zero.",
+    "",
+    "beamDamage, pointDefenseKills and turnaround are tables: list only the die faces that do",
+    "something. A face you leave out scores nothing, shoots nothing down, and - for turnaround -",
+    "leaves the group flyable and ready next turn.",
+    "",
+    "thresholdRows is either FixedRows or ByShipClass."
+  ],
+
+  "name": "",
+  "dieFaces": 0,
+
+  "beamDamage": [],
+  "beamRangeBandWidth": 0,
+  "maxScreenLevel": 0,
+
+  "torpedoMaximumRange": 0,
+  "torpedoBandWidth": 0,
+  "torpedoBestToHit": 0,
+
+  "needleBeamRange": 0,
+  "needleSystemKillRoll": 0,
+  "enhancedNeedleBeams": false,
+  "needleHullDamageRoll": 0,
+
+  "thresholdRows": "FixedRows",
+  "thresholdRowCount": 0,
+  "escortRowCount": 0,
+  "cruiserRowCount": 0,
+
+  "maxPartiesPerJob": 0,
+  "repairRollWithOneParty": 0,
+  "repairBestRoll": 0,
+
+  "fighterMoveAllowance": 0,
+  "carrierRatesFollowBays": false,
+  "trueCarrierAllowance": 0,
+  "otherShipAllowance": 0,
+  "carrierTurnaroundRoll": false,
+  "turnaround": [],
+
+  "pointDefenseRange": 0,
+  "pointDefenseKills": [],
+  "pointDefenseChainOnFace": 0,
+
+  "missilesPerSalvo": 0,
+  "salvoAttackRadius": 0
+}

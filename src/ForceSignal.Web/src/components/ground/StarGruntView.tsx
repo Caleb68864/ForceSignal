@@ -84,8 +84,11 @@ export function StarGruntView() {
     defenderShift: 0,
     downed: 1,
     wonTheAssault: true,
-    deadUpTo: 2,
-    woundedUpTo: 4,
+    // Blank rather than typical. These started life as the published bands, which is the same
+    // mistake as writing them into the engine - a default that happens to be somebody's numbers is
+    // still those numbers, shipped.
+    deadUpTo: 0,
+    woundedUpTo: 0,
     defendersInCover: true,
   });
   const [shot, setShot] = useState<ShotForm>({
@@ -458,7 +461,7 @@ export function StarGruntView() {
                 onChange={(event) => setAssault((current) => ({ ...current, downed: Number(event.target.value) }))}
               />
             </label>
-            <label title="Rolls up to and including this are dead.">
+            <label title="Rolls up to and including this are dead. Off your own table - this app has no suggestion.">
               Dead up to
               <input
                 type="number"

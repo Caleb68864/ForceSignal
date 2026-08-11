@@ -17,7 +17,7 @@ public sealed class InMemoryMatchServiceHardeningTests
         var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < 200; i++)
         {
-            codes.Add(service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}")).JoinCode);
+            codes.Add(service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}", Rules: TestRules.Invented)).JoinCode);
         }
 
         // Every code is unique by construction; the point of the check is that generating 200 of
@@ -30,7 +30,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void JoinCode_IsRefusedWhenItIsNotTheOneThatWasIssued()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Wrong Code"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Wrong Code", Rules: TestRules.Invented));
 
         // A near miss on the real code is still a miss.
         var wrong = owner.JoinCode[..^1] + (owner.JoinCode[^1] == 'A' ? 'B' : 'A');
@@ -41,8 +41,8 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void ParticipantToken_FromAnotherMatchIsRefused()
     {
         var service = new InMemoryMatchService();
-        var blue = service.CreateMatch(new CreateMatchRequest("Blue", "Blue Match"));
-        var red = service.CreateMatch(new CreateMatchRequest("Red", "Red Match"));
+        var blue = service.CreateMatch(new CreateMatchRequest("Blue", "Blue Match", Rules: TestRules.Invented));
+        var red = service.CreateMatch(new CreateMatchRequest("Red", "Red Match", Rules: TestRules.Invented));
 
         // A valid token is still only valid for the match that issued it.
         Assert.Throws<UnauthorizedAccessException>(() =>
@@ -53,7 +53,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void RestoredMatch_AlwaysHasAnOwnerSoTheTurnCanStillBeAdvanced()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "No Owner"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "No Owner", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
         var exported = service.GetSnapshot(owner.MatchId);
@@ -73,7 +73,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void RestoredMatch_GivesDuplicateSeatIdsDistinctSeats()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Twin Seats"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Twin Seats", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
@@ -93,7 +93,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void RestoredMatch_RefusesASnapshotCarryingMoreShipsThanAMatchTracks()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Too Many"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Too Many", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
         var exported = service.GetSnapshot(owner.MatchId);
@@ -112,7 +112,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void DisplayText_IsTruncatedRatherThanStoredAtAnyLength()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", new string('N', 5000)));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", new string('N', 5000), Rules: TestRules.Invented));
         var snapshot = service.CreateFleet(owner.MatchId, new CreateFleetRequest(
             owner.ParticipantToken,
             new string('F', 5000),
@@ -128,7 +128,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void BattleLog_StopsGrowingOnceItReachesItsCeiling()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Long Game"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Long Game", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
 
         // Each edit writes a log line, so this is the cheapest way to run the log past its cap.
@@ -154,7 +154,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void Fleets_StopBeingAcceptedOnceTheMatchHoldsItsCeiling()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Fleet Flood"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Fleet Flood", Rules: TestRules.Invented));
         for (var i = 0; i < 32; i++)
         {
             service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, $"Fleet {i}", null));
@@ -169,8 +169,8 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void AShipIsOnlyReachableThroughTheMatchThatHoldsIt()
     {
         var service = new InMemoryMatchService();
-        var blue = service.CreateMatch(new CreateMatchRequest("Blue", "Blue Match"));
-        var red = service.CreateMatch(new CreateMatchRequest("Red", "Red Match"));
+        var blue = service.CreateMatch(new CreateMatchRequest("Blue", "Blue Match", Rules: TestRules.Invented));
+        var red = service.CreateMatch(new CreateMatchRequest("Red", "Red Match", Rules: TestRules.Invented));
         var blueFleet = service.CreateFleet(blue.MatchId, new CreateFleetRequest(blue.ParticipantToken, "Blue", null)).Fleets.Single();
         var blueShip = service.CreateShip(blueFleet.Id, Ship(blue.ParticipantToken, "Valiant")).Ships.Single();
 
@@ -183,7 +183,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void AnUnknownShipIdIsReportedAsMissingRatherThanFoundInSomeOtherMatch()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Missing Ship"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Missing Ship", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
 
@@ -196,7 +196,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void ARemovedOrdnanceMarkerStopsBeingAddressable()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Marker Life"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Marker Life", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
 
@@ -215,19 +215,19 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void OpeningMoreMatchesThanTheServerHoldsRetiresTheOldestRatherThanRefusing()
     {
         var service = new InMemoryMatchService();
-        var first = service.CreateMatch(new CreateMatchRequest("Blue", "First"));
+        var first = service.CreateMatch(new CreateMatchRequest("Blue", "First", Rules: TestRules.Invented));
 
         // Push past the concurrent ceiling. A table must always be able to start a game, so the
         // oldest match gives way instead of the new one being turned down.
         for (var i = 0; i < 520; i++)
         {
-            service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}"));
+            service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}", Rules: TestRules.Invented));
         }
 
         Assert.Throws<InvalidOperationException>(() => service.GetSnapshot(first.MatchId));
 
         // The newest match is still there and still works.
-        var latest = service.CreateMatch(new CreateMatchRequest("Blue", "Latest"));
+        var latest = service.CreateMatch(new CreateMatchRequest("Blue", "Latest", Rules: TestRules.Invented));
         Assert.Equal("Latest", service.GetSnapshot(latest.MatchId).Name);
     }
 
@@ -235,7 +235,7 @@ public sealed class InMemoryMatchServiceHardeningTests
     public void ASeatCannotBeTakenByAnyoneWhoDoesNotHaveTheRoomCode()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Takeover"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Takeover", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
         var restored = new InMemoryMatchService();

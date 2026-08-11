@@ -398,19 +398,20 @@ app.MapPost("/api/matches/{matchId:guid}/table", async (
     .Produces<MatchSnapshotDto>()
     .ProducesProblem(StatusCodes.Status400BadRequest);
 
-app.MapPost("/api/matches/{matchId:guid}/rules-layer", async (
+app.MapPost("/api/matches/{matchId:guid}/rules-profile", async (
     Guid matchId,
-    UpdateRulesLayerRequest request,
+    UpdateRulesProfileRequest request,
     IMatchService matches,
     IHubContext<MatchHub> hub) =>
 {
-    var snapshot = matches.UpdateRulesLayer(matchId, request);
-    await NotifySnapshotChanged(hub, snapshot, "RulesLayerChanged");
+    var snapshot = matches.UpdateRulesProfile(matchId, request);
+    await NotifySnapshotChanged(hub, snapshot, "RulesProfileChanged");
     return Results.Ok(snapshot);
 })
-    .WithName("UpdateRulesLayer")
+    .WithName("UpdateRulesProfile")
     .WithTags("Matches")
-    .WithSummary("Switches the rules layer the match is played under, during fleet setup.")
+    .WithSummary("Replaces the numbers the match is played against, during fleet setup.")
+    .WithDescription("This app ships no rulebook numbers. A match is played against a profile its players fill in from their own rulebook and record cards, and it is refused until that profile is complete.")
     .Produces<MatchSnapshotDto>()
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status403Forbidden)

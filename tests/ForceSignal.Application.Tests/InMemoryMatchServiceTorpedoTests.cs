@@ -13,8 +13,8 @@ public sealed class InMemoryMatchServiceTorpedoTests
     [Fact]
     public void FireWeapon_ResolvesATorpedoAsAToHitRollThenADamageDie()
     {
-        // Needs 3+ at range 10, rolls a 4 to hit and a 5 for damage, against level-2 screens that
-        // would have capped a beam die at one point.
+        // This profile asks a 4 at range 10. Rolls a 4 to hit and a 5 for damage, against the
+        // heaviest screens it allows - which would have flattened a beam die to a single point.
         var table = TorpedoTable.Build(targetScreens: 2);
         table.Dice.Script(4, 5);
 
@@ -22,14 +22,14 @@ public sealed class InMemoryMatchServiceTorpedoTests
 
         var shot = Assert.Single(result.FiringResults);
         Assert.Equal(WeaponKind.PulseTorpedo, shot.WeaponKind);
-        Assert.Equal(3, shot.ToHitNumber);
+        Assert.Equal(4, shot.ToHitNumber);
         Assert.True(shot.IsHit);
         Assert.Equal([4, 5], shot.DiceRolls);
         Assert.Equal(5, shot.Damage);
         Assert.Equal(0, shot.ScreenReduction);
         Assert.Equal(5, result.Ships.Single(s => s.Id == table.TargetId).HullDamage);
         Assert.Contains(result.MatchLog, entry => entry.Category == "Fire"
-            && entry.Message.Contains("needed 3+, rolled 4, damage die 5", StringComparison.Ordinal)
+            && entry.Message.Contains("needed 4+, rolled 4, damage die 5", StringComparison.Ordinal)
             && entry.Message.Contains("ignoring screens", StringComparison.Ordinal));
     }
 
@@ -85,7 +85,7 @@ public sealed class InMemoryMatchServiceTorpedoTests
         {
             var dice = new ScriptedDice { Fallback = 4 };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Torpedo Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Torpedo Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

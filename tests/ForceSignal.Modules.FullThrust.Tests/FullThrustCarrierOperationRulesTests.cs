@@ -4,22 +4,28 @@ using ForceSignal.Modules.FullThrust.Fighters;
 namespace ForceSignal.Modules.FullThrust.Tests;
 
 /// <summary>
-/// How many groups a deck can work in a turn is the clearest difference between the two layers: the
-/// older one caps flight operations by what the ship is called, the newer one by how many bays it
-/// actually has.
+/// How many groups a deck can work in a turn, under both shapes a profile can pick: capped by what
+/// the ship is, or following the bays it actually has.
 /// </summary>
+/// <remarks>
+/// Played against <see cref="TestRules.Invented"/>, where a true carrier works three groups and
+/// anything else works one. Three is nobody's published number, which is the point: the engine reads
+/// it rather than knowing it.
+/// </remarks>
 public sealed class FullThrustCarrierOperationRulesTests
 {
+    private static readonly RulesProfile Rules = TestRules.Invented;
+
     [Theory]
-    // Under the older cap the bay count changes nothing: a true carrier works two groups, anything
-    // else works one, and launches and recoveries share that one budget.
-    [InlineData(1, true, 2, 2)]
-    [InlineData(6, true, 2, 2)]
+    // Under the cap the bay count changes nothing: a true carrier works the profile's carrier
+    // number, anything else works the other, and launches and recoveries share one budget.
+    [InlineData(1, true, 3, 3)]
+    [InlineData(6, true, 3, 3)]
     [InlineData(6, false, 1, 1)]
-    public void AllowanceFor_UnderTheLightLayerFollowsWhatTheShipIs(
+    public void ACappedProfileFollowsWhatTheShipIs(
         int bays, bool isTrueCarrier, int expectedLaunches, int expectedRecoveries)
     {
-        var allowance = FullThrustCarrierOperationRules.AllowanceFor(RulesProfile.LightCinematic, bays, isTrueCarrier);
+        var allowance = FullThrustCarrierOperationRules.AllowanceFor(Rules, bays, isTrueCarrier);
 
         Assert.Equal(expectedLaunches, allowance.Launches);
         Assert.Equal(expectedRecoveries, allowance.Recoveries);
@@ -27,19 +33,19 @@ public sealed class FullThrustCarrierOperationRulesTests
     }
 
     [Theory]
-    // Under the Fleet Book the rate is the bay count out and half the bays back, and being a
-    // carrier by trade buys nothing extra - which is the amendment's stated purpose.
+    // Following the bays, the rate is the bay count out and half the bays back, and being a carrier
+    // by trade buys nothing extra - which is the whole point of the change.
     [InlineData(1, 1, 1)]
     [InlineData(2, 2, 1)]
     [InlineData(6, 6, 3)]
-    // Half of an odd bay count is rounded up, so a small deck is never worse off than it was.
+    // Half of an odd bay count is rounded up, so a small deck is never worse off than under the cap.
     [InlineData(7, 7, 4)]
     [InlineData(0, 0, 0)]
-    public void AllowanceFor_UnderTheFleetBookLayerFollowsTheBays(int bays, int expectedLaunches, int expectedRecoveries)
+    public void ABayRateProfileFollowsTheBays(int bays, int expectedLaunches, int expectedRecoveries)
     {
         foreach (var isTrueCarrier in new[] { true, false })
         {
-            var allowance = FullThrustCarrierOperationRules.AllowanceFor(RulesProfile.FleetBook, bays, isTrueCarrier);
+            var allowance = FullThrustCarrierOperationRules.AllowanceFor(TestRules.WithBayRates, bays, isTrueCarrier);
 
             Assert.Equal(expectedLaunches, allowance.Launches);
             Assert.Equal(expectedRecoveries, allowance.Recoveries);
@@ -48,26 +54,35 @@ public sealed class FullThrustCarrierOperationRulesTests
         }
     }
 
-    [Fact]
-    public void AllowanceFor_WithNoLayerNamedFallsBackToTheLightCinematicDefault()
-    {
-        var allowance = FullThrustCarrierOperationRules.AllowanceFor(null, operationalBays: 6, isTrueCarrier: false);
-
-        Assert.Equal(1, allowance.Launches);
-        Assert.True(allowance.SharedAllowance);
-    }
-
     [Theory]
+    // The profile names the faces it cares about; anything it does not mention leaves the group
+    // flyable and ready next turn, which is the least this roll can do to it.
     [InlineData(1, true, 0)]
-    [InlineData(2, false, 2)]
-    [InlineData(5, false, 2)]
-    [InlineData(6, false, 1)]
-    public void RollTurnaround_ReadsTheDieIntoTimeOnTheDeck(int face, bool expectedGrounded, int expectedTurns)
+    [InlineData(8, false, 1)]
+    [InlineData(4, false, 1)]
+    public void TheTurnaroundRollIsReadOffTheProfile(int face, bool expectedGrounded, int expectedTurns)
     {
-        var turnaround = new FullThrustCarrierOperationRules(() => face).RollTurnaround();
+        var turnaround = new FullThrustCarrierOperationRules(() => face).RollTurnaround(Rules);
 
         Assert.Equal(face, turnaround.Roll);
         Assert.Equal(expectedGrounded, turnaround.IsGroundedForGame);
         Assert.Equal(expectedTurns, turnaround.TurnsBeforeRelaunch);
+    }
+
+    [Fact]
+    public void ADifferentTurnaroundTableIsReadJustTheSame()
+    {
+        var harsh = Rules with
+        {
+            Turnaround =
+            [
+                new TurnaroundEntry(1, IsGroundedForGame: true, TurnsBeforeRelaunch: 0),
+                new TurnaroundEntry(2, IsGroundedForGame: false, TurnsBeforeRelaunch: 4),
+            ],
+        };
+
+        var turnaround = new FullThrustCarrierOperationRules(() => 2).RollTurnaround(harsh);
+
+        Assert.Equal(4, turnaround.TurnsBeforeRelaunch);
     }
 }

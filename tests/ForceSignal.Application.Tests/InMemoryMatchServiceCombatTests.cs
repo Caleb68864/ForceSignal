@@ -11,7 +11,7 @@ public sealed class InMemoryMatchServiceCombatTests
     {
         // Every die a 6 so the damage assertions are exact rather than lucky.
         var service = new InMemoryMatchService(() => 6);
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue Admiral", "Self Play Test", 72, 48));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue Admiral", "Self Play Test", 72, 48, Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red Admiral"));
         var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Squadron", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
         var redFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red Squadron", "Test")).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
@@ -86,9 +86,10 @@ public sealed class InMemoryMatchServiceCombatTests
     [Fact]
     public void FireWeapon_DuringFiringPhase_AppliesDamageAndWritesBattleLog()
     {
-        // Every die a 6: a Class-3 beam rolls 3 dice, each scoring 2 through level-1 screens.
-        var service = new InMemoryMatchService(() => 6);
-        var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Combat Test"));
+        // Every die the top face: a Class-3 beam rolls 3 dice, each flattened to a single point by
+        // one level of screening under this profile.
+        var service = new InMemoryMatchService(() => 8);
+        var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Combat Test", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
         var opponentFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", "Test")).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
@@ -142,14 +143,15 @@ public sealed class InMemoryMatchServiceCombatTests
 
         var damagedTarget = result.Ships.Single(s => s.Id == target.Id);
         Assert.Equal(1, damagedTarget.ArmorDamage);
-        Assert.Equal(5, damagedTarget.HullDamage);
+        Assert.Equal(2, damagedTarget.HullDamage);
         Assert.Contains(result.MatchLog, entry => entry.Message.Contains("range 6", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.MatchLog, entry => entry.Message.Contains("rolled 6,6,6", StringComparison.Ordinal));
+        Assert.Contains(result.MatchLog, entry => entry.Message.Contains("rolled 8,8,8", StringComparison.Ordinal));
         Assert.Contains(result.MatchLog, entry => entry.Message.Contains("vs screens 1", StringComparison.Ordinal));
         Assert.Contains(result.MatchLog, entry => entry.Category == "Snapshot");
         Assert.Contains(result.MatchLog, entry => entry.Category == "Fire" && entry.Timestamp != default);
-        // Three 6s through level-1 screens: 2 damage each, armor absorbs one then hull takes five.
-        Assert.Contains(result.FiringResults, firing => firing.Damage == 6 && firing.ArmorDamageApplied == 1 && firing.HullDamageApplied == 5);
+        // Three top faces through one level of screening: a point each, armour absorbs one and the
+        // hull takes the other two.
+        Assert.Contains(result.FiringResults, firing => firing.Damage == 3 && firing.ArmorDamageApplied == 1 && firing.HullDamageApplied == 2);
         Assert.Contains(result.FiringResults, firing => firing.RangeBand == "close" && firing.DiceRolls.Count == 3);
     }
 
@@ -158,7 +160,7 @@ public sealed class InMemoryMatchServiceCombatTests
     {
         // A constant die ties the firing initiative, which falls to the owner by seating order.
         var service = new InMemoryMatchService(() => 4);
-        var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Duplicate Fire Test"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Duplicate Fire Test", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
         var opponentFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", "Test")).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
@@ -209,7 +211,7 @@ public sealed class InMemoryMatchServiceCombatTests
     {
         // A constant die ties the firing initiative, which falls to the owner by seating order.
         var service = new InMemoryMatchService(() => 4);
-        var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Ammo Test"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Ammo Test", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
         var opponentFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", "Test")).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);

@@ -155,7 +155,7 @@ public sealed class InMemoryMatchServiceInitiativeTests
         {
             var dice = new ScriptedDice { Fallback = 4 };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Initiative Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Initiative Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

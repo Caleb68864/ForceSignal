@@ -22,7 +22,7 @@ public sealed class MatchRestoreEndpointTests
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
-        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Restore Endpoint", 72, 48)))
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Restore Endpoint", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>();
         Assert.NotNull(created);
         var fleetSnapshot = await (await client.PostAsJsonAsync($"/api/matches/{created.MatchId}/fleets",
@@ -73,7 +73,7 @@ public sealed class MatchRestoreEndpointTests
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
-        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Bare Snapshot", 72, 48)))
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Bare Snapshot", 72, 48, Rules: TestRules.Invented)))
             .Content.ReadFromJsonAsync<MatchCreatedResponse>();
         var fleetSnapshot = await (await client.PostAsJsonAsync($"/api/matches/{created!.MatchId}/fleets",
             new CreateFleetRequest(created.ParticipantToken, "Blue Watch", null, "#47f1ff")))

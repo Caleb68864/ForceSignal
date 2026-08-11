@@ -104,7 +104,7 @@ public sealed class ApiDocumentationAndReadinessTests
 
         using var response = await client.PostAsJsonAsync(
             "/api/matches",
-            new CreateMatchRequest("Smoke Admiral", "Integration Smoke", 72, 48));
+            new CreateMatchRequest("Smoke Admiral", "Integration Smoke", 72, 48, Rules: TestRules.Invented));
 
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<MatchCreatedResponse>();
@@ -124,7 +124,7 @@ public sealed class ApiDocumentationAndReadinessTests
 
         using var createResponse = await client.PostAsJsonAsync(
             "/api/matches",
-            new CreateMatchRequest("Carrier Boss", "Fighter Ops Smoke", 72, 48));
+            new CreateMatchRequest("Carrier Boss", "Fighter Ops Smoke", 72, 48, Rules: TestRules.Invented));
         var session = await createResponse.Content.ReadFromJsonAsync<MatchCreatedResponse>();
         Assert.NotNull(session);
 
@@ -197,7 +197,7 @@ public sealed class ApiDocumentationAndReadinessTests
 
         using var createResponse = await client.PostAsJsonAsync(
             "/api/matches",
-            new CreateMatchRequest("Blue", "Ownership Smoke", 72, 48));
+            new CreateMatchRequest("Blue", "Ownership Smoke", 72, 48, Rules: TestRules.Invented));
         var blueSession = await createResponse.Content.ReadFromJsonAsync<MatchCreatedResponse>();
         Assert.NotNull(blueSession);
 

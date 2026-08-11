@@ -45,9 +45,9 @@ public sealed class InMemoryMatchServiceFighterMovementTests
     {
         var table = FighterMoveTable.Build();
 
-        var error = Assert.Throws<InvalidOperationException>(() => table.Fly(x: 20, y: 26));
+        var error = Assert.Throws<InvalidOperationException>(() => table.Fly(x: 60, y: 36));
 
-        Assert.Contains("past the 12", error.Message, StringComparison.Ordinal);
+        Assert.Contains($"past the {TestRules.Invented.FighterMoveAllowance}", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class InMemoryMatchServiceFighterMovementTests
         public static FighterMoveTable Build()
         {
             var service = new InMemoryMatchService(() => 4);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Fighter Move Table"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Fighter Move Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

@@ -3,49 +3,62 @@ using ForceSignal.Modules.FullThrust.Damage;
 
 namespace ForceSignal.Modules.FullThrust.Tests;
 
+/// <summary>
+/// Damage control, played against <see cref="TestRules.Invented"/>: one party repairs on a 7, a
+/// second brings that to 6, and two is as many as can crowd a job.
+/// </summary>
 public sealed class FullThrustDamageControlRulesTests
 {
+    private static readonly RulesProfile Rules = TestRules.Invented;
+
     [Theory]
-    // One party repairs on a 6; each extra on the same job lowers the number by one, stopping at 4+.
-    [InlineData(1, 6)]
-    [InlineData(2, 5)]
-    [InlineData(3, 4)]
-    [InlineData(4, 4)]
-    [InlineData(0, 6)]
-    public void NeededFor_ImprovesWithEachPartyOnTheJob(int parties, int expected)
+    // Each extra party on the same job lowers the number by one, stopping at the profile's floor.
+    [InlineData(1, 7)]
+    [InlineData(2, 6)]
+    // More parties than the job can hold are no better than filling it.
+    [InlineData(3, 6)]
+    // A job with nobody on it is still read as one party rather than dividing by nothing.
+    [InlineData(0, 7)]
+    public void MoreHandsMakeTheNumberEasierUntilTheFloor(int parties, int expected) =>
+        Assert.Equal(expected, new FullThrustDamageControlRules().NeededFor(parties, Rules));
+
+    [Fact]
+    public void ADeeperCrowdLimitKeepsImprovingTheNumber()
     {
-        Assert.Equal(expected, new FullThrustDamageControlRules().NeededFor(parties));
+        // Nothing about three parties, or two, is written into the engine.
+        var roomy = Rules with { MaxPartiesPerJob = 4, RepairBestRoll = 3 };
+
+        Assert.Equal(7, new FullThrustDamageControlRules().NeededFor(1, roomy));
+        Assert.Equal(4, new FullThrustDamageControlRules().NeededFor(4, roomy));
     }
 
     [Fact]
-    public void Resolve_BringsASystemBackWhenTheRollMeetsTheNumber()
+    public void ASystemComesBackWhenTheRollMeetsTheNumber()
     {
-        var job = new RepairJob(ShipSystemKind.FireControl, null, 2);
+        var attempt = Dice(6).Resolve(new RepairJob(ShipSystemKind.FireControl, null, 2), Rules);
 
-        var attempt = Dice(5).Resolve(job);
-
-        Assert.Equal(5, attempt.Needed);
-        Assert.Equal(5, attempt.Roll);
+        Assert.Equal(6, attempt.Needed);
+        Assert.Equal(6, attempt.Roll);
         Assert.True(attempt.IsRepaired);
     }
 
     [Fact]
-    public void Resolve_LeavesTheSystemDownWhenTheRollFallsShort()
+    public void ASystemStaysDownWhenTheRollFallsShort()
     {
-        var attempt = Dice(4).Resolve(new RepairJob(ShipSystemKind.FireControl, null, 1));
+        var attempt = Dice(6).Resolve(new RepairJob(ShipSystemKind.FireControl, null, 1), Rules);
 
-        Assert.Equal(6, attempt.Needed);
+        Assert.Equal(7, attempt.Needed);
         Assert.False(attempt.IsRepaired);
     }
 
     [Fact]
-    public void Resolve_RollsOnceForTheWholeJobHoweverManyPartiesAreOnIt()
+    public void OneRollIsMadeForTheWholeJobHoweverManyPartiesAreOnIt()
     {
-        // Three parties do not roll three dice: they make one roll on a better number.
+        // Two parties do not roll two dice: they make one roll on a better number.
         var rolls = 0;
-        var rules = new FullThrustDamageControlRules(() => { rolls++; return 4; });
+        var rules = new FullThrustDamageControlRules(() => { rolls++; return 6; });
 
-        var attempt = rules.Resolve(new RepairJob(ShipSystemKind.Drive, null, 3));
+        var attempt = rules.Resolve(new RepairJob(ShipSystemKind.Drive, null, 2), Rules);
 
         Assert.Equal(1, rolls);
         Assert.True(attempt.IsRepaired);

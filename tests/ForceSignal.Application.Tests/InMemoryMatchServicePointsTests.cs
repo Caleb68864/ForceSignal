@@ -9,7 +9,7 @@ public sealed class InMemoryMatchServicePointsTests
     public void PointsLimit_BlocksAnOverStrengthFleetFromReadyingUp()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Points Match"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Points Match", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
         var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
             .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -42,7 +42,7 @@ public sealed class InMemoryMatchServicePointsTests
     public void PointsLimit_IsOwnerOnlyAndClampedIntoRange()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Owner Only"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Owner Only", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
 
         Assert.Throws<UnauthorizedAccessException>(() =>
@@ -58,7 +58,7 @@ public sealed class InMemoryMatchServicePointsTests
     public void ShipPointsValue_RoundTripsThroughCreateEditDuplicateAndRestore()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "NPV Round Trip"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "NPV Round Trip", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         var created = service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant", 84)).Ships.Single();
         Assert.Equal(84, created.PointsValue);

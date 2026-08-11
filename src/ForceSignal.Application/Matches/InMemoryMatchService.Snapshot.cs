@@ -20,7 +20,7 @@ public sealed partial class InMemoryMatchService
         match.Phase.ToString(),
         match.TurnNumber,
         FullThrustLightCinematicRules.ProfileKey,
-        match.Rules.Layer.ToString(),
+        match.Rules,
         match.TableWidth,
         match.TableDepth,
         match.Participants.Select(p => new ParticipantDto(p.Id, p.DisplayName, p.Role, p.IsReady, p.IsConnected, p.OrdersComplete)).ToArray(),

@@ -75,7 +75,7 @@ public sealed partial class InMemoryMatchService
 
             var match = new MatchState(matchId, joinCode, NormalizeText(snapshot.Name, "Space Fleet Match"), seats[0])
             {
-                Rules = RulesProfile.Parse(snapshot.RulesLayer),
+                Rules = (snapshot.Rules ?? RulesProfile.Empty).Normalized(),
                 TableWidth = Math.Clamp(snapshot.TableWidth, 24, 144),
                 TableDepth = Math.Clamp(snapshot.TableDepth, 24, 96),
                 TurnNumber = Math.Max(1, snapshot.TurnNumber),

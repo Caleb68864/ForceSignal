@@ -10,7 +10,7 @@ public sealed class InMemoryMatchServiceTurnFlowTests
     public void SoloLocalMatch_CanRunAFullTurnWithoutASecondParticipant()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("Solo Admiral", "Single Device"));
+        var owner = service.CreateMatch(new CreateMatchRequest("Solo Admiral", "Single Device", Rules: TestRules.Invented));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Home Watch", null)).Fleets.Single();
         var ship = service.CreateShip(fleet.Id, new CreateShipRequest(
             owner.ParticipantToken,
@@ -270,7 +270,7 @@ public sealed class InMemoryMatchServiceTurnFlowTests
     public void BlankDisplayTextFallsBackInsteadOfCreatingNamelessRecords()
     {
         var service = new InMemoryMatchService();
-        var owner = service.CreateMatch(new CreateMatchRequest("   ", "  ", 72, 48));
+        var owner = service.CreateMatch(new CreateMatchRequest("   ", "  ", 72, 48, Rules: TestRules.Invented));
         var joined = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, ""));
         var snapshot = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "  ", null));
         var fleet = snapshot.Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -337,7 +337,7 @@ public sealed class InMemoryMatchServiceTurnFlowTests
         public static TestMatch Create()
         {
             var service = new InMemoryMatchService();
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue Admiral", "Turn Flow Test"));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue Admiral", "Turn Flow Test", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red Admiral"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test"))
                 .Fleets.Single(fleet => fleet.OwnerParticipantId == owner.ParticipantId);
