@@ -52,7 +52,11 @@ public sealed class DirtsideGameTests
         var refused = game.EndActivation();
 
         Assert.False(refused.IsAllowed);
-        Assert.Contains("alpha-2", refused.Reason!, StringComparison.OrdinalIgnoreCase);
+        // By the name on the model, not the id. Ids are whatever the client generated, and the web
+        // client generates eight random characters - so a refusal that listed them was telling a
+        // player to go and find "ze09ww91". Found by driving the screen in a browser.
+        Assert.Contains("Alpha Two", refused.Reason!, StringComparison.Ordinal);
+        Assert.DoesNotContain("alpha-2", refused.Reason!, StringComparison.Ordinal);
     }
 
     [Fact]

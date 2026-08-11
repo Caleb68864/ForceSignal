@@ -382,6 +382,7 @@ public sealed class DirtsideGameService(
                 : frame.Steps.Select(step => step.Subject).OfType<ElementId>().ToImmutableHashSet()
             : ImmutableHashSet<ElementId>.Empty;
 
+        var frameForThisUnit = frame is { Kind: FrameKind.Activation } && frame.Unit == platoon.Id ? frame : null;
         var activation = game.BeginActivation(platoon.Side, platoon.Id);
         var hasActivated = game.Session.Sides
             .FirstOrDefault(side => side.Id == platoon.Side)
@@ -399,15 +400,24 @@ public sealed class DirtsideGameService(
             hasActivated,
             activation.IsAllowed,
             activation.Reason,
-            [.. platoon.Elements.Select(element => ToElementState(status, element, chosen))]);
+            [.. platoon.Elements.Select(element => ToElementState(status, element, chosen, frameForThisUnit))]);
     }
 
     private static DirtsideElementStateDto ToElementState(
         PlatoonStatus status,
         ElementDefinition element,
-        ImmutableHashSet<ElementId> chosen)
+        ImmutableHashSet<ElementId> chosen,
+        ActivationFrame? frame)
     {
         var state = status.Element(element.Id);
+
+        // Read off the frame's spent resources rather than inferred from the steps, because that is
+        // where the activation rules read them too - so a screen cannot come to a different view of
+        // what an element has left than the check that will refuse it.
+        var hasMoved = frame?.HasSpent(DirtsideSteps.Moved(element.Id)) == true;
+        var hasActed = frame?.HasSpent(DirtsideSteps.Acted(element.Id)) == true;
+        var hasStoodDown = frame?.HasSpent(DirtsideSteps.StoodDown(element.Id)) == true;
+
         return new DirtsideElementStateDto(
             element.Id.Value,
             element.Name,
@@ -417,6 +427,9 @@ public sealed class DirtsideGameService(
             state.MovedOverHalf,
             state.AreaDefenceSensorsLive,
             chosen.Contains(element.Id),
+            hasMoved,
+            hasActed,
+            hasStoodDown,
             [.. element.Weapons.Select(weapon => weapon.Name)]);
     }
 

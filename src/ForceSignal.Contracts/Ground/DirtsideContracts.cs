@@ -145,7 +145,16 @@ public sealed record DirtsidePassRequest(string Side);
 /// <param name="MovedOverHalf">True when it has moved more than half its movement this turn.</param>
 /// <param name="AreaDefenceSensorsLive">True when it may intercept for the rest of the turn.</param>
 /// <param name="HasChosen">True when it has said what it is doing in the open activation.</param>
+/// <param name="HasMoved">True when it has spent its move this activation.</param>
+/// <param name="HasTakenCombatAction">True when it has spent its one combat action.</param>
+/// <param name="HasStoodDown">True when it sat this activation out, and so the whole turn.</param>
 /// <param name="Weapons">What it can shoot with.</param>
+/// <remarks>
+/// The move and the combat action are reported separately because they are separate: an element
+/// that has moved may still shoot, and one that has shot may still move. A single "has chosen" flag
+/// is enough to know whether the activation can close and not enough to drive a screen - which is
+/// how a screen came to move one vehicle and then quietly fire a different one.
+/// </remarks>
 public sealed record DirtsideElementStateDto(
     string Id,
     string Name,
@@ -155,6 +164,9 @@ public sealed record DirtsideElementStateDto(
     bool MovedOverHalf,
     bool AreaDefenceSensorsLive,
     bool HasChosen,
+    bool HasMoved,
+    bool HasTakenCombatAction,
+    bool HasStoodDown,
     IReadOnlyList<string> Weapons);
 
 /// <summary>A platoon as the table sees it.</summary>

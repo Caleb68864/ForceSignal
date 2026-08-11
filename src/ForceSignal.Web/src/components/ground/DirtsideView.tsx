@@ -36,6 +36,7 @@ export function DirtsideView() {
     signature: 3,
     armourValue: 3,
     movement: 12,
+    elementName: 'Vehicle',
     weaponName: 'Main Gun',
     chitCount: 3,
     barrels: 1,
@@ -102,8 +103,10 @@ export function DirtsideView() {
     ? snapshot.units.filter((unit) => unit.side !== activating.side)
     : [];
   const targetUnit = enemies.find((unit) => unit.id === shot.targetUnitId) ?? enemies[0] ?? null;
+  const canStillFire = (element: DirtsideElementState) =>
+    !element.isDestroyed && !element.isSystemsDown && !element.hasTakenCombatAction && !element.hasStoodDown;
   const firing = activating?.elements.find((element) => element.id === shot.elementId)
-    ?? activating?.elements.find((element) => !element.hasChosen && !element.isDestroyed)
+    ?? activating?.elements.find(canStillFire)
     ?? null;
 
   return (
@@ -175,7 +178,9 @@ export function DirtsideView() {
             <div key={element.id} className="table-fields">
               <span className="label">
                 {element.name}
-                {element.hasChosen ? ' · chosen' : ''}
+                {element.hasStoodDown ? ' · stood down' : ''}
+                {element.hasMoved ? ' · moved' : ''}
+                {element.hasTakenCombatAction ? ' · acted' : ''}
                 {element.isDamaged ? ' · damaged' : ''}
                 {element.isSystemsDown ? ' · systems down' : ''}
                 {element.movedOverHalf ? ' · moved far' : ''}
@@ -184,7 +189,8 @@ export function DirtsideView() {
               <button
                 type="button"
                 className="ghost"
-                disabled={busy}
+                disabled={busy || element.hasMoved || element.hasStoodDown}
+                title={element.hasStoodDown ? 'It sat this one out, so it is out for the turn.' : undefined}
                 onClick={() => void run(() => api.moveElement(game, element.id, shot.overHalf))}
               >
                 Move
@@ -192,7 +198,8 @@ export function DirtsideView() {
               <button
                 type="button"
                 className="ghost"
-                disabled={busy}
+                disabled={busy || element.hasMoved || element.hasTakenCombatAction || element.hasStoodDown}
+                title="Sitting out gives up its go for the whole turn, so it cannot follow a move or a shot."
                 onClick={() => void run(() => api.standDown(game, element.id))}
               >
                 Stand Down
@@ -200,10 +207,19 @@ export function DirtsideView() {
               <button
                 type="button"
                 className="ghost"
-                disabled={busy}
+                disabled={busy || element.hasTakenCombatAction || element.hasStoodDown}
+                title="Spends its one combat action, and buys interception for the rest of the turn."
                 onClick={() => void run(() => api.setSensors(game, element.id, !element.areaDefenceSensorsLive))}
               >
                 Sensors {element.areaDefenceSensorsLive ? 'Off' : 'On'}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy || !canStillFire(element)}
+                onClick={() => setShot((current) => ({ ...current, elementId: element.id, weapon: '' }))}
+              >
+                Aim This One
               </button>
             </div>
           ))}
@@ -229,7 +245,7 @@ export function DirtsideView() {
                 value={firing?.id ?? ''}
                 onChange={(event) => setShot((current) => ({ ...current, elementId: event.target.value }))}
               >
-                {activating.elements.filter((element) => !element.isDestroyed).map((element) => (
+                {activating.elements.filter(canStillFire).map((element) => (
                   <option key={element.id} value={element.id}>{element.name}</option>
                 ))}
               </select>
@@ -333,6 +349,7 @@ export function DirtsideView() {
             <input type="checkbox" checked={platoonForm.isCybertank} onChange={(e) => setPlatoonForm({ ...platoonForm, isCybertank: e.target.checked })} />
           </label>
           <label>Elements<input type="number" min="1" max="12" value={platoonForm.elements} onChange={(e) => setPlatoonForm({ ...platoonForm, elements: Number(e.target.value) })} /></label>
+          <label title="Each element is numbered from this, so the log reads 'Alpha Troop&apos;s Vehicle 1'.">Element name<input value={platoonForm.elementName} onChange={(e) => setPlatoonForm({ ...platoonForm, elementName: e.target.value })} /></label>
           <label>
             Fire control
             <select value={platoonForm.fireControl} onChange={(e) => setPlatoonForm({ ...platoonForm, fireControl: e.target.value })}>
@@ -369,7 +386,7 @@ export function DirtsideView() {
               isCybertank: platoonForm.isCybertank,
               elements: Array.from({ length: Math.max(1, platoonForm.elements) }, (_, index) => ({
                 id: newId(),
-                name: `${platoonForm.name} ${index + 1}`,
+                name: `${platoonForm.elementName} ${index + 1}`,
                 fireControl: platoonForm.fireControl,
                 signature: platoonForm.signature,
                 armourValue: platoonForm.armourValue,

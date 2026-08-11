@@ -522,6 +522,10 @@ export type DirtsideElementState = {
   // True when it has said what it is doing in the open activation. The activation cannot close
   // until every element still on the table has, because sitting out gives up the whole turn.
   hasChosen: boolean;
+  // The move and the combat action are separate: an element that has moved may still shoot.
+  hasMoved: boolean;
+  hasTakenCombatAction: boolean;
+  hasStoodDown: boolean;
   weapons: string[];
 };
 

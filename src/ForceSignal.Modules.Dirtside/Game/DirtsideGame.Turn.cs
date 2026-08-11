@@ -138,7 +138,7 @@ public sealed partial record DirtsideGame
             && policy.StillToChoose(frame) is { Count: > 0 } waiting)
         {
             return GameOutcome.Refused<DirtsideGame>(
-                $"{Unit(frame.Unit).Name} cannot finish while {Join(waiting)} "
+                $"{Unit(frame.Unit).Name} cannot finish while {Join(frame.Unit, waiting)} "
                 + $"{(waiting.Count == 1 ? "has" : "have")} not said what to do. An element that sits out "
                 + "gives up its go for the turn, so it has to say so.");
         }
@@ -189,9 +189,19 @@ public sealed partial record DirtsideGame
             ? $"{platoon.Name}'s {part.Name}"
             : $"{unit}'s {element}";
 
-    /// <summary>A list of elements in words.</summary>
-    private static string Join(IReadOnlyList<ElementId> elements) =>
-        string.Join(", ", elements.Select(element => element.ToString()));
+    /// <summary>
+    /// A list of elements in words, by the names on the table rather than by id.
+    /// </summary>
+    /// <remarks>
+    /// Ids are whatever the client generated - in the web client, eight random characters - so a
+    /// refusal that listed them told a player to go and find "ze09ww91". The refusal exists to say
+    /// who everybody is waiting on, and it can only do that in the names on the models.
+    /// </remarks>
+    private string Join(UnitId unit, IReadOnlyList<ElementId> elements) =>
+        string.Join(", ", elements.Select(element =>
+            Units.TryGetValue(unit, out var platoon) && platoon.Element(element) is { } part
+                ? part.Name
+                : element.ToString()));
 
     /// <summary>
     /// Runs a shared-layer transition behind its own check, so a refusal is an answer rather than an

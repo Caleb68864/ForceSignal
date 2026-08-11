@@ -17,3 +17,6 @@ bash.exe.stackdump
 
 # Agent worktrees live inside the repo but are separate checkouts of it.
 .claude/worktrees/
+
+# Throwaway browser harness output
+src/ForceSignal.Web/dirtside-browser-check.png
