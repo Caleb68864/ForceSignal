@@ -183,6 +183,11 @@ defender allocates the leftovers, and that rule exists precisely to stop an atta
 up on leaders and specialists. It is a decision between two people over a table, so the pairing is
 sent in and the app rolls it.
 
+**Found by playing one:** a close assault takes the *whole* activation even when the move to
+contact needs only one action, and the action cost said otherwise - so a squad could charge and
+still have an action in hand. Costing it both is also what forbids doing something else first and
+then charging, without a rule of its own. Fixed, with tests.
+
 **Also not modelled: the assault as a tracked state.** The app helps with each step - the charge, the
 stand, a round of melee, the fates - rather than holding a multi-round assault and walking the
 players through it. Whether that is worth building is a question for after somebody has played one.

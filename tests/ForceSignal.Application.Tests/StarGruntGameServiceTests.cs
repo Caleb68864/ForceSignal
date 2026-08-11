@@ -24,7 +24,7 @@ public sealed class StarGruntGameServiceTests
     [Fact]
     public void AWholeTurnCanBePlayedThroughTheService()
     {
-        var service = new StarGruntGameService(new ScriptedQualityDice(AKillAndAStop));
+        var service = new StarGruntGameService(new ScriptedQualityDice(AKillAndAStop), null, new ScriptedFigureAllocator());
         var game = Table(service);
 
         var opened = service.BeginTurn(game);
@@ -67,7 +67,7 @@ public sealed class StarGruntGameServiceTests
         // Gap 1: before this existed, fire pinned a unit permanently and the game stopped after
         // first contact. A whole-turn test did not show it, because it takes a second activation.
         // Scripted so the volley suppresses and the recovery roll then beats leadership 2.
-        var service = new StarGruntGameService(new ScriptedQualityDice(FirefightThenRecovery));
+        var service = new StarGruntGameService(new ScriptedQualityDice(FirefightThenRecovery), null, new ScriptedFigureAllocator());
         var game = Table(service);
         service.BeginTurn(game);
         service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));

@@ -13,7 +13,7 @@ public sealed class StarGruntPersistenceTests
     public void AGameMidActivationComesBackAfterARestart()
     {
         var store = new MemoryStore();
-        var first = new StarGruntGameService(new ScriptedQualityDice(6, 7, 5, 4, 5, 3, 5, 9, 4), store);
+        var first = new StarGruntGameService(new ScriptedQualityDice(6, 7, 5, 4, 5, 3, 5, 9, 4), store, new ScriptedFigureAllocator());
         var game = Table(first);
         first.BeginTurn(game);
         first.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));

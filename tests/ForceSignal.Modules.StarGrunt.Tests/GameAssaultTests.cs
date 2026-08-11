@@ -1,6 +1,7 @@
 using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Assault;
 using ForceSignal.Modules.StarGrunt.Game;
+using ForceSignal.Modules.StarGrunt.Sequence;
 
 namespace ForceSignal.Modules.StarGrunt.Tests;
 
@@ -44,6 +45,31 @@ public sealed class GameAssaultTests
             shaken.Status(GameFixtures.Alpha).Confidence,
             after.Status(GameFixtures.Alpha).Confidence);
         Assert.Single(after.Session.CurrentFrame!.Steps);
+    }
+
+    [Fact]
+    public void AChargeSpendsTheWholeActivation()
+    {
+        // The rules give the whole activation to a close assault even when the move to contact needs
+        // only one action. Found by playing one in a browser and noticing the squad still had an
+        // action in hand afterwards.
+        var after = Activated().DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, new ScriptedDice(6)).Value!;
+
+        var refused = after.TakeStep(StarGruntSteps.Simple(StarGruntAction.Observe));
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("both its actions", refused.Reason!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AUnitCannotDoSomethingElseFirstAndThenCharge()
+    {
+        // Costing the whole activation is also what forbids this, without a rule of its own.
+        var game = Activated().TakeStep(StarGruntSteps.Simple(StarGruntAction.Observe)).Value!;
+
+        var refused = game.DeclareCloseAssault(GameFixtures.Alpha, GameFixtures.Bravo, new ScriptedDice(6));
+
+        Assert.False(refused.IsAllowed);
     }
 
     [Fact]

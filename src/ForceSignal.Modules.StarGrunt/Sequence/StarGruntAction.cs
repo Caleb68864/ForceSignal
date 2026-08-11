@@ -94,7 +94,13 @@ public static class StarGruntActions
     /// is the whole difference, and it is what makes the reaction-fire trigger a declaration instead
     /// of a deduction.
     /// </remarks>
-    public static int Cost(StarGruntAction action) => action == StarGruntAction.Dash ? 2 : 1;
+    /// <remarks>
+    /// A dash is both actions spent moving. A close assault is the whole activation too, even when
+    /// the move to contact needs only one action - and costing it two is also what stops a unit
+    /// doing something else first and then charging, which the rules forbid outright.
+    /// </remarks>
+    public static int Cost(StarGruntAction action) =>
+        action is StarGruntAction.Dash or StarGruntAction.CloseAssault ? 2 : 1;
 
     /// <summary>True when the leader is acting himself rather than motivating the squad.</summary>
     /// <param name="action">The action.</param>
