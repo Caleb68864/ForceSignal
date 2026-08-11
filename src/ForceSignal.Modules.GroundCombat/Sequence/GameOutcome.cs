@@ -1,4 +1,4 @@
-namespace ForceSignal.Modules.StarGrunt.Game;
+namespace ForceSignal.Modules.GroundCombat.Sequence;
 
 /// <summary>
 /// What a command did: the game it produced, or the reason it was not allowed to.
@@ -14,6 +14,11 @@ namespace ForceSignal.Modules.StarGrunt.Game;
 /// This matters more than it looks. It is what lets the screen show why a button is disabled using
 /// the same words the command would refuse with, rather than growing its own opinion about the rules
 /// and drifting from them.
+/// </para>
+/// <para>
+/// Shared rather than per-game. It began in the StarGrunt module because that was the only game with
+/// commands to refuse; it moved here the moment Dirtside grew some, since a refusal is the shape of
+/// an answer rather than anything either game owns.
 /// </para>
 /// </remarks>
 /// <param name="IsAllowed">True when the command ran.</param>
