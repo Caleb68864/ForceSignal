@@ -509,3 +509,55 @@ export const blankRulesProfile: RulesProfile = {
   missilesPerSalvo: 0,
   salvoAttackRadius: 0,
 };
+
+/** What has happened to one Dirtside element, as the table sees it. */
+export type DirtsideElementState = {
+  id: string;
+  name: string;
+  isDestroyed: boolean;
+  isDamaged: boolean;
+  isSystemsDown: boolean;
+  movedOverHalf: boolean;
+  areaDefenceSensorsLive: boolean;
+  // True when it has said what it is doing in the open activation. The activation cannot close
+  // until every element still on the table has, because sitting out gives up the whole turn.
+  hasChosen: boolean;
+  weapons: string[];
+};
+
+/** A Dirtside platoon as the table sees it. */
+export type DirtsidePlatoonState = {
+  id: string;
+  name: string;
+  side: string;
+  kind: string;
+  isCybertank: boolean;
+  confidence: string;
+  isUnderFire: boolean;
+  isDisorganised: boolean;
+  hasActivated: boolean;
+  canActivate: boolean;
+  // Why not, in the words the command would refuse with, so a disabled button never invents its own.
+  whyItCannotActivate?: string | null;
+  elements: DirtsideElementState[];
+};
+
+/** A whole Dirtside game as the table sees it. */
+export type DirtsideSnapshot = {
+  gameId: string;
+  name: string;
+  turnNumber: number;
+  phase: string;
+  sides: string[];
+  activeSide?: string | null;
+  activatingUnitId?: string | null;
+  elementsStillToChoose: string[];
+  canEndActivation: boolean;
+  whyActivationCannotEnd?: string | null;
+  units: DirtsidePlatoonState[];
+  log: string[];
+  version: number;
+};
+
+/** A Dirtside game that has just been started. */
+export type DirtsideGameCreated = { gameId: string; snapshot: DirtsideSnapshot };

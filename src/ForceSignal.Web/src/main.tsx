@@ -22,6 +22,7 @@ import {
   writeStorage,
 } from './lib/api.ts';
 import { StarGruntView } from './components/ground/StarGruntView.tsx';
+import { DirtsideView } from './components/ground/DirtsideView.tsx';
 import { readFeatures } from './lib/starGruntApi.ts';
 import type {
   DamageState,
@@ -65,7 +66,7 @@ function App() {
   const [publicMode, setPublicMode] = useState(false);
   // Which game this device is running. StarGrunt is a separate game rather than a view of a match -
   // no room code, no seats - so it is a mode, not a tab. Offered only when the server has it on.
-  const [gameMode, setGameMode] = useState<'fullthrust' | 'stargrunt'>('fullthrust');
+  const [gameMode, setGameMode] = useState<'fullthrust' | 'stargrunt' | 'dirtside'>('fullthrust');
   const [features, setFeatures] = useState<FeatureFlags>({ starGrunt: false, dirtside: false });
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
@@ -1171,6 +1172,15 @@ function App() {
               {gameMode === 'stargrunt' ? 'Back to Full Thrust' : 'StarGrunt II'}
             </button>
           ) : null}
+          {features.dirtside && !publicMode ? (
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => setGameMode((current) => (current === 'dirtside' ? 'fullthrust' : 'dirtside'))}
+            >
+              {gameMode === 'dirtside' ? 'Back to Full Thrust' : 'Dirtside II'}
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -1194,6 +1204,8 @@ function App() {
       </section>
 
       {gameMode === 'stargrunt' ? <StarGruntView /> : null}
+
+      {gameMode === 'dirtside' ? <DirtsideView /> : null}
 
       {gameMode === 'fullthrust' && !session && pendingRestore ? (
         <section className="panel seat-picker" aria-label="Claim a seat">
