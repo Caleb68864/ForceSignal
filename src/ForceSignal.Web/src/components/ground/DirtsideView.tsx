@@ -5,10 +5,16 @@ import * as api from '../../lib/dirtsideApi.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
+import { chitColours, DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
 
 const bands = ['Close', 'Medium', 'Long'];
 const fireControls = ['Basic', 'Enhanced', 'Superior'];
-const colours = ['All', 'Red', 'Yellow', 'Green'];
+const qualityDice = ['D4', 'D6', 'D8', 'D10', 'D12'];
+
+/** A number the card may not give. Blank means left out, not zero. */
+function optionalWholeNumber(text: string, min: number, max: number) {
+  return text.trim() === '' ? undefined : wholeNumberFrom(text, min, min, max);
+}
 
 /**
  * The Dirtside screen: vehicle-scale ground combat.
@@ -49,6 +55,13 @@ export function DirtsideView() {
     barrels: 1,
     isFixedMount: false,
     colours: 'All',
+    // Off the command marker and the card. Blank when the card does not say - the platoon then
+    // does everything except assault.
+    qualityDie: '',
+    leadershipValue: '',
+    hasBackupSystems: false,
+    assaultChits: '',
+    killThreshold: '',
   });
 
   const [shot, setShot] = useState({
@@ -58,6 +71,7 @@ export function DirtsideView() {
     targetElementId: '',
     measuredBand: 'Close',
     overHalf: false,
+    willMoveOverHalf: false,
   });
 
   function say(text: string) {
@@ -263,14 +277,17 @@ export function DirtsideView() {
                 {element.hasTakenCombatAction ? ' · acted' : ''}
                 {element.isDamaged ? ' · damaged' : ''}
                 {element.isSystemsDown ? ' · systems down' : ''}
+                {element.isImmobilised ? ' · immobilised' : ''}
                 {element.movedOverHalf ? ' · moved far' : ''}
                 {element.areaDefenceSensorsLive ? ' · sensors live' : ''}
               </span>
               <button
                 type="button"
                 className="ghost"
-                disabled={busy || element.hasMoved || element.hasStoodDown}
-                title={element.hasStoodDown ? 'It sat this one out, so it is out for the turn.' : undefined}
+                disabled={busy || element.hasMoved || element.hasStoodDown || Boolean(element.isImmobilised)}
+                title={element.isImmobilised
+                  ? 'A Mobility chit took its tracks. It will never move again, though it may still fire.'
+                  : element.hasStoodDown ? 'It sat this one out, so it is out for the turn.' : undefined}
                 onClick={() => void run(() => api.moveElement(game, element.id, shot.overHalf))}
               >
                 Move
@@ -293,6 +310,19 @@ export function DirtsideView() {
               >
                 Sensors {element.areaDefenceSensorsLive ? 'Off' : 'On'}
               </button>
+              {element.isSystemsDown || element.canRecoverSystems ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy || !element.canRecoverSystems}
+                  title={element.canRecoverSystems
+                    ? 'Spends its one combat action on getting the marker off. A miss can be tried again next activation.'
+                    : element.whyItCannotRecoverSystems ?? undefined}
+                  onClick={() => void run(() => api.recoverSystems(game, element.id))}
+                >
+                  Recover Systems
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="ghost"
@@ -374,6 +404,14 @@ export function DirtsideView() {
                 {bands.map((band) => <option key={band} value={band}>{band}</option>)}
               </select>
             </label>
+            <label title="Declared with the shot, and binding. The shot is penalised as if it had already moved; without it, the element is refused a move over half afterwards.">
+              Will move over half its movement after firing
+              <input
+                type="checkbox"
+                checked={shot.willMoveOverHalf}
+                onChange={(event) => setShot((current) => ({ ...current, willMoveOverHalf: event.target.checked }))}
+              />
+            </label>
           </div>
           <div className="quick-actions">
             <button
@@ -388,6 +426,7 @@ export function DirtsideView() {
                   || targetUnit?.elements.find((element) => !element.isDestroyed)?.id
                   || '',
                 measuredBand: shot.measuredBand,
+                willMoveOverHalf: shot.willMoveOverHalf,
               }))}
             >
               Fire
@@ -405,6 +444,8 @@ export function DirtsideView() {
           {!snapshot.canEndActivation && snapshot.whyActivationCannotEnd ? (
             <p className="constraint-line">{snapshot.whyActivationCannotEnd}</p>
           ) : null}
+
+          <DirtsideAssaultPanel game={game} snapshot={snapshot} activating={activating} busy={busy} run={run} />
         </div>
       ) : null}
 
@@ -449,8 +490,38 @@ export function DirtsideView() {
           <label title="Which chit colours this weapon's hits may count, off your own card.">
             Chit colours
             <select value={platoonForm.colours} onChange={(e) => setPlatoonForm({ ...platoonForm, colours: e.target.value })}>
-              {colours.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
+              {chitColours.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
             </select>
+          </label>
+        </div>
+        <span className="label">Close assault, off the card</span>
+        <p className="constraint-line">
+          Leave any of these blank when the card does not give it. The platoon can still move and
+          shoot; it just cannot launch or receive a close assault until they are filled in.
+        </p>
+        <div className="table-fields">
+          <label title="The die on the command marker.">
+            Quality die
+            <select value={platoonForm.qualityDie} onChange={(e) => setPlatoonForm({ ...platoonForm, qualityDie: e.target.value })}>
+              <option value="">Not given</option>
+              {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
+            </select>
+          </label>
+          <label title="The leadership value on the command marker.">
+            Leadership value
+            <input type="number" min="0" max="9" value={platoonForm.leadershipValue} onChange={(e) => setPlatoonForm({ ...platoonForm, leadershipValue: e.target.value })} />
+          </label>
+          <label title="Bought at design time. Makes a Systems Down marker easier to get off.">
+            Backup systems
+            <input type="checkbox" checked={platoonForm.hasBackupSystems} onChange={(e) => setPlatoonForm({ ...platoonForm, hasBackupSystems: e.target.checked })} />
+          </label>
+          <label title="How many chits each element draws in a close assault, off its card.">
+            Assault chits
+            <input type="number" min="0" max="20" value={platoonForm.assaultChits} onChange={(e) => setPlatoonForm({ ...platoonForm, assaultChits: e.target.value })} />
+          </label>
+          <label title="The valid total that removes an element in a close assault, off its card.">
+            Kill threshold
+            <input type="number" min="0" max="99" value={platoonForm.killThreshold} onChange={(e) => setPlatoonForm({ ...platoonForm, killThreshold: e.target.value })} />
           </label>
         </div>
         <button
@@ -458,12 +529,17 @@ export function DirtsideView() {
           disabled={busy}
           onClick={() => {
             const row = { colours: platoonForm.colours };
+            const leadershipValue = optionalWholeNumber(platoonForm.leadershipValue, 0, 9);
+            const assaultChits = optionalWholeNumber(platoonForm.assaultChits, 0, 20);
+            const killThreshold = optionalWholeNumber(platoonForm.killThreshold, 0, 99);
             void run(() => api.addPlatoon(game, {
               id: newId(),
               name: platoonForm.name,
               side: platoonForm.side,
               kind: platoonForm.kind,
               isCybertank: platoonForm.isCybertank,
+              ...(platoonForm.qualityDie ? { qualityDie: platoonForm.qualityDie } : {}),
+              ...(leadershipValue === undefined ? {} : { leadershipValue }),
               elements: Array.from({ length: Math.max(1, platoonForm.elements) }, (_, index) => ({
                 id: newId(),
                 name: `${platoonForm.elementName} ${index + 1}`,
@@ -480,6 +556,9 @@ export function DirtsideView() {
                   medium: row,
                   long: row,
                 }],
+                hasBackupSystems: platoonForm.hasBackupSystems,
+                ...(assaultChits === undefined ? {} : { assaultChits }),
+                ...(killThreshold === undefined ? {} : { killThreshold }),
               })),
             }), `${platoonForm.name} joined ${platoonForm.side}.`);
           }}
@@ -537,6 +616,7 @@ function describe(element: DirtsideElementState) {
   const marks = [
     element.isDamaged ? 'damaged' : null,
     element.isSystemsDown ? 'systems down' : null,
+    element.isImmobilised ? 'immobilised' : null,
     element.areaDefenceSensorsLive ? 'sensors live' : null,
   ].filter(Boolean);
   return `${element.name}${marks.length ? `: ${marks.join(', ')}` : ''}`;

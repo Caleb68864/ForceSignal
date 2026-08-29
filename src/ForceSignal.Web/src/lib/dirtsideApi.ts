@@ -35,13 +35,29 @@ export type DirtsideWeaponInput = {
   long: { colours: string };
 };
 
-/** Puts a platoon on the table. */
+/**
+ * Which chits count and how they read, off the user's own card. Colours is any of All, Red, Yellow
+ * or Green; value scale is Doubled, FaceValue or Halved.
+ */
+export type DirtsideValidityInput = {
+  colours: string;
+  valueScale: string;
+  specialsCount: boolean;
+  isIneffective: boolean;
+};
+
+/**
+ * Puts a platoon on the table. The quality die, leadership value and the two assault numbers are
+ * left out when the card does not give them - the platoon can still do everything except assault.
+ */
 export function addPlatoon(game: GameHandle, platoon: {
   id: string;
   name: string;
   side: string;
   kind: string;
   isCybertank: boolean;
+  qualityDie?: string;
+  leadershipValue?: number;
   elements: {
     id: string;
     name: string;
@@ -50,6 +66,9 @@ export function addPlatoon(game: GameHandle, platoon: {
     armourValue: number;
     movement: number;
     weapons: DirtsideWeaponInput[];
+    hasBackupSystems?: boolean;
+    assaultChits?: number;
+    killThreshold?: number;
   }[];
 }) {
   return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/units`, platoon, undefined, gameAuth(game));
@@ -85,18 +104,72 @@ export function setSensors(game: GameHandle, elementId: string, live: boolean) {
   return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/sensors`, { elementId, live }, undefined, gameAuth(game));
 }
 
-/** Fires one element's weapon at one designated element. The declaration is binding. */
+/**
+ * Fires one element's weapon at one designated element. The declaration is binding - including
+ * `willMoveOverHalf`, which penalises the shot now and is the only way to move over half afterwards.
+ */
 export function fire(game: GameHandle, shot: {
   elementId: string;
   weapon: string;
   targetUnitId: string;
   targetElementId: string;
   measuredBand: string;
+  willMoveOverHalf: boolean;
 }) {
   return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/fire`, shot, undefined, gameAuth(game));
 }
 
-/** Closes the open activation. Refused while any element has not said what it is doing. */
+/**
+ * Tries to get a Systems Down marker off one element, spending its combat action. Refused unless
+ * the marker went on during an earlier activation and the element has not acted yet.
+ */
+export function recoverSystems(game: GameHandle, elementId: string) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/recover-systems`, { elementId }, undefined, gameAuth(game));
+}
+
+/**
+ * Sends the activated platoon in against another. Every listed element spends its combat action
+ * whether or not the troops go; the threat level is the player's, off their own table.
+ */
+export function launchAssault(game: GameHandle, assault: {
+  targetUnitId: string;
+  elementIds: string[];
+  threatLevel: number;
+  validity: DirtsideValidityInput;
+  handToHandValidity: DirtsideValidityInput | null;
+}) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/assaults/launch`, assault, undefined, gameAuth(game));
+}
+
+/** The defenders' confidence test. Standing goes to a round; giving way goes straight to the follow-through. */
+export function standAgainstAssault(game: GameHandle, stand: {
+  elementIds: string[];
+  threatLevel: number;
+  validity: DirtsideValidityInput;
+  handToHandValidity: DirtsideValidityInput | null;
+}) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/assaults/stand`, stand, undefined, gameAuth(game));
+}
+
+/** Fights the next round. Which stands come off is the game's to say, in the order they were committed. */
+export function fightAssaultRound(game: GameHandle) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/assaults/round`, {}, undefined, gameAuth(game));
+}
+
+/** Tests both sides' nerve after a round. The defender goes first; if it breaks the attacker is never asked. */
+export function resolveAssaultAftermath(game: GameHandle, threats: { lightCasualtyThreat: number; heavyCasualtyThreat: number }) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/assaults/aftermath`, threats, undefined, gameAuth(game));
+}
+
+/** The attacker's reaction test to press on. Passing gives it a whole extra activation on the spot. */
+export function followThrough(game: GameHandle, threatLevel: number) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/assaults/follow-through`, { threatLevel }, undefined, gameAuth(game));
+}
+
+/**
+ * Closes the open activation. Refused while any element has not said what it is doing, or while an
+ * assault is still owed a step - except at the follow-through, where ending it declines the test.
+ */
 export function endActivation(game: GameHandle) {
   return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/end`, {}, undefined, gameAuth(game));
 }

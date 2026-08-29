@@ -527,6 +527,8 @@ export type DirtsideElementState = {
   isDestroyed: boolean;
   isDamaged: boolean;
   isSystemsDown: boolean;
+  // A Mobility chit. It will never move again, though it may still fire.
+  isImmobilised?: boolean;
   movedOverHalf: boolean;
   areaDefenceSensorsLive: boolean;
   // True when it has said what it is doing in the open activation. The activation cannot close
@@ -537,6 +539,14 @@ export type DirtsideElementState = {
   hasTakenCombatAction: boolean;
   hasStoodDown: boolean;
   weapons: string[];
+  // Off the record card. Null when the card does not say, in which case the element cannot go into
+  // or receive a close assault - nothing is defaulted.
+  hasBackupSystems?: boolean;
+  assaultChits?: number | null;
+  killThreshold?: number | null;
+  // Whether its crew could try to get a Systems Down marker off right now, and if not, why not.
+  canRecoverSystems?: boolean;
+  whyItCannotRecoverSystems?: string | null;
 };
 
 /** A Dirtside platoon as the table sees it. */
@@ -554,6 +564,23 @@ export type DirtsidePlatoonState = {
   // Why not, in the words the command would refuse with, so a disabled button never invents its own.
   whyItCannotActivate?: string | null;
   elements: DirtsideElementState[];
+  // Off the command marker: D4 to D12, and the leadership value. Null when the card does not say,
+  // in which case the platoon can do everything except launch or receive an assault.
+  qualityDie?: string | null;
+  leadershipValue?: number | null;
+};
+
+/** A close assault part-way through being fought, as the table sees it. */
+export type DirtsideAssaultState = {
+  attackerUnitId: string;
+  defenderUnitId: string;
+  // What is owed next: AwaitingDefender, AwaitingRound, AwaitingAftermath or AwaitingFollowThrough.
+  stage: string;
+  // The round about to be fought, or just fought, counting from one.
+  round: number;
+  // The committed elements still standing. The defender's list is empty until it has stood.
+  attackerElementIds: string[];
+  defenderElementIds: string[];
 };
 
 /** A whole Dirtside game as the table sees it. */
@@ -568,6 +595,8 @@ export type DirtsideSnapshot = {
   elementsStillToChoose: string[];
   canEndActivation: boolean;
   whyActivationCannotEnd?: string | null;
+  // The assault being fought, or null when none is.
+  assault?: DirtsideAssaultState | null;
   units: DirtsidePlatoonState[];
   log: string[];
   version: number;
