@@ -138,6 +138,40 @@ defences, damage control, needle beams - found six more divergences. Each is wri
       is what puts the ship where the rulebook's worked examples say it ends up. A plotted sequence
       of turns takes an equal share of the move each and splits the same way.
 
+## Ground Combat
+
+Both engines are behind feature flags and default to off. Each has its own numbered fidelity audit;
+the roadmap lists only what a table can reach.
+
+- [x] StarGrunt II plays end to end on one device: activation, fire, suppression, confidence, rally,
+      reaction tests and close assault. See `stargrunt-fidelity-gaps.md`.
+
+### Dirtside II
+
+- [x] The activation sequence: a platoon activates, each element takes one move and one combat
+      action in either order or stands down, fixed mounts fire before moving, the activation closes
+      only when every element has chosen.
+- [x] Direct fire: two-stage hit and chit-draw damage, twin mounts against one target roll, binding
+      declarations, a damaged firer's shot resolved a band worse, the firer's own systems-down
+      rewriting the shot.
+- [x] Close assault - launch, stand or withdraw, simultaneous rounds, aftermath and follow-through -
+      reaching the table 2026-08-29 (gap 1).
+- [x] Systems-down recovery as an activation step, refused on the activation the marker was placed
+      and retryable after, reaching the table 2026-08-29 (gap 2).
+- [x] A quality die and leadership value on the platoon, optional and off the player's card,
+      reaching the table with close assault 2026-08-29 (gap 3).
+- [x] Immobilised is recorded on the element and refuses a move by name; a shot declares whether the
+      element will move over half, is penalised for it, and an undeclared later move is refused
+      (gaps 12-13, 2026-08-29).
+- [ ] Confidence tests, Under Fire markers and reaction tests, all built in the module and not yet
+      called by the game outside a close assault's aftermath (gaps 4-6).
+- [ ] Opportunity fire and area-defence interception. The windows and their costs are built; the
+      board never opens one, and "Sensors On" currently buys nothing (gaps 7-8).
+- [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10).
+- [ ] Defensive posture declared on the shot (gap 11).
+- [ ] A configurable chit pot and a full validity-card editor on the screen (gaps 15-16).
+- [ ] Indirect fire (gap 9).
+
 ## Later Production Options
 
 - [x] Browser/local snapshot recovery for tabletop use through local autosave, explicit snapshot export, and full-state restore with seat claiming.

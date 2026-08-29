@@ -61,14 +61,20 @@ ForceSignal.Modules.StarGrunt         figure scale
     Morale/      confidence, fatigue, suppression 0-3                           [BUILT]
     Sequence/    activation policy, steps, command levels                       [BUILT]
     Game/        the game as a value: roster, statuses, session, legality       [BUILT]
-    Assault/     close assault                                                  [TODO]
+    Assault/     close assault                                                  [BUILT]
 
 ForceSignal.Modules.Dirtside          vehicle scale
-    Combat/      two-stage hit and damage resolution                            [BUILT]
-    Chits/       the damage pot, composition and validity                       [TODO]
+    Combat/      two-stage hit and damage resolution, infantry, close assault,
+                 systems-down recovery                                          [BUILT]
+    Chits/       the damage pot, composition and validity                       [BUILT]
     Sequence/    the activation policy                                          [BUILT]
+    Game/        the game as a value; close assault and systems recovery
+                 reaching the table 2026-08-29                                  [BUILT]
     Support/     the deferred artillery queue                                   [TODO]
 ```
+
+What each Dirtside resolver does and what the game layer has not yet called is audited in
+`dirtside-fidelity-gaps.md`, in the same numbered form as the other two engines.
 
 ### What is genuinely shared
 
@@ -179,8 +185,12 @@ Two more to honour when the surrounding systems are built:
    That is deliberately built before any client existed: the Full Thrust console grew its own copy
    of the firing rules, that copy was incomplete, and removing it took two rounds of work.
 
-   Still out: close assault, fog of war, positions, two-device play, a saved force library, and
-   Dirtside's whole client.
+   Still out: fog of war, positions, two-device play, and a saved force library. StarGrunt close
+   assault landed 2026-08-10. **Dirtside** got the same slice - a `DirtsideGame` value, a service,
+   routes and a hot-seat screen - with direct fire and the activation sequence playable; close
+   assault and systems-down recovery reach the table 2026-08-29, and what is still unreachable
+   (opportunity fire, interception, indirect fire, morale, infantry as stands) is numbered in
+   `dirtside-fidelity-gaps.md`.
 6. **Icons.** Neither game uses NATO symbology, so the whole visual language is status markers and
    can be original. The vault already carries a clean-room vocabulary in
    `Dirtside II/Reference/dsii_markers.scad` — plain lettered discs reproducing none of GZG's
