@@ -407,13 +407,84 @@ public static class GroundCombatEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .RequireGameToken<IDirtsideGameService>();
 
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/recover-systems", (
+            Guid gameId,
+            DirtsideRecoverSystemsRequest request,
+            IDirtsideGameService games) => Results.Ok(games.RecoverSystems(gameId, request)))
+            .WithName("RecoverDirtsideSystems")
+            .WithTags("Dirtside")
+            .WithSummary("Tries to get an element's Systems Down marker off, spending its combat action.")
+            .WithDescription("Refused on the activation the marker went on; retryable on every one after, for as long as the game lasts. Backup systems bought at design time lower the number to reach.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/assaults/launch", (
+            Guid gameId,
+            LaunchDirtsideAssaultRequest request,
+            IDirtsideGameService games) => Results.Ok(games.LaunchAssault(gameId, request)))
+            .WithName("LaunchDirtsideAssault")
+            .WithTags("Dirtside")
+            .WithSummary("Orders the activated platoon in against a position, and rolls its nerve to go.")
+            .WithDescription("Every committed element spends its combat action whether or not the troops go: a failed reaction test costs the action, never the nerve. A platoon whose confidence forbids assaulting is refused outright, without a die. The threat level and what the chits may count are the player's numbers.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/assaults/stand", (
+            Guid gameId,
+            DirtsideAssaultStandRequest request,
+            IDirtsideGameService games) => Results.Ok(games.DefenderStands(gameId, request)))
+            .WithName("DirtsideDefenderStands")
+            .WithTags("Dirtside")
+            .WithSummary("Rolls the assaulted platoon's nerve to stand and receive the assault, or give up the position.")
+            .WithDescription("A confidence test, so giving way costs morale as well as the position. A defender whose nerve had already gone breaks without a test.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/assaults/round", (
+            Guid gameId,
+            IDirtsideGameService games) => Results.Ok(games.FightAssaultRound(gameId)))
+            .WithName("FightDirtsideAssaultRound")
+            .WithTags("Dirtside")
+            .WithSummary("Fights one round of the open assault.")
+            .WithDescription("Both sides draw before either loses anybody, and chits are never pooled. From the second round on the defender's cover has stopped counting.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/assaults/aftermath", (
+            Guid gameId,
+            DirtsideAssaultAftermathRequest request,
+            IDirtsideGameService games) => Results.Ok(games.ResolveAssaultAftermath(gameId, request)))
+            .WithName("ResolveDirtsideAssaultAftermath")
+            .WithTags("Dirtside")
+            .WithSummary("Takes the tests after a round: who, if anybody, has had enough.")
+            .WithDescription("The defender tests first and a broken defender means the attacker is never asked. Each side tests at its own casualty share, against the two threat levels supplied. Whoever falls back comes away Under Fire.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/assaults/follow-through", (
+            Guid gameId,
+            DirtsideFollowThroughRequest request,
+            IDirtsideGameService games) => Results.Ok(games.FollowThrough(gameId, request)))
+            .WithName("DirtsideFollowThrough")
+            .WithTags("Dirtside")
+            .WithSummary("The winner's test to drive on through the position rather than stop on it.")
+            .WithDescription("A pass hands every element its move and its combat action again, on the spot. A failure costs nothing but the opportunity. Ending the activation instead declines the test.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/end", (
             Guid gameId,
             IDirtsideGameService games) => Results.Ok(games.EndActivation(gameId)))
             .WithName("EndDirtsideActivation")
             .WithTags("Dirtside")
             .WithSummary("Closes the open activation.")
-            .WithDescription("Refused while any element still on the table has not said what it is doing, and the refusal names them.")
+            .WithDescription("Refused while any element still on the table has not said what it is doing, and the refusal names them. Refused too in the middle of an assault; the one stage it may walk away from is the follow-through.")
             .Produces<DirtsideSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .RequireGameToken<IDirtsideGameService>();

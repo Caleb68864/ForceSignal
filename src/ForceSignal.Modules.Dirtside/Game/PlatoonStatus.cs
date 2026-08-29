@@ -15,13 +15,21 @@ namespace ForceSignal.Modules.Dirtside.Game;
 /// <param name="MovedOverHalf">True when it has moved, or will move, more than half its movement.</param>
 /// <param name="Posture">What it is doing about being shot at.</param>
 /// <param name="AreaDefenceSensorsLive">True when its sensors are on and it may intercept all turn.</param>
+/// <param name="IsImmobilised">True when it will never move again, though it may still fight from the spot.</param>
+/// <param name="SystemsDownOnActivation">
+/// The activation the Systems Down marker was placed on, or null when it carries none. Recovery
+/// cannot be tried on that activation, and the marker is the only thing that remembers which one it
+/// was.
+/// </param>
 public sealed record ElementStatus(
     bool IsDestroyed = false,
     bool IsDamaged = false,
     bool IsSystemsDown = false,
     bool MovedOverHalf = false,
     DefensivePosture Posture = DefensivePosture.None,
-    bool AreaDefenceSensorsLive = false)
+    bool AreaDefenceSensorsLive = false,
+    int? SystemsDownOnActivation = null,
+    bool IsImmobilised = false)
 {
     /// <summary>An element nothing has happened to yet.</summary>
     public static ElementStatus Fresh { get; } = new();

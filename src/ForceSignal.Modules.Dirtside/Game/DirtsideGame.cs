@@ -53,6 +53,17 @@ public sealed partial record DirtsideGame : IDirtsideBoard
     /// <summary>Where the turn has got to.</summary>
     public GroundCombatSession Session { get; init; } = new();
 
+    /// <summary>
+    /// The close assault being fought, or null when there is none.
+    /// </summary>
+    /// <remarks>
+    /// On the game rather than in the frame, because an assault is several commands long - launch,
+    /// stand, a round, its aftermath, perhaps another round - and a game put down between two of
+    /// them has to come back between the same two. The frame records that the committed elements
+    /// spent their combat action; this records what they spent it on.
+    /// </remarks>
+    public DirtsideAssault? Assault { get; init; }
+
     /// <summary>What has happened, in the order it happened, for the table to read back.</summary>
     public ImmutableArray<string> Log { get; init; } = [];
 
@@ -191,6 +202,7 @@ public sealed partial record DirtsideGame : IDirtsideBoard
         && StructuralEquality.Map(Units, other.Units)
         && StructuralEquality.Map(Statuses, other.Statuses)
         && Session == other.Session
+        && Assault == other.Assault
         && StructuralEquality.Sequence(Log, other.Log);
 
     /// <inheritdoc />
@@ -199,5 +211,6 @@ public sealed partial record DirtsideGame : IDirtsideBoard
         StructuralEquality.MapHash(Units),
         StructuralEquality.MapHash(Statuses),
         Session,
+        Assault,
         StructuralEquality.SequenceHash(Log));
 }

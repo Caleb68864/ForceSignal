@@ -22,6 +22,12 @@ public static class DirtsideWire
 
     /// <summary>Gunnery levels an element can have.</summary>
     public static readonly string[] FireControls = ["Basic", "Enhanced", "Superior"];
+
+    /// <summary>Dice a platoon's command marker can name.</summary>
+    public static readonly string[] QualityDice = ["D4", "D6", "D8", "D10", "D12"];
+
+    /// <summary>Where an assault can stand, as the snapshot reports it.</summary>
+    public static readonly string[] AssaultStages = ["AwaitingDefender", "AwaitingRound", "AwaitingAftermath", "AwaitingFollowThrough"];
 }
 
 /// <summary>Starts a new game.</summary>
@@ -72,6 +78,15 @@ public sealed record DirtsideWeaponDto(
 /// <param name="ArmourValue">The armour on the face most likely to be hit.</param>
 /// <param name="Movement">How far it moves in one go, in the player's own units.</param>
 /// <param name="Weapons">What it can shoot with.</param>
+/// <param name="HasBackupSystems">True when backup systems were bought at design time, which makes systems-down recovery an even chance.</param>
+/// <param name="AssaultChits">
+/// How many chits it draws in a close assault, off the card. Leave it out for an element that never
+/// assaults; one without it cannot be committed to an assault.
+/// </param>
+/// <param name="KillThreshold">
+/// The valid total that removes it in a close assault, off the card. Leave it out for an element
+/// that is never assaulted; one without it cannot hold a position.
+/// </param>
 public sealed record DirtsideElementDto(
     string Id,
     string Name,
@@ -79,7 +94,10 @@ public sealed record DirtsideElementDto(
     int Signature,
     int ArmourValue,
     int Movement,
-    IReadOnlyList<DirtsideWeaponDto> Weapons);
+    IReadOnlyList<DirtsideWeaponDto> Weapons,
+    bool HasBackupSystems = false,
+    int? AssaultChits = null,
+    int? KillThreshold = null);
 
 /// <summary>Puts a platoon on the table.</summary>
 /// <param name="Id">How the game will name it. Must be unique in the game.</param>
@@ -88,13 +106,17 @@ public sealed record DirtsideElementDto(
 /// <param name="Kind">Which column of the confidence table it reads: DismountedInfantry or Armour.</param>
 /// <param name="IsCybertank">True for a vehicle that carries no confidence marker at all.</param>
 /// <param name="Elements">What it is made of.</param>
+/// <param name="QualityDie">The die on its command marker: D4, D6, D8, D10 or D12. Needed before its nerve can be tested.</param>
+/// <param name="LeadershipValue">The number on its command marker. Needed before its nerve can be tested.</param>
 public sealed record AddDirtsidePlatoonRequest(
     string Id,
     string Name,
     string Side,
     string Kind,
     bool IsCybertank,
-    IReadOnlyList<DirtsideElementDto> Elements);
+    IReadOnlyList<DirtsideElementDto> Elements,
+    string? QualityDie = null,
+    int? LeadershipValue = null);
 
 /// <summary>Settles who takes the first activation this turn.</summary>
 /// <param name="Side">The side making the choice.</param>
@@ -129,16 +151,78 @@ public sealed record DirtsideSensorsRequest(string ElementId, bool Live);
 /// <param name="TargetUnitId">The platoon being shot at.</param>
 /// <param name="TargetElementId">The element designated, before any dice.</param>
 /// <param name="MeasuredBand">The band the tape says the shot falls in: Close, Medium or Long.</param>
+/// <param name="WillMoveOverHalf">
+/// True when the element is firing first and means to move more than half its movement afterwards.
+/// The shot is penalised as if it had already moved, and the element may not then move over half
+/// without having said so here.
+/// </param>
 public sealed record DirtsideFireRequest(
     string ElementId,
     string Weapon,
     string TargetUnitId,
     string TargetElementId,
-    string MeasuredBand);
+    string MeasuredBand,
+    bool WillMoveOverHalf = false);
 
 /// <summary>Declines to activate anything.</summary>
 /// <param name="Side">The side passing.</param>
 public sealed record DirtsidePassRequest(string Side);
+
+/// <summary>Tries to get an element's Systems Down marker off, spending its combat action.</summary>
+/// <param name="ElementId">The element whose crew are trying.</param>
+public sealed record DirtsideRecoverSystemsRequest(string ElementId);
+
+/// <summary>
+/// Orders the activated platoon in against a position, and rolls its nerve to go.
+/// </summary>
+/// <param name="TargetUnitId">The platoon holding the position.</param>
+/// <param name="ElementIds">Which of the activated platoon's elements go in. Each spends its combat action, whether or not the troops go.</param>
+/// <param name="ThreatLevel">What the order asks of them, which the rules key off the platoon's own confidence. The player's number.</param>
+/// <param name="Validity">What the attackers' chits may count in the first round, set by the cover the defenders are in.</param>
+/// <param name="HandToHandValidity">What they may count from the second round on, once that cover has stopped mattering. Leave it out when the defenders had no cover to lose.</param>
+public sealed record LaunchDirtsideAssaultRequest(
+    string TargetUnitId,
+    IReadOnlyList<string> ElementIds,
+    int ThreatLevel,
+    DirtsideValidityDto Validity,
+    DirtsideValidityDto? HandToHandValidity = null);
+
+/// <summary>
+/// Rolls the assaulted platoon's nerve to stand and receive the assault, or give up the position.
+/// </summary>
+/// <param name="ElementIds">Which of the defending platoon's elements hold the position.</param>
+/// <param name="ThreatLevel">How frightening what is coming is, which the rules key off the sort of troops assaulting. The player's number.</param>
+/// <param name="Validity">What the defenders' chits may count in the first round, set by the cover the attackers came from.</param>
+/// <param name="HandToHandValidity">What they may count from the second round on. Leave it out when the attackers had no cover to lose.</param>
+public sealed record DirtsideAssaultStandRequest(
+    IReadOnlyList<string> ElementIds,
+    int ThreatLevel,
+    DirtsideValidityDto Validity,
+    DirtsideValidityDto? HandToHandValidity = null);
+
+/// <summary>The tests after a round of assault: who, if anybody, has had enough.</summary>
+/// <param name="LightCasualtyThreat">The threat level a side that lost fewer than half its stands tests at. The player's number.</param>
+/// <param name="HeavyCasualtyThreat">The threat level a side that lost half or more tests at. The player's number.</param>
+public sealed record DirtsideAssaultAftermathRequest(int LightCasualtyThreat, int HeavyCasualtyThreat);
+
+/// <summary>The winner's test to drive on through the position it has just taken.</summary>
+/// <param name="ThreatLevel">What is being asked, which the rules key off whether the defenders were destroyed or pushed back. The player's number.</param>
+public sealed record DirtsideFollowThroughRequest(int ThreatLevel);
+
+/// <summary>A close assault part-way through being fought, as the table sees it.</summary>
+/// <param name="AttackerUnitId">The platoon that went in.</param>
+/// <param name="DefenderUnitId">The platoon holding the position.</param>
+/// <param name="Stage">What is owed next: AwaitingDefender, AwaitingRound, AwaitingAftermath or AwaitingFollowThrough.</param>
+/// <param name="Round">The round about to be fought, or just fought, counting from one.</param>
+/// <param name="AttackerElementIds">The attacker's committed elements still standing.</param>
+/// <param name="DefenderElementIds">The defender's committed elements still standing. Empty until it has stood.</param>
+public sealed record DirtsideAssaultDto(
+    string AttackerUnitId,
+    string DefenderUnitId,
+    string Stage,
+    int Round,
+    IReadOnlyList<string> AttackerElementIds,
+    IReadOnlyList<string> DefenderElementIds);
 
 /// <summary>What has happened to one element, as the table sees it.</summary>
 /// <param name="Id">The element.</param>
@@ -146,13 +230,19 @@ public sealed record DirtsidePassRequest(string Side);
 /// <param name="IsDestroyed">True when it is out of the battle.</param>
 /// <param name="IsDamaged">True when it carries a DMG marker.</param>
 /// <param name="IsSystemsDown">True when it is doing nothing until its systems are back.</param>
-/// <param name="MovedOverHalf">True when it has moved more than half its movement this turn.</param>
+/// <param name="IsImmobilised">True when it will never move again, though it may still fire.</param>
+/// <param name="MovedOverHalf">True when it has moved, or has declared it will move, more than half its movement this turn.</param>
 /// <param name="AreaDefenceSensorsLive">True when it may intercept for the rest of the turn.</param>
 /// <param name="HasChosen">True when it has said what it is doing in the open activation.</param>
 /// <param name="HasMoved">True when it has spent its move this activation.</param>
 /// <param name="HasTakenCombatAction">True when it has spent its one combat action.</param>
 /// <param name="HasStoodDown">True when it sat this activation out, and so the whole turn.</param>
 /// <param name="Weapons">What it can shoot with.</param>
+/// <param name="HasBackupSystems">True when backup systems were bought at design time.</param>
+/// <param name="AssaultChits">How many chits it draws in a close assault, or null when its card does not say.</param>
+/// <param name="KillThreshold">The valid total that removes it in a close assault, or null when its card does not say.</param>
+/// <param name="CanRecoverSystems">True when its crew could try to get a Systems Down marker off right now.</param>
+/// <param name="WhyItCannotRecoverSystems">Why not, in the words the command would refuse with.</param>
 /// <remarks>
 /// The move and the combat action are reported separately because they are separate: an element
 /// that has moved may still shoot, and one that has shot may still move. A single "has chosen" flag
@@ -165,13 +255,19 @@ public sealed record DirtsideElementStateDto(
     bool IsDestroyed,
     bool IsDamaged,
     bool IsSystemsDown,
+    bool IsImmobilised,
     bool MovedOverHalf,
     bool AreaDefenceSensorsLive,
     bool HasChosen,
     bool HasMoved,
     bool HasTakenCombatAction,
     bool HasStoodDown,
-    IReadOnlyList<string> Weapons);
+    IReadOnlyList<string> Weapons,
+    bool HasBackupSystems,
+    int? AssaultChits,
+    int? KillThreshold,
+    bool CanRecoverSystems,
+    string? WhyItCannotRecoverSystems);
 
 /// <summary>A platoon as the table sees it.</summary>
 /// <param name="Id">The platoon.</param>
@@ -186,6 +282,8 @@ public sealed record DirtsideElementStateDto(
 /// <param name="CanActivate">True when it could be activated right now.</param>
 /// <param name="WhyItCannotActivate">Why not, in the words the command would refuse with.</param>
 /// <param name="Elements">What it is made of.</param>
+/// <param name="QualityDie">The die on its command marker, or null when its card does not say.</param>
+/// <param name="LeadershipValue">The number on its command marker, or null when its card does not say.</param>
 public sealed record DirtsidePlatoonStateDto(
     string Id,
     string Name,
@@ -198,7 +296,9 @@ public sealed record DirtsidePlatoonStateDto(
     bool HasActivated,
     bool CanActivate,
     string? WhyItCannotActivate,
-    IReadOnlyList<DirtsideElementStateDto> Elements);
+    IReadOnlyList<DirtsideElementStateDto> Elements,
+    string? QualityDie,
+    int? LeadershipValue);
 
 /// <summary>A whole Dirtside game as the table sees it.</summary>
 /// <param name="GameId">Which game.</param>
@@ -214,6 +314,7 @@ public sealed record DirtsidePlatoonStateDto(
 /// </param>
 /// <param name="CanEndActivation">True when the open activation could be closed now.</param>
 /// <param name="WhyActivationCannotEnd">Why not, in the words the command would refuse with.</param>
+/// <param name="Assault">The close assault being fought, or null when there is none.</param>
 /// <param name="Units">Everyone on the table.</param>
 /// <param name="Log">What has happened, in the order it happened.</param>
 /// <param name="Version">Bumped whenever anything changes, so a client can tell.</param>
@@ -228,6 +329,7 @@ public sealed record DirtsideSnapshotDto(
     IReadOnlyList<string> ElementsStillToChoose,
     bool CanEndActivation,
     string? WhyActivationCannotEnd,
+    DirtsideAssaultDto? Assault,
     IReadOnlyList<DirtsidePlatoonStateDto> Units,
     IReadOnlyList<string> Log,
     int Version);

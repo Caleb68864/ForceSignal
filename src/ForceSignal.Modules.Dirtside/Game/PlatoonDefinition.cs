@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using ForceSignal.Modules.Dirtside.Chits;
 using ForceSignal.Modules.Dirtside.Combat;
 using ForceSignal.Modules.Dirtside.Morale;
+using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
 
 namespace ForceSignal.Modules.Dirtside.Game;
@@ -38,6 +39,17 @@ public sealed record WeaponDefinition(
 /// <param name="ArmourValue">The armour on the face most likely to be hit.</param>
 /// <param name="Movement">How far it moves in one go, in the player's own units.</param>
 /// <param name="Weapons">What it can shoot with.</param>
+/// <param name="HasBackupSystems">True when backup systems were bought at design time.</param>
+/// <param name="AssaultChits">
+/// How many chits this element draws in a close assault, or null when the card does not say. An
+/// element with no number here cannot be committed to an assault: the alternative was a default,
+/// and a default that happens to be somebody's published number is still that number.
+/// </param>
+/// <param name="KillThreshold">
+/// The valid total that removes this element in a close assault, or null when the card does not
+/// say. Kept apart from <paramref name="ArmourValue"/> because the two are compared differently -
+/// reaching this one is enough, while armour has a damaged state to land on.
+/// </param>
 public sealed record ElementDefinition(
     ElementId Id,
     string Name,
@@ -45,7 +57,10 @@ public sealed record ElementDefinition(
     int Signature,
     int ArmourValue,
     int Movement,
-    ImmutableArray<WeaponDefinition> Weapons)
+    ImmutableArray<WeaponDefinition> Weapons,
+    bool HasBackupSystems = false,
+    int? AssaultChits = null,
+    int? KillThreshold = null)
 {
     /// <summary>One of this element's weapons by name.</summary>
     /// <param name="weapon">The player's name for the system.</param>
@@ -69,11 +84,15 @@ public sealed record ElementDefinition(
         && Signature == other.Signature
         && ArmourValue == other.ArmourValue
         && Movement == other.Movement
+        && HasBackupSystems == other.HasBackupSystems
+        && AssaultChits == other.AssaultChits
+        && KillThreshold == other.KillThreshold
         && StructuralEquality.Sequence(Weapons, other.Weapons);
 
     /// <inheritdoc />
     public override int GetHashCode() =>
         HashCode.Combine(Id, Name, FireControl, Signature, ArmourValue, Movement,
+            HashCode.Combine(HasBackupSystems, AssaultChits, KillThreshold),
             StructuralEquality.SequenceHash(Weapons));
 }
 
@@ -92,13 +111,23 @@ public sealed record ElementDefinition(
 /// <param name="Kind">Which column of the confidence effects table it reads.</param>
 /// <param name="IsCybertank">True for a vehicle that carries no confidence marker at all.</param>
 /// <param name="Elements">What it is made of, in the order they are listed on the roster.</param>
+/// <param name="Quality">The die this platoon rolls, off its command marker, or null when the card does not say.</param>
+/// <param name="LeadershipValue">The number on its command marker, or null when the card does not say.</param>
+/// <remarks>
+/// The die and the leadership value are optional because nothing a platoon did before close assault
+/// reached the table needed them, and a force file written then still has to load. They are refused
+/// rather than defaulted the moment a test is called for: a die this app picked would be a rules
+/// number this app shipped.
+/// </remarks>
 public sealed record PlatoonDefinition(
     UnitId Id,
     string Name,
     SideId Side,
     DirtsideUnitKind Kind,
     bool IsCybertank,
-    ImmutableArray<ElementDefinition> Elements)
+    ImmutableArray<ElementDefinition> Elements,
+    QualityDie? Quality = null,
+    int? LeadershipValue = null)
 {
     /// <summary>One of this platoon's elements by id.</summary>
     /// <param name="element">The element to look up.</param>
@@ -115,9 +144,11 @@ public sealed record PlatoonDefinition(
         && Side == other.Side
         && Kind == other.Kind
         && IsCybertank == other.IsCybertank
+        && Quality == other.Quality
+        && LeadershipValue == other.LeadershipValue
         && StructuralEquality.Sequence(Elements, other.Elements);
 
     /// <inheritdoc />
     public override int GetHashCode() =>
-        HashCode.Combine(Id, Name, Side, Kind, IsCybertank, StructuralEquality.SequenceHash(Elements));
+        HashCode.Combine(Id, Name, Side, Kind, IsCybertank, Quality, LeadershipValue, StructuralEquality.SequenceHash(Elements));
 }

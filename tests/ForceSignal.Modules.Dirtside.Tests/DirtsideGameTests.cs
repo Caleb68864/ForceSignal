@@ -198,6 +198,58 @@ public sealed class DirtsideGameTests
     }
 
     [Fact]
+    public void FiringFirstAndDeclaringAMoveOverHalfIsPenalisedLikeMovingFirst()
+    {
+        // The resolver's contract is "has moved, or will move". Fire-then-move used to escape the
+        // penalty because the flag was only written by the move. Declared at the shot, the element
+        // is marked as having moved over half before a die is thrown, which is what the resolver
+        // reads to drop the firer's die a step.
+        var shot = Shot() with { WillMoveOverHalf = true };
+        var after = GameFixtures.Activated().Fire(shot, new ScriptedDice(8, 1), Pot()).Value!;
+
+        Assert.True(after.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne).MovedOverHalf);
+        Assert.Contains(after.Log, entry => entry.Contains("on the move", StringComparison.Ordinal));
+        // And the move it promised is the move it takes.
+        Assert.True(after.MoveElement(GameFixtures.AlphaOne, overHalfItsMovement: true).IsAllowed);
+    }
+
+    [Fact]
+    public void AnElementThatFiredWithoutDeclaringMayNotThenMoveOverHalf()
+    {
+        var after = GameFixtures.Activated().Fire(Shot(), new ScriptedDice(8, 1), Pot()).Value!;
+
+        var refused = after.MoveElement(GameFixtures.AlphaOne, overHalfItsMovement: true);
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("without declaring", refused.Reason!, StringComparison.Ordinal);
+        Assert.Equal(refused.Reason, after.WhyMoveIsRefused(GameFixtures.AlphaOne, overHalfItsMovement: true));
+        // A short move is still its own to make.
+        Assert.True(after.MoveElement(GameFixtures.AlphaOne, overHalfItsMovement: false).IsAllowed);
+    }
+
+    [Fact]
+    public void AnImmobilisedElementIsWrittenDownAndWillNotMoveButMayStillFire()
+    {
+        // The mobility chit used to be said in the log and written nowhere, so the vehicle drove
+        // off next activation. Now it is on the element, and the move is refused by name.
+        var hit = GameFixtures.Activated()
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.Mobility))).Value!;
+        Assert.True(hit.Status(GameFixtures.Bravo).Element(GameFixtures.BravoOne).IsImmobilised);
+
+        var red = hit.StandDown(GameFixtures.AlphaTwo).Value!
+            .EndActivation().Value!
+            .BeginActivation(GameFixtures.Red, GameFixtures.Bravo).Value!;
+
+        var refused = red.MoveElement(GameFixtures.BravoOne, overHalfItsMovement: false);
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("immobilised", refused.Reason!, StringComparison.OrdinalIgnoreCase);
+        Assert.True(red.Fire(
+            new FireCommand(GameFixtures.Bravo, GameFixtures.BravoOne, "Main Gun", GameFixtures.Alpha, GameFixtures.AlphaOne, WeaponRangeBand.Close),
+            new ScriptedDice(8, 1),
+            Pot()).IsAllowed);
+    }
+
+    [Fact]
     public void EndingTheTurnClearsWhatOnlyLastedTheTurn()
     {
         // A whole turn, both sides, so the assertion about what carries over is made against a turn

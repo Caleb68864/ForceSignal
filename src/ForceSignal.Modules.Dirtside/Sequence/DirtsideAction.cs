@@ -36,6 +36,12 @@ public enum DirtsideAction
 
     /// <summary>Sit this one out, for the rest of the turn.</summary>
     Nothing = 5,
+
+    /// <summary>
+    /// Try to get a Systems Down marker off. A combat action, because an element whose systems are
+    /// down has nothing else to spend one on.
+    /// </summary>
+    RecoverSystems = 6,
 }
 
 /// <summary>Which of the actions are combat actions, and which of those name a weapon.</summary>

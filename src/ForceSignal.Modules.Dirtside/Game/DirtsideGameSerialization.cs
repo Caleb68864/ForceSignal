@@ -46,6 +46,7 @@ public static class DirtsideGameSerialization
                     entry.Value,
                     [.. entry.Value.Elements.Select(element => new SavedElement(element.Key.Value, element.Value))]))],
                 game.Session,
+                game.Assault,
                 game.Log),
             Options);
     }
@@ -82,6 +83,7 @@ public static class DirtsideGameSerialization
             // Taken as saved rather than rebuilt from the roster: a game put down mid-activation has
             // a frame stack, and rebuilding the session would throw the open activation away.
             Session = read.Session ?? new GroundCombatSession(),
+            Assault = read.Assault,
             Log = read.Log,
         };
     }
@@ -104,6 +106,7 @@ public static class DirtsideGameSerialization
         ImmutableArray<PlatoonDefinition> Units,
         ImmutableArray<SavedStatus> Statuses,
         GroundCombatSession? Session,
+        DirtsideAssault? Assault,
         ImmutableArray<string> Log);
 
     /// <summary>One platoon's status, with the platoon it belongs to alongside rather than as a key.</summary>

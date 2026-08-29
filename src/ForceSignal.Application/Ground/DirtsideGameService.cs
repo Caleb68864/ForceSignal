@@ -44,6 +44,24 @@ public interface IDirtsideGameService : IGroundGameService
     /// <summary>Fires one element's weapon at one designated element.</summary>
     DirtsideSnapshotDto Fire(Guid gameId, DirtsideFireRequest request);
 
+    /// <summary>Tries to get an element's Systems Down marker off.</summary>
+    DirtsideSnapshotDto RecoverSystems(Guid gameId, DirtsideRecoverSystemsRequest request);
+
+    /// <summary>Orders the activated platoon in against a position, and rolls its nerve to go.</summary>
+    DirtsideSnapshotDto LaunchAssault(Guid gameId, LaunchDirtsideAssaultRequest request);
+
+    /// <summary>Rolls the assaulted platoon's nerve to stand, or give up the position.</summary>
+    DirtsideSnapshotDto DefenderStands(Guid gameId, DirtsideAssaultStandRequest request);
+
+    /// <summary>Fights one round of the open assault.</summary>
+    DirtsideSnapshotDto FightAssaultRound(Guid gameId);
+
+    /// <summary>Takes the tests after a round: who, if anybody, has had enough.</summary>
+    DirtsideSnapshotDto ResolveAssaultAftermath(Guid gameId, DirtsideAssaultAftermathRequest request);
+
+    /// <summary>The winner's test to drive on through the position it has taken.</summary>
+    DirtsideSnapshotDto FollowThrough(Guid gameId, DirtsideFollowThroughRequest request);
+
     /// <summary>Closes the open activation.</summary>
     DirtsideSnapshotDto EndActivation(Guid gameId);
 
@@ -254,13 +272,54 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 GroundGameGuards.TruncateOptional(request.Weapon) ?? string.Empty,
                 new UnitId(request.TargetUnitId),
                 new ElementId(request.TargetElementId),
-                Band(request.MeasuredBand));
+                Band(request.MeasuredBand),
+                request.WillMoveOverHalf);
 
             var outcome = game.Fire(command, _dice, _pot);
             return outcome.IsAllowed
                 ? Store(gameId, outcome.Value!)
                 : throw new InvalidOperationException(outcome.Reason);
         }
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto RecoverSystems(Guid gameId, DirtsideRecoverSystemsRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.RecoverSystems(new ElementId(request.ElementId), _dice));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto LaunchAssault(Guid gameId, LaunchDirtsideAssaultRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var commitment = ToCommitment(request.ElementIds, request.ThreatLevel, request.Validity, request.HandToHandValidity);
+        return Command(gameId, game => game.LaunchAssault(new UnitId(request.TargetUnitId ?? string.Empty), commitment, _dice));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto DefenderStands(Guid gameId, DirtsideAssaultStandRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var commitment = ToCommitment(request.ElementIds, request.ThreatLevel, request.Validity, request.HandToHandValidity);
+        return Command(gameId, game => game.DefenderStands(commitment, _dice));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto FightAssaultRound(Guid gameId) => Command(gameId, game => game.FightAssaultRound(_pot));
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto ResolveAssaultAftermath(Guid gameId, DirtsideAssaultAftermathRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.ResolveAssaultAftermath(request.LightCasualtyThreat, request.HeavyCasualtyThreat, _dice));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto FollowThrough(Guid gameId, DirtsideFollowThroughRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.FollowThrough(request.ThreatLevel, _dice));
     }
 
     /// <inheritdoc />
@@ -357,6 +416,33 @@ public sealed class DirtsideGameService : IDirtsideGameService
         }
     }
 
+    /// <summary>
+    /// Reads what one side commits to an assault off the wire.
+    /// </summary>
+    /// <remarks>
+    /// The validity row is required rather than defaulted to ineffective, as a weapon card's missing
+    /// row is: a side that commits to an assault with no idea what its chits count has made a
+    /// mistake worth refusing, not a choice worth honouring.
+    /// </remarks>
+    private static AssaultCommitment ToCommitment(
+        IReadOnlyList<string>? elementIds,
+        int threatLevel,
+        DirtsideValidityDto? validity,
+        DirtsideValidityDto? handToHand)
+    {
+        GroundGameGuards.RequireAtMost(elementIds?.Count ?? 0, GroundGameGuards.MaxMembersPerUnit, "elements");
+        if (validity is null)
+        {
+            throw new InvalidOperationException("An assault has to say what its chits may count.");
+        }
+
+        return new AssaultCommitment(
+            [.. (elementIds ?? []).Select(id => new ElementId(GroundGameGuards.TruncateOptional(id) ?? string.Empty))],
+            ToValidity(validity),
+            handToHand is null ? null : ToValidity(handToHand),
+            threatLevel);
+    }
+
     /// <summary>Reads a platoon off the wire and onto the table.</summary>
     private static PlatoonDefinition ToDefinition(AddDirtsidePlatoonRequest request)
     {
@@ -370,8 +456,16 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 ? kind
                 : throw new InvalidOperationException($"'{request.Kind}' is not a unit kind."),
             request.IsCybertank,
-            [.. (request.Elements ?? []).Select(ToElement)]);
+            [.. (request.Elements ?? []).Select(ToElement)],
+            Die(request.QualityDie),
+            request.LeadershipValue);
     }
+
+    /// <summary>Reads the die off a command marker, or nothing when the card does not say.</summary>
+    private static QualityDie? Die(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? null
+        : Enum.TryParse<QualityDie>(name, ignoreCase: true, out var die) && Enum.IsDefined(die) ? die
+        : throw new InvalidOperationException($"'{name}' is not a quality die (D4, D6, D8, D10, D12).");
 
     private static ElementDefinition ToElement(DirtsideElementDto element)
     {
@@ -387,7 +481,10 @@ public sealed class DirtsideGameService : IDirtsideGameService
             element.Signature,
             element.ArmourValue,
             element.Movement,
-            [.. (element.Weapons ?? []).Select(ToWeapon)]);
+            [.. (element.Weapons ?? []).Select(ToWeapon)],
+            element.HasBackupSystems,
+            element.AssaultChits,
+            element.KillThreshold);
     }
 
     private static WeaponDefinition ToWeapon(DirtsideWeaponDto weapon)
@@ -471,10 +568,19 @@ public sealed class DirtsideGameService : IDirtsideGameService
             stillToChoose,
             endOutcome.IsAllowed,
             endOutcome.Reason,
+            game.Assault is { } assault ? ToAssaultState(assault) : null,
             [.. game.Units.Values.Select(platoon => ToPlatoonState(game, platoon, frame))],
             [.. game.Log],
             held.Version);
     }
+
+    private static DirtsideAssaultDto ToAssaultState(DirtsideAssault assault) => new(
+        assault.Attacker.Unit.Value,
+        assault.DefenderUnit.Value,
+        assault.Stage.ToString(),
+        assault.Round,
+        [.. assault.Attacker.Stands.Select(element => element.Value)],
+        assault.Defender is { } defender ? [.. defender.Stands.Select(element => element.Value)] : []);
 
     private static DirtsidePlatoonStateDto ToPlatoonState(
         DirtsideGame game,
@@ -506,10 +612,13 @@ public sealed class DirtsideGameService : IDirtsideGameService
             hasActivated,
             activation.IsAllowed,
             activation.Reason,
-            [.. platoon.Elements.Select(element => ToElementState(status, element, chosen, frameForThisUnit))]);
+            [.. platoon.Elements.Select(element => ToElementState(game, status, element, chosen, frameForThisUnit))],
+            platoon.Quality?.ToString(),
+            platoon.LeadershipValue);
     }
 
     private static DirtsideElementStateDto ToElementState(
+        DirtsideGame game,
         PlatoonStatus status,
         ElementDefinition element,
         ImmutableHashSet<ElementId> chosen,
@@ -524,19 +633,29 @@ public sealed class DirtsideGameService : IDirtsideGameService
         var hasActed = frame?.HasSpent(DirtsideSteps.Acted(element.Id)) == true;
         var hasStoodDown = frame?.HasSpent(DirtsideSteps.StoodDown(element.Id)) == true;
 
+        // Only asked of the platoon whose activation is open: for anybody else the answer is
+        // "nothing is activated", which is true and not what a screen wants beside every vehicle.
+        var recovery = frame is null ? "Nothing is activated." : game.WhyRecoverSystemsIsRefused(element.Id);
+
         return new DirtsideElementStateDto(
             element.Id.Value,
             element.Name,
             state.IsDestroyed,
             state.IsDamaged,
             state.IsSystemsDown,
+            state.IsImmobilised,
             state.MovedOverHalf,
             state.AreaDefenceSensorsLive,
             chosen.Contains(element.Id),
             hasMoved,
             hasActed,
             hasStoodDown,
-            [.. element.Weapons.Select(weapon => weapon.Name)]);
+            [.. element.Weapons.Select(weapon => weapon.Name)],
+            element.HasBackupSystems,
+            element.AssaultChits,
+            element.KillThreshold,
+            recovery is null,
+            recovery);
     }
 
     /// <summary>One game, the version it is on, the token that opens it, and when it was last touched.</summary>

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ForceSignal.Modules.GroundCombat.Sequence;
 
 namespace ForceSignal.Modules.Dirtside.Sequence;
@@ -42,6 +43,44 @@ public static class DirtsideTurn
         UnitId responder) =>
         GroundCombatSequence.DeclareReaction(
             session, responder, DirtsideActivationPolicy.AreaDefenceCost);
+
+    /// <summary>
+    /// Hands the activated unit a whole extra activation on the spot, for driving on through a
+    /// position it has just taken.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <returns>The session with the open frame's steps wiped.</returns>
+    /// <remarks>
+    /// <para>
+    /// The one thing in this game that gives a unit a second go without the transfer machinery, and
+    /// it is done without the transfer machinery: the frame stays open and its steps are wiped, so
+    /// every resource an element spent is unspent, because spending is read off the steps and
+    /// stored nowhere else. Closing the frame and opening another would mark the unit activated and
+    /// hand play over, which is exactly what a follow-through is not.
+    /// </para>
+    /// <para>
+    /// A frame that has been wiped also forgets which elements stood down. That is the rule rather
+    /// than a leak: a whole extra activation is one every element takes part in.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="session"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Nothing is activated.</exception>
+    public static GroundCombatSession FollowThrough(GroundCombatSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        if (session.CurrentFrame is not { Kind: FrameKind.Activation } frame)
+        {
+            throw new InvalidOperationException("Only an activated unit can follow through.");
+        }
+
+        return session with
+        {
+            FrameStack = session.FrameStack.SetItem(
+                session.FrameStack.Length - 1,
+                frame with { Steps = ImmutableArray<ActivationStep>.Empty }),
+        };
+    }
 
     /// <summary>
     /// Turns a unit's marker face-down for being close-assaulted.

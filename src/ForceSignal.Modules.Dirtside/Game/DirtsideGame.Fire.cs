@@ -20,13 +20,20 @@ namespace ForceSignal.Modules.Dirtside.Game;
 /// <param name="Target">The platoon being shot at.</param>
 /// <param name="TargetElement">The element designated, before any dice.</param>
 /// <param name="MeasuredBand">The band the tape says the shot falls in.</param>
+/// <param name="WillMoveOverHalf">
+/// True when the element has not moved yet and means to move more than half its movement after
+/// firing. The resolver's contract is "has moved, or will move": a shot fired first is penalised
+/// all the same, and this is how the firer says so. Declaring it commits the element - see
+/// <see cref="DirtsideGame.MoveElement"/>.
+/// </param>
 public sealed record FireCommand(
     UnitId Firer,
     ElementId Element,
     string Weapon,
     UnitId Target,
     ElementId TargetElement,
-    WeaponRangeBand MeasuredBand);
+    WeaponRangeBand MeasuredBand,
+    bool WillMoveOverHalf = false);
 
 public sealed partial record DirtsideGame
 {
@@ -119,7 +126,7 @@ public sealed partial record DirtsideGame
             new FiringElement(
                 firer.Id.ToString(),
                 firer.FireControl,
-                firerStatus.MovedOverHalf,
+                firerStatus.MovedOverHalf || command.WillMoveOverHalf,
                 firerStatus.IsDamaged),
             new WeaponMount(weapon.ChitCount, weapon.Validity, weapon.Barrels),
             new TargetElement(
@@ -189,7 +196,14 @@ public sealed partial record DirtsideGame
             return WithLog($"{firerName} declared a shot at {targetName} and never took it: {result.Reason}");
         }
 
-        var game = this;
+        // A shot that declared a move still to come is penalised now, and the declaration is kept on
+        // the element so the move it promised is the move it takes. Written before the damage, so a
+        // shot that never left the barrel still counts as fired on the move.
+        var game = command.WillMoveOverHalf
+            ? WithStatus(command.Firer, status => status.WithElement(
+                command.Element, element => element with { MovedOverHalf = true }))
+            : this;
+        var activation = CurrentActivationNumber;
         foreach (var damage in result.Damage)
         {
             // A shot can put the firer's own systems down, and one of the ways it does that is a
@@ -199,7 +213,7 @@ public sealed partial record DirtsideGame
             if (damage.FirerSystemsDown)
             {
                 game = game.WithStatus(command.Firer, status => status.WithElement(
-                    command.Element, element => element with { IsSystemsDown = true }));
+                    command.Element, element => SystemsDown(element, activation)));
             }
 
             if (damage.ShotNeverHappened)
@@ -209,16 +223,30 @@ public sealed partial record DirtsideGame
 
             game = game.WithStatus(command.Target, status => status.WithElement(
                 command.TargetElement,
-                element => element with
+                element => (damage.TargetSystemsDown ? SystemsDown(element, activation) : element) with
                 {
                     IsDestroyed = element.IsDestroyed || damage.TargetDestroyed,
                     IsDamaged = element.IsDamaged || damage.TargetDamaged,
-                    IsSystemsDown = element.IsSystemsDown || damage.TargetSystemsDown,
+                    IsImmobilised = element.IsImmobilised || damage.Immobilised,
                 }));
         }
 
-        return game.WithLog(Describe(firerName, targetName, result));
+        var onTheMove = command.WillMoveOverHalf ? " Fired on the move: it will cover over half its movement." : string.Empty;
+        return game.WithLog(Describe(firerName, targetName, result) + onTheMove);
     }
+
+    /// <summary>
+    /// Puts a Systems Down marker on an element, remembering the activation it went on.
+    /// </summary>
+    /// <remarks>
+    /// A marker already there keeps its own activation number. A second hit on a vehicle whose
+    /// systems are already down does not push its repairs back, because there is nothing left for
+    /// the second hit to knock out.
+    /// </remarks>
+    private static ElementStatus SystemsDown(ElementStatus element, int activation) =>
+        element.IsSystemsDown
+            ? element
+            : element with { IsSystemsDown = true, SystemsDownOnActivation = activation };
 
     /// <summary>The shot in words, with everything a table would want to read back.</summary>
     private static string Describe(string firerName, string targetName, ShotResult result)

@@ -97,6 +97,27 @@ public sealed class ApiDocumentationAndReadinessTests
     }
 
     [Fact]
+    public async Task DirtsideReadiness_NamesOnlyWhatIsStillUnreachable()
+    {
+        // The warning is a to-do list an operator reads before a game. Close assault and
+        // systems-down recovery reached the table, so it must stop naming them and keep naming what
+        // has not: opportunity fire, area-defence interception and indirect fire.
+        using var factory = CreateFactory("Development", new Dictionary<string, string?> { ["Features:Dirtside"] = "true" });
+        using var client = factory.CreateClient();
+
+        using var ready = await client.GetAsync("/ready");
+        ready.EnsureSuccessStatusCode();
+        var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
+        var warning = Assert.Single(
+            readyBody.GetProperty("warnings").EnumerateArray().Select(entry => entry.GetString() ?? string.Empty),
+            entry => entry.StartsWith("Dirtside ground combat is enabled", StringComparison.Ordinal));
+
+        Assert.Contains("close assault", warning[..warning.IndexOf(';', StringComparison.Ordinal)], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("systems-down recovery", warning, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("opportunity fire, area-defence interception and indirect fire are not yet reachable", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreateMatch_ReturnsJoinDetailsForHost()
     {
         using var factory = CreateFactory("Development");

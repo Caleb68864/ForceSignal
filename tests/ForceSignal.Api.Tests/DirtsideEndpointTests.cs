@@ -108,6 +108,100 @@ public sealed class DirtsideEndpointTests
     }
 
     [Fact]
+    public async Task AWholeAssaultCanBeFoughtOverHttp()
+    {
+        // The dice are real, so the assault is walked with whatever they give: a launch that goes
+        // in or does not, a defender that stands or does not. Each answer says which, and every
+        // route answers with a snapshot rather than a fault. What is asserted is the shape of each
+        // step and that the sequence refuses a step out of its turn.
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await TableWithTwoPlatoons(client);
+        await Post(client, $"/api/dirtside/games/{game}/turns", new { });
+        await Post(client, $"/api/dirtside/games/{game}/turns/current/first-activator", new ChooseDirtsideFirstActivatorRequest("blue", true));
+        await Post(client, $"/api/dirtside/games/{game}/activations", new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        // A round before a launch is out of sequence, and the refusal is a problem.
+        using var early = await client.PostAsJsonAsync($"/api/dirtside/games/{game}/assaults/round", new { });
+        Assert.Equal(HttpStatusCode.BadRequest, early.StatusCode);
+
+        var launched = await Post(client, $"/api/dirtside/games/{game}/assaults/launch",
+            new LaunchDirtsideAssaultRequest("bravo", ["alpha-1", "alpha-2"], 0, new DirtsideValidityDto("All", "FaceValue")));
+        Assert.True(Element(launched!, "alpha", "alpha-1").HasTakenCombatAction);
+        Assert.True(Element(launched!, "alpha", "alpha-2").HasTakenCombatAction);
+
+        if (launched!.Assault is null)
+        {
+            // The troops would not go. The combat action is spent, the log says so, and there is
+            // nothing more to fight.
+            Assert.Contains(launched.Log, entry => entry.Contains("would not go", StringComparison.Ordinal));
+            return;
+        }
+
+        Assert.Equal("AwaitingDefender", launched.Assault.Stage);
+        Assert.True(launched.Units.Single(unit => unit.Id == "bravo").HasActivated);
+
+        var stood = await Post(client, $"/api/dirtside/games/{game}/assaults/stand",
+            new DirtsideAssaultStandRequest(["bravo-1", "bravo-2"], 0, new DirtsideValidityDto("All", "FaceValue")));
+        Assert.NotNull(stood!.Assault);
+
+        if (stood.Assault.Stage == "AwaitingFollowThrough")
+        {
+            // The defender gave way. Its marker is worse for it, and the attacker may test to go on.
+            var through = await Post(client, $"/api/dirtside/games/{game}/assaults/follow-through", new DirtsideFollowThroughRequest(0));
+            Assert.Null(through!.Assault);
+            return;
+        }
+
+        Assert.Equal("AwaitingRound", stood.Assault.Stage);
+
+        var fought = await Post(client, $"/api/dirtside/games/{game}/assaults/round", new { });
+        Assert.Equal("AwaitingAftermath", fought!.Assault!.Stage);
+        Assert.Contains(fought.Log, entry => entry.Contains("Round 1", StringComparison.Ordinal));
+
+        var settled = await Post(client, $"/api/dirtside/games/{game}/assaults/aftermath", new DirtsideAssaultAftermathRequest(1, 3));
+        Assert.True(settled!.Assault is null || settled.Assault.Stage is "AwaitingRound" or "AwaitingFollowThrough");
+    }
+
+    [Fact]
+    public async Task RecoveringSystemsIsRefusedWhenNothingIsDown()
+    {
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await TableWithTwoPlatoons(client);
+        await Post(client, $"/api/dirtside/games/{game}/turns", new { });
+        await Post(client, $"/api/dirtside/games/{game}/turns/current/first-activator", new ChooseDirtsideFirstActivatorRequest("blue", true));
+        var activated = await Post(client, $"/api/dirtside/games/{game}/activations", new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        // The snapshot says the crew could not try, in the words the route refuses with.
+        var alphaOne = Element(activated!, "alpha", "alpha-1");
+        Assert.False(alphaOne.CanRecoverSystems);
+
+        using var response = await client.PostAsJsonAsync(
+            $"/api/dirtside/games/{game}/activations/current/recover-systems",
+            new DirtsideRecoverSystemsRequest("alpha-1"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(alphaOne.WhyItCannotRecoverSystems, problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task TheAssaultRoutesNeedTheToken()
+    {
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await Create(client);
+        client.DefaultRequestHeaders.Remove(TokenHeader);
+
+        foreach (var path in new[] { "assaults/launch", "assaults/stand", "assaults/round", "assaults/aftermath", "assaults/follow-through", "activations/current/recover-systems" })
+        {
+            using var response = await client.PostAsJsonAsync($"/api/dirtside/games/{game}/{path}", new { });
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task ARefusedCommandComesBackAsAProblem()
     {
         using var factory = CreateFactory(dirtside: true);
@@ -222,7 +316,10 @@ public sealed class DirtsideEndpointTests
     private static DirtsideElementStateDto Element(DirtsideSnapshotDto snapshot, string unit, string element) =>
         snapshot.Units.Single(u => u.Id == unit).Elements.Single(e => e.Id == element);
 
-    /// <summary>Two vehicles with a gun that can hurt anything at any range. Every number is invented.</summary>
+    /// <summary>
+    /// Two vehicles with a gun that can hurt anything at any range, a die and a leadership on the
+    /// command marker, and the two numbers an assault reads off each card. Every number is invented.
+    /// </summary>
     private static AddDirtsidePlatoonRequest Platoon(string id, string name, string side) => new(
         id,
         name,
@@ -231,9 +328,11 @@ public sealed class DirtsideEndpointTests
         IsCybertank: false,
         Elements:
         [
-            new DirtsideElementDto($"{id}-1", $"{name} One", "Basic", 3, 3, 12, [MainGun]),
-            new DirtsideElementDto($"{id}-2", $"{name} Two", "Basic", 3, 3, 12, [MainGun]),
-        ]);
+            new DirtsideElementDto($"{id}-1", $"{name} One", "Basic", 3, 3, 12, [MainGun], AssaultChits: 3, KillThreshold: 4),
+            new DirtsideElementDto($"{id}-2", $"{name} Two", "Basic", 3, 3, 12, [MainGun], AssaultChits: 3, KillThreshold: 4),
+        ],
+        QualityDie: "D8",
+        LeadershipValue: 2);
 
     private static DirtsideWeaponDto MainGun { get; } = new(
         "Main Gun",

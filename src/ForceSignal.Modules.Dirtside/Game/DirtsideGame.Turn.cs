@@ -1,4 +1,6 @@
+using ForceSignal.Modules.Dirtside.Combat;
 using ForceSignal.Modules.Dirtside.Sequence;
+using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
 
 namespace ForceSignal.Modules.Dirtside.Game;
@@ -62,13 +64,25 @@ public sealed partial record DirtsideGame
     /// <param name="overHalfItsMovement">True when the move covers more than half its movement.</param>
     /// <returns>The game with the move taken, or why it was refused.</returns>
     /// <remarks>
+    /// <para>
     /// How far it went is recorded because a shot from a vehicle that has moved over half its
     /// movement is a worse shot, and the element is the only thing that knows. The distance itself is
     /// the player's - measured with a tape at the table - so what is asked for is the answer, not the
     /// inches.
+    /// </para>
+    /// <para>
+    /// An element that fired first and did not declare a move over half may not now make one: the
+    /// shot was resolved unpenalised on that word. The other direction is left alone - an element
+    /// that declared the move and then goes short has only cost itself.
+    /// </para>
     /// </remarks>
     public GameOutcome<DirtsideGame> MoveElement(ElementId element, bool overHalfItsMovement)
     {
+        if (WhyMoveIsRefused(element, overHalfItsMovement) is { } reason)
+        {
+            return GameOutcome.Refused<DirtsideGame>(reason);
+        }
+
         var moved = TakeStep(DirtsideSteps.Move(element));
         if (!moved.IsAllowed)
         {
@@ -79,9 +93,43 @@ public sealed partial record DirtsideGame
         return GameOutcome.Allowed(
             moved.Value!
                 .WithStatus(unit, status => status.WithElement(
-                    element, current => current with { MovedOverHalf = overHalfItsMovement }))
+                    element, current => current with { MovedOverHalf = current.MovedOverHalf || overHalfItsMovement }))
                 .WithLog($"{Describe(unit, element)} moved{(overHalfItsMovement ? ", over half its movement" : string.Empty)}."));
     }
+
+    /// <summary>Whether an element could move now, and why not.</summary>
+    /// <param name="element">The element.</param>
+    /// <param name="overHalfItsMovement">True when the move would cover more than half its movement.</param>
+    /// <returns>The refusal in words, or null when the move may be made.</returns>
+    /// <remarks>
+    /// The game's own reasons come first - an immobilised vehicle, a shot already taken on the
+    /// promise of a short move - and the sequence layer's after them, in its words.
+    /// </remarks>
+    public string? WhyMoveIsRefused(ElementId element, bool overHalfItsMovement)
+    {
+        if (Session.CurrentFrame is { Kind: FrameKind.Activation } frame && Unit(frame.Unit).Element(element) is { } definition)
+        {
+            var status = Status(frame.Unit).Element(element);
+            if (status.IsImmobilised)
+            {
+                return $"{definition.Name} is immobilised and will never move again, though it may still fire.";
+            }
+
+            if (overHalfItsMovement && !status.MovedOverHalf && HasFired(frame, element))
+            {
+                return $"{definition.Name} fired without declaring a move over half its movement, and that shot was "
+                    + "resolved on its word. It may still move, but not that far.";
+            }
+        }
+
+        var check = GroundCombatSequence.CanTakeStep(Session, DirtsideSteps.Move(element), new DirtsideActivationPolicy(this));
+        return check.IsAllowed ? null : check.Reason;
+    }
+
+    /// <summary>True when this element has fired a weapon in the open frame.</summary>
+    private static bool HasFired(ActivationFrame frame, ElementId element) =>
+        !frame.Steps.IsDefaultOrEmpty
+        && frame.Steps.Any(step => step.Subject == element && DirtsideSteps.ActionOf(step) == DirtsideAction.DirectFire);
 
     /// <summary>Declares that an element is sitting this activation out.</summary>
     /// <param name="element">The element standing down.</param>
@@ -124,12 +172,106 @@ public sealed partial record DirtsideGame
                 .WithLog($"{Describe(platoon, element)} switched its area-defence sensors {(live ? "on" : "off")}."));
     }
 
+    /// <summary>
+    /// Tries to get an element's Systems Down marker off.
+    /// </summary>
+    /// <param name="element">The element whose crew are trying.</param>
+    /// <param name="dice">Where the die result comes from.</param>
+    /// <returns>The game with the attempt made, or why it could not be.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="dice"/> is null.</exception>
+    /// <remarks>
+    /// Refused, not rolled and failed, on the activation the marker went on - the resolver says
+    /// why, and refusing before the step is taken means the combat action is not spent on a roll
+    /// that was never allowed. A failure costs the combat action and nothing else, so the same
+    /// vehicle may try again every activation for as long as the game lasts.
+    /// </remarks>
+    public GameOutcome<DirtsideGame> RecoverSystems(ElementId element, IQualityDiceRoller dice)
+    {
+        ArgumentNullException.ThrowIfNull(dice);
+
+        if (WhyRecoverSystemsIsRefused(element) is { } reason)
+        {
+            return GameOutcome.Refused<DirtsideGame>(reason);
+        }
+
+        var unit = Session.CurrentFrame!.Unit;
+        var stepped = TakeStep(DirtsideSteps.Act(DirtsideAction.RecoverSystems, element));
+        if (!stepped.IsAllowed)
+        {
+            return stepped;
+        }
+
+        var status = Status(unit).Element(element);
+        var attempt = SystemsDownRecovery.Attempt(
+            status.SystemsDownOnActivation ?? 0,
+            CurrentActivationNumber,
+            dice,
+            Unit(unit).Element(element)!.HasBackupSystems);
+
+        var name = Describe(unit, element);
+        if (!attempt.Cleared)
+        {
+            return GameOutcome.Allowed(stepped.Value!.WithLog(
+                $"{name}'s crew worked on the systems: rolled {attempt.Roll}, needed {attempt.Required}. Still down."));
+        }
+
+        return GameOutcome.Allowed(stepped.Value!
+            .WithStatus(unit, platoon => platoon.WithElement(
+                element, current => current with { IsSystemsDown = false, SystemsDownOnActivation = null }))
+            .WithLog($"{name}'s crew worked on the systems: rolled {attempt.Roll}, needed {attempt.Required}. Systems back up."));
+    }
+
+    /// <summary>Whether an element could try to recover its systems now, and why not.</summary>
+    /// <param name="element">The element.</param>
+    /// <returns>The refusal in words, or null when the crew may try.</returns>
+    public string? WhyRecoverSystemsIsRefused(ElementId element)
+    {
+        if (Session.CurrentFrame is not { Kind: FrameKind.Activation } frame)
+        {
+            return "Nothing is activated.";
+        }
+
+        var platoon = Unit(frame.Unit);
+        if (platoon.Element(element) is not { } definition)
+        {
+            return $"{platoon.Name} has no element called '{element}'.";
+        }
+
+        var status = Status(frame.Unit).Element(element);
+        if (status.IsDestroyed)
+        {
+            return $"{definition.Name} is out of the battle.";
+        }
+
+        if (!status.IsSystemsDown)
+        {
+            return $"{definition.Name}'s systems are not down.";
+        }
+
+        if (!SystemsDownRecovery.CanAttempt(status.SystemsDownOnActivation ?? 0, CurrentActivationNumber))
+        {
+            return "Repairs cannot start until an activation after the one the damage happened on.";
+        }
+
+        var check = GroundCombatSequence.CanTakeStep(
+            Session, DirtsideSteps.Act(DirtsideAction.RecoverSystems, element), new DirtsideActivationPolicy(this));
+        return check.IsAllowed ? null : check.Reason;
+    }
+
     /// <summary>Closes the open activation.</summary>
     /// <returns>The game with the activation closed, or why it could not be.</returns>
     /// <remarks>
+    /// <para>
     /// Refused while any element still on the table has not said what it is doing, and the refusal
     /// names them - a player told only that the activation is incomplete has to guess who everybody
     /// is waiting on.
+    /// </para>
+    /// <para>
+    /// Refused too while an assault is part-way through, because the tests it owes are owed by both
+    /// sides and closing the frame would leave the defender's marker turned for nothing. The one
+    /// stage that may be walked away from is the follow-through: the position is already taken, and
+    /// declining to test for a second go is a choice, not an unfinished fight.
+    /// </para>
     /// </remarks>
     public GameOutcome<DirtsideGame> EndActivation()
     {
@@ -143,9 +285,22 @@ public sealed partial record DirtsideGame
                 + "gives up its go for the turn, so it has to say so.");
         }
 
-        return Apply(
-            GroundCombatSequence.CanEndFrame(Session, policy),
-            () => GroundCombatSequence.EndFrame(Session, policy));
+        if (Assault is { Stage: not AssaultStage.AwaitingFollowThrough } open)
+        {
+            return GameOutcome.Refused<DirtsideGame>(
+                $"{Unit(open.Attacker.Unit).Name} is in the middle of an assault on {Unit(open.DefenderUnit).Name}. Fight it out first.");
+        }
+
+        var closing = this;
+        if (Assault is { } taken)
+        {
+            closing = (this with { Assault = null })
+                .WithLog($"{Unit(taken.Attacker.Unit).Name} consolidated on the position rather than test to drive on through.");
+        }
+
+        return closing.Apply(
+            GroundCombatSequence.CanEndFrame(closing.Session, policy),
+            () => GroundCombatSequence.EndFrame(closing.Session, policy));
     }
 
     /// <summary>Declines to activate anything.</summary>
@@ -182,6 +337,17 @@ public sealed partial record DirtsideGame
 
         return GameOutcome.Allowed(cleared);
     }
+
+    /// <summary>
+    /// The number of the activation under way, for a marker to remember which one it went on.
+    /// </summary>
+    /// <remarks>
+    /// The open frame's identity, which the session mints from one counter that never resets, so a
+    /// later activation always has a larger number - across turns as well as within one. Zero when
+    /// nothing is activated, which cannot happen for a marker placed by a shot but is the honest
+    /// answer for one restored from a save that predates the number.
+    /// </remarks>
+    private int CurrentActivationNumber => Session.CurrentFrame?.Id.Value ?? 0;
 
     /// <summary>An element in words, for the log.</summary>
     private string Describe(UnitId unit, ElementId element) =>

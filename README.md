@@ -102,6 +102,8 @@ Behind a reverse proxy or ingress, set `Proxy__TrustForwardedHeaders=true` on th
 
 The ground-combat engines (`Features__StarGrunt`, `Features__Dirtside`) hand back a `token` when a game is created; every other route for that game requires it in the `X-Game-Token` header.
 
+Dirtside plays direct fire, close assault and systems-down recovery over the wire. An assault is five routes under `/api/dirtside/games/{gameId}/assaults/` - `launch`, `stand`, `round`, `aftermath`, `follow-through` - taken in the order the rules give, and `/activations/current/recover-systems` is the crew's attempt to get a Systems Down marker off. Every threat level, chit validity, chit count and kill threshold those routes read is the player's, off their own record card; the API refuses a platoon whose card does not say rather than filling a number in.
+
 Readiness reports `persistence` as `sqlite` or `in-memory`, and warns when matches would be lost on a restart. The warning is the only thing telling an operator their game is not being written down, so it is reported in every environment.
 
 Smoke test a running stack:
