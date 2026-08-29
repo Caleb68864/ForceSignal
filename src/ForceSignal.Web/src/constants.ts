@@ -20,6 +20,10 @@ export const displayNameKey = 'forcesignal.display-name';
 // started it. Without these a refresh lost the whole game.
 export const starGruntGameKey = 'forcesignal.stargrunt-game';
 export const dirtsideGameKey = 'forcesignal.dirtside-game';
+// Where the device was when it last rendered. A refresh used to land every device on Full Thrust /
+// Ships, and a ground game was only reachable by clicking back into its engine.
+export const gameModeKey = 'forcesignal.game-mode';
+export const activeViewKey = 'forcesignal.active-view';
 export const defaultShipForm: ShipForm = {
   fleetName: 'Patrol Group',
   faction: 'Custom',

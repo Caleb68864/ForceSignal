@@ -10,7 +10,7 @@ import { normalizeMatchSnapshot } from './lib/normalize.ts';
 import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
 import { fleetExportToCsv, normalizeSavedFleets, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
 import { clampDraftForShip, createDraftOrder, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, resetOrderDraft, toOrder, totalTurnSteps, turnManeuversForDraft, turnPatchFromManeuvers, usableThrust } from './lib/movement.ts';
-import { defaultShipForm, displayNameKey, draftsKey, fleetLibraryKey, officialRulesUrl, sessionKey, snapshotBackupKey } from './constants.ts';
+import { activeViewKey, defaultShipForm, displayNameKey, draftsKey, fleetLibraryKey, gameModeKey, officialRulesUrl, sessionKey, snapshotBackupKey } from './constants.ts';
 import { downloadText, formatLogTime, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
 import {
   ApiRequestError,
@@ -23,13 +23,14 @@ import {
   writeStorage,
 } from './lib/api.ts';
 import { exportLastDeviceBackup } from './lib/backup.ts';
-import { normalizeSession } from './lib/normalize.ts';
+import { normalizeBattleView, normalizeGameMode, normalizeSession } from './lib/normalize.ts';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { RoomCode } from './components/RoomCode.tsx';
 import { StarGruntView } from './components/ground/StarGruntView.tsx';
 import { DirtsideView } from './components/ground/DirtsideView.tsx';
 import { readFeatures } from './lib/starGruntApi.ts';
 import type {
+  BattleView,
   DamageState,
   DraftOrder,
   RulesProfile,
@@ -37,6 +38,7 @@ import type {
   FiringDraft,
   FiringSolution as FiringSolutionType,
   FleetExport,
+  GameMode,
   MatchIdentity,
   MatchRestored,
   MatchSeat,
@@ -65,13 +67,14 @@ function App() {
   const [tableForm, setTableForm] = useState({ width: 72, depth: 48 });
   const [editingShipId, setEditingShipId] = useState<string | null>(null);
   const [activeFleetId, setActiveFleetId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'ships' | 'map' | 'log'>('ships');
+  const [activeView, setActiveView] = useState<BattleView>(() => readStored(activeViewKey, normalizeBattleView) ?? 'ships');
   const [mapFocusShipId, setMapFocusShipId] = useState<string | null>(null);
   const [shipCardMode, setShipCardMode] = useState<'helm' | 'fire' | 'damage'>('helm');
   const [publicMode, setPublicMode] = useState(false);
   // Which game this device is running. StarGrunt is a separate game rather than a view of a match -
   // no room code, no seats - so it is a mode, not a tab. Offered only when the server has it on.
-  const [gameMode, setGameMode] = useState<'fullthrust' | 'stargrunt' | 'dirtside'>('fullthrust');
+  // Read back from storage so a refresh mid-game lands on the same engine.
+  const [gameMode, setGameMode] = useState<GameMode>(() => readStored(gameModeKey, normalizeGameMode) ?? 'fullthrust');
   const [features, setFeatures] = useState<FeatureFlags>({ starGrunt: false, dirtside: false });
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   const [message, setMessage] = useState('Ready.');
@@ -166,13 +169,27 @@ function App() {
     // A server with the engine off has no StarGrunt routes at all, so this is the only way to know
     // whether to offer it. A failure means no optional engines, which is the safe answer.
     readFeatures()
-      .then(setFeatures)
+      .then((flags) => {
+        setFeatures(flags);
+        // A stored ground mode whose engine this server has switched off would render a screen
+        // with no way back, because the toggle that leaves it is only offered with the flag.
+        setGameMode((current) =>
+          (current === 'stargrunt' && !flags.starGrunt) || (current === 'dirtside' && !flags.dirtside)
+            ? 'fullthrust'
+            : current);
+      })
       .catch(() => setFeatures({ starGrunt: false, dirtside: false }));
   }, []);
 
   useEffect(() => {
     writeStorage(displayNameKey, displayName);
   }, [displayName]);
+  useEffect(() => {
+    writeStorage(gameModeKey, gameMode);
+  }, [gameMode]);
+  useEffect(() => {
+    writeStorage(activeViewKey, activeView);
+  }, [activeView]);
 
   // The drafts hold the salts that make a locked order revealable, so this is the one write in the
   // app that must not be quietly lost. It is also written first, before the much larger snapshot
@@ -1175,12 +1192,18 @@ function App() {
           <p>Space fleet tabletop companion for synchronized orders and battle records.</p>
         </div>
         <div className="topbar-status">
+          {/* The phase and the link chip describe the Full Thrust match; under a ground engine they
+              would be describing a screen that is not showing. */}
           <strong>
-            {snapshot
-              ? `${formatPhase(snapshot.phase)} · Turn ${snapshot.turnNumber}${snapshot.tableWidth ? ` · ${snapshot.tableWidth}x${snapshot.tableDepth}` : ''}`
-              : 'No match'}
+            {gameMode === 'stargrunt'
+              ? 'StarGrunt II'
+              : gameMode === 'dirtside'
+                ? 'Dirtside II'
+                : snapshot
+                  ? `${formatPhase(snapshot.phase)} · Turn ${snapshot.turnNumber}${snapshot.tableWidth ? ` · ${snapshot.tableWidth}x${snapshot.tableDepth}` : ''}`
+                  : 'No match'}
           </strong>
-          {session ? (
+          {session && gameMode === 'fullthrust' ? (
             <span className={`link-state ${connectionState}`} title={`Realtime link ${connectionState}`}>
               {connectionState === 'live' ? 'Link live' : connectionState === 'reconnecting' ? 'Reconnecting' : 'Link lost'}
             </span>
@@ -1254,7 +1277,7 @@ function App() {
           ))}
           <button className="ghost" type="button" onClick={() => setPendingRestore(null)}>Cancel</button>
         </section>
-      ) : gameMode === 'stargrunt' ? null : !session ? (
+      ) : gameMode !== 'fullthrust' ? null : !session ? (
         <section className="panel auth-grid" aria-label="Create or join match">
           <label>
             Display name

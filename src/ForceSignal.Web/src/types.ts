@@ -415,6 +415,10 @@ export type StarGruntSnapshot = {
  * covers both sides, because these are hot-seat screens on a single device.
  */
 export type GameHandle = { gameId: string; token: string };
+// Which game a device is running, and which tab of the Full Thrust workspace it is on. Both are
+// kept in storage so a refresh lands back where the player was.
+export type GameMode = 'fullthrust' | 'stargrunt' | 'dirtside';
+export type BattleView = 'ships' | 'map' | 'log';
 export type StarGruntGameCreated = GameHandle & { snapshot: StarGruntSnapshot };
 export type FeatureFlags = { starGrunt: boolean; dirtside: boolean };
 /** A force as it is written to a file, so it survives the game it was built for. */

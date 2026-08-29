@@ -12,7 +12,7 @@ import { newId } from './api.ts';
 import { numberFrom, stringFrom, wholeNumberFrom } from './format.ts';
 import { wrapCourse } from './geometry.ts';
 import { newWeaponMount } from './weapons.ts';
-import type { FighterStatus, FiringArc, GameHandle, MatchSnapshot, OrdnanceMarker, Session, ShipIconKey, WeaponKind, WeaponMount } from '../types.ts';
+import type { BattleView, FighterStatus, FiringArc, GameHandle, GameMode, MatchSnapshot, OrdnanceMarker, Session, ShipIconKey, WeaponKind, WeaponMount } from '../types.ts';
 
 /**
  * A session out of this device's storage. Anything short of four non-empty strings is not one: a
@@ -227,4 +227,15 @@ export function normalizeFleetColor(value: unknown) {
   }
 
   return /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim() : '#47f1ff';
+}
+
+const gameModes: GameMode[] = ['fullthrust', 'stargrunt', 'dirtside'];
+const battleViews: BattleView[] = ['ships', 'map', 'log'];
+/** The game mode a device stored, if it is one this build knows. */
+export function normalizeGameMode(value: unknown): GameMode | null {
+  return gameModes.find((mode) => mode === value) ?? null;
+}
+/** The workspace tab a device stored, if it is one this build knows. */
+export function normalizeBattleView(value: unknown): BattleView | null {
+  return battleViews.find((view) => view === value) ?? null;
 }

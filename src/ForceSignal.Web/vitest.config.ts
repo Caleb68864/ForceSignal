@@ -2,9 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // Every test here is a pure lib test. A DOM environment is a dependency this suite does not
-    // yet need; add jsdom with the first component test.
+    // Lib tests are pure and run in node, which is the fast default. A component test opts into
+    // jsdom with a `@vitest-environment jsdom` docblock at the top of its file; the environment is
+    // per file, so the DOM is only paid for where a render happens.
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 });

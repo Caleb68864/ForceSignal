@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expandLegacyArc, normalizeArcs, normalizeFleetColor, normalizeGameHandle, normalizeSession, normalizeShipIconKey } from './normalize.ts';
+import { expandLegacyArc, normalizeArcs, normalizeBattleView, normalizeFleetColor, normalizeGameHandle, normalizeGameMode, normalizeSession, normalizeShipIconKey } from './normalize.ts';
 
 /**
  * These take `unknown` on purpose: a snapshot comes off the wire and a fleet comes out of a file
@@ -95,5 +95,28 @@ describe('normalizeGameHandle', () => {
     expect(normalizeGameHandle({ gameId: 'g' })).toBeNull();
     expect(normalizeGameHandle({ gameId: '', token: 't' })).toBeNull();
     expect(normalizeGameHandle('g')).toBeNull();
+  });
+});
+
+// Both are read straight out of storage on mount and picked a screen. A value that is not one of
+// the known literals would have rendered nothing at all.
+describe('normalizeGameMode', () => {
+  it('accepts only the three engines', () => {
+    expect(normalizeGameMode('fullthrust')).toBe('fullthrust');
+    expect(normalizeGameMode('stargrunt')).toBe('stargrunt');
+    expect(normalizeGameMode('dirtside')).toBe('dirtside');
+    expect(normalizeGameMode('Dirtside')).toBeNull();
+    expect(normalizeGameMode({ mode: 'dirtside' })).toBeNull();
+    expect(normalizeGameMode(null)).toBeNull();
+  });
+});
+
+describe('normalizeBattleView', () => {
+  it('accepts only the three workspace tabs', () => {
+    expect(normalizeBattleView('ships')).toBe('ships');
+    expect(normalizeBattleView('map')).toBe('map');
+    expect(normalizeBattleView('log')).toBe('log');
+    expect(normalizeBattleView('fleet')).toBeNull();
+    expect(normalizeBattleView(1)).toBeNull();
   });
 });
