@@ -71,3 +71,19 @@ a player cannot reach - plus what the browser click-through turned up.
 
 `scripts/verify.ps1` green; the Dirtside screen plays an assault in a browser; a refresh returns
 to the same engine and view.
+
+## Outcome (2026-08-29)
+
+Delivered in six commits after this document: web mode fix, persistence and component tests
+(`ccc908c`); Dirtside assault, recovery, gaps 12-13 and the route extraction (`6842471`); the
+Dirtside fidelity audit (`1bf1b59`); the assault screen (`eaa1b07`); and a validation gap the
+end-to-end run found.
+
+- .NET: 1,289 tests (from 1,246); web: 132 tests (from 101); `verify.ps1` green.
+- Played end to end in a browser against a live API: a two-seat Full Thrust turn (setup, orders,
+  reveal, movement, firing, advance) with the second seat driven over HTTP, an API restart on
+  SQLite mid-match that the browser reconnected through with damage intact, a StarGrunt game
+  reopened after a reload, and a complete Dirtside close assault from launch to follow-through.
+- Found by the run: a rules-profile table row naming a face the die cannot show was accepted
+  silently, so every beam rolled for nothing. `Validate` and the client's `gapsIn` now say so.
+- Dirtside fidelity: 18 gaps recorded, 5 closed here (1, 2, 3, 12, 13), 10 open, 3 recorded.

@@ -44,6 +44,20 @@ export function gapsIn(profile: RulesProfile): string[] {
   if (profile.carrierTurnaroundRoll && profile.turnaround.length === 0) {
     gaps.push('Turnaround is rolled for but nothing says what the faces mean.');
   }
+  // A row for a face the die cannot show never matches, so the die scores nothing and the table
+  // just looks unlucky. Same check as the server, said while the numbers are still on screen.
+  if (profile.dieFaces >= 2) {
+    const offTheDie = (entry: { dieFace: number }) => entry.dieFace < 1 || entry.dieFace > profile.dieFaces;
+    if (profile.beamDamage.some(offTheDie)) {
+      gaps.push(`A beam damage entry names a face the ${profile.dieFaces}-sided die does not have.`);
+    }
+    if (profile.pointDefenseKills.some(offTheDie)) {
+      gaps.push(`A point defence entry names a face the ${profile.dieFaces}-sided die does not have.`);
+    }
+    if (profile.turnaround.some(offTheDie)) {
+      gaps.push(`A turnaround entry names a face the ${profile.dieFaces}-sided die does not have.`);
+    }
+  }
   return gaps;
 }
 

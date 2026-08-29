@@ -51,6 +51,30 @@ public sealed class RulesProfileTests
     public void AProfileWithNoBeamTableIsRefused() =>
         Assert.NotEmpty((Complete() with { BeamDamage = [] }).Validate());
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(9)]
+    [InlineData(-1)]
+    public void ABeamEntryNamingAFaceTheDieDoesNotHaveIsRefused(int face)
+    {
+        // A wrongly keyed import once produced a table of face-0 entries that the profile accepted
+        // without a word, so every beam rolled for nothing and nobody was told why. A face the die
+        // cannot show is a mistake in the table, not a choice.
+        var profile = Complete() with { BeamDamage = [.. Complete().BeamDamage, new BeamDamageEntry(face, 0, 1)] };
+
+        Assert.Contains(profile.Validate(), gap => gap.Contains("face", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void APointDefenceOrTurnaroundEntryOffTheDieIsRefused()
+    {
+        var pointDefence = Complete() with { PointDefenseKills = [new PointDefenseEntry(0, 1)] };
+        var turnaround = Complete() with { CarrierTurnaroundRoll = true, Turnaround = [new TurnaroundEntry(99, false, 1)] };
+
+        Assert.NotEmpty(pointDefence.Validate());
+        Assert.NotEmpty(turnaround.Validate());
+    }
+
     [Fact]
     public void AProfileWithASingleRowHullTrackIsRefused()
     {

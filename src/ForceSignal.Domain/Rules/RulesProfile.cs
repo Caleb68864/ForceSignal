@@ -236,6 +236,27 @@ public sealed record RulesProfile(
             gaps.Add("Turnaround is rolled for but nothing says what the faces mean.");
         }
 
+        // A table row for a face the die cannot show is a slip in the transcription, not a choice,
+        // and one that fails quietly: the row is never matched, so the die scores nothing and the
+        // table looks merely unlucky. Say so while the numbers are still on screen.
+        if (DieFaces >= 2)
+        {
+            if (!BeamDamage.IsDefaultOrEmpty && BeamDamage.Any(entry => entry.DieFace < 1 || entry.DieFace > DieFaces))
+            {
+                gaps.Add($"A beam damage entry names a face the {DieFaces}-sided die does not have.");
+            }
+
+            if (!PointDefenseKills.IsDefaultOrEmpty && PointDefenseKills.Any(entry => entry.DieFace < 1 || entry.DieFace > DieFaces))
+            {
+                gaps.Add($"A point defence entry names a face the {DieFaces}-sided die does not have.");
+            }
+
+            if (!Turnaround.IsDefaultOrEmpty && Turnaround.Any(entry => entry.DieFace < 1 || entry.DieFace > DieFaces))
+            {
+                gaps.Add($"A turnaround entry names a face the {DieFaces}-sided die does not have.");
+            }
+        }
+
         return gaps;
     }
 
