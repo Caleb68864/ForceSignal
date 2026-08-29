@@ -9,12 +9,14 @@
  * because that is how the game is played: with a tape measure and an eyeball.
  */
 
-import { useRef, useState } from 'react';
-import { ApiRequestError, newId } from '../../lib/api.ts';
+import { useEffect, useRef, useState } from 'react';
+import { starGruntGameKey } from '../../constants.ts';
+import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import { fromForceFile, toForceFile } from '../../lib/forceIo.ts';
-import { downloadText } from '../../lib/format.ts';
+import { downloadText, wholeNumberFrom } from '../../lib/format.ts';
+import { normalizeGameHandle } from '../../lib/normalize.ts';
 import * as api from '../../lib/starGruntApi.ts';
-import type { StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
+import type { GameHandle, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 
 const ladder = [4, 6, 8, 10, 12];
 const covers = ['None', 'Soft', 'Hard'];
@@ -55,9 +57,15 @@ type ShotForm = {
 };
 
 export function StarGruntView() {
+  // The game this device started, kept across a refresh. Read back on mount below.
+  const [handle, setHandle] = useState<GameHandle | null>(() => readStored(starGruntGameKey, normalizeGameHandle));
   const [snapshot, setSnapshot] = useState<StarGruntSnapshot | null>(null);
   const [message, setMessage] = useState('Start a game to begin.');
+  const [messageIsError, setMessageIsError] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The ref is what actually stops a double tap: two clicks in the same frame both read the old
+  // state, and `disabled={busy}` only takes effect after the re-render.
+  const busyRef = useRef(false);
   const [gameName, setGameName] = useState('Hill 43');
   const [unitForm, setUnitForm] = useState<UnitForm>({
     name: 'Alpha Squad',
@@ -101,36 +109,108 @@ export function StarGruntView() {
     inPosition: false,
   });
 
-  /** Runs a command and keeps whatever the server said about it. */
+  function say(text: string) {
+    setMessage(text);
+    setMessageIsError(false);
+  }
+
+  function fail(error: unknown) {
+    // A refusal is the server's sentence, shown as written rather than reworded here.
+    setMessage(error instanceof ApiRequestError ? error.message : 'That did not work.');
+    setMessageIsError(true);
+  }
+
+  /**
+   * Runs a command and keeps whatever the server said about it, refusing to start a second while
+   * the first is still going.
+   */
   async function run(work: () => Promise<StarGruntSnapshot>, note?: string) {
+    if (busyRef.current) {
+      return;
+    }
+
+    busyRef.current = true;
     setBusy(true);
     try {
       setSnapshot(await work());
       if (note) {
-        setMessage(note);
+        say(note);
       }
     } catch (error) {
-      // A refusal is the server's sentence, shown as written rather than reworded here.
-      setMessage(error instanceof ApiRequestError ? error.message : 'That did not work.');
+      fail(error);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
 
   async function start() {
+    if (busyRef.current) {
+      return;
+    }
+
+    busyRef.current = true;
     setBusy(true);
     try {
       const created = await api.createGame(gameName);
+      const next = { gameId: created.gameId, token: created.token };
+      writeStorage(starGruntGameKey, next);
+      setHandle(next);
       setSnapshot(created.snapshot);
-      setMessage(`Started ${created.snapshot.name}. Add a squad a side.`);
+      say(`Started ${created.snapshot.name}. Add a squad a side.`);
     } catch (error) {
-      setMessage(error instanceof ApiRequestError ? error.message : 'That did not work.');
+      fail(error);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
 
-  if (!snapshot) {
+  function leave() {
+    if (window.confirm('Leave this game on this device? It stays on the server, but this device will not find it again.')) {
+      localStorage.removeItem(starGruntGameKey);
+      setHandle(null);
+      setSnapshot(null);
+      say('Start a game to begin.');
+    }
+  }
+
+  // A stored game is reopened on mount. One the server no longer has, or no longer lets this
+  // device into, is forgotten rather than left to fail every action.
+  useEffect(() => {
+    if (!handle || snapshot) {
+      return;
+    }
+
+    let cancelled = false;
+    api.readGame(handle)
+      .then((next) => {
+        if (!cancelled) {
+          setSnapshot(next);
+          setMessage(`Reopened ${next.name}.`);
+          setMessageIsError(false);
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (error instanceof ApiRequestError && [401, 403, 404].includes(error.status)) {
+          localStorage.removeItem(starGruntGameKey);
+          setHandle(null);
+          setMessage('The game this device last played is no longer available. Start a new one.');
+        } else {
+          setMessage(error instanceof ApiRequestError ? error.message : 'That did not work.');
+        }
+        setMessageIsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [handle, snapshot]);
+
+  if (!handle || !snapshot) {
     return (
       <section className="stargrunt card-module" aria-label="StarGrunt setup">
         <span className="label module-title">StarGrunt II</span>
@@ -142,13 +222,16 @@ export function StarGruntView() {
           Game name
           <input value={gameName} onChange={(event) => setGameName(event.target.value)} />
         </label>
-        <button type="button" disabled={busy} onClick={start}>Start Game</button>
-        <p className="constraint-line">{message}</p>
+        <button type="button" disabled={busy || Boolean(handle)} onClick={start}>
+          {handle ? 'Reopening last game...' : 'Start Game'}
+        </button>
+        {handle ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
+        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
       </section>
     );
   }
 
-  const game = snapshot.gameId;
+  const game = handle;
   const activating = snapshot.units.find((unit) => unit.id === snapshot.activatingUnitId);
   const canPlay = snapshot.units.length >= 2 && snapshot.sides.length === 2;
   const targets = snapshot.units.filter((unit) => unit.id !== activating?.id && unit.figuresAlive > 0);
@@ -162,7 +245,7 @@ export function StarGruntView() {
           {snapshot.activeSide ? ` · ${snapshot.activeSide} to act` : ''}
           {snapshot.firstActivationChooser ? ` · ${snapshot.firstActivationChooser} chooses who goes first` : ''}
         </p>
-        <p className="constraint-line">{message}</p>
+        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         <div className="quick-actions">
           <button
             className="ghost"
@@ -202,6 +285,7 @@ export function StarGruntView() {
           >
             End Turn
           </button>
+          <button className="ghost" type="button" disabled={busy} onClick={leave}>Leave Game</button>
         </div>
       </div>
 
@@ -361,7 +445,7 @@ export function StarGruntView() {
                 min="1"
                 max="20"
                 value={assault.pairs}
-                onChange={(event) => setAssault((current) => ({ ...current, pairs: Number(event.target.value) }))}
+                onChange={(event) => setAssault((current) => ({ ...current, pairs: wholeNumberFrom(event.target.value, 1, 1, 20) }))}
               />
             </label>
             <label title="What the charge asks of the attackers, off your own table.">
@@ -371,7 +455,7 @@ export function StarGruntView() {
                 min="0"
                 max="9"
                 value={assault.threatLevel}
-                onChange={(event) => setAssault((current) => ({ ...current, threatLevel: Number(event.target.value) }))}
+                onChange={(event) => setAssault((current) => ({ ...current, threatLevel: wholeNumberFrom(event.target.value, 0, 0, 9) }))}
               />
             </label>
             <label title="Die types the attacker's close-combat weapon is worth, off your own table.">
@@ -381,7 +465,7 @@ export function StarGruntView() {
                 min="0"
                 max="4"
                 value={assault.attackerShift}
-                onChange={(event) => setAssault((current) => ({ ...current, attackerShift: Number(event.target.value) }))}
+                onChange={(event) => setAssault((current) => ({ ...current, attackerShift: wholeNumberFrom(event.target.value, 0, 0, 4) }))}
               />
             </label>
             <label title="Die types the defender's close-combat weapon is worth.">
@@ -391,7 +475,7 @@ export function StarGruntView() {
                 min="0"
                 max="4"
                 value={assault.defenderShift}
-                onChange={(event) => setAssault((current) => ({ ...current, defenderShift: Number(event.target.value) }))}
+                onChange={(event) => setAssault((current) => ({ ...current, defenderShift: wholeNumberFrom(event.target.value, 0, 0, 4) }))}
               />
             </label>
             <label title="Cover helps a defender in the first round only, once the attackers are in among them.">
@@ -458,7 +542,7 @@ export function StarGruntView() {
                 min="1"
                 max="20"
                 value={assault.downed}
-                onChange={(event) => setAssault((current) => ({ ...current, downed: Number(event.target.value) }))}
+                onChange={(event) => setAssault((current) => ({ ...current, downed: wholeNumberFrom(event.target.value, 1, 1, 20) }))}
               />
             </label>
             <label title="Rolls up to and including this are dead. Off your own table - this app has no suggestion.">
@@ -468,7 +552,7 @@ export function StarGruntView() {
                 min="1"
                 max="12"
                 value={assault.deadUpTo}
-                onChange={(event) => setAssault((current) => ({ ...current, deadUpTo: Number(event.target.value) }))}
+                onChange={(event) => setAssault((current) => ({ ...current, deadUpTo: wholeNumberFrom(event.target.value, 1, 1, 12) }))}
               />
             </label>
             <label title="Rolls above dead and up to this are wounded; anything higher is stunned.">
@@ -478,7 +562,7 @@ export function StarGruntView() {
                 min="1"
                 max="12"
                 value={assault.woundedUpTo}
-                onChange={(event) => setAssault((current) => ({ ...current, woundedUpTo: Number(event.target.value) }))}
+                onChange={(event) => setAssault((current) => ({ ...current, woundedUpTo: wholeNumberFrom(event.target.value, 1, 1, 12) }))}
               />
             </label>
             <label title="True when this unit's side holds the ground at the finish.">
@@ -580,7 +664,7 @@ export function StarGruntView() {
                   'application/json',
                   JSON.stringify(toForceFile(side, snapshot.units), null, 2),
                 );
-                setMessage(`Exported ${side}.`);
+                say(`Exported ${side}.`);
               }}
             >
               Export {side}
@@ -610,11 +694,10 @@ export function StarGruntView() {
               }
 
               setSnapshot(await api.readGame(game));
-              setMessage(`Imported ${force.units.length} unit(s) into ${side}.`);
+              say(`Imported ${force.units.length} unit(s) into ${side}.`);
             } catch (error) {
-              setMessage(error instanceof ApiRequestError || error instanceof Error
-                ? error.message
-                : 'That file could not be read.');
+              setMessage(error instanceof Error ? error.message : 'That file could not be read.');
+              setMessageIsError(true);
             }
           }}
         />
@@ -749,7 +832,7 @@ function FirePanel({
           type="number"
           min="1"
           value={shot.distanceInches}
-          onChange={(event) => onChange({ distanceInches: Number(event.target.value) })}
+          onChange={(event) => onChange({ distanceInches: wholeNumberFrom(event.target.value, 1, 1, 999) })}
         />
       </label>
       <label>
@@ -811,7 +894,7 @@ function AddUnitPanel({
           min="1"
           max="20"
           value={form.figures}
-          onChange={(event) => onChange({ figures: Number(event.target.value) })}
+          onChange={(event) => onChange({ figures: wholeNumberFrom(event.target.value, 1, 1, 20) })}
         />
       </label>
       <label>

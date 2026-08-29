@@ -7,9 +7,10 @@
  * PlayMap owns the viewport and the pointer handling; everything else here draws one layer.
  */
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ShipIcon } from '../../components/ShipCard.tsx';
 import { fighterMoveAllowance, fighterStatuses, firableArcs } from '../../constants.ts';
+import { wholeNumberFrom } from '../../lib/format.ts';
 import { courseAngle, distanceBetweenShips, mapPercent, rangeDiameterPercent, weaponArcAngle } from '../../lib/geometry.ts';
 import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance, tablePointFromClient, trailPointsForResult, viewportZoomedAt } from '../../lib/mapGeometry.ts';
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
@@ -30,6 +31,7 @@ export function PlayMap({
   onFocus,
   onDraftChange,
   onFiringDraftChange,
+  busy,
   onFighterOps,
   onCreateOrdnance,
   onUpdateOrdnance,
@@ -50,15 +52,18 @@ export function PlayMap({
   onFocus: (shipId: string | null) => void;
   onDraftChange: (ship: Ship, patch: Partial<DraftOrder>) => void;
   onFiringDraftChange: (ship: Ship, draft: FiringDraft) => void;
+  // True while any game-changing action is in flight. Every mutation below is dispatched through
+  // the owner's guard, which drops a second call; this is what greys the buttons out meanwhile.
+  busy: boolean;
   onFighterOps: (ship: Ship, patch: Partial<Pick<Ship, 'fighterStatus' | 'fighterEnduranceUsed' | 'fighterEnduranceMax' | 'fighterMaxRange' | 'homeCarrierShipId'>>) => void;
   onCreateOrdnance: (ship: Ship, patch: Partial<OrdnanceMarker>) => void;
   onUpdateOrdnance: (marker: OrdnanceMarker, patch: Partial<OrdnanceMarker>) => void;
   onRemoveOrdnance: (marker: OrdnanceMarker) => void;
   onPreviewOrder: (ship: Ship, draft: DraftOrder) => Promise<OrderPreview>;
   onFiringSolution: (ship: Ship, targetShipId?: string, weaponId?: string, range?: number) => Promise<FiringSolution>;
-  onFire: (ship: Ship, draft: FiringDraft) => Promise<void>;
-  onCeaseFire: (ship: Ship) => Promise<void>;
-  onFlyFighters: (ship: Ship, x: number, y: number) => Promise<void>;
+  onFire: (ship: Ship, draft: FiringDraft) => void;
+  onCeaseFire: (ship: Ship) => void;
+  onFlyFighters: (ship: Ship, x: number, y: number) => void;
 }) {
   const selectedShip = snapshot.ships.find((ship) => ship.id === focusedShipId)
     ?? snapshot.ships.find((ship) => ownedShipIds.has(ship.id) && !ship.isDestroyed)
@@ -112,7 +117,7 @@ export function PlayMap({
       .slice(0, 4)
     : [];
 
-  const inspectorModeAllowed = (mode: 'status' | 'helm' | 'fire' | 'ops') => {
+  const inspectorModeAllowed = useCallback((mode: 'status' | 'helm' | 'fire' | 'ops') => {
     if (!selectedShip || mode === 'status') {
       return true;
     }
@@ -126,7 +131,7 @@ export function PlayMap({
     }
 
     return ownedShipIds.has(selectedShip.id) && (selectedIsFighterGroup || selectedIsCarrier);
-  };
+  }, [selectedShip, selectedCanPlot, ownedShipIds, selectedIsFighterGroup, selectedIsCarrier]);
 
   // Selecting a different contact must not leave a tool panel open that the new
   // selection is not entitled to (e.g. carrier ops on an opponent hull).
@@ -134,7 +139,7 @@ export function PlayMap({
     if (!inspectorModeAllowed(inspectorMode)) {
       setInspectorMode('status');
     }
-  }, [selectedShip?.id, inspectorMode, selectedCanPlot, selectedIsFighterGroup, selectedIsCarrier]);
+  }, [inspectorMode, inspectorModeAllowed]);
 
   useEffect(() => {
     const element = tableRef.current;
@@ -265,8 +270,6 @@ export function PlayMap({
   useEffect(() => () => {
     clearLongPress();
     clearMarkerLongPress();
-    // The cleanup runs once, on unmount; the two clear functions close over refs rather than state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function measureFromClientPoint(clientX: number, clientY: number, startNew: boolean) {
@@ -320,7 +323,7 @@ export function PlayMap({
         return false;
       }
 
-      onFlyFighters(shipToPlot, point.x, point.y).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)));
+      onFlyFighters(shipToPlot, point.x, point.y);
       onFocus(shipToPlot.id);
       return true;
     }
@@ -670,10 +673,9 @@ export function PlayMap({
                   '--fleet-color': fleetColor,
                 } as CSSProperties}
                 title={`${ship.name} ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)} V${ship.currentVelocity} C${ship.currentCourse}`}
-                onPointerEnter={() => {
-                  setHoveredShipId(ship.id);
-                  setMapNotice(`${ship.name}: V${ship.currentVelocity} C${ship.currentCourse} hull ${ship.hullDamage}/${ship.hullMax}`);
-                }}
+                // Hovering shows the contact card, which is not a live region. Writing the readout
+                // into the notice line narrated every marker the pointer crossed to a screen reader.
+                onPointerEnter={() => setHoveredShipId(ship.id)}
                 onPointerLeave={() => setHoveredShipId((current) => (current === ship.id ? null : current))}
                 onPointerDown={(event) => {
                   event.preventDefault();
@@ -760,10 +762,14 @@ export function PlayMap({
                 }}
                 // Keyboard focus alone must not change which contact is selected: tabbing across
                 // the map to reach a ship would otherwise reassign the selection to every marker it
-                // passed on the way, and the firing console reads that selection. Selecting is what
-                // Enter, Space and a tap are for.
+                // passed on the way, and the firing console reads that selection. Space and a tap
+                // select; Enter is the keyboard's right-click, so on an opposing contact it also
+                // hands that contact to the selected ship as a target.
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    markerActionsFor(ship, isOwned);
+                  } else if (event.key === ' ') {
                     event.preventDefault();
                     onFocus(ship.id);
                   }
@@ -850,18 +856,21 @@ export function PlayMap({
                 phase={phase}
                 firingResults={snapshot.firingResults}
                 onChange={(patch) => updateMapFiringDraft(selectedShip, patch)}
-                onFire={() => onFire(selectedShip, selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds)).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
+                busy={busy}
+                onFire={() => onFire(selectedShip, selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds))}
                 volleyOpen={snapshot.firingShipId === selectedShip.id}
                 snapshotVersion={snapshot.version}
                 onFiringSolution={onFiringSolution}
                 canEndFire={Boolean(ownerParticipantId) && snapshot.firingParticipantId === ownerParticipantId && !(snapshot.activatedShipIds ?? []).includes(selectedShip.id)}
-                onCeaseFire={() => onCeaseFire(selectedShip).catch((error) => setMapNotice(error instanceof Error ? error.message : String(error)))}
+                onCeaseFire={() => onCeaseFire(selectedShip)}
               />
             ) : null}
             {inspectorMode === 'fire' && selectedShip && ownedShipIds.has(selectedShip.id) ? (
               <OrdnanceLaunchPanel
+                key={selectedShip.id}
                 ship={selectedShip}
                 targets={snapshot.ships.filter((ship) => ship.id !== selectedShip.id && !ship.isDestroyed)}
+                busy={busy}
                 onLaunch={(patch) => onCreateOrdnance(selectedShip, patch)}
               />
             ) : null}
@@ -869,6 +878,7 @@ export function PlayMap({
               <FighterOpsPanel
                 ship={selectedShip}
                 carriers={snapshot.ships.filter((ship) => ship.id !== selectedShip.id && normalizeShipIconKey(ship.iconKey, ship.className) === 'carrier')}
+                busy={busy}
                 onChange={(patch) => onFighterOps(selectedShip, patch)}
               />
             ) : null}
@@ -881,7 +891,7 @@ export function PlayMap({
             {inspectorMode === 'fire' && ordnanceMarkers.length > 0 ? (
               <OrdnanceMarkerList
                 markers={ordnanceMarkers}
-                canEdit={(marker) => Boolean(ownerParticipantId) && marker.ownerParticipantId === ownerParticipantId}
+                canEdit={(marker) => !busy && Boolean(ownerParticipantId) && marker.ownerParticipantId === ownerParticipantId}
                 onUpdate={onUpdateOrdnance}
                 onRemove={onRemoveOrdnance}
               />
@@ -1059,10 +1069,12 @@ function FighterRangeOverlay({ ship, ships, tableWidth, tableDepth }: { ship: Sh
 function FighterOpsPanel({
   ship,
   carriers,
+  busy,
   onChange,
 }: {
   ship: Ship;
   carriers: Ship[];
+  busy: boolean;
   onChange: (patch: Partial<Pick<Ship, 'fighterStatus' | 'fighterEnduranceUsed' | 'fighterEnduranceMax' | 'fighterMaxRange' | 'homeCarrierShipId'>>) => void;
 }) {
   const enduranceRemaining = Math.max(0, ship.fighterEnduranceMax - ship.fighterEnduranceUsed);
@@ -1071,34 +1083,82 @@ function FighterOpsPanel({
       <span className="label">Fighter ops · {ship.fighterStatus} · {enduranceRemaining} turns left</span>
       <label>
         Status
-        <select value={ship.fighterStatus} onChange={(event) => onChange({ fighterStatus: event.target.value as FighterStatus })}>
+        <select disabled={busy} value={ship.fighterStatus} onChange={(event) => onChange({ fighterStatus: event.target.value as FighterStatus })}>
           {fighterStatuses.map((status) => <option key={status}>{status}</option>)}
         </select>
       </label>
       <label>
         Home carrier
-        <select value={ship.homeCarrierShipId ?? ''} onChange={(event) => onChange({ homeCarrierShipId: event.target.value || null })}>
+        <select disabled={busy} value={ship.homeCarrierShipId ?? ''} onChange={(event) => onChange({ homeCarrierShipId: event.target.value || null })}>
           <option value="">Unassigned</option>
           {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}</option>)}
         </select>
       </label>
+      {/* Each of these is a network write, so they commit when editing finishes rather than
+          on every keystroke: typing 14 into Used sent a 1 and then a 14, with the server's echo
+          of the 1 landing in the box mid-edit. */}
       <label>
         Used
-        <input type="number" min="0" max={ship.fighterEnduranceMax || 24} value={ship.fighterEnduranceUsed} onChange={(event) => onChange({ fighterEnduranceUsed: Number(event.target.value) })} />
+        <CommittedNumber min={0} max={ship.fighterEnduranceMax || 24} value={ship.fighterEnduranceUsed} disabled={busy} onCommit={(value) => onChange({ fighterEnduranceUsed: value })} />
       </label>
       <label>
         Max
-        <input type="number" min="1" max="24" value={ship.fighterEnduranceMax || 6} onChange={(event) => onChange({ fighterEnduranceMax: Number(event.target.value) })} />
+        <CommittedNumber min={1} max={24} value={ship.fighterEnduranceMax || 6} disabled={busy} onCommit={(value) => onChange({ fighterEnduranceMax: value })} />
       </label>
       <label>
         Range
-        <input type="number" min="1" max="120" value={ship.fighterMaxRange || 24} onChange={(event) => onChange({ fighterMaxRange: Number(event.target.value) })} />
+        <CommittedNumber min={1} max={120} value={ship.fighterMaxRange || 24} disabled={busy} onCommit={(value) => onChange({ fighterMaxRange: value })} />
       </label>
-      <button className="ghost" type="button" onClick={() => onChange({ fighterStatus: 'Airborne', fighterEnduranceUsed: 0 })}>Launch</button>
-      <button className="ghost" type="button" onClick={() => onChange({ fighterStatus: 'Recovering' })}>Return</button>
-      <button className="ghost" type="button" onClick={() => onChange({ fighterEnduranceUsed: ship.fighterEnduranceUsed + 1 })}>Spend Turn</button>
-      <button type="button" onClick={() => onChange({ fighterStatus: 'Docked', fighterEnduranceUsed: 0 })}>Recover</button>
+      <button className="ghost" type="button" disabled={busy} onClick={() => onChange({ fighterStatus: 'Airborne', fighterEnduranceUsed: 0 })}>Launch</button>
+      <button className="ghost" type="button" disabled={busy} onClick={() => onChange({ fighterStatus: 'Recovering' })}>Return</button>
+      <button className="ghost" type="button" disabled={busy} onClick={() => onChange({ fighterEnduranceUsed: ship.fighterEnduranceUsed + 1 })}>Spend Turn</button>
+      <button type="button" disabled={busy} onClick={() => onChange({ fighterStatus: 'Docked', fighterEnduranceUsed: 0 })}>Recover</button>
     </div>
+  );
+}
+/**
+ * A whole-number field that reports a value only when editing finishes - on blur or Enter - and
+ * clamps it into range on the way out. Between edits it tracks the value it was given.
+ */
+function CommittedNumber({ value, min, max, disabled, onCommit }: {
+  value: number;
+  min: number;
+  max: number;
+  disabled?: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+
+  function commit() {
+    setEditing(false);
+    const next = wholeNumberFrom(text, value, min, max);
+    setText(String(next));
+    if (next !== value) {
+      onCommit(next);
+    }
+  }
+
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      disabled={disabled}
+      value={editing ? text : String(value)}
+      onFocus={() => {
+        setText(String(value));
+        setEditing(true);
+      }}
+      onChange={(event) => setText(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 function OrdnanceMarkerOverlay({
@@ -1171,13 +1231,19 @@ function CarrierOpsPanel({ carrier, fighters }: { carrier: Ship; fighters: Ship[
     </div>
   );
 }
+/**
+ * Keyed on the ship by its owner, so a new selection starts a fresh draft; a target that has
+ * since been destroyed is replaced at render time rather than by resynchronising state.
+ */
 function OrdnanceLaunchPanel({
   ship,
   targets,
+  busy,
   onLaunch,
 }: {
   ship: Ship;
   targets: Ship[];
+  busy: boolean;
   onLaunch: (patch: Partial<OrdnanceMarker>) => void;
 }) {
   const [draft, setDraft] = useState({
@@ -1189,14 +1255,7 @@ function OrdnanceLaunchPanel({
     attackDice: 2,
     maxRange: 24,
   });
-
-  useEffect(() => {
-    setDraft((current) => ({
-      ...current,
-      name: current.name || `${ship.name} Salvo`,
-      targetShipId: targets.some((target) => target.id === current.targetShipId) ? current.targetShipId : targets[0]?.id ?? '',
-    }));
-  }, [ship.id, targets.map((target) => target.id).join('|')]);
+  const targetShipId = targets.some((target) => target.id === draft.targetShipId) ? draft.targetShipId : targets[0]?.id ?? '';
 
   return (
     <div className="ordnance-panel">
@@ -1216,30 +1275,31 @@ function OrdnanceLaunchPanel({
       </label>
       <label>
         Target
-        <select value={draft.targetShipId} onChange={(event) => setDraft({ ...draft, targetShipId: event.target.value })}>
+        <select value={targetShipId} onChange={(event) => setDraft({ ...draft, targetShipId: event.target.value })}>
           <option value="">No target</option>
           {targets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
         </select>
       </label>
       <label>
         Speed
-        <input type="number" min="0" max="72" value={draft.speed} onChange={(event) => setDraft({ ...draft, speed: Number(event.target.value) })} />
+        <input type="number" min="0" max="72" value={draft.speed} onChange={(event) => setDraft({ ...draft, speed: wholeNumberFrom(event.target.value, 0, 0, 72) })} />
       </label>
       <label>
         Endurance
-        <input type="number" min="0" max="24" value={draft.enduranceRemaining} onChange={(event) => setDraft({ ...draft, enduranceRemaining: Number(event.target.value) })} />
+        <input type="number" min="0" max="24" value={draft.enduranceRemaining} onChange={(event) => setDraft({ ...draft, enduranceRemaining: wholeNumberFrom(event.target.value, 0, 0, 24) })} />
       </label>
       <label title="How far this launcher can throw a salvo: 24 for a standard load, 36 for extended range.">
         Reach
-        <input type="number" min="1" max="120" value={draft.maxRange} onChange={(event) => setDraft({ ...draft, maxRange: Number(event.target.value) })} />
+        <input type="number" min="1" max="120" value={draft.maxRange} onChange={(event) => setDraft({ ...draft, maxRange: wholeNumberFrom(event.target.value, 1, 1, 120) })} />
       </label>
       <p className="privacy">
         A salvo is aimed at a point, not a ship. It launches on the firing ship and can be dragged to its
         point of aim within that reach; after movement it strikes the closest enemy within 6.
       </p>
-      <button type="button" onClick={() => onLaunch({
+      <button type="button" disabled={busy} onClick={() => onLaunch({
         ...draft,
-        targetShipId: draft.targetShipId || null,
+        name: draft.name || `${ship.name} Salvo`,
+        targetShipId: targetShipId || null,
         positionX: ship.positionX,
         positionY: ship.positionY,
         course: ship.currentCourse,
@@ -1389,6 +1449,7 @@ function MapFiringAssistant({
   phase,
   firingResults,
   onChange,
+  busy,
   onFire,
   volleyOpen,
   snapshotVersion,
@@ -1403,6 +1464,7 @@ function MapFiringAssistant({
   phase: string;
   firingResults: FiringResult[];
   onChange: (patch: Partial<FiringDraft>) => void;
+  busy: boolean;
   onFire: () => void;
   volleyOpen: boolean;
   snapshotVersion: number;
@@ -1481,12 +1543,12 @@ function MapFiringAssistant({
       ) : null}
       <label>
         Range
-        <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: Number(event.target.value) })} />
+        <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: wholeNumberFrom(event.target.value, 1, 1, weapon?.maxRange ?? 72) })} />
       </label>
       <button className="ghost" type="button" disabled={!target} onClick={() => onChange({ range: estimatedRange })}>Use Map Solution</button>
-      <button type="button" disabled={!canFire} onClick={onFire}>Fire</button>
+      <button type="button" disabled={!canFire || busy} onClick={onFire}>Fire</button>
       {canEndFire ? (
-        <button className="ghost volley-close" type="button" onClick={onCeaseFire}>{volleyOpen ? 'Done Firing' : 'Hold Fire'}</button>
+        <button className="ghost volley-close" type="button" disabled={busy} onClick={onCeaseFire}>{volleyOpen ? 'Done Firing' : 'Hold Fire'}</button>
       ) : null}
     </div>
   );

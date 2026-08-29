@@ -409,7 +409,13 @@ export type StarGruntSnapshot = {
   log: string[];
   version: number;
 };
-export type StarGruntGameCreated = { gameId: string; snapshot: StarGruntSnapshot };
+/**
+ * What this device needs to get back into a ground game: the id names it, and the token - minted
+ * once, on create, and never returned again - is what every later request must present. One token
+ * covers both sides, because these are hot-seat screens on a single device.
+ */
+export type GameHandle = { gameId: string; token: string };
+export type StarGruntGameCreated = GameHandle & { snapshot: StarGruntSnapshot };
 export type FeatureFlags = { starGrunt: boolean; dirtside: boolean };
 /** A force as it is written to a file, so it survives the game it was built for. */
 export type StarGruntForceFile = {
@@ -564,4 +570,4 @@ export type DirtsideSnapshot = {
 };
 
 /** A Dirtside game that has just been started. */
-export type DirtsideGameCreated = { gameId: string; snapshot: DirtsideSnapshot };
+export type DirtsideGameCreated = GameHandle & { snapshot: DirtsideSnapshot };

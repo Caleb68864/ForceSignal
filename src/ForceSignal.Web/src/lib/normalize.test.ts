@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expandLegacyArc, normalizeArcs, normalizeFleetColor, normalizeShipIconKey } from './normalize.ts';
+import { expandLegacyArc, normalizeArcs, normalizeFleetColor, normalizeGameHandle, normalizeSession, normalizeShipIconKey } from './normalize.ts';
 
 /**
  * These take `unknown` on purpose: a snapshot comes off the wire and a fleet comes out of a file
@@ -69,5 +69,31 @@ describe('normalizeFleetColor', () => {
     expect(normalizeFleetColor('red')).toBe('#47f1ff');
     expect(normalizeFleetColor('#ff8800; background: url(x)')).toBe('#47f1ff');
     expect(normalizeFleetColor(null)).toBe('#47f1ff');
+  });
+});
+
+describe('normalizeSession', () => {
+  const session = { matchId: 'm', participantId: 'p', participantToken: 't', joinCode: 'ABC' };
+
+  it('keeps a complete session and nothing else off it', () => {
+    expect(normalizeSession({ ...session, extra: true })).toEqual(session);
+  });
+
+  // A session missing its match id produced `GET /api/matches/undefined/snapshot` on every load.
+  it('rejects one with any field missing, blank or not text', () => {
+    expect(normalizeSession({ ...session, matchId: undefined })).toBeNull();
+    expect(normalizeSession({ ...session, participantToken: '  ' })).toBeNull();
+    expect(normalizeSession({ ...session, joinCode: 42 })).toBeNull();
+    expect(normalizeSession('session')).toBeNull();
+    expect(normalizeSession(null)).toBeNull();
+  });
+});
+
+describe('normalizeGameHandle', () => {
+  it('needs both the id and the token', () => {
+    expect(normalizeGameHandle({ gameId: 'g', token: 't' })).toEqual({ gameId: 'g', token: 't' });
+    expect(normalizeGameHandle({ gameId: 'g' })).toBeNull();
+    expect(normalizeGameHandle({ gameId: '', token: 't' })).toBeNull();
+    expect(normalizeGameHandle('g')).toBeNull();
   });
 });

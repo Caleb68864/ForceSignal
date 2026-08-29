@@ -6,6 +6,7 @@
 import { useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import { arcAbbreviations, fighterStatuses, firableArcs, shipIconOptions, shipPresets, weaponKinds } from '../constants.ts';
 import { newId } from '../lib/api.ts';
+import { numberFrom, wholeNumberFrom } from '../lib/format.ts';
 import { courseAngle, courseFromPoint, distanceBetweenShips, wrapCourse } from '../lib/geometry.ts';
 import { formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, turnPatchForCourse, turnPatchFromManeuvers } from '../lib/movement.ts';
 import { normalizeShipIconKey } from '../lib/normalize.ts';
@@ -130,55 +131,55 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
       </label>
       <label>
         Thrust
-        <input type="number" min="0" max="20" value={form.thrustRating} onChange={(event) => onChange({ ...form, thrustRating: Number(event.target.value) })} />
+        <input type="number" min="0" max="20" value={form.thrustRating} onChange={(event) => onChange({ ...form, thrustRating: wholeNumberFrom(event.target.value, 0, 0, 20) })} />
       </label>
       <label>
         Start velocity
-        <input type="number" min="0" value={form.currentVelocity} onChange={(event) => onChange({ ...form, currentVelocity: Number(event.target.value) })} />
+        <input type="number" min="0" value={form.currentVelocity} onChange={(event) => onChange({ ...form, currentVelocity: wholeNumberFrom(event.target.value, 0, 0, 999) })} />
       </label>
       <label>
         Course
-        <input type="number" min="1" max="12" value={form.currentCourse} onChange={(event) => onChange({ ...form, currentCourse: Number(event.target.value) })} />
+        <input type="number" min="1" max="12" value={form.currentCourse} onChange={(event) => onChange({ ...form, currentCourse: wholeNumberFrom(event.target.value, 1, 1, 12) })} />
       </label>
       <label>
         Position X
-        <input type="number" min="0" value={form.positionX} onChange={(event) => onChange({ ...form, positionX: Number(event.target.value) })} />
+        <input type="number" min="0" value={form.positionX} onChange={(event) => onChange({ ...form, positionX: numberFrom(event.target.value, 0, 0, 144) })} />
       </label>
       <label>
         Position Y
-        <input type="number" min="0" value={form.positionY} onChange={(event) => onChange({ ...form, positionY: Number(event.target.value) })} />
+        <input type="number" min="0" value={form.positionY} onChange={(event) => onChange({ ...form, positionY: numberFrom(event.target.value, 0, 0, 96) })} />
       </label>
       <label>
         Hull boxes
-        <input type="number" min="1" max="80" value={form.hullMax} onChange={(event) => onChange({ ...form, hullMax: Number(event.target.value) })} />
+        <input type="number" min="1" max="80" value={form.hullMax} onChange={(event) => onChange({ ...form, hullMax: wholeNumberFrom(event.target.value, 1, 1, 80) })} />
       </label>
       <label>
         Armor boxes
-        <input type="number" min="0" max="40" value={form.armorMax} onChange={(event) => onChange({ ...form, armorMax: Number(event.target.value) })} />
+        <input type="number" min="0" max="40" value={form.armorMax} onChange={(event) => onChange({ ...form, armorMax: wholeNumberFrom(event.target.value, 0, 0, 40) })} />
       </label>
       <label>
         Screens
-        <input type="number" min="0" max={maxScreenLevel} value={form.screenRating} onChange={(event) => onChange({ ...form, screenRating: Number(event.target.value) })} />
+        <input type="number" min="0" max={maxScreenLevel} value={form.screenRating} onChange={(event) => onChange({ ...form, screenRating: wholeNumberFrom(event.target.value, 0, 0, maxScreenLevel) })} />
       </label>
       <label title="Each working fire control system directs fire at one target, and each rolls separately at a threshold check.">
         Firecons
-        <input type="number" min="0" max="6" value={form.fireControlMax} onChange={(event) => onChange({ ...form, fireControlMax: Number(event.target.value) })} />
+        <input type="number" min="0" max="6" value={form.fireControlMax} onChange={(event) => onChange({ ...form, fireControlMax: wholeNumberFrom(event.target.value, 0, 0, 6) })} />
       </label>
       <label title="Point defence turrets: each rolls a die at fighters and missiles inside 6mu, and they carry their own fire control.">
         Point defence
-        <input type="number" min="0" max="12" value={form.pointDefenseSystems} onChange={(event) => onChange({ ...form, pointDefenseSystems: Number(event.target.value) })} />
+        <input type="number" min="0" max="12" value={form.pointDefenseSystems} onChange={(event) => onChange({ ...form, pointDefenseSystems: wholeNumberFrom(event.target.value, 0, 0, 12) })} />
       </label>
       <label title="Fighter bays. Each holds one group; a carrier must hold course and speed to launch or recover, and a bay lost to a threshold check takes the group inside it.">
         Fighter bays
-        <input type="number" min="0" max="12" value={form.fighterBays} onChange={(event) => onChange({ ...form, fighterBays: Number(event.target.value) })} />
+        <input type="number" min="0" max="12" value={form.fighterBays} onChange={(event) => onChange({ ...form, fighterBays: wholeNumberFrom(event.target.value, 0, 0, 12) })} />
       </label>
       <label title="Damage control parties. Between turns they roll to bring back systems lost to a threshold check: one repairs on a 6, and up to three on the same job need only 4 or better.">
         Damage control
-        <input type="number" min="0" max="12" value={form.damageControlParties} onChange={(event) => onChange({ ...form, damageControlParties: Number(event.target.value) })} />
+        <input type="number" min="0" max="12" value={form.damageControlParties} onChange={(event) => onChange({ ...form, damageControlParties: wholeNumberFrom(event.target.value, 0, 0, 12) })} />
       </label>
       <label>
         Points (NPV)
-        <input type="number" min="0" max="99999" value={form.pointsValue} onChange={(event) => onChange({ ...form, pointsValue: Number(event.target.value) })} />
+        <input type="number" min="0" max="99999" value={form.pointsValue} onChange={(event) => onChange({ ...form, pointsValue: wholeNumberFrom(event.target.value, 0, 0, 99999) })} />
       </label>
       {isFighterGroupForm(form) ? (
         <>
@@ -190,15 +191,15 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
           </label>
           <label>
             Endurance used
-            <input type="number" min="0" max={form.fighterEnduranceMax || 24} value={form.fighterEnduranceUsed} onChange={(event) => onChange({ ...form, fighterEnduranceUsed: Number(event.target.value) })} />
+            <input type="number" min="0" max={form.fighterEnduranceMax || 24} value={form.fighterEnduranceUsed} onChange={(event) => onChange({ ...form, fighterEnduranceUsed: wholeNumberFrom(event.target.value, 0, 0, form.fighterEnduranceMax || 24) })} />
           </label>
           <label>
             Endurance max
-            <input type="number" min="1" max="24" value={form.fighterEnduranceMax || 6} onChange={(event) => onChange({ ...form, fighterEnduranceMax: Number(event.target.value) })} />
+            <input type="number" min="1" max="24" value={form.fighterEnduranceMax || 6} onChange={(event) => onChange({ ...form, fighterEnduranceMax: wholeNumberFrom(event.target.value, 1, 1, 24) })} />
           </label>
           <label>
             Max range
-            <input type="number" min="1" max="120" value={form.fighterMaxRange || 24} onChange={(event) => onChange({ ...form, fighterMaxRange: Number(event.target.value) })} />
+            <input type="number" min="1" max="120" value={form.fighterMaxRange || 24} onChange={(event) => onChange({ ...form, fighterMaxRange: wholeNumberFrom(event.target.value, 1, 1, 120) })} />
           </label>
         </>
       ) : null}
@@ -245,11 +246,11 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
             </label>
             <label>
               {weapon.kind === 'PulseTorpedo' ? 'Tubes' : 'Dice'}
-              <input type="number" min="1" max="12" value={weapon.attackDice} onChange={(event) => onChange(updateWeapon(form, weapon.id, { attackDice: Number(event.target.value) }))} />
+              <input type="number" min="1" max="12" value={weapon.attackDice} onChange={(event) => onChange(updateWeapon(form, weapon.id, { attackDice: wholeNumberFrom(event.target.value, 1, 1, 12) }))} />
             </label>
             <label>
               Range
-              <input type="number" min="1" max="72" value={weapon.maxRange} onChange={(event) => onChange(updateWeapon(form, weapon.id, { maxRange: Number(event.target.value) }))} />
+              <input type="number" min="1" max="72" value={weapon.maxRange} onChange={(event) => onChange(updateWeapon(form, weapon.id, { maxRange: wholeNumberFrom(event.target.value, 1, 1, 72) }))} />
             </label>
             <div className="arc-toggles" role="group" aria-label={`${weapon.name} arcs`}>
               <span className="label">Arcs</span>
@@ -277,15 +278,15 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
             </div>
             <label>
               Ammo
-              <input type="number" min="0" max="99" value={weapon.ammoMax} onChange={(event) => onChange(updateWeapon(form, weapon.id, { ammoMax: Number(event.target.value), ammoUsed: Math.min(weapon.ammoUsed, Number(event.target.value)) }))} />
+              <input type="number" min="0" max="99" value={weapon.ammoMax} onChange={(event) => onChange(updateWeapon(form, weapon.id, { ammoMax: wholeNumberFrom(event.target.value, 0, 0, 99), ammoUsed: Math.min(weapon.ammoUsed, wholeNumberFrom(event.target.value, 0, 0, 99)) }))} />
             </label>
             <label>
               Used
-              <input type="number" min="0" max={weapon.ammoMax || 99} value={weapon.ammoUsed} onChange={(event) => onChange(updateWeapon(form, weapon.id, { ammoUsed: Number(event.target.value) }))} />
+              <input type="number" min="0" max={weapon.ammoMax || 99} value={weapon.ammoUsed} onChange={(event) => onChange(updateWeapon(form, weapon.id, { ammoUsed: wholeNumberFrom(event.target.value, 0, 0, weapon.ammoMax || 99) }))} />
             </label>
             <label>
               Reload
-              <input type="number" min="0" max="12" value={weapon.reloadTurns} onChange={(event) => onChange(updateWeapon(form, weapon.id, { reloadTurns: Number(event.target.value) }))} />
+              <input type="number" min="0" max="12" value={weapon.reloadTurns} onChange={(event) => onChange(updateWeapon(form, weapon.id, { reloadTurns: wholeNumberFrom(event.target.value, 0, 0, 12) }))} />
             </label>
             <button
               className="ghost"
@@ -507,7 +508,7 @@ export function FiringConsole({
       ) : null}
       <label>
         Range
-        <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: Number(event.target.value) })} />
+        <input type="number" min="1" max={weapon?.maxRange ?? 72} value={draft.range} onChange={(event) => onChange({ range: wholeNumberFrom(event.target.value, 1, 1, weapon?.maxRange ?? 72) })} />
       </label>
       <button
         className="ghost"
@@ -697,9 +698,9 @@ export function DamageControlPanel({ ship, onRepair }: { ship: Ship; onRepair: (
         <div className="repair-row" key={job.key}>
           <span>{job.label}</span>
           <div className="quick-actions">
-            <button className="ghost" type="button" onClick={() => step(job.key, -1)}>-</button>
+            <button className="ghost" type="button" aria-label={`Fewer parties on ${job.label}`} onClick={() => step(job.key, -1)}>-</button>
             <strong>{assignments[job.key] ?? 0}</strong>
-            <button className="ghost" type="button" onClick={() => step(job.key, 1)}>+</button>
+            <button className="ghost" type="button" aria-label={`More parties on ${job.label}`} onClick={() => step(job.key, 1)}>+</button>
           </div>
         </div>
       ))}
@@ -721,13 +722,20 @@ export function DamageControlPanel({ ship, onRepair }: { ship: Ship; onRepair: (
     </div>
   );
 }
-export function DamageControl({ label, value, max, rows, onChange }: { label: string; value: number; max: number; rows?: number[]; onChange: (value: number) => void }) {
+export function DamageControl({ label, value, max, rows, disabled, onChange }: {
+  label: string;
+  value: number;
+  max: number;
+  rows?: number[];
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
   return (
     <div className="damage-control">
       <DamageMeter label={label} value={value} max={max} rows={rows} />
       <div className="damage-buttons">
-        <button type="button" onClick={() => onChange(Math.max(0, value - 1))}>-</button>
-        <button type="button" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+        <button type="button" aria-label={`Reduce ${label} damage`} disabled={disabled} onClick={() => onChange(Math.max(0, value - 1))}>-</button>
+        <button type="button" aria-label={`Add ${label} damage`} disabled={disabled} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
       </div>
     </div>
   );

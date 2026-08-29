@@ -15,6 +15,11 @@ export const sessionKey = 'forcesignal.session';
 export const draftsKey = 'forcesignal.drafts';
 export const snapshotBackupKey = 'forcesignal.snapshot-backup';
 export const fleetLibraryKey = 'forcesignal.fleet-library';
+export const displayNameKey = 'forcesignal.display-name';
+// Each ground engine remembers one game per device: its id and the token that proves this device
+// started it. Without these a refresh lost the whole game.
+export const starGruntGameKey = 'forcesignal.stargrunt-game';
+export const dirtsideGameKey = 'forcesignal.dirtside-game';
 export const defaultShipForm: ShipForm = {
   fleetName: 'Patrol Group',
   faction: 'Custom',

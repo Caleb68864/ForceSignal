@@ -12,7 +12,40 @@ import { newId } from './api.ts';
 import { numberFrom, stringFrom, wholeNumberFrom } from './format.ts';
 import { wrapCourse } from './geometry.ts';
 import { newWeaponMount } from './weapons.ts';
-import type { FighterStatus, FiringArc, MatchSnapshot, OrdnanceMarker, ShipIconKey, WeaponKind, WeaponMount } from '../types.ts';
+import type { FighterStatus, FiringArc, GameHandle, MatchSnapshot, OrdnanceMarker, Session, ShipIconKey, WeaponKind, WeaponMount } from '../types.ts';
+
+/**
+ * A session out of this device's storage. Anything short of four non-empty strings is not one: a
+ * session written by an older build with the match id missing produced `GET /api/matches/undefined`
+ * on every load.
+ */
+export function normalizeSession(value: unknown): Session | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const matchId = stringFrom(record.matchId, '');
+  const participantId = stringFrom(record.participantId, '');
+  const participantToken = stringFrom(record.participantToken, '');
+  const joinCode = stringFrom(record.joinCode, '');
+  if (!matchId || !participantId || !participantToken || !joinCode) {
+    return null;
+  }
+
+  return { matchId, participantId, participantToken, joinCode };
+}
+/** A ground game's handle out of storage: the id and the token, both required. */
+export function normalizeGameHandle(value: unknown): GameHandle | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const gameId = stringFrom(record.gameId, '');
+  const token = stringFrom(record.token, '');
+  return gameId && token ? { gameId, token } : null;
+}
 
 export function normalizeShipIconKey(value: unknown, className?: unknown): ShipIconKey {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase().replaceAll(' ', '-').replaceAll('_', '-') : '';

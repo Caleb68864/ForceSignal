@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { blankRulesProfile, type RulesProfile } from '../types.ts';
+import { wholeNumberFrom } from '../lib/format.ts';
 import { deleteProfile, exportProfile, gapsIn, readProfile, savedProfiles, saveProfile } from '../lib/rulesProfile.ts';
 
 type Props = {
@@ -205,7 +206,7 @@ function Num({ label, value, onChange }: { label: string; value: number; onChang
   return (
     <label>
       {label}
-      <input type="number" min="0" max="99" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input type="number" min="0" max="99" value={value} onChange={(event) => onChange(wholeNumberFrom(event.target.value, 0, 0, 99))} />
     </label>
   );
 }
@@ -265,7 +266,7 @@ function BeamGrid({ profile, onChange }: { profile: RulesProfile; onChange: (cha
                   max="99"
                   aria-label={`Face ${face} against screens ${screen}`}
                   value={damageAt(face, screen)}
-                  onChange={(event) => set(face, screen, Number(event.target.value))}
+                  onChange={(event) => set(face, screen, wholeNumberFrom(event.target.value, 0, 0, 99))}
                 />
               </td>
             ))}
@@ -299,7 +300,7 @@ function PointDefenceRows({ profile, onChange }: { profile: RulesProfile; onChan
                 max="99"
                 aria-label={`Point defence face ${face}`}
                 value={killsAt(face)}
-                onChange={(event) => set(face, Number(event.target.value))}
+                onChange={(event) => set(face, wholeNumberFrom(event.target.value, 0, 0, 99))}
               />
             </td>
           </tr>
@@ -349,7 +350,7 @@ function TurnaroundRows({ profile, onChange }: { profile: RulesProfile; onChange
                   max="20"
                   aria-label={`Face ${face} turns on the deck`}
                   value={turns}
-                  onChange={(event) => set(face, grounded, Number(event.target.value))}
+                  onChange={(event) => set(face, grounded, wholeNumberFrom(event.target.value, 0, 0, 20))}
                 />
               </td>
             </tr>

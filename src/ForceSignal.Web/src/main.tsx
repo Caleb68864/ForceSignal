@@ -8,19 +8,24 @@ import { carrierImportRank, fleetPoints, nextShipName, shipsPoints } from './lib
 import { captureDamageState, firingDraftFor, focusedFirstShips } from './lib/rules.ts';
 import { normalizeMatchSnapshot } from './lib/normalize.ts';
 import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
-import { fleetExportToCsv, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
+import { fleetExportToCsv, normalizeSavedFleets, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
 import { clampDraftForShip, createDraftOrder, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, resetOrderDraft, toOrder, totalTurnSteps, turnManeuversForDraft, turnPatchFromManeuvers, usableThrust } from './lib/movement.ts';
-import { defaultShipForm, draftsKey, fleetLibraryKey, officialRulesUrl, sessionKey, snapshotBackupKey } from './constants.ts';
-import { downloadText, formatLogTime, formatPhase, formatRulesProfile, slugify } from './lib/format.ts';
+import { defaultShipForm, displayNameKey, draftsKey, fleetLibraryKey, officialRulesUrl, sessionKey, snapshotBackupKey } from './constants.ts';
+import { downloadText, formatLogTime, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
 import {
   ApiRequestError,
   apiBaseUrl,
   get,
   post,
   readJson,
+  readStored,
   showError,
   writeStorage,
 } from './lib/api.ts';
+import { exportLastDeviceBackup } from './lib/backup.ts';
+import { normalizeSession } from './lib/normalize.ts';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { RoomCode } from './components/RoomCode.tsx';
 import { StarGruntView } from './components/ground/StarGruntView.tsx';
 import { DirtsideView } from './components/ground/DirtsideView.tsx';
 import { readFeatures } from './lib/starGruntApi.ts';
@@ -50,11 +55,11 @@ import { blankRulesProfile } from './types.ts';
 import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
 
 function App() {
-  const [displayName, setDisplayName] = useState('Admiral');
+  const [displayName, setDisplayName] = useState(() => stringFrom(readJson(displayNameKey), 'Admiral'));
   const [joinCode, setJoinCode] = useState('');
-  const [session, setSession] = useState<Session | null>(() => readJson(sessionKey));
+  const [session, setSession] = useState<Session | null>(() => readStored(sessionKey, normalizeSession));
   const [snapshot, setSnapshotState] = useState<MatchSnapshot | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, DraftOrder>>(() => readJson(draftsKey) ?? {});
+  const [drafts, setDrafts] = useState<Record<string, DraftOrder>>(() => readStored(draftsKey, readDrafts) ?? {});
   const [firingDrafts, setFiringDrafts] = useState<Record<string, FiringDraft>>({});
   const [shipForm, setShipForm] = useState<ShipForm>(defaultShipForm);
   const [tableForm, setTableForm] = useState({ width: 72, depth: 48 });
@@ -101,7 +106,10 @@ function App() {
   }
   const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('offline');
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
-  const [fleetLibrary, setFleetLibrary] = useState<SavedFleet[]>(() => readJson<SavedFleet[]>(fleetLibraryKey) ?? []);
+  const [fleetLibrary, setFleetLibrary] = useState<SavedFleet[]>(() => normalizeSavedFleets(readJson(fleetLibraryKey), defaultShipForm));
+  // Set by Print Cards and consumed once the ship grid is the view on screen. Printing straight
+  // after switching the view raced the render and could print the previous tab.
+  const [printRequested, setPrintRequested] = useState(false);
   const [pointsLimitForm, setPointsLimitForm] = useState('0');
   const [newFleetForm, setNewFleetForm] = useState<{ name: string; faction: string; fleetColor: string } | null>(null);
   const fleetImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -154,9 +162,6 @@ function App() {
     setSnapshotState(normalizeMatchSnapshot(next));
   }
 
-  // The drafts hold the salts that make a locked order revealable, so this is the one write in the
-  // app that must not be quietly lost. It is also written first, before the much larger snapshot
-  // backup below, so a store that is filling up sheds the backup rather than the salts.
   useEffect(() => {
     // A server with the engine off has no StarGrunt routes at all, so this is the only way to know
     // whether to offer it. A failure means no optional engines, which is the safe answer.
@@ -165,6 +170,13 @@ function App() {
       .catch(() => setFeatures({ starGrunt: false, dirtside: false }));
   }, []);
 
+  useEffect(() => {
+    writeStorage(displayNameKey, displayName);
+  }, [displayName]);
+
+  // The drafts hold the salts that make a locked order revealable, so this is the one write in the
+  // app that must not be quietly lost. It is also written first, before the much larger snapshot
+  // backup below, so a store that is filling up sheds the backup rather than the salts.
   useEffect(() => {
     if (!writeStorage(draftsKey, drafts) && Object.keys(drafts).length > 0) {
       localStorage.removeItem(snapshotBackupKey);
@@ -182,11 +194,14 @@ function App() {
     writeStorage(fleetLibraryKey, fleetLibrary);
   }, [fleetLibrary]);
 
+  // Keyed on the limit alone: re-seeding on every snapshot would overwrite what the player is
+  // part-way through typing into the box.
+  const pointsLimit = snapshot?.pointsLimit;
   useEffect(() => {
-    if (snapshot) {
-      setPointsLimitForm(String(snapshot.pointsLimit ?? 0));
+    if (pointsLimit !== undefined) {
+      setPointsLimitForm(String(pointsLimit));
     }
-  }, [snapshot?.pointsLimit]);
+  }, [pointsLimit]);
 
   // The local backup is a convenience, not a guarantee - an explicit snapshot export is the real
   // recovery path - so it is written without the battle log. The log is the bulk of a long match's
@@ -237,14 +252,19 @@ function App() {
 
       return unresolved;
     });
-  }, [snapshot?.matchId, snapshot?.turnNumber, snapshot?.phase]);
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (session) {
+      writeStorage(sessionKey, session);
+    }
+  }, [session]);
 
   useEffect(() => {
     if (!session) {
       return;
     }
 
-    localStorage.setItem(sessionKey, JSON.stringify(session));
     loadSnapshot(session.matchId).catch(handleSessionError);
 
     const connection = new signalR.HubConnectionBuilder()
@@ -301,14 +321,29 @@ function App() {
       // running, so wait for the handshake to settle before tearing it down.
       started.finally(() => connection.stop().catch(() => undefined));
     };
+    // The connection lives exactly as long as this device's seat at this match, which the two keys
+    // identify; the callbacks it uses close over that same session. Listing them would tear the
+    // link down and rebuild it on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.matchId, session?.participantToken]);
 
   const me = snapshot?.participants.find((participant) => participant.id === session?.participantId);
+  // Keyed on the two dimensions alone, so a snapshot that changes nothing about the table does not
+  // overwrite a width the player is typing.
+  const tableWidth = snapshot?.tableWidth;
+  const tableDepth = snapshot?.tableDepth;
   useEffect(() => {
-    if (snapshot) {
-      setTableForm({ width: snapshot.tableWidth, depth: snapshot.tableDepth });
+    if (tableWidth !== undefined && tableDepth !== undefined) {
+      setTableForm({ width: tableWidth, depth: tableDepth });
     }
-  }, [snapshot?.tableWidth, snapshot?.tableDepth]);
+  }, [tableWidth, tableDepth]);
+
+  useEffect(() => {
+    if (printRequested && activeView === 'ships') {
+      setPrintRequested(false);
+      window.print();
+    }
+  }, [printRequested, activeView]);
   const ownedFleets = useMemo(
     () => snapshot?.fleets.filter((fleet) => fleet.ownerParticipantId === session?.participantId) ?? [],
     [snapshot?.fleets, session?.participantId],
@@ -1069,30 +1104,17 @@ function App() {
     setMessage('Local match snapshot exported.');
   }
 
-  function exportLastSnapshotBackup() {
-    const backup = localStorage.getItem(snapshotBackupKey);
-    if (!backup) {
-      setMessage('No local snapshot backup found on this device.');
-      return;
-    }
-
-    const parsedBackup = readJson<{ savedAt?: string; snapshot?: MatchSnapshot }>(snapshotBackupKey);
-    const matchName = parsedBackup?.snapshot?.name ? slugify(parsedBackup.snapshot.name) : 'forcesignal';
-    const turnNumber = parsedBackup?.snapshot?.turnNumber ?? 'last';
-    downloadText(`${matchName}-turn-${turnNumber}-device-backup.json`, 'application/json', `${backup}\n`);
-    setMessage('Last local device snapshot exported.');
-  }
-
   function printShipCards() {
     setActiveView('ships');
-    window.setTimeout(() => window.print(), 50);
+    setPrintRequested(true);
   }
 
   function applyOrderToOwnedFleet(sourceShipId: string) {
     const sourceDraft = draftFor(sourceShipId, drafts);
     setDrafts((current) => {
       const next = { ...current };
-      for (const ship of ownedShips) {
+      // A destroyed ship takes no order; giving it one only inflates the "holds course" count.
+      for (const ship of ownedShips.filter((candidate) => !candidate.isDestroyed)) {
         next[ship.id] = {
           ...sourceDraft,
           salt: draftFor(ship.id, current).salt,
@@ -1240,8 +1262,9 @@ function App() {
             <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
           </label>
           <button onClick={() => run(joinMatch)} disabled={busy}>Join Match</button>
+          <p className="privacy auth-wide">One player creates a match and reads out the room code; the other joins with it.</p>
           <p className="auth-status auth-wide">{message}</p>
-          <button className="ghost auth-wide" type="button" onClick={exportLastSnapshotBackup}>Export Last Device Backup</button>
+          <button className="ghost auth-wide" type="button" onClick={() => setMessage(exportLastDeviceBackup())}>Export Last Device Backup</button>
           <button className="ghost auth-wide" type="button" onClick={() => restoreInputRef.current?.click()}>Restore Match From Backup</button>
           <input
             ref={restoreInputRef}
@@ -1262,7 +1285,7 @@ function App() {
           <aside className="panel side">
             <div>
               <span className="label">Room</span>
-              <h2>{snapshot?.joinCode ?? session.joinCode}</h2>
+              <RoomCode code={snapshot?.joinCode ?? session.joinCode} />
             </div>
             <div>
               <span className="label">You</span>
@@ -1273,11 +1296,11 @@ function App() {
               <div className="table-fields">
                 <label>
                   Width
-                  <input type="number" min="24" max="144" value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: Number(event.target.value) })} />
+                  <input type="number" min="24" max="144" value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: wholeNumberFrom(event.target.value, 24, 24, 144) })} />
                 </label>
                 <label>
                   Depth
-                  <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: Number(event.target.value) })} />
+                  <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
                 </label>
               </div>
               <button className="ghost" onClick={() => updateTable().catch(showError(setMessage))}>Set Table</button>
@@ -1580,7 +1603,7 @@ function App() {
                           {isEditing ? 'Close Editor' : 'Edit Stats'}
                         </button>
                         {showShipControls ? <button className="ghost" onClick={() => duplicateShip(ship).catch(showError(setMessage))}>Duplicate</button> : null}
-                        {showShipControls ? <button className="ghost" onClick={() => repairAll(ship).catch(showError(setMessage))}>Repair All</button> : null}
+                        {showShipControls ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
                       </div>
                     ) : null}
 
@@ -1762,43 +1785,51 @@ function App() {
                       <>
                         <div className="damage-grid card-module" aria-label={`${ship.name} damage controls`}>
                           <span className="label module-title">Damage control</span>
+                          {/* Every one of these reads the ship's current damage and writes it plus
+                              one. Three fast taps that all read the same pre-update value would
+                              record one hit, so each goes through the guard like Fire does. */}
                           <DamageControl
                             label="Hull"
                             value={ship.hullDamage}
                             max={ship.hullMax}
                             rows={ship.hullRows}
-                            onChange={(value) => updateDamage(ship, { hullDamage: value }).catch(showError(setMessage))}
+                            disabled={busy}
+                            onChange={(value) => run(() => updateDamage(ship, { hullDamage: value }))}
                           />
                           <DamageControl
                             label="Armor"
                             value={ship.armorDamage}
                             max={ship.armorMax}
-                            onChange={(value) => updateDamage(ship, { armorDamage: value }).catch(showError(setMessage))}
+                            disabled={busy}
+                            onChange={(value) => run(() => updateDamage(ship, { armorDamage: value }))}
                           />
                           <DamageControl
                             label="Firecon"
                             value={ship.fireControlDamage}
                             max={ship.fireControlMax ?? 1}
-                            onChange={(value) => updateDamage(ship, { fireControlDamage: value }).catch(showError(setMessage))}
+                            disabled={busy}
+                            onChange={(value) => run(() => updateDamage(ship, { fireControlDamage: value }))}
                           />
                           <DamageControl
                             label="Drive"
                             value={ship.driveDamage}
                             max={ship.thrustRating}
-                            onChange={(value) => updateDamage(ship, { driveDamage: value }).catch(showError(setMessage))}
+                            disabled={busy}
+                            onChange={(value) => run(() => updateDamage(ship, { driveDamage: value }))}
                           />
                           <DamageControl
                             label="Weapons"
                             value={ship.weaponDamage}
                             max={12}
-                            onChange={(value) => updateDamage(ship, { weaponDamage: value }).catch(showError(setMessage))}
+                            disabled={busy}
+                            onChange={(value) => run(() => updateDamage(ship, { weaponDamage: value }))}
                           />
                           <div className="quick-actions damage-actions">
-                            <button className="ghost" type="button" onClick={() => repairAll(ship).catch(showError(setMessage))}>Repair</button>
-                            <button className="ghost" type="button" onClick={() => updateDamage(ship, { fireControlDamage: ship.fireControlDamage + 1 }).catch(showError(setMessage))}>Firecon Hit</button>
-                            <button className="ghost" type="button" onClick={() => updateDamage(ship, { driveDamage: ship.driveDamage + 1 }).catch(showError(setMessage))}>Drive Hit</button>
-                            <button className="ghost" type="button" onClick={() => updateDamage(ship, { weaponDamage: ship.weaponDamage + 1 }).catch(showError(setMessage))}>Weapon Hit</button>
-                            <button className="ghost" type="button" onClick={() => updateDamage(ship, { fireControlDamage: 0, driveDamage: 0, weaponDamage: 0 }).catch(showError(setMessage))}>Systems Up</button>
+                            <button className="ghost" type="button" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair</button>
+                            <button className="ghost" type="button" disabled={busy} onClick={() => run(() => updateDamage(ship, { fireControlDamage: ship.fireControlDamage + 1 }))}>Firecon Hit</button>
+                            <button className="ghost" type="button" disabled={busy} onClick={() => run(() => updateDamage(ship, { driveDamage: ship.driveDamage + 1 }))}>Drive Hit</button>
+                            <button className="ghost" type="button" disabled={busy} onClick={() => run(() => updateDamage(ship, { weaponDamage: ship.weaponDamage + 1 }))}>Weapon Hit</button>
+                            <button className="ghost" type="button" disabled={busy} onClick={() => run(() => updateDamage(ship, { fireControlDamage: 0, driveDamage: 0, weaponDamage: 0 }))}>Systems Up</button>
                             <button
                               className="ghost"
                               type="button"
@@ -1812,7 +1843,7 @@ function App() {
                                 }
                               }}
                             >Destroy</button>
-                            <button className="ghost" type="button" disabled={!damageUndo} onClick={() => undoLastDamage().catch(showError(setMessage))}>Undo Damage</button>
+                            <button className="ghost" type="button" disabled={!damageUndo || busy} onClick={() => run(undoLastDamage)}>Undo Damage</button>
                           </div>
                         </div>
                         {snapshot.phase === 'OrderEntry' || snapshot.phase === 'OrdersLocked' ? (
@@ -1860,15 +1891,18 @@ function App() {
                   setMessage(`${ship.name} map plot: ${formatTurnSequence({ ...draftFor(ship.id, drafts), ...patch })}.`);
                 }}
                 onFiringDraftChange={(ship, draft) => updateFiringDraft(ship.id, draft)}
-                onFighterOps={(ship, patch) => updateFighterOperations(ship, patch).catch(showError(setMessage))}
-                onCreateOrdnance={(ship, patch) => createOrdnanceMarker(ship, patch).catch(showError(setMessage))}
-                onUpdateOrdnance={(marker, patch) => updateOrdnanceMarker(marker, patch).catch(showError(setMessage))}
-                onRemoveOrdnance={(marker) => removeOrdnanceMarker(marker).catch(showError(setMessage))}
+                // The same controls as the ship card, so the same guard: the map's Fire button
+                // was the one place a double tap could fire a weapon twice.
+                busy={busy}
+                onFighterOps={(ship, patch) => run(() => updateFighterOperations(ship, patch))}
+                onCreateOrdnance={(ship, patch) => run(() => createOrdnanceMarker(ship, patch))}
+                onUpdateOrdnance={(marker, patch) => run(() => updateOrdnanceMarker(marker, patch))}
+                onRemoveOrdnance={(marker) => run(() => removeOrdnanceMarker(marker))}
                 onPreviewOrder={previewOrder}
                 onFiringSolution={firingSolution}
-                onFire={(ship, draft) => fireWeapon(ship, draft)}
-                onFlyFighters={(ship, x, y) => moveFighterGroup(ship, x, y)}
-              onCeaseFire={(ship) => ceaseFire(ship)}
+                onFire={(ship, draft) => run(() => fireWeapon(ship, draft))}
+                onFlyFighters={(ship, x, y) => run(() => moveFighterGroup(ship, x, y))}
+                onCeaseFire={(ship) => run(() => ceaseFire(ship))}
               />
             ) : null}
             {activeView === 'log' ? (
@@ -1921,7 +1955,21 @@ function App() {
   }
 }
 
+/**
+ * The stored drafts, if they are at least a keyed object. The salts inside are what a draft is
+ * for, so nothing is dropped from a shape that is broadly right; a stored list or string is not.
+ */
+function readDrafts(value: unknown): Record<string, DraftOrder> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, DraftOrder> : null;
+}
 
+const root = document.getElementById('app');
+if (!root) {
+  throw new Error('index.html has no #app element to mount into.');
+}
 
-
-createRoot(document.getElementById('app')!).render(<App />);
+createRoot(root).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>,
+);

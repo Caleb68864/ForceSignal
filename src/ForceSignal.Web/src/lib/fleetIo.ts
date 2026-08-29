@@ -9,7 +9,37 @@
 import { csvEscape, normalizeHeader, numberFrom, stringFrom, stripFileExtension, wholeNumberFrom } from './format.ts';
 import { normalizeFighterStatus, normalizeFleetColor, normalizeShipIconKey, normalizeWeaponMount } from './normalize.ts';
 import { newWeaponMount } from './weapons.ts';
-import type { Fleet, FleetExport, FleetExportShip, Ship, ShipForm, WeaponMount } from '../types.ts';
+import type { Fleet, FleetExport, FleetExportShip, SavedFleet, Ship, ShipForm, WeaponMount } from '../types.ts';
+
+/**
+ * The device's fleet library, read back out of storage. It was written by whichever build last ran
+ * here, so it goes through the same coercion an imported file does; an entry that is not a fleet
+ * at all is dropped rather than allowed to reach a render.
+ */
+export function normalizeSavedFleets(value: unknown, fallback: ShipForm): SavedFleet[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const entries: SavedFleet[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    try {
+      entries.push({
+        savedAt: stringFrom(record.savedAt, new Date(0).toISOString()),
+        fleet: normalizeFleetExport(record.fleet, fallback, ''),
+      });
+    } catch {
+      // Not a fleet. The rest of the library is still worth keeping.
+    }
+  }
+
+  return entries;
+}
 
 export function parseWeaponsCell(value: string): WeaponMount[] {
   if (!value.trim()) {

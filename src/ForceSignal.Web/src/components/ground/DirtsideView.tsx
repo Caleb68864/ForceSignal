@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { dirtsideGameKey } from '../../constants.ts';
+import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import * as api from '../../lib/dirtsideApi.ts';
-import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot } from '../../types.ts';
+import { wholeNumberFrom } from '../../lib/format.ts';
+import { normalizeGameHandle } from '../../lib/normalize.ts';
+import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 
 const bands = ['Close', 'Medium', 'Long'];
 const fireControls = ['Basic', 'Enhanced', 'Superior'];
 const colours = ['All', 'Red', 'Yellow', 'Green'];
-
-const newId = () => Math.random().toString(36).slice(2, 10);
 
 /**
  * The Dirtside screen: vehicle-scale ground combat.
@@ -20,10 +22,15 @@ const newId = () => Math.random().toString(36).slice(2, 10);
  * game decides.
  */
 export function DirtsideView() {
-  const [game, setGame] = useState<string | null>(null);
+  // The game this device started, kept across a refresh. Read back on mount below.
+  const [game, setGame] = useState<GameHandle | null>(() => readStored(dirtsideGameKey, normalizeGameHandle));
   const [snapshot, setSnapshot] = useState<DirtsideSnapshot | null>(null);
   const [message, setMessage] = useState('');
+  const [messageIsError, setMessageIsError] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The ref is what actually stops a double tap: two clicks in the same frame both read the old
+  // state, and `disabled={busy}` only takes effect after the re-render.
+  const busyRef = useRef(false);
 
   const [gameName, setGameName] = useState('Dirtside');
   const [platoonForm, setPlatoonForm] = useState({
@@ -53,32 +60,101 @@ export function DirtsideView() {
     overHalf: false,
   });
 
+  function say(text: string) {
+    setMessage(text);
+    setMessageIsError(false);
+  }
+
+  function fail(error: unknown) {
+    setMessage(error instanceof Error ? error.message : String(error));
+    setMessageIsError(true);
+  }
+
+  /** Runs one command, refusing to start a second while the first is still going. */
   async function run(action: () => Promise<DirtsideSnapshot>, note?: string) {
+    if (busyRef.current) {
+      return;
+    }
+
+    busyRef.current = true;
     setBusy(true);
     try {
       const next = await action();
       setSnapshot(next);
-      setMessage(note ?? next.log[next.log.length - 1] ?? '');
+      say(note ?? next.log[next.log.length - 1] ?? '');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+      fail(error);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
 
   async function start() {
+    if (busyRef.current) {
+      return;
+    }
+
+    busyRef.current = true;
     setBusy(true);
     try {
       const created = await api.createGame(gameName);
-      setGame(created.gameId);
+      const handle = { gameId: created.gameId, token: created.token };
+      writeStorage(dirtsideGameKey, handle);
+      setGame(handle);
       setSnapshot(created.snapshot);
-      setMessage(`Started ${created.snapshot.name}.`);
+      say(`Started ${created.snapshot.name}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+      fail(error);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
+
+  function leave() {
+    if (window.confirm('Leave this game on this device? It stays on the server, but this device will not find it again.')) {
+      localStorage.removeItem(dirtsideGameKey);
+      setGame(null);
+      setSnapshot(null);
+      say('');
+    }
+  }
+
+  // A stored game is reopened on mount. One the server no longer has, or no longer lets this
+  // device into, is forgotten rather than left to fail every action.
+  useEffect(() => {
+    if (!game || snapshot) {
+      return;
+    }
+
+    let cancelled = false;
+    api.readGame(game)
+      .then((next) => {
+        if (!cancelled) {
+          setSnapshot(next);
+          setMessage(`Reopened ${next.name}.`);
+          setMessageIsError(false);
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (error instanceof ApiRequestError && [401, 403, 404].includes(error.status)) {
+          localStorage.removeItem(dirtsideGameKey);
+          setGame(null);
+          setMessage('The game this device last played is no longer available. Start a new one.');
+        } else {
+          setMessage(error instanceof Error ? error.message : String(error));
+        }
+        setMessageIsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [game, snapshot]);
 
   if (!game || !snapshot) {
     return (
@@ -92,8 +168,11 @@ export function DirtsideView() {
           Game name
           <input value={gameName} onChange={(event) => setGameName(event.target.value)} />
         </label>
-        <button type="button" disabled={busy} onClick={() => void start()}>Start Game</button>
-        {message ? <p className="constraint-line">{message}</p> : null}
+        <button type="button" disabled={busy || Boolean(game)} onClick={() => void start()}>
+          {game ? 'Reopening last game...' : 'Start Game'}
+        </button>
+        {game ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
+        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
       </section>
     );
   }
@@ -116,7 +195,7 @@ export function DirtsideView() {
         Turn {snapshot.turnNumber} · {snapshot.phase}
         {snapshot.activeSide ? ` · ${snapshot.activeSide} to go` : ''}
       </p>
-      {message ? <p className="constraint-line">{message}</p> : null}
+      <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
 
       <div className="quick-actions">
         <button type="button" disabled={busy} onClick={() => void run(() => api.beginTurn(game))}>
@@ -147,6 +226,7 @@ export function DirtsideView() {
         <button className="ghost" type="button" disabled={busy} onClick={() => void run(() => api.endTurn(game))}>
           End Turn
         </button>
+        <button className="ghost" type="button" disabled={busy} onClick={leave}>Leave Game</button>
       </div>
 
       <div className="card-module" aria-label="Platoons">
@@ -348,7 +428,7 @@ export function DirtsideView() {
             Cybertank
             <input type="checkbox" checked={platoonForm.isCybertank} onChange={(e) => setPlatoonForm({ ...platoonForm, isCybertank: e.target.checked })} />
           </label>
-          <label>Elements<input type="number" min="1" max="12" value={platoonForm.elements} onChange={(e) => setPlatoonForm({ ...platoonForm, elements: Number(e.target.value) })} /></label>
+          <label>Elements<input type="number" min="1" max="12" value={platoonForm.elements} onChange={(e) => setPlatoonForm({ ...platoonForm, elements: wholeNumberFrom(e.target.value, 1, 1, 12) })} /></label>
           <label title="Each element is numbered from this, so the log reads 'Alpha Troop&apos;s Vehicle 1'.">Element name<input value={platoonForm.elementName} onChange={(e) => setPlatoonForm({ ...platoonForm, elementName: e.target.value })} /></label>
           <label>
             Fire control
@@ -356,12 +436,12 @@ export function DirtsideView() {
               {fireControls.map((level) => <option key={level} value={level}>{level}</option>)}
             </select>
           </label>
-          <label>Signature<input type="number" min="1" max="5" value={platoonForm.signature} onChange={(e) => setPlatoonForm({ ...platoonForm, signature: Number(e.target.value) })} /></label>
-          <label>Armour<input type="number" min="0" max="30" value={platoonForm.armourValue} onChange={(e) => setPlatoonForm({ ...platoonForm, armourValue: Number(e.target.value) })} /></label>
-          <label>Movement<input type="number" min="0" max="60" value={platoonForm.movement} onChange={(e) => setPlatoonForm({ ...platoonForm, movement: Number(e.target.value) })} /></label>
+          <label>Signature<input type="number" min="1" max="5" value={platoonForm.signature} onChange={(e) => setPlatoonForm({ ...platoonForm, signature: wholeNumberFrom(e.target.value, 1, 1, 5) })} /></label>
+          <label>Armour<input type="number" min="0" max="30" value={platoonForm.armourValue} onChange={(e) => setPlatoonForm({ ...platoonForm, armourValue: wholeNumberFrom(e.target.value, 0, 0, 30) })} /></label>
+          <label>Movement<input type="number" min="0" max="60" value={platoonForm.movement} onChange={(e) => setPlatoonForm({ ...platoonForm, movement: wholeNumberFrom(e.target.value, 0, 0, 60) })} /></label>
           <label>Weapon<input value={platoonForm.weaponName} onChange={(e) => setPlatoonForm({ ...platoonForm, weaponName: e.target.value })} /></label>
-          <label title="How many chits each hit draws.">Chits<input type="number" min="0" max="20" value={platoonForm.chitCount} onChange={(e) => setPlatoonForm({ ...platoonForm, chitCount: Number(e.target.value) })} /></label>
-          <label title="Weapons of the same type in the mount. They fire together, at one target.">Barrels<input type="number" min="1" max="8" value={platoonForm.barrels} onChange={(e) => setPlatoonForm({ ...platoonForm, barrels: Number(e.target.value) })} /></label>
+          <label title="How many chits each hit draws.">Chits<input type="number" min="0" max="20" value={platoonForm.chitCount} onChange={(e) => setPlatoonForm({ ...platoonForm, chitCount: wholeNumberFrom(e.target.value, 0, 0, 20) })} /></label>
+          <label title="Weapons of the same type in the mount. They fire together, at one target.">Barrels<input type="number" min="1" max="8" value={platoonForm.barrels} onChange={(e) => setPlatoonForm({ ...platoonForm, barrels: wholeNumberFrom(e.target.value, 1, 1, 8) })} /></label>
           <label title="Aimed by pointing the whole vehicle.">
             Fixed mount
             <input type="checkbox" checked={platoonForm.isFixedMount} onChange={(e) => setPlatoonForm({ ...platoonForm, isFixedMount: e.target.checked })} />

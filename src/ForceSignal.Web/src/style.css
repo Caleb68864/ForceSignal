@@ -2907,3 +2907,12 @@ small,
   display: grid;
   gap: 0.75rem;
 }
+
+.room-code .quick-actions {
+  margin-top: 6px;
+  align-items: center;
+}
+
+.room-code small {
+  align-self: center;
+}
