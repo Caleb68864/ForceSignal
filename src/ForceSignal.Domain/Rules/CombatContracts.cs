@@ -214,7 +214,7 @@ public sealed record FiringResult(
 /// whichever match happened to build it. Passing the profile in makes a shot's outcome a function
 /// of (layer, solution), which is exactly what "a match is played under one layer" means, and it
 /// lets a test put the same shot through both layers with one resolver. The profile is optional
-/// and falls back to the light cinematic default, matching <see cref="RulesProfile.Parse"/>.
+/// and falls back to the light cinematic default, matching <see cref="RulesProfile.Empty"/>.
 /// </remarks>
 public interface IFiringResolver
 {

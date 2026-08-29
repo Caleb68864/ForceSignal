@@ -1,0 +1,29 @@
+name: verify
+
+# scripts/verify.ps1 is the gate the README tells a human to run. This runs it on every push and
+# pull request so it is no longer a matter of remembering. The script is PowerShell, which the
+# Ubuntu runner ships as pwsh; Docker is present for the compose config validation step.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/ForceSignal.Web/package-lock.json
+      - name: Verify
+        shell: pwsh
+        run: ./scripts/verify.ps1

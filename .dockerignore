@@ -9,3 +9,7 @@ output/
 *.suo
 *.log
 .env
+*.db
+*.db-wal
+*.db-shm
+*.stackdump

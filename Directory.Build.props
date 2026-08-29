@@ -5,5 +5,13 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!--
+      The .editorconfig severities are only worth tuning if something enforces them. A warning
+      that survives to master is a decision nobody made; making it an error makes it a decision.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

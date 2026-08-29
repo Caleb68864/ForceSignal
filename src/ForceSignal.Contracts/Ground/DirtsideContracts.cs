@@ -50,6 +50,9 @@ public sealed record DirtsideValidityDto(
 /// <param name="Medium">What its chits may count at medium range.</param>
 /// <param name="Long">What its chits may count at long range.</param>
 /// <param name="IsInterceptable">True when an area-defence gun could shoot down what it throws.</param>
+// "Long" is the range band's name on the card and the JSON key the client already sends; the
+// analyzer objects because it is also a type name, which is not what it means here.
+#pragma warning disable CA1720
 public sealed record DirtsideWeaponDto(
     string Name,
     int ChitCount,
@@ -59,6 +62,7 @@ public sealed record DirtsideWeaponDto(
     DirtsideValidityDto? Medium = null,
     DirtsideValidityDto? Long = null,
     bool IsInterceptable = false);
+#pragma warning restore CA1720
 
 /// <summary>One vehicle, stand or model inside a platoon.</summary>
 /// <param name="Id">How the game will name it. Must be unique in the platoon.</param>

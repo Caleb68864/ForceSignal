@@ -113,7 +113,7 @@ public sealed record ThresholdCheckResult(int Threshold, int LostOn, IReadOnlyLi
 /// whichever match happened to build it. Passing the profile in makes a resolver's answer a
 /// function of (layer, question), which is exactly what "a match is played under one layer" means.
 /// The profile is optional and falls back to the light cinematic default, matching
-/// <see cref="RulesProfile.Parse"/>, so a caller that has no layer to hand still gets the default
+/// <see cref="RulesProfile.Empty"/>, so a caller that has no layer to hand still gets the default
 /// rather than a null reference.
 /// </remarks>
 public interface IThresholdResolver
