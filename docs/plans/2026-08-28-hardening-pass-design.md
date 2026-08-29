@@ -107,3 +107,28 @@ Owns repo root and `.github`.
 
 `scripts/verify.ps1` green; every new behaviour has a test; `npm test` green with lint and strict
 typecheck; the three screens still play through in a browser.
+
+## Outcome (2026-08-28)
+
+Delivered in four commits after this document: tooling (`8e37b8f`), API (`ec18875`), web
+(`55814f3`), and a lockfile bump for a transitive `nanoid` advisory `npm audit` caught.
+
+- .NET: 1,245 tests (from 1,188), zero warnings under `TreatWarningsAsErrors`.
+- Web: 101 tests (from 46), `strict` TypeScript, ESLint with the hooks rules, all in `npm test`.
+- Smoke-tested live: game token minted on create, 401 without it, 403 with the wrong one, never
+  in a snapshot; a null order is a 404-by-type not a 500; the eleventh match in a minute is a 429.
+
+Deviations from the package lists above, each recorded in the implementation reports:
+
+- Restored log messages are capped at 1,000 characters, not 120 - the server's own phase-start
+  lines are longer than 120, and a restore must not corrupt them.
+- Ground saves written before tokens existed are skipped and logged, not migrated: a game with no
+  token is a game nobody could open. Both engines were flagged off by default, so none should exist.
+- The ground views gained a Leave Game control - once a device reopens its last game on load,
+  there had to be a way to start a different one.
+- The nginx header include fixed a pre-existing fault: per-location `add_header` lines were
+  discarding the server-level security headers, so they had never reached a response. The CSP
+  rendered at image build is not yet verified in a running container (Docker was not running on
+  the build machine); `scripts/verify.ps1 -IncludeDocker` covers it.
+- `/ready` still returns 200 with warnings; the skipped-save counts are logged at startup rather
+  than surfaced there, so an engine that is off does not get resolved just to be asked.
