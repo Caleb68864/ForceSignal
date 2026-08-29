@@ -29,6 +29,7 @@ public sealed partial class InMemoryMatchService
             var participant = FindParticipant(match, request.ParticipantToken);
             var ship = FindOwnedShip(match, participant.Id, request.ShipId);
 
+            RequireOrder(request.Order);
             var thrust = UsableThrust(ship);
             var shipState = new ShipMovementState(ship.CurrentVelocity, ship.CurrentCourse);
             var order = request.Order;

@@ -12,7 +12,7 @@ using ForceSignal.Modules.StarGrunt.Sequence;
 namespace ForceSignal.Application.Ground;
 
 /// <summary>Application boundary for a StarGrunt game.</summary>
-public interface IStarGruntGameService
+public interface IStarGruntGameService : IGroundGameService
 {
     /// <summary>Starts a game.</summary>
     StarGruntGameCreatedResponse CreateGame(CreateStarGruntGameRequest request);
@@ -96,68 +96,108 @@ public interface IStarGruntGameService
 /// answer, because a player asking and a player doing are different acts. By the time a command has
 /// been sent, the asking is over.
 /// </para>
+/// <para>
+/// And it is the boundary that knows who may touch a game. The game is a hot-seat screen - one
+/// device, both sides - so there is one token per game rather than one per side, minted when the
+/// game is created and required on everything after. The rules never see it.
+/// </para>
 /// </remarks>
-/// <param name="rollDie">Die source, injectable so tests can script a firefight.</param>
-/// <param name="store">
-/// Where games are written so they survive a restart. Defaults to keeping nothing, which is what a
-/// test and a throwaway session want.
-/// </param>
-/// <param name="allocator">
-/// Who catches the hits, injectable so a test can script allocation as well as the dice. Defaults
-/// to spreading them evenly across the figures still standing.
-/// </param>
-public sealed class StarGruntGameService(
-    IQualityDiceRoller? rollDie = null,
-    IMatchStore? store = null,
-    IFigureAllocator? allocator = null)
-    : IStarGruntGameService
+public sealed class StarGruntGameService : IStarGruntGameService
 {
-    private readonly IQualityDiceRoller _dice = rollDie ?? new QualityDiceRoller();
-    private readonly IFigureAllocator _allocator = allocator ?? new FigureAllocator();
-    private readonly IMatchStore _store = store ?? NoMatchStore.Instance;
+    private readonly IQualityDiceRoller _dice;
+    private readonly IFigureAllocator _allocator;
+    private readonly IMatchStore _store;
     private readonly Lock _gate = new();
-    private readonly Dictionary<Guid, Held> _games = RestoreAll(store);
+    private readonly Dictionary<Guid, Held> _games = [];
+    private readonly List<SkippedSave> _skippedSaves = [];
 
     /// <summary>
-    /// Brings back whatever the store was holding, so a restart resumes the games rather than
-    /// ending them.
+    /// Builds the service and brings back whatever the store was holding, so a restart resumes the
+    /// games rather than ending them.
+    /// </summary>
+    /// <param name="rollDie">Die source, injectable so tests can script a firefight.</param>
+    /// <param name="store">
+    /// Where games are written so they survive a restart. Defaults to keeping nothing, which is what
+    /// a test and a throwaway session want.
+    /// </param>
+    /// <param name="allocator">
+    /// Who catches the hits, injectable so a test can script allocation as well as the dice. Defaults
+    /// to spreading them evenly across the figures still standing.
+    /// </param>
+    public StarGruntGameService(
+        IQualityDiceRoller? rollDie = null,
+        IMatchStore? store = null,
+        IFigureAllocator? allocator = null)
+    {
+        _dice = rollDie ?? new QualityDiceRoller();
+        _allocator = allocator ?? new FigureAllocator();
+        _store = store ?? NoMatchStore.Instance;
+        RestoreAll();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<SkippedSave> SkippedSaves => _skippedSaves;
+
+    /// <summary>
+    /// Brings back whatever the store was holding.
     /// </summary>
     /// <remarks>
-    /// A save that cannot be read is skipped rather than allowed to stop the others loading. It is
-    /// almost always a game written by an older shape of the code, and losing one is better than
-    /// refusing to start.
+    /// A save that cannot be read is skipped rather than allowed to stop the others loading, and
+    /// the catch is as wide as that promise: a row that parses and then falls over being rebuilt
+    /// used to escape here and take every StarGrunt route down with it. The table is this engine's
+    /// own, so every skip is a real loss, and each is kept with its reason for the host to log.
     /// </remarks>
-    private static Dictionary<Guid, Held> RestoreAll(IMatchStore? store)
+    private void RestoreAll()
     {
-        var games = new Dictionary<Guid, Held>();
-        foreach (var saved in store?.LoadAll() ?? [])
+        foreach (var saved in _store.LoadAll())
         {
             try
             {
-                games[saved.MatchId] = new Held(StarGruntGameSerialization.Restore(saved.State), 1);
+                var row = GroundGameRecord.Unwrap(saved.State);
+                _games[saved.MatchId] = new Held(StarGruntGameSerialization.Restore(row.Game), 1, row.Token, row.LastActivity);
             }
-            catch (ArgumentException)
+#pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
+            catch (Exception ex)
+#pragma warning restore CA1031
             {
-                // Not a StarGrunt game, or not one this version understands.
+                _skippedSaves.Add(new SkippedSave(saved.MatchId, ex.Message));
             }
         }
-
-        return games;
     }
 
     /// <inheritdoc />
     public StarGruntGameCreatedResponse CreateGame(CreateStarGruntGameRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var name = string.IsNullOrWhiteSpace(request.Name) ? "StarGrunt" : request.Name.Trim();
+        var name = string.IsNullOrWhiteSpace(request.Name) ? "StarGrunt" : GroundGameGuards.Truncate(request.Name);
 
         lock (_gate)
         {
+            EvictIdleGames();
             var id = Guid.NewGuid();
-            var game = StarGruntGame.Create(name);
-            _games[id] = new Held(game, 1);
-            _store.Save(id, StarGruntGameSerialization.Save(game));
-            return new StarGruntGameCreatedResponse(id, ToSnapshot(id, _games[id]));
+            var held = new Held(StarGruntGame.Create(name), 1, GroundGameGuards.NewToken(), DateTimeOffset.UtcNow);
+            _games[id] = held;
+            Persist(id, held);
+            return new StarGruntGameCreatedResponse(id, ToSnapshot(id, held), held.Token);
+        }
+    }
+
+    /// <inheritdoc />
+    public void RequireToken(Guid gameId, string token)
+    {
+        lock (_gate)
+        {
+            // Looked up without touching the game's activity: a stranger guessing at tokens must
+            // not be what keeps a game from being retired.
+            if (!_games.TryGetValue(gameId, out var held))
+            {
+                throw new NotFoundException("Game was not found.");
+            }
+
+            if (string.IsNullOrWhiteSpace(token) || !GroundGameGuards.TokensMatch(held.Token, token))
+            {
+                throw new UnauthorizedAccessException("The game token does not match this game.");
+            }
         }
     }
 
@@ -169,6 +209,7 @@ public sealed class StarGruntGameService(
         lock (_gate)
         {
             var held = Find(gameId);
+            GroundGameGuards.RequireRoom(held.Game.Units.Count, GroundGameGuards.MaxUnitsPerGame, "units");
             var unit = ToDefinition(request);
             if (held.Game.HasUnit(unit.Id))
             {
@@ -217,13 +258,14 @@ public sealed class StarGruntGameService(
     public StarGruntSnapshotDto Fire(Guid gameId, StarGruntFireRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        GroundGameGuards.RequireAtMost(request.SupportWeapons?.Count ?? 0, GroundGameGuards.MaxWeaponsPerUnit, "support weapons");
         var command = new FireCommand
         {
             Firer = new UnitId(request.FirerId),
             Target = new UnitId(request.TargetId),
-            WeaponName = request.WeaponName,
+            WeaponName = GroundGameGuards.TruncateOptional(request.WeaponName)!,
             FirepowerDie = Die(request.FirepowerDie, nameof(request.FirepowerDie)),
-            SupportWeapons = [.. request.SupportWeapons ?? []],
+            SupportWeapons = [.. (request.SupportWeapons ?? []).Select(GroundGameGuards.Truncate)],
             DistanceInches = request.DistanceInches,
             TargetPosture = new TargetPosture(Cover(request.Cover), request.InPosition),
         };
@@ -314,6 +356,7 @@ public sealed class StarGruntGameService(
     public StarGruntSnapshotDto FightMelee(Guid gameId, StarGruntMeleeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        GroundGameGuards.RequireAtMost(request.Pairings?.Count ?? 0, GroundGameGuards.MaxMeleePairings, "melee pairings");
         var pairings = (request.Pairings ?? []).Select(pairing => new MeleePairing(
             pairing.AttackerShift,
             pairing.DefenderShift,
@@ -366,48 +409,111 @@ public sealed class StarGruntGameService(
         }
     }
 
-    private Held Find(Guid gameId) =>
-        _games.TryGetValue(gameId, out var held) ? held : throw new InvalidOperationException("Game was not found.");
+    /// <summary>
+    /// The game, and a note that it is still in use. Every read and every write comes through
+    /// here, so this is the one place that knows a game is not abandoned - a screen watching the
+    /// table without touching anything counts.
+    /// </summary>
+    private Held Find(Guid gameId)
+    {
+        if (!_games.TryGetValue(gameId, out var held))
+        {
+            throw new NotFoundException("Game was not found.");
+        }
+
+        held = held with { LastActivity = DateTimeOffset.UtcNow };
+        _games[gameId] = held;
+        return held;
+    }
 
     private StarGruntSnapshotDto Store(Guid gameId, StarGruntGame game)
     {
-        var held = new Held(game, _games[gameId].Version + 1);
+        var previous = _games[gameId];
+        var held = previous with
+        {
+            Game = TrimLog(game),
+            Version = previous.Version + 1,
+            LastActivity = DateTimeOffset.UtcNow,
+        };
         _games[gameId] = held;
 
         // Written inside the lock, like the Full Thrust store: the alternative has a window where
         // the game has moved on and the disk has not, and a crash in that window loses the turn
         // nobody wants to replay.
-        _store.Save(gameId, StarGruntGameSerialization.Save(game));
+        Persist(gameId, held);
         return ToSnapshot(gameId, held);
     }
 
-    private static UnitDefinition ToDefinition(AddStarGruntUnitRequest request) => new()
-    {
-        Id = new UnitId(Required(request.Id, "A unit needs an id.")),
-        Name = Required(request.Name, "A unit needs a name."),
-        Side = new SideId(Required(request.Side, "A unit needs a side.")),
-        Level = Enum.TryParse<CommandLevel>(request.Level, ignoreCase: true, out var level)
-            ? level
-            : throw new InvalidOperationException($"'{request.Level}' is not a command level."),
-        QualityDie = Die(request.QualityDie, nameof(request.QualityDie)),
-        LeadershipValue = Leadership(request.LeadershipValue),
-        Fatigue = Enum.TryParse<FatigueLevel>(request.Fatigue, ignoreCase: true, out var fatigue)
-            ? fatigue
-            : throw new InvalidOperationException($"'{request.Fatigue}' is not a fatigue level (Fresh, Tired, Exhausted)."),
-        Figures = [.. (request.Figures ?? []).Select(figure => new FigureProfile(Die(figure.ArmourDie, "armour")))],
-        Weapons = [.. (request.Weapons ?? []).Select(weapon => new WeaponProfile
-        {
-            Name = Required(weapon.Name, "A weapon needs a name."),
-            ImpactDie = Die(weapon.ImpactDie, "impact"),
-            IsSupport = weapon.IsSupport,
-            IsCloseRange = weapon.IsCloseRange,
-            SupportFirepowerDie = Die(weapon.SupportFirepowerDie, "support firepower"),
-            NeverJoinsSquadFire = weapon.NeverJoinsSquadFire,
-        })],
-    };
+    private void Persist(Guid gameId, Held held) =>
+        _store.Save(gameId, GroundGameRecord.Wrap(held.Token, held.LastActivity, StarGruntGameSerialization.Save(held.Game)));
 
+    /// <summary>
+    /// Drops the oldest log lines once the game passes its ceiling. Done here rather than in the
+    /// game because the ceiling is this service's concern - the game is a value and does not know
+    /// it is being sent over a wire on every change.
+    /// </summary>
+    private static StarGruntGame TrimLog(StarGruntGame game) =>
+        game.Log.Length <= GroundGameGuards.MaxLogEntries
+            ? game
+            : game with { Log = game.Log.RemoveRange(0, game.Log.Length - GroundGameGuards.MaxLogEntries) };
+
+    /// <summary>
+    /// Drops games nobody has touched inside the retention window, and refuses a new one if the
+    /// server is still full. Called when a game is opened rather than on a timer, so a process
+    /// that is doing nothing stays doing nothing. A live game is never retired to make room.
+    /// </summary>
+    private void EvictIdleGames()
+    {
+        var cutoff = DateTimeOffset.UtcNow - GroundGameGuards.IdleGameRetention;
+        var stale = _games.Where(entry => entry.Value.LastActivity < cutoff).Select(entry => entry.Key).ToArray();
+        foreach (var gameId in stale)
+        {
+            // Gone on purpose, so the stored copy goes too; otherwise the next restart undoes it.
+            _games.Remove(gameId);
+            _store.Remove(gameId);
+        }
+
+        if (_games.Count >= GroundGameGuards.MaxConcurrentGames)
+        {
+            throw new InvalidOperationException(
+                $"This server is already hosting {GroundGameGuards.MaxConcurrentGames} StarGrunt games, which is as many as it holds. Try again later.");
+        }
+    }
+
+    private static UnitDefinition ToDefinition(AddStarGruntUnitRequest request)
+    {
+        GroundGameGuards.RequireAtMost(request.Figures?.Count ?? 0, GroundGameGuards.MaxMembersPerUnit, "figures");
+        GroundGameGuards.RequireAtMost(request.Weapons?.Count ?? 0, GroundGameGuards.MaxWeaponsPerUnit, "weapons");
+
+        return new UnitDefinition
+        {
+            Id = new UnitId(Required(request.Id, "A unit needs an id.")),
+            Name = Required(request.Name, "A unit needs a name."),
+            Side = new SideId(Required(request.Side, "A unit needs a side.")),
+            Level = Enum.TryParse<CommandLevel>(request.Level, ignoreCase: true, out var level)
+                ? level
+                : throw new InvalidOperationException($"'{request.Level}' is not a command level."),
+            QualityDie = Die(request.QualityDie, nameof(request.QualityDie)),
+            LeadershipValue = Leadership(request.LeadershipValue),
+            Fatigue = Enum.TryParse<FatigueLevel>(request.Fatigue, ignoreCase: true, out var fatigue)
+                ? fatigue
+                : throw new InvalidOperationException($"'{request.Fatigue}' is not a fatigue level (Fresh, Tired, Exhausted)."),
+            Figures = [.. (request.Figures ?? []).Select(figure => new FigureProfile(Die(figure.ArmourDie, "armour")))],
+            Weapons = [.. (request.Weapons ?? []).Select(weapon => new WeaponProfile
+            {
+                Name = Required(weapon.Name, "A weapon needs a name."),
+                ImpactDie = Die(weapon.ImpactDie, "impact"),
+                IsSupport = weapon.IsSupport,
+                IsCloseRange = weapon.IsCloseRange,
+                SupportFirepowerDie = Die(weapon.SupportFirepowerDie, "support firepower"),
+                NeverJoinsSquadFire = weapon.NeverJoinsSquadFire,
+            })],
+        };
+    }
+
+    /// <summary>A string the request has to carry, trimmed and cut to the display ceiling.</summary>
     private static string Required(string? value, string message) =>
-        string.IsNullOrWhiteSpace(value) ? throw new InvalidOperationException(message) : value.Trim();
+        string.IsNullOrWhiteSpace(value) ? throw new InvalidOperationException(message) : GroundGameGuards.Truncate(value);
 
     /// <summary>
     /// Checks a Leadership Value is one the rules recognise.
@@ -454,6 +560,10 @@ public sealed class StarGruntGameService(
             : StarGruntSteps.Simple(parsed);
     }
 
+    /// <remarks>
+    /// The token is not here and must never be: a snapshot is what a screen shows, and the token
+    /// is what lets it ask.
+    /// </remarks>
     private static StarGruntSnapshotDto ToSnapshot(Guid gameId, Held held)
     {
         var game = held.Game;
@@ -514,6 +624,6 @@ public sealed class StarGruntGameService(
             [.. legality.Weapons.Select(weapon => new StarGruntWeaponLegalityDto(weapon.Name, weapon.CanFire, weapon.Blocker))]);
     }
 
-    /// <summary>A game and how many times it has changed.</summary>
-    private readonly record struct Held(StarGruntGame Game, long Version);
+    /// <summary>One game, how many times it has changed, the token that opens it, and when it was last touched.</summary>
+    private sealed record Held(StarGruntGame Game, long Version, string Token, DateTimeOffset LastActivity);
 }

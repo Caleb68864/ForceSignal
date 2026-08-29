@@ -10,10 +10,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ForceSignal.Api.Tests;
 
 /// <summary>
-/// Covers the StarGrunt routes, and the promise the feature flag makes about them.
+/// Covers the StarGrunt routes, the promise the feature flag makes about them, and the token that
+/// guards every one of them but the two that need no game.
 /// </summary>
 public sealed class StarGruntEndpointTests
 {
+    private const string TokenHeader = "X-Game-Token";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() },
@@ -35,15 +38,31 @@ public sealed class StarGruntEndpointTests
     }
 
     [Fact]
-    public async Task AGameCanBePlayedOverHttp()
+    public async Task CreatingAGameHandsBackItsTokenOnceAndTheSnapshotNeverCarriesIt()
     {
         using var factory = CreateFactory(starGrunt: true);
         using var client = factory.CreateClient();
 
-        var created = await (await client.PostAsJsonAsync("/api/stargrunt/games", new CreateStarGruntGameRequest("Hill 43")))
-            .Content.ReadFromJsonAsync<StarGruntGameCreatedResponse>(JsonOptions);
-        Assert.NotNull(created);
-        var game = created.GameId;
+        using var response = await client.PostAsJsonAsync("/api/stargrunt/games", new CreateStarGruntGameRequest("Hill 43"));
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        var token = body.GetProperty("token").GetString();
+        Assert.Matches("^[0-9a-f]{64}$", token);
+        Assert.False(body.GetProperty("snapshot").TryGetProperty("token", out _));
+
+        // And the snapshot read back by that token does not carry it either.
+        client.DefaultRequestHeaders.Add(TokenHeader, token);
+        var snapshot = await client.GetFromJsonAsync<JsonElement>($"/api/stargrunt/games/{body.GetProperty("gameId").GetGuid()}");
+        Assert.False(snapshot.TryGetProperty("token", out _));
+    }
+
+    [Fact]
+    public async Task AGameCanBePlayedOverHttp()
+    {
+        using var factory = CreateFactory(starGrunt: true);
+        using var client = factory.CreateClient();
+        var game = await Create(client);
 
         await Post(client, $"/api/stargrunt/games/{game}/units", Squad("alpha", "Alpha Squad", "blue"));
         await Post(client, $"/api/stargrunt/games/{game}/units", Squad("bravo", "Bravo Squad", "red"));
@@ -101,11 +120,10 @@ public sealed class StarGruntEndpointTests
     {
         using var factory = CreateFactory(starGrunt: true);
         using var client = factory.CreateClient();
-        var created = await (await client.PostAsJsonAsync("/api/stargrunt/games", new CreateStarGruntGameRequest("Hill 43")))
-            .Content.ReadFromJsonAsync<StarGruntGameCreatedResponse>(JsonOptions);
+        var game = await Create(client);
 
         using var response = await client.PostAsJsonAsync(
-            $"/api/stargrunt/games/{created!.GameId}/units",
+            $"/api/stargrunt/games/{game}/units",
             new AddStarGruntUnitRequest("alpha", "Alpha", "blue", "Squad", 7, 2, [], []));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -116,19 +134,85 @@ public sealed class StarGruntEndpointTests
     {
         using var factory = CreateFactory(starGrunt: true);
         using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TokenHeader, new string('0', 64));
 
         using var response = await client.GetAsync(new Uri($"/api/stargrunt/games/{Guid.NewGuid()}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private static async Task<Guid> TableWithTwoSquads(HttpClient client)
+    [Fact]
+    public async Task WithoutTheTokenAGameCannotBeReadOrMoved()
+    {
+        using var factory = CreateFactory(starGrunt: true);
+        using var client = factory.CreateClient();
+        var game = await Create(client);
+
+        // The id is not a secret - it is in the URL, the proxy log and the browser history - so
+        // the id alone opens nothing. A missing header is a 401 that names the header; a blank
+        // one is the same as missing.
+        client.DefaultRequestHeaders.Remove(TokenHeader);
+        using var read = await client.GetAsync(new Uri($"/api/stargrunt/games/{game}", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.Unauthorized, read.StatusCode);
+        var problem = await read.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(TokenHeader, problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+
+        using var move = await client.PostAsJsonAsync($"/api/stargrunt/games/{game}/turns/begin", new { });
+        Assert.Equal(HttpStatusCode.Unauthorized, move.StatusCode);
+
+        client.DefaultRequestHeaders.Add(TokenHeader, "   ");
+        using var blank = await client.GetAsync(new Uri($"/api/stargrunt/games/{game}", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.Unauthorized, blank.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheWrongTokenIsRefused_IncludingAnotherGamesToken()
+    {
+        using var factory = CreateFactory(starGrunt: true);
+        using var client = factory.CreateClient();
+        var game = await Create(client);
+
+        // A token from a different game is no better than a made-up one.
+        var other = await Create(client);
+        Assert.NotEqual(game, other);
+        using var read = await client.GetAsync(new Uri($"/api/stargrunt/games/{game}", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.Forbidden, read.StatusCode);
+
+        client.DefaultRequestHeaders.Remove(TokenHeader);
+        client.DefaultRequestHeaders.Add(TokenHeader, new string('f', 64));
+        using var move = await client.PostAsJsonAsync($"/api/stargrunt/games/{game}/turns/begin", new { });
+        Assert.Equal(HttpStatusCode.Forbidden, move.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheStatusRouteStaysOpen()
+    {
+        using var factory = CreateFactory(starGrunt: true);
+        using var client = factory.CreateClient();
+
+        using var status = await client.GetAsync(new Uri("/api/stargrunt/status", UriKind.Relative));
+
+        // It says the engine is here, and nothing about any game.
+        status.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Starts a game and leaves its token on the client for everything after.</summary>
+    private static async Task<Guid> Create(HttpClient client)
     {
         var created = await (await client.PostAsJsonAsync("/api/stargrunt/games", new CreateStarGruntGameRequest("Hill 43")))
             .Content.ReadFromJsonAsync<StarGruntGameCreatedResponse>(JsonOptions);
-        await Post(client, $"/api/stargrunt/games/{created!.GameId}/units", Squad("alpha", "Alpha Squad", "blue"));
-        await Post(client, $"/api/stargrunt/games/{created.GameId}/units", Squad("bravo", "Bravo Squad", "red"));
+        Assert.NotNull(created);
+        client.DefaultRequestHeaders.Remove(TokenHeader);
+        client.DefaultRequestHeaders.Add(TokenHeader, created.Token);
         return created.GameId;
+    }
+
+    private static async Task<Guid> TableWithTwoSquads(HttpClient client)
+    {
+        var game = await Create(client);
+        await Post(client, $"/api/stargrunt/games/{game}/units", Squad("alpha", "Alpha Squad", "blue"));
+        await Post(client, $"/api/stargrunt/games/{game}/units", Squad("bravo", "Bravo Squad", "red"));
+        return game;
     }
 
     private static async Task<StarGruntSnapshotDto?> Post(HttpClient client, string path, object body)

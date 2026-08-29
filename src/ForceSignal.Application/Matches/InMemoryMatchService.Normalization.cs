@@ -134,6 +134,18 @@ public sealed partial class InMemoryMatchService
         string.IsNullOrWhiteSpace(value) ? null : Truncate(value.Trim());
     private static string Truncate(string value) =>
         value.Length <= MaxDisplayTextLength ? value : value[..MaxDisplayTextLength];
+    /// <summary>
+    /// Trims a battle-log line coming in from a snapshot. Held to a longer ceiling than a name,
+    /// because the server's own lines - a ship's state at the start of a phase, say - run well past
+    /// what a name is allowed, and a restore that cut them off would hand back a log with the
+    /// numbers missing. Still bounded: a log line is not a place to store a file.
+    /// </summary>
+    private static string NormalizeLogMessage(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim() is var trimmed && trimmed.Length <= MaxLogMessageLength
+                ? trimmed
+                : trimmed[..MaxLogMessageLength];
     private static string NormalizeOrdnanceStatus(string? value) =>
         value?.Trim().ToLowerInvariant() switch
         {
@@ -199,7 +211,7 @@ public sealed partial class InMemoryMatchService
             .Take(MaxWeaponsPerShip)
             .Select(w => new WeaponMountState(
                 w.Id == Guid.Empty ? Guid.NewGuid() : w.Id,
-                w.Name.Trim(),
+                Truncate(w.Name.Trim()),
                 Math.Clamp(w.AttackDice, 1, 12),
                 Math.Clamp(w.MaxRange, 1, 72),
                 NormalizeArcs(w),

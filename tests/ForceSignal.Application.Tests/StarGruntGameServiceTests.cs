@@ -1,3 +1,4 @@
+using ForceSignal.Application;
 using ForceSignal.Application.Ground;
 using ForceSignal.Contracts.Ground;
 
@@ -166,7 +167,7 @@ public sealed class StarGruntGameServiceTests
     {
         var service = new StarGruntGameService();
 
-        Assert.Throws<InvalidOperationException>(() => service.GetSnapshot(Guid.NewGuid()));
+        Assert.Throws<NotFoundException>(() => service.GetSnapshot(Guid.NewGuid()));
     }
 
     [Fact]

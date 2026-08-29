@@ -267,6 +267,11 @@ public sealed partial record StarGruntGame
             return GameOutcome.Refused<StarGruntGame>($"{Unit(unit).Name} had nobody down.");
         }
 
+        // A unit cannot have more figures down than it ever had, and the number arrives off the
+        // wire. Without the clamp, one request naming two billion downed figures rolled two
+        // billion dice inside the service's lock and wedged the engine for everyone.
+        downed = Math.Min(downed, Unit(unit).FullStrength);
+
         var dead = 0;
         var wounded = 0;
         var recovered = 0;

@@ -222,6 +222,22 @@ public sealed class GameAssaultTests
         Assert.Contains("climb", refused.Reason!, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void MoreDownedThanTheUnitEverHadRollsOnlyForTheUnit()
+    {
+        // The count arrives off the wire. Before the clamp, two billion downed figures rolled two
+        // billion dice inside the service's lock and wedged the engine for everyone at the table.
+        var game = Activated().WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 6 });
+        var fullStrength = game.Unit(GameFixtures.Alpha).FullStrength;
+        var dice = new ScriptedDice([.. Enumerable.Repeat(5, 64)]);
+
+        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: int.MaxValue, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, dice).Value!;
+
+        // Every roll a 5 is a stunned man back on his feet - one per figure the unit ever had.
+        Assert.Equal(64 - fullStrength, dice.Remaining);
+        Assert.Equal(6 + fullStrength, after.Status(GameFixtures.Alpha).FiguresAlive);
+    }
+
     private static StarGruntGame Activated() =>
         GameFixtures.TwoSquadGame()
             .BeginTurn().Value!

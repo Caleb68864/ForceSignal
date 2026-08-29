@@ -235,4 +235,9 @@ public sealed record DirtsideSnapshotDto(
 /// <summary>A game that has just been started.</summary>
 /// <param name="GameId">Which game.</param>
 /// <param name="Snapshot">Its opening state.</param>
-public sealed record DirtsideGameCreatedResponse(Guid GameId, DirtsideSnapshotDto Snapshot);
+/// <param name="Token">
+/// The game token. Handed back here and nowhere else: every other route for this game requires it
+/// in the <c>X-Game-Token</c> header, and no snapshot ever carries it. One token for the whole game,
+/// because the screen is a hot seat - one device, both sides.
+/// </param>
+public sealed record DirtsideGameCreatedResponse(Guid GameId, DirtsideSnapshotDto Snapshot, string Token);

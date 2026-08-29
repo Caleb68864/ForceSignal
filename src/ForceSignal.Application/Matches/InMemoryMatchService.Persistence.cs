@@ -46,37 +46,49 @@ public sealed partial class InMemoryMatchService
         _store.Save(match.Id, JsonSerializer.Serialize(ToPersisted(match), PersistenceJson));
     }
 
+    private readonly List<SkippedSave> _skippedSaves = [];
+
+    /// <summary>
+    /// The stored rows that could not be brought back at startup, so the host can say so.
+    /// </summary>
+    public IReadOnlyList<SkippedSave> SkippedSaves => _skippedSaves;
+
     /// <summary>
     /// Rebuilds every match the store is holding. Called once, from the constructor.
     /// </summary>
     /// <remarks>
     /// A record that cannot be read is skipped rather than thrown, and the rest still load. One
-    /// unreadable match should cost that match, not every other game on the machine.
+    /// unreadable match should cost that match, not every other game on the machine. That means
+    /// catching everything: the catch used to stop at malformed JSON, and a row that parsed but
+    /// held no participants took the whole API down with it at startup, which is the outcome this
+    /// method exists to prevent. Each skip is kept, with its reason, so it is not a silent one.
     /// </remarks>
     private void LoadPersistedMatches()
     {
         foreach (var stored in _store.LoadAll())
         {
-            PersistedMatch? persisted;
             try
             {
-                persisted = JsonSerializer.Deserialize<PersistedMatch>(stored.State, PersistenceJson);
-            }
-            catch (JsonException)
-            {
-                continue;
-            }
+                var persisted = JsonSerializer.Deserialize<PersistedMatch>(stored.State, PersistenceJson)
+                    ?? throw new InvalidOperationException("The row is empty.");
+                if (persisted.FormatVersion != PersistenceFormatVersion)
+                {
+                    throw new InvalidOperationException(
+                        $"The row is format {persisted.FormatVersion}; this version reads {PersistenceFormatVersion}.");
+                }
 
-            if (persisted is null || persisted.FormatVersion != PersistenceFormatVersion)
-            {
-                continue;
+                var match = FromPersisted(persisted);
+                _matches[match.Id] = match;
+                _joinCodes[match.JoinCode] = match.Id;
+                IndexMatch(match);
+                match.Persist = Persist;
             }
-
-            var match = FromPersisted(persisted);
-            _matches[match.Id] = match;
-            _joinCodes[match.JoinCode] = match.Id;
-            IndexMatch(match);
-            match.Persist = Persist;
+#pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _skippedSaves.Add(new SkippedSave(stored.MatchId, ex.Message));
+            }
         }
     }
 
@@ -131,6 +143,13 @@ public sealed partial class InMemoryMatchService
 
     private static MatchState FromPersisted(PersistedMatch persisted)
     {
+        // A match is built around its first seat, so a row with none is not a match at all. Said
+        // in words rather than left to an index to throw, because the words are what gets logged.
+        if (persisted.Participants is null or { Count: 0 })
+        {
+            throw new InvalidOperationException("The row holds a match with no participants.");
+        }
+
         var seats = persisted.Participants.Select(p => ParticipantState.Restore(
             p.Id, p.Token, p.DisplayName, p.Role, p.IsReady, p.OrdersComplete)).ToList();
 

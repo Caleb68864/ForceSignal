@@ -98,6 +98,10 @@ Health surfaces:
 
 The production containers run without root privileges and drop Linux capabilities. API and web responses include baseline browser security headers.
 
+Behind a reverse proxy or ingress, set `Proxy__TrustForwardedHeaders=true` on the API so the per-client rate limits read the caller's address from `X-Forwarded-For` instead of seeing every request as the proxy's. Leave it unset when the API is reached directly, because the header is a claim any caller can make and is only safe to believe when something you control is writing it.
+
+The ground-combat engines (`Features__StarGrunt`, `Features__Dirtside`) hand back a `token` when a game is created; every other route for that game requires it in the `X-Game-Token` header.
+
 Readiness reports `persistence` as `sqlite` or `in-memory`, and warns when matches would be lost on a restart. The warning is the only thing telling an operator their game is not being written down, so it is reported in every environment.
 
 Smoke test a running stack:

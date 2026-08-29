@@ -1,6 +1,7 @@
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Matches;
 using ForceSignal.Infrastructure.Persistence;
+using Microsoft.Data.Sqlite;
 
 namespace ForceSignal.Infrastructure.Tests;
 
@@ -140,6 +141,41 @@ public sealed class SqliteMatchStoreTests : IDisposable
         // proved safe rather than trusted.
         Assert.Throws<ArgumentException>(() =>
             new SqliteMatchStore(Path.Combine(_directory, "guarded.db"), tableName));
+    }
+
+    [Fact]
+    public async Task AWriteThatFindsTheFileBusyWaitsForItRatherThanFailing()
+    {
+        using var store = new SqliteMatchStore(DatabasePath);
+        store.Save(Guid.NewGuid(), """{"first":true}""");
+
+        // Somebody else - another of the three stores over this one file - holds the write lock
+        // for a moment. The save has to land after they let go, not fail because they had it.
+        using var other = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = DatabasePath, Pooling = false }.ToString());
+        other.Open();
+        using (var hold = other.BeginTransaction())
+        {
+            using (var write = other.CreateCommand())
+            {
+                write.Transaction = hold;
+                write.CommandText = "INSERT INTO matches (match_id, state, written_at) VALUES ('not-a-match', '{}', 'now');";
+                write.ExecuteNonQuery();
+            }
+
+            var release = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(400));
+                hold.Commit();
+            });
+
+            var id = Guid.NewGuid();
+            var started = DateTimeOffset.UtcNow;
+            store.Save(id, """{"second":true}""");
+            await release;
+
+            Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(5));
+            Assert.Contains(store.LoadAll(), row => row.MatchId == id);
+        }
     }
 
     public void Dispose()

@@ -8,11 +8,18 @@ namespace ForceSignal.Api.Endpoints;
 /// Where the ground-combat engines mount their routes.
 /// </summary>
 /// <remarks>
+/// <para>
 /// These are only called when the matching flag in <see cref="FeatureFlags"/> is on, so a disabled
 /// engine contributes no routes at all - its paths 404 exactly as if the code had never been
 /// written. That is deliberate: an engine that is half-built should be absent rather than present
 /// and broken, because the failure mode that matters is one of these interfering with a Full
 /// Thrust game someone actually turned up to play.
+/// </para>
+/// <para>
+/// Every route that names a game requires that game's token, through <see cref="GameTokenFilter{TService}"/>.
+/// Only the status routes and the create routes are open: one says the engine is here, the other
+/// is where the token comes from.
+/// </para>
 /// </remarks>
 public static class GroundCombatEndpoints
 {
@@ -32,7 +39,8 @@ public static class GroundCombatEndpoints
             Results.Ok(games.CreateGame(request)))
             .WithName("CreateStarGruntGame")
             .WithTags("StarGrunt")
-            .WithSummary("Starts a game.")
+            .WithSummary("Starts a game and issues its token.")
+            .WithDescription("The token comes back here and nowhere else. Every other route for the game requires it in the X-Game-Token header.")
             .Produces<StarGruntGameCreatedResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -42,7 +50,8 @@ public static class GroundCombatEndpoints
             .WithTags("StarGrunt")
             .WithSummary("Reads a game.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/units", (
             Guid gameId,
@@ -54,7 +63,8 @@ public static class GroundCombatEndpoints
             .WithDescription("Every die is a face count the user typed off their own record card. This engine ships no stats.")
             .Produces<StarGruntSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/begin", (Guid gameId, IStarGruntGameService games) =>
             Results.Ok(games.BeginTurn(gameId)))
@@ -62,7 +72,8 @@ public static class GroundCombatEndpoints
             .WithTags("StarGrunt")
             .WithSummary("Opens the next turn.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/current/first-activator", (
             Guid gameId,
@@ -73,7 +84,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Settles who takes the first activation this turn.")
             .WithDescription("The side with fewer units on the table has the choice, and may take it or give it away.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations", (
             Guid gameId,
@@ -83,7 +95,8 @@ public static class GroundCombatEndpoints
             .WithTags("StarGrunt")
             .WithSummary("Opens an activation.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/steps", (
             Guid gameId,
@@ -94,7 +107,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Spends an action on something other than shooting.")
             .WithDescription("Firing has a route of its own, because it has to name the weapon it spends.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/fire", (
             Guid gameId,
@@ -105,7 +119,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Fires one weapon at another unit.")
             .WithDescription("Range and cover are declared by the players, as they are at a table. Nothing here computes line of sight.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/remove-suppression", (
             Guid gameId,
@@ -116,7 +131,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Spends an action trying to get a pinned unit's head back up.")
             .WithDescription("One action, one roll, one marker at best - the unit's quality die must exceed its leadership value. The action is spent whether or not it works.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/confidence-tests", (
             Guid gameId,
@@ -127,7 +143,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Puts a unit's nerve to the test.")
             .WithDescription("Not an action and not tied to an activation: a test is taken the moment something happens, to whichever unit it happened to. The threat level comes off the player's own table.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/rally", (
             Guid gameId,
@@ -138,7 +155,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Spends a command element's action steadying a subordinate.")
             .WithDescription("The action belongs to the rallying unit and the roll belongs to the rallied one, against both leadership values added together.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/reorganise", (
             Guid gameId,
@@ -148,7 +166,8 @@ public static class GroundCombatEndpoints
             .WithTags("StarGrunt")
             .WithSummary("Spends an action putting a scattered unit back in order.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/units/disorganised", (
             Guid gameId,
@@ -159,7 +178,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Declares whether a unit has scattered out of integrity.")
             .WithDescription("Integrity is measured with a ruler at the table, so this is declared rather than computed.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/reaction-tests", (
             Guid gameId,
@@ -170,7 +190,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Rolls to see whether troops have the nerve for a risky order.")
             .WithDescription("The same roll as a confidence test, with one difference: failing costs the action and never a confidence level. Passing spends nothing by itself.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/units/leaves-cover", (
             Guid gameId,
@@ -181,7 +202,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Declares that a unit's next move would take it out of cover.")
             .WithDescription("Whether a move counts as leaving cover is an eyeball judgement at a table, so it is declared rather than computed.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/charge", (
             Guid gameId,
@@ -192,7 +214,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Declares a close assault and rolls the attacker's nerve to make it.")
             .WithDescription("The threat level is supplied, off the player's own table. What is enforced here is the rule beside it: a unit that has already lost its nerve will not charge at all.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/assaults/stand", (
             Guid gameId,
@@ -203,7 +226,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Rolls the defender's nerve to stand and receive a charge.")
             .WithDescription("The threat comes from the odds, counted off the roster with power armour worth two men, and terror doubles it.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/assaults/melee", (
             Guid gameId,
@@ -214,7 +238,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Fights one round of melee, one exchange per pairing.")
             .WithDescription("Who fights whom is sent in rather than worked out: the attacker pairs off one figure per defender and the defender allocates the leftovers, which is a decision between two people.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/assaults/downed", (
             Guid gameId,
@@ -225,7 +250,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Rolls what became of the figures a unit had downed.")
             .WithDescription("Rolled once the assault is over, because a stunned man gets up again on the winning side and is taken on the losing one. The bands that read the roll are supplied.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/activations/current/end", (Guid gameId, IStarGruntGameService games) =>
             Results.Ok(games.EndActivation(gameId)))
@@ -233,7 +259,8 @@ public static class GroundCombatEndpoints
             .WithTags("StarGrunt")
             .WithSummary("Closes the open activation.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/current/pass", (
             Guid gameId,
@@ -244,7 +271,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Declines to activate anything.")
             .WithDescription("Legal only while you have fewer unactivated units than your opponent.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         app.MapPost("/api/stargrunt/games/{gameId:guid}/turns/current/end", (Guid gameId, IStarGruntGameService games) =>
             Results.Ok(games.EndTurn(gameId)))
@@ -252,7 +280,8 @@ public static class GroundCombatEndpoints
             .WithTags("StarGrunt")
             .WithSummary("Ends the turn.")
             .Produces<StarGruntSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IStarGruntGameService>();
 
         return app;
     }
@@ -273,7 +302,8 @@ public static class GroundCombatEndpoints
             Results.Ok(games.CreateGame(request)))
             .WithName("CreateDirtsideGame")
             .WithTags("Dirtside")
-            .WithSummary("Starts a game.")
+            .WithSummary("Starts a game and issues its token.")
+            .WithDescription("The token comes back here and nowhere else. Every other route for the game requires it in the X-Game-Token header.")
             .Produces<DirtsideGameCreatedResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -283,7 +313,8 @@ public static class GroundCombatEndpoints
             .WithTags("Dirtside")
             .WithSummary("Reads a game without changing it.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/units", (
             Guid gameId,
@@ -294,7 +325,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Puts a platoon on the table.")
             .WithDescription("Every number comes off the player's own record card. This app ships no stats.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/turns", (Guid gameId, IDirtsideGameService games) =>
             Results.Ok(games.BeginTurn(gameId)))
@@ -302,7 +334,8 @@ public static class GroundCombatEndpoints
             .WithTags("Dirtside")
             .WithSummary("Opens the next turn.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/turns/current/first-activator", (
             Guid gameId,
@@ -312,7 +345,8 @@ public static class GroundCombatEndpoints
             .WithTags("Dirtside")
             .WithSummary("Settles who takes the first activation this turn.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations", (
             Guid gameId,
@@ -322,7 +356,8 @@ public static class GroundCombatEndpoints
             .WithTags("Dirtside")
             .WithSummary("Turns a platoon's marker over and starts its activation.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/moves", (
             Guid gameId,
@@ -333,7 +368,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Moves one element.")
             .WithDescription("Whether the move covered more than half its movement is measured with a tape at the table, so it is sent rather than worked out.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/stand-down", (
             Guid gameId,
@@ -344,7 +380,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Declares that an element is sitting this activation out.")
             .WithDescription("A decision with teeth: an element that sits out has given up its go for the whole turn. The activation cannot close until every element has said what it is doing.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/sensors", (
             Guid gameId,
@@ -355,7 +392,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Switches an element's area-defence sensors on or off.")
             .WithDescription("Spends the element's one combat action, which is the price of a standing reaction: live sensors intercept on anybody's activation for the rest of the turn.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/fire", (
             Guid gameId,
@@ -366,7 +404,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Fires one element's weapon at one designated element.")
             .WithDescription("The declaration is binding: a shot at something an earlier shot destroyed is refused rather than re-pointed, because that is the cost of information the player did not have.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/end", (
             Guid gameId,
@@ -376,7 +415,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Closes the open activation.")
             .WithDescription("Refused while any element still on the table has not said what it is doing, and the refusal names them.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/turns/current/pass", (
             Guid gameId,
@@ -386,7 +426,8 @@ public static class GroundCombatEndpoints
             .WithTags("Dirtside")
             .WithSummary("Declines to activate anything.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         app.MapPost("/api/dirtside/games/{gameId:guid}/turns/current/end", (
             Guid gameId,
@@ -396,7 +437,8 @@ public static class GroundCombatEndpoints
             .WithSummary("Closes the turn.")
             .WithDescription("Clears what only lasted the turn: an element that moved over half its movement has not done so next turn.")
             .Produces<DirtsideSnapshotDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
 
         return app;
     }

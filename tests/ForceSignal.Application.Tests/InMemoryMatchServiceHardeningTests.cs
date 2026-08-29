@@ -1,3 +1,5 @@
+using ForceSignal.Application;
+using ForceSignal.Domain.Rules;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Matches;
 
@@ -34,7 +36,7 @@ public sealed class InMemoryMatchServiceHardeningTests
 
         // A near miss on the real code is still a miss.
         var wrong = owner.JoinCode[..^1] + (owner.JoinCode[^1] == 'A' ? 'B' : 'A');
-        Assert.Throws<InvalidOperationException>(() => service.JoinMatch(new JoinMatchRequest(wrong, "Red")));
+        Assert.Throws<NotFoundException>(() => service.JoinMatch(new JoinMatchRequest(wrong, "Red")));
     }
 
     [Fact]
@@ -187,7 +189,7 @@ public sealed class InMemoryMatchServiceHardeningTests
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
 
-        var missing = Assert.Throws<InvalidOperationException>(() =>
+        var missing = Assert.Throws<NotFoundException>(() =>
             service.UpdateShipDamage(Guid.NewGuid(), new UpdateShipDamageRequest(owner.ParticipantToken, 1, 0, 0, 0, 0, 0, 0)));
         Assert.Contains("not found", missing.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -206,29 +208,137 @@ public sealed class InMemoryMatchServiceHardeningTests
 
         service.RemoveOrdnanceMarker(marker.Id, new RemoveOrdnanceMarkerRequest(owner.ParticipantToken));
 
-        var missing = Assert.Throws<InvalidOperationException>(() =>
+        var missing = Assert.Throws<NotFoundException>(() =>
             service.RemoveOrdnanceMarker(marker.Id, new RemoveOrdnanceMarkerRequest(owner.ParticipantToken)));
         Assert.Contains("not found", missing.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void OpeningMoreMatchesThanTheServerHoldsRetiresTheOldestRatherThanRefusing()
+    public void OpeningMoreMatchesThanTheServerHoldsIsRefusedRatherThanRetiringALiveGame()
     {
         var service = new InMemoryMatchService();
         var first = service.CreateMatch(new CreateMatchRequest("Blue", "First", Rules: TestRules.Invented));
 
-        // Push past the concurrent ceiling. A table must always be able to start a game, so the
-        // oldest match gives way instead of the new one being turned down.
-        for (var i = 0; i < 520; i++)
+        // Fill the server to its ceiling. Creating a match needs no credentials, so this is what a
+        // stranger with a loop can do - and it used to retire the oldest live game to make room,
+        // which handed that stranger every table in progress. Now the newcomer is turned away.
+        for (var i = 1; i < 500; i++)
         {
             service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}", Rules: TestRules.Invented));
         }
 
-        Assert.Throws<InvalidOperationException>(() => service.GetSnapshot(first.MatchId));
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+            service.CreateMatch(new CreateMatchRequest("Blue", "One Too Many", Rules: TestRules.Invented)));
+        Assert.Contains("as many as it holds", refused.Message, StringComparison.OrdinalIgnoreCase);
 
-        // The newest match is still there and still works.
-        var latest = service.CreateMatch(new CreateMatchRequest("Blue", "Latest", Rules: TestRules.Invented));
-        Assert.Equal("Latest", service.GetSnapshot(latest.MatchId).Name);
+        // The first match - the oldest, the one that used to give way - is untouched.
+        Assert.Equal("First", service.GetSnapshot(first.MatchId).Name);
+    }
+
+    [Fact]
+    public void AJoinCodeWithStraySpacesStillJoins()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Pasted Code", Rules: TestRules.Invented));
+
+        // A code pasted from a message often arrives with a space on either end. The lookup
+        // already forgave that; joining did not, so the same code worked one call and failed the
+        // next.
+        var joined = service.JoinMatch(new JoinMatchRequest($"  {owner.JoinCode}  ", "Red"));
+
+        Assert.Equal(owner.MatchId, joined.MatchId);
+    }
+
+    [Fact]
+    public void ANullMovementOrderIsARefusalNotAFault()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Null Order", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        var ship = service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant")).Ships.Single();
+        Assert.Equal("OrderEntry", service.SetReady(owner.MatchId, owner.ParticipantToken, true).Phase);
+
+        // The contract says the order is required, but a JSON null binds to it all the same. Each
+        // of the three routes that read one used to fall over inside the rules; each now refuses.
+        var preview = Assert.Throws<InvalidOperationException>(() =>
+            service.PreviewOrder(owner.MatchId, new PreviewOrderRequest(owner.ParticipantToken, ship.Id, null!)));
+        var commit = Assert.Throws<InvalidOperationException>(() =>
+            service.CommitOrder(owner.MatchId, new CommitOrderRequest(owner.ParticipantToken, ship.Id, null!, "salt")));
+
+        Assert.Contains("order is required", preview.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("order is required", commit.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ShipAndWeaponNamesAreCutToTheDisplayCeilingOnEveryPathThatSetsThem()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Long Names", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        var ship = service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant")).Ships.Single();
+        var tooLong = new string('x', 5000);
+
+        // Creating a ship already truncated; updating it, duplicating it and naming its mounts did
+        // not, and a name is replayed into every log line and every snapshot that mentions it.
+        var updated = service.UpdateShipProfile(ship.Id, new UpdateShipProfileRequest(
+            owner.ParticipantToken, tooLong, tooLong, 4, 6, 3, 12, 4, 20, 24,
+            Weapons: [new WeaponMountDto(Guid.Empty, tooLong, 2, 24, [FiringArc.Fore], 0, 0, 0)]))
+            .Ships.Single();
+        Assert.Equal(120, updated.Name.Length);
+        Assert.Equal(120, updated.ClassName!.Length);
+        Assert.All(updated.Weapons, weapon => Assert.Equal(120, weapon.Name.Length));
+
+        var copy = service.DuplicateShip(ship.Id, new DuplicateShipRequest(owner.ParticipantToken, tooLong))
+            .Ships.Single(s => s.Id != ship.Id);
+        Assert.Equal(120, copy.Name.Length);
+    }
+
+    [Fact]
+    public void RestoredLogLinesAreBoundedLikeEveryOtherRestoredString()
+    {
+        var source = new InMemoryMatchService();
+        var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Log Source", Rules: TestRules.Invented));
+        var fleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        source.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
+        var exported = source.GetSnapshot(owner.MatchId);
+
+        // The count of entries was capped; each entry's text was not, and a log line was a place
+        // to park most of an eight-megabyte upload for a day.
+        var padded = exported with
+        {
+            MatchLog =
+            [
+                new MatchLogEntryDto(1, DateTimeOffset.UtcNow, 1, new string('p', 5000), new string('c', 5000), new string('m', 50_000)),
+            ],
+        };
+
+        var restored = new InMemoryMatchService();
+        var snapshot = restored.GetSnapshot(restored.RestoreMatch(padded, null).MatchId);
+        var entry = snapshot.MatchLog[0];
+        Assert.Equal(120, entry.Phase.Length);
+        Assert.Equal(120, entry.Category.Length);
+        Assert.Equal(1000, entry.Message.Length);
+    }
+
+    [Fact]
+    public void ClaimingASeatWithTheCodeInAnyCaseWorks_AndTheClaimersNameIsKept()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Case Code", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, Ship(owner.ParticipantToken, "Valiant"));
+        var restored = new InMemoryMatchService();
+        var rebuilt = restored.RestoreMatch(service.GetSnapshot(owner.MatchId), null);
+        var seat = rebuilt.Seats.Single();
+
+        // The code is read aloud and typed back; the comparison folds case before it compares in
+        // constant time. And the name the device offers is honoured - the contract always said it
+        // would be, and the service used to drop it on the floor.
+        var session = restored.ClaimSeat(rebuilt.MatchId, seat.ParticipantId,
+            new ClaimSeatRequest("  Admiral Case  ", rebuilt.JoinCode.ToLowerInvariant()));
+
+        var claimed = restored.GetSnapshot(rebuilt.MatchId).Participants.Single(p => p.Id == session.ParticipantId);
+        Assert.Equal("Admiral Case", claimed.DisplayName);
     }
 
     [Fact]

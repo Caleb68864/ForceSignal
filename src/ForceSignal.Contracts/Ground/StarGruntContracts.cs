@@ -287,4 +287,9 @@ public sealed record StarGruntSnapshotDto(
 /// <summary>What creating a game hands back.</summary>
 /// <param name="GameId">The new game's id.</param>
 /// <param name="Snapshot">Its opening state.</param>
-public sealed record StarGruntGameCreatedResponse(Guid GameId, StarGruntSnapshotDto Snapshot);
+/// <param name="Token">
+/// The game token. Handed back here and nowhere else: every other route for this game requires it
+/// in the <c>X-Game-Token</c> header, and no snapshot ever carries it. One token for the whole game,
+/// because the screen is a hot seat - one device, both sides.
+/// </param>
+public sealed record StarGruntGameCreatedResponse(Guid GameId, StarGruntSnapshotDto Snapshot, string Token);

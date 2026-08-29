@@ -3,17 +3,23 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Matches;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ForceSignal.Api.Tests;
 
 /// <summary>
 /// Covers the transport boundary's guards: the headers every response carries, what an oversized
 /// or deeply-nested snapshot file gets back, how a missing or blank participant token is answered,
-/// and the budget on the two endpoints that turn a room code into a match.
+/// the budgets on the endpoints a stranger can reach, and what a fault the server did not plan for
+/// is allowed to say.
 /// </summary>
 public sealed class ApiHardeningTests
 {
@@ -266,7 +272,166 @@ public sealed class ApiHardeningTests
         }
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(Dictionary<string, string?>? settings = null) =>
+    [Fact]
+    public async Task MatchCreation_IsBudgetedSoAStrangerCannotFillTheServer()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 0; attempt < 15; attempt++)
+        {
+            using var response = await client.PostAsJsonAsync("/api/matches",
+                new CreateMatchRequest("Blue", $"Flood {attempt}", 72, 48, Rules: TestRules.Invented));
+            statuses.Add(response.StatusCode);
+        }
+
+        // Creating a match needs no credentials, so this is the route a loop reaches for. The
+        // first few go through; the budget cuts in well before fifteen.
+        Assert.Contains(HttpStatusCode.OK, statuses);
+        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
+    }
+
+    [Fact]
+    public async Task SeatClaim_SharesTheRoomCodeBudget()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        // Claiming a seat is authenticated by room code like the lookups, and it was the one
+        // code-guarded route with no budget at all.
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            using var response = await client.PostAsJsonAsync(
+                $"/api/matches/{Guid.NewGuid()}/seats/{Guid.NewGuid()}/claim",
+                new ClaimSeatRequest("Guesser", $"GUESS-{attempt:D3}-CODE"));
+            statuses.Add(response.StatusCode);
+        }
+
+        Assert.Contains(HttpStatusCode.NotFound, statuses);
+        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
+    }
+
+    [Fact]
+    public async Task ANullOrderInTheBody_IsABadRequestNotAServerFault()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Null Order", 72, 48, Rules: TestRules.Invented)))
+            .Content.ReadFromJsonAsync<MatchCreatedResponse>();
+        Assert.NotNull(created);
+        var fleet = await (await client.PostAsJsonAsync($"/api/matches/{created.MatchId}/fleets",
+            new CreateFleetRequest(created.ParticipantToken, "Blue Watch", null))).Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+        var ship = await (await client.PostAsJsonAsync($"/api/fleets/{fleet!.Fleets.Single().Id}/ships",
+            new CreateShipRequest(created.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 2, StartX: 20, StartY: 24)))
+            .Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+
+        // The contract says the order is required; the serializer binds a JSON null to it anyway.
+        using var response = await client.PostAsync(
+            $"/api/matches/{created.MatchId}/turns/current/orders/preview",
+            new StringContent(
+                $$"""{"participantToken":"{{created.ParticipantToken}}","shipId":"{{ship!.Ships.Single().Id}}","order":null}""",
+                Encoding.UTF8,
+                "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("order", problem.GetProperty("detail").GetString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AFaultTheServerDidNotPlanFor_IsAGenericProblemThatSaysNothingAboutIt()
+    {
+        // A store that falls over inside the service, with a message that must not reach the wire.
+        using var factory = CreateFactory(store: new FaultingStore(new InvalidCastException("internal detail: connection string was C:\\secrets")));
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Fault", 72, 48, Rules: TestRules.Invented));
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Something went wrong on the server.", problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task AStorageFailure_IsA503WithAStableLine()
+    {
+        using var factory = CreateFactory(store: new FaultingStore(new SqliteException("database is locked", 5)));
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Busy", 72, 48, Rules: TestRules.Invented));
+
+        // The in-memory match has moved on and the file has not; the caller is told the server is
+        // busy, in words that do not change with the SQLite error text.
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("storage", problem.GetProperty("detail").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("locked", problem.GetProperty("detail").GetString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task NotFound_IsDecidedByTheExceptionsTypeAndNotByItsWording()
+    {
+        // A refusal whose message happens to say "not found" is still a refusal. The status used
+        // to be read off the words, so this would have been a 404 for the wrong reason.
+        using var factory = CreateFactory(store: new FaultingStore(new InvalidOperationException("The disk was not found to be writable.")));
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Wording", 72, 48, Rules: TestRules.Invented));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ForwardedHeaders_AreIgnoredUnlessTheOperatorOptsIn()
+    {
+        // Forty lookups, each claiming a different client behind a proxy. Without the opt-in the
+        // claim is ignored and they share one budget; with it, each is its own caller.
+        using var untrusting = CreateFactory();
+        using (var client = untrusting.CreateClient())
+        {
+            var statuses = await LookupsClaimingDistinctClients(client);
+            Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
+        }
+
+        using var trusting = CreateFactory(new Dictionary<string, string?> { ["Proxy:TrustForwardedHeaders"] = "true" });
+        using (var client = trusting.CreateClient())
+        {
+            var statuses = await LookupsClaimingDistinctClients(client);
+            Assert.DoesNotContain(HttpStatusCode.TooManyRequests, statuses);
+        }
+    }
+
+    private static async Task<List<HttpStatusCode>> LookupsClaimingDistinctClients(HttpClient client)
+    {
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/matches/by-code/GUESS-{attempt:D3}-CODE");
+            request.Headers.TryAddWithoutValidation("X-Forwarded-For", $"203.0.113.{attempt + 1}");
+            using var response = await client.SendAsync(request);
+            statuses.Add(response.StatusCode);
+        }
+
+        return statuses;
+    }
+
+    /// <summary>A store whose every write fails the way a test says, standing in for a broken disk.</summary>
+    private sealed class FaultingStore(Exception fault) : IMatchStore
+    {
+        public void Save(Guid matchId, string state) => throw fault;
+
+        public void Remove(Guid matchId)
+        {
+        }
+
+        public IReadOnlyList<StoredMatch> LoadAll() => [];
+    }
+
+    private static WebApplicationFactory<Program> CreateFactory(Dictionary<string, string?>? settings = null, IMatchStore? store = null) =>
         new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -274,6 +439,15 @@ public sealed class ApiHardeningTests
                 if (settings is not null)
                 {
                     builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(settings));
+                }
+
+                if (store is not null)
+                {
+                    builder.ConfigureTestServices(services =>
+                    {
+                        services.RemoveAll<IMatchStore>();
+                        services.AddSingleton(store);
+                    });
                 }
             });
 }

@@ -141,7 +141,8 @@ public sealed partial class InMemoryMatchService
     {
         public Guid Id { get; init; }
         public required string Token { get; set; }
-        public required string DisplayName { get; init; }
+        // Settable for one reason: a device claiming a restored seat may give the seat its name.
+        public required string DisplayName { get; set; }
         public required string Role { get; init; }
         public bool IsReady { get; set; }
         // False until a realtime hub connection joins the match group for this token.

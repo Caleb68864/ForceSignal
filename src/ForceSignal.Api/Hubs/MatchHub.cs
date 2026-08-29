@@ -24,9 +24,18 @@ public sealed class MatchHub(IMatchService matches) : Hub
     }
 
     /// <summary>Removes the connection from a match notification group.</summary>
+    /// <remarks>
+    /// Parsed for symmetry with joining: a group is named by the match id in one fixed form, and a
+    /// string that is not a match id names no group this hub ever put anyone in. Presence is still
+    /// settled either way, because the session is what tracks it.
+    /// </remarks>
     public async Task LeaveMatchGroup(string matchId)
     {
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, matchId);
+        if (Guid.TryParse(matchId, out var parsedMatchId))
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, parsedMatchId.ToString());
+        }
+
         if (Context.Items.Remove(SessionKey, out var session) && session is (Guid trackedMatchId, string token))
         {
             await NotifyPresence(trackedMatchId, token, false);

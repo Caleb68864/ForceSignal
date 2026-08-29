@@ -185,15 +185,17 @@ public sealed partial class InMemoryMatchService
                     NormalizeOrdnanceStatus(marker.Status)));
             }
 
+            // Normalized like every other string in the file. The count of entries was already
+            // capped; each one's text has to be too, or a log line is a place to park a megabyte.
             foreach (var entry in snapshot.MatchLog ?? [])
             {
                 match.AddRestoredLog(new MatchLogEntryState(
                     entry.Sequence,
                     entry.Timestamp,
                     entry.TurnNumber,
-                    entry.Phase,
-                    entry.Category,
-                    entry.Message));
+                    NormalizeText(entry.Phase, match.Phase.ToString()),
+                    NormalizeText(entry.Category, "Log"),
+                    NormalizeLogMessage(entry.Message)));
             }
 
             foreach (var firing in snapshot.FiringResults ?? [])
@@ -403,9 +405,17 @@ public sealed partial class InMemoryMatchService
     /// Checks the room code a caller presented against the match. Used where there is no
     /// participant token to check yet, which is the whole point of the restore-and-claim flow.
     /// </summary>
+    /// <remarks>
+    /// Compared in constant time, like a participant token. A room code is short and the comparison
+    /// is one of many things a request does, so timing it is far-fetched - but it is a credential,
+    /// and this is the one place a credential was compared with an early-out. Case is folded first,
+    /// because the code is read aloud and typed back by someone who may not reach for shift.
+    /// </remarks>
     private static void RequireJoinCode(MatchState match, string? joinCode)
     {
-        if (!string.Equals(NormalizeText(joinCode, string.Empty), match.JoinCode, StringComparison.OrdinalIgnoreCase))
+        var presented = System.Text.Encoding.UTF8.GetBytes(NormalizeText(joinCode, string.Empty).ToUpperInvariant());
+        var expected = System.Text.Encoding.UTF8.GetBytes(match.JoinCode.ToUpperInvariant());
+        if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(presented, expected))
         {
             throw new UnauthorizedAccessException("The room code does not match this match.");
         }
@@ -424,7 +434,7 @@ public sealed partial class InMemoryMatchService
             RequireJoinCode(match, request.JoinCode);
 
             var seat = match.Participants.SingleOrDefault(p => p.Id == participantId)
-                ?? throw new InvalidOperationException("Seat was not found.");
+                ?? throw new NotFoundException("Seat was not found.");
             if (seat.IsClaimed)
             {
                 throw new InvalidOperationException($"{seat.DisplayName} has already been claimed on another device.");
@@ -432,6 +442,9 @@ public sealed partial class InMemoryMatchService
 
             var token = seat.Claim();
             seat.IsConnected = false;
+            // The seat keeps the name it was saved with unless the claiming device offers one. The
+            // contract always said it could; the service used to take the field and drop it.
+            seat.DisplayName = NormalizeText(request.DisplayName, seat.DisplayName);
             match.AddLog("Session", match.Phase.ToString(), $"{seat.DisplayName} claimed their seat in the restored match.");
             match.Touch("SeatClaimed");
             return new MatchJoinedResponse(match.Id, match.JoinCode, seat.Id, token);
@@ -455,7 +468,7 @@ public sealed partial class InMemoryMatchService
         {
             if (string.IsNullOrWhiteSpace(joinCode) || !_joinCodes.TryGetValue(joinCode.Trim(), out var matchId))
             {
-                throw new InvalidOperationException("Room code was not found.");
+                throw new NotFoundException("Room code was not found.");
             }
 
             var match = _matches[matchId];

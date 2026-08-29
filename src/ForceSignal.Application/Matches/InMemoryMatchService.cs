@@ -112,6 +112,9 @@ public interface IMatchService
 
     /// <summary>Advances match phase or starts the next turn.</summary>
     MatchSnapshotDto AdvanceTurn(Guid matchId, string participantToken);
+
+    /// <summary>The stored rows that could not be brought back at startup, so the host can say so.</summary>
+    IReadOnlyList<SkippedSave> SkippedSaves { get; }
 }
 
 /// <summary>In-memory implementation of match orchestration for local and early self-hosted play.</summary>
@@ -201,6 +204,9 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     /// <summary>Longest caller-supplied display string kept. Longer text is truncated, not refused.</summary>
     private const int MaxDisplayTextLength = 120;
 
+    /// <summary>Longest battle-log line a restored snapshot may carry. See <c>NormalizeLogMessage</c>.</summary>
+    private const int MaxLogMessageLength = 1000;
+
     /// <summary>
     /// How long a match with nobody touching it is kept before its memory is reclaimed. A game can
     /// sit idle over a lunch break or an argument about a range measurement, so the window is long
@@ -257,9 +263,12 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     {
         lock (_gate)
         {
-            if (!_joinCodes.TryGetValue(request.JoinCode, out var matchId))
+            // Trimmed, as the lookup trims: a code pasted with a stray space resolved to a match
+            // one call earlier and then failed to join it, which read as the server changing its
+            // mind.
+            if (string.IsNullOrWhiteSpace(request.JoinCode) || !_joinCodes.TryGetValue(request.JoinCode.Trim(), out var matchId))
             {
-                throw new InvalidOperationException("Room code was not found.");
+                throw new NotFoundException("Room code was not found.");
             }
 
             var match = _matches[matchId];
@@ -538,8 +547,8 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
             }
 
-            ship.Name = string.IsNullOrWhiteSpace(request.Name) ? ship.Name : request.Name.Trim();
-            ship.ClassName = string.IsNullOrWhiteSpace(request.ClassName) ? null : request.ClassName.Trim();
+            ship.Name = NormalizeText(request.Name, ship.Name);
+            ship.ClassName = NormalizeOptionalText(request.ClassName);
             ship.ThrustRating = Math.Clamp(request.ThrustRating, 0, 20);
             ship.CurrentVelocity = request.CurrentVelocity;
             ship.CurrentCourse = request.CurrentCourse;
@@ -579,9 +588,9 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             var participant = FindParticipant(match, request.ParticipantToken);
             var source = FindOwnedShip(match, participant.Id, shipId);
             RequireRoom(match.Ships.Count, MaxShipsPerMatch, "ships");
-            var copyName = string.IsNullOrWhiteSpace(request.Name)
-                ? NextCopyName(source.Name, match.Ships.Where(s => s.FleetId == source.FleetId).Select(s => s.Name))
-                : request.Name.Trim();
+            var copyName = NormalizeText(
+                request.Name,
+                NextCopyName(source.Name, match.Ships.Where(s => s.FleetId == source.FleetId).Select(s => s.Name)));
 
             match.Ships.Add(new ShipState(
                 Guid.NewGuid(),
@@ -688,7 +697,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                 ? FindOwnedShip(match, participant.Id, sourceId)
                 : null;
             var target = request.TargetShipId is Guid targetId
-                ? match.Ships.SingleOrDefault(s => s.Id == targetId) ?? throw new InvalidOperationException("Target ship was not found.")
+                ? match.Ships.SingleOrDefault(s => s.Id == targetId) ?? throw new NotFoundException("Target ship was not found.")
                 : null;
 
             // A salvo is thrown at a point of aim within the launcher's reach - 24mu for a standard
@@ -738,7 +747,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             var participant = FindParticipant(match, request.ParticipantToken);
             var marker = FindOwnedOrdnanceMarker(match, participant.Id, markerId);
             var target = request.TargetShipId is Guid targetId
-                ? match.Ships.SingleOrDefault(s => s.Id == targetId) ?? throw new InvalidOperationException("Target ship was not found.")
+                ? match.Ships.SingleOrDefault(s => s.Id == targetId) ?? throw new NotFoundException("Target ship was not found.")
                 : null;
 
             marker.Name = NormalizeOrdnanceText(request.Name, marker.Name);
@@ -888,7 +897,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                 return new RepairJob(job.Kind, null, parties);
             case ShipSystemKind.Weapon:
                 var mount = ship.Weapons.SingleOrDefault(weapon => weapon.Id == job.WeaponId)
-                    ?? throw new InvalidOperationException("That weapon mount was not found.");
+                    ?? throw new NotFoundException("That weapon mount was not found.");
                 if (!mount.IsDestroyed)
                 {
                     throw new InvalidOperationException($"{mount.Name} is already working.");
@@ -1333,6 +1342,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                 throw new InvalidOperationException($"{ship.Name} is a fighter group: fly it straight to where it is going rather than plotting a course.");
             }
 
+            RequireOrder(request.Order);
             var validation = _rules.Validate(new ShipMovementState(ship.CurrentVelocity, ship.CurrentCourse), UsableThrust(ship), request.Order);
             if (!validation.IsValid)
             {
@@ -1383,6 +1393,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             // anything, so a mismatch is treated as the honest mistake it almost always is.
             var anythingAlreadyRevealed = match.Commitments.Values.Any(c => c.IsRevealed);
 
+            RequireOrder(request.Order);
             var normalized = _rules.Normalize(request.Order);
             var isValid = _commitments.Verify(commitment.CommitmentHash, normalized, request.Salt);
 
@@ -1535,7 +1546,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     {
         if (!_matches.TryGetValue(matchId, out var match))
         {
-            throw new InvalidOperationException("Match was not found.");
+            throw new NotFoundException("Match was not found.");
         }
 
         // Every read and every write comes through here, so this is the one place that knows a
@@ -1547,9 +1558,18 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
 
     /// <summary>
     /// Drops matches nobody has touched inside the retention window, and their index entries with
-    /// them. Called when a match is opened rather than on a timer, so the service holds no
-    /// background work and a process that is doing nothing stays doing nothing.
+    /// them, then refuses if the server is still full. Called when a match is opened rather than
+    /// on a timer, so the service holds no background work and a process that is doing nothing
+    /// stays doing nothing.
     /// </summary>
+    /// <remarks>
+    /// At the ceiling this refuses the new match rather than retiring the oldest live one. It used
+    /// to do the opposite, on the theory that a table must always be able to start a game - but
+    /// creating a match needs no credentials, so that theory handed anyone with a loop the power to
+    /// destroy every game in progress, and a real table idle for two minutes over a range argument
+    /// was the first to go. A live game is never destroyed to make room. A server genuinely holding
+    /// five hundred matches inside a day is a server that needs a bigger ceiling, not a quieter one.
+    /// </remarks>
     private void EvictIdleMatches()
     {
         var cutoff = DateTimeOffset.UtcNow - IdleMatchRetention;
@@ -1559,12 +1579,10 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             Forget(matchId);
         }
 
-        // If the server is genuinely this busy, the oldest matches give way so a new one can always
-        // be opened. Refusing instead would leave a table unable to start a game.
-        while (_matches.Count >= MaxConcurrentMatches)
+        if (_matches.Count >= MaxConcurrentMatches)
         {
-            var oldest = _matches.Values.OrderBy(match => match.LastActivity).First();
-            Forget(oldest.Id);
+            throw new InvalidOperationException(
+                $"This server is already hosting {MaxConcurrentMatches} matches, which is as many as it holds. Try again later.");
         }
     }
 
@@ -1608,7 +1626,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     private MatchState FindMatchByEntity(Dictionary<Guid, Guid> index, Guid id, string what) =>
         index.TryGetValue(id, out var matchId) && _matches.TryGetValue(matchId, out var match)
             ? match
-            : throw new InvalidOperationException($"{what} was not found.");
+            : throw new NotFoundException($"{what} was not found.");
 
     /// <summary>Records where every addressable part of a match lives, so it can be found by id.</summary>
     private void IndexMatch(MatchState match)
@@ -1626,6 +1644,20 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
         foreach (var marker in match.OrdnanceMarkers)
         {
             _markerToMatch[marker.Id] = match.Id;
+        }
+    }
+
+    /// <summary>
+    /// Refuses a request whose order came over the wire as null. The contract says the field is
+    /// required, but the serializer will bind a JSON null to it regardless, and the rules would
+    /// then fall over reading it - which reached the player as a server fault rather than as the
+    /// bad request it was.
+    /// </summary>
+    private static void RequireOrder(MovementOrder? order)
+    {
+        if (order is null)
+        {
+            throw new InvalidOperationException("A movement order is required.");
         }
     }
 
@@ -1648,7 +1680,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
 
     private static ShipState FindOwnedShip(MatchState match, Guid participantId, Guid shipId)
     {
-        var ship = match.Ships.SingleOrDefault(s => s.Id == shipId) ?? throw new InvalidOperationException("Ship was not found.");
+        var ship = match.Ships.SingleOrDefault(s => s.Id == shipId) ?? throw new NotFoundException("Ship was not found.");
         var fleet = match.Fleets.Single(f => f.Id == ship.FleetId);
         if (fleet.OwnerParticipantId != participantId)
         {
@@ -1661,7 +1693,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     private static OrdnanceMarkerState FindOwnedOrdnanceMarker(MatchState match, Guid participantId, Guid markerId)
     {
         var marker = match.OrdnanceMarkers.SingleOrDefault(o => o.Id == markerId)
-            ?? throw new InvalidOperationException("Ordnance marker was not found.");
+            ?? throw new NotFoundException("Ordnance marker was not found.");
         if (marker.OwnerParticipantId != participantId)
         {
             throw new UnauthorizedAccessException("You can only update your own ordnance markers.");

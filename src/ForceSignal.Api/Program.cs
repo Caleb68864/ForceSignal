@@ -1,5 +1,7 @@
+using ForceSignal.Api;
 using ForceSignal.Api.Endpoints;
 using ForceSignal.Api.Hubs;
+using ForceSignal.Application;
 using ForceSignal.Application.Features;
 using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
@@ -7,8 +9,10 @@ using ForceSignal.Contracts.Features;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Contracts.Matches;
 using ForceSignal.Infrastructure.Persistence;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Data.Sqlite;
 using Scalar.AspNetCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,6 +20,7 @@ using System.Threading.RateLimiting;
 
 const string RoomCodeLookupPolicy = "room-code-lookup";
 const string RestorePolicy = "match-restore";
+const string MatchCreatePolicy = "match-create";
 
 // A snapshot of a real match is tens of kilobytes. The ceiling is far above that and far below
 // anything that would strain the machine, so a mistaken upload fails fast instead of being read
@@ -130,6 +135,39 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));
+
+    // Creating a match needs no credentials and allocates state the server keeps for a day, so it
+    // is the one route a stranger can use to fill the server up. Ten a minute is more than any
+    // table opens and far fewer than it takes to reach the ceiling.
+    options.AddPolicy(MatchCreatePolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+});
+
+// Behind a reverse proxy every request arrives from the proxy's address, so the per-address
+// budgets above collapse into one shared bucket: a player retrying a mistyped code locks out the
+// whole table. The proxy says who really called in X-Forwarded-For, but that header is a claim
+// anyone can make, so it is only believed when the operator says there is a proxy in front. Opting
+// in trusts whatever is directly in front of this process, which is what a container behind an
+// ingress it does not own can do.
+//
+// Read from the built configuration, like the persistence path above, so a host that layers the
+// setting in during startup is seen rather than missed.
+builder.Services.AddOptions<ForwardedHeadersOptions>().Configure<IConfiguration>((options, configuration) =>
+{
+    if (!ReadTrustForwardedHeaders(configuration))
+    {
+        return;
+    }
+
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 
 var app = builder.Build();
@@ -149,19 +187,25 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+// Every failure a request can end in is turned into problem+json here. The deliberate refusals -
+// the types the services throw on purpose, with a message written for the player - carry that
+// message to the client. Anything else is a fault in the server, not in the request: it is logged
+// with its stack and answered with a line that says so and nothing more, because an exception
+// message from somewhere unexpected is exactly the kind of text that should not leave the machine.
 app.Use(async (context, next) =>
 {
     try
     {
         await next();
     }
-    catch (Exception ex) when (ex is UnauthorizedAccessException
-        or InvalidOperationException
-        or ArgumentException
-        or KeyNotFoundException
-        or JsonException
-        or FormatException
-        or OverflowException)
+    catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+    {
+        // The caller hung up. Nothing to answer and nobody to answer it to.
+        throw;
+    }
+#pragma warning disable CA1031 // The whole point of this middleware is to answer everything.
+    catch (Exception ex)
+#pragma warning restore CA1031
     {
         // Once any of the response has gone out there is no status line left to rewrite, and
         // trying throws a second exception on top of the first. Let the host tear the connection
@@ -171,16 +215,41 @@ app.Use(async (context, next) =>
             throw;
         }
 
-        var (status, title) = ex switch
+        var (status, title, detail) = ex switch
         {
-            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Action not allowed"),
-            InvalidOperationException when ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
-                => (StatusCodes.Status404NotFound, "Request could not be completed"),
-            _ => (StatusCodes.Status400BadRequest, "Request could not be completed"),
+            // Checked before its base type, InvalidOperationException, or it would land as a 400.
+            NotFoundException => (StatusCodes.Status404NotFound, "Request could not be completed", ex.Message),
+            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Action not allowed", ex.Message),
+            // The write failed after memory had already moved on; the game is playable and the
+            // file is behind it. Told as a busy server, which is what it almost always is, with a
+            // stable line rather than SQLite's.
+            SqliteException => (StatusCodes.Status503ServiceUnavailable, "Storage unavailable",
+                "The server could not write the game to storage. Try again in a moment."),
+            InvalidOperationException or ArgumentException or KeyNotFoundException
+                or JsonException or FormatException or OverflowException
+                => (StatusCodes.Status400BadRequest, "Request could not be completed", ex.Message),
+            _ => (StatusCodes.Status500InternalServerError, "Server error", "Something went wrong on the server."),
         };
-        await WriteProblem(context, status, title, ex.Message);
+
+        if (status == StatusCodes.Status503ServiceUnavailable)
+        {
+            ServerLog.StorageFailed(app.Logger, ex, context.Request.Method, context.Request.Path);
+        }
+        else if (status == StatusCodes.Status500InternalServerError)
+        {
+            ServerLog.Unhandled(app.Logger, ex, context.Request.Method, context.Request.Path);
+        }
+
+        await WriteProblem(context, status, title, detail);
     }
 });
+
+// Placed ahead of everything that reads the caller's address - the rate limiter above all - and
+// only when the operator has said there is a proxy to believe.
+if (ReadTrustForwardedHeaders(app.Configuration))
+{
+    app.UseForwardedHeaders();
+}
 
 app.Use(async (context, next) =>
 {
@@ -235,11 +304,27 @@ if (features.Dirtside)
     app.MapDirtsideEndpoints();
 }
 
+// What each service could not bring back from the file is said at startup, once per row, so a
+// game that vanished on restart is explained in the log rather than nowhere. The ground services
+// are only asked when their engine is on: resolving one opens its table, and an engine that is off
+// should leave no trace.
+ReportSkippedSaves(app, "Full Thrust", app.Services.GetRequiredService<IMatchService>().SkippedSaves);
+if (features.StarGrunt)
+{
+    ReportSkippedSaves(app, "StarGrunt", app.Services.GetRequiredService<IStarGruntGameService>().SkippedSaves);
+}
+
+if (features.Dirtside)
+{
+    ReportSkippedSaves(app, "Dirtside", app.Services.GetRequiredService<IDirtsideGameService>().SkippedSaves);
+}
+
 app.MapPost("/api/matches", (CreateMatchRequest request, IMatchService matches) =>
     Results.Ok(matches.CreateMatch(request)))
     .WithName("CreateMatch")
     .WithTags("Matches")
     .WithSummary("Creates a new match and owner participant session.")
+    .RequireRateLimiting(MatchCreatePolicy)
     .Produces<MatchCreatedResponse>()
     .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -349,6 +434,9 @@ app.MapPost("/api/matches/{matchId:guid}/seats/{participantId:guid}/claim", asyn
     .WithName("ClaimMatchSeat")
     .WithTags("Matches")
     .WithSummary("Claims a seat in a restored match and issues a participant token.")
+    // Authenticated by room code like the lookups above, so it shares their budget: it was the one
+    // code-guarded route a guesser could hammer freely.
+    .RequireRateLimiting(RoomCodeLookupPolicy)
     .Produces<MatchJoinedResponse>()
     .ProducesProblem(StatusCodes.Status400BadRequest)
     .ProducesProblem(StatusCodes.Status404NotFound);
@@ -822,6 +910,25 @@ static string[]? SplitOrigins(string? value) =>
 // Where matches are written, or null when they are only held in memory.
 static string? ReadMatchDatabasePath(IConfiguration configuration) =>
     configuration["Persistence:MatchDatabasePath"] ?? configuration["FORCESIGNAL_MATCH_DB"];
+
+// Whether to believe X-Forwarded-For. Off unless the operator says so, and only "true" says so:
+// blank, missing or misspelt leaves the proxy untrusted, the same way a feature flag fails closed.
+static bool ReadTrustForwardedHeaders(IConfiguration configuration) =>
+    bool.TryParse(configuration["Proxy:TrustForwardedHeaders"], out var parsed) && parsed;
+
+static void ReportSkippedSaves(WebApplication app, string engine, IReadOnlyList<SkippedSave> skipped)
+{
+    if (skipped.Count == 0)
+    {
+        return;
+    }
+
+    ServerLog.SkippedSaves(app.Logger, skipped.Count, engine);
+    foreach (var save in skipped)
+    {
+        ServerLog.SkippedSave(app.Logger, engine, save.MatchId, save.Reason);
+    }
+}
 
 static string[] ReadDeploymentWarnings(
     IConfiguration configuration,

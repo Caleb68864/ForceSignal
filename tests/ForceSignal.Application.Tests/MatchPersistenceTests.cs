@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using ForceSignal.Application;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Matches;
 using ForceSignal.Domain.Rules;
@@ -13,8 +15,11 @@ namespace ForceSignal.Application.Tests;
 /// players have to sort out an administrative mess in the middle of a turn, which is exactly when
 /// they have least patience for one.
 /// </summary>
-public sealed class MatchPersistenceTests
+public sealed partial class MatchPersistenceTests
 {
+    [GeneratedRegex("\"lastActivity\":\"[^\"]*\"")]
+    private static partial System.Text.RegularExpressions.Regex LastActivity();
+
     [Fact]
     public void AMatchComesBackAfterTheProcessDies()
     {
@@ -129,18 +134,71 @@ public sealed class MatchPersistenceTests
     {
         var store = new InMemoryTestStore();
         var service = new InMemoryMatchService(null, store, loadPersisted: true);
-        var first = service.CreateMatch(new CreateMatchRequest("Blue", "First", Rules: TestRules.Invented));
+        var idle = service.CreateMatch(new CreateMatchRequest("Blue", "Idle", Rules: TestRules.Invented));
+        var live = service.CreateMatch(new CreateMatchRequest("Blue", "Live", Rules: TestRules.Invented));
 
-        // Push past the concurrent ceiling so the oldest is retired.
-        for (var i = 0; i < 520; i++)
+        // A match nobody has touched for two days is past retention. The clock is not injectable,
+        // so the stored row is aged instead - which is also what a server restarted after a long
+        // weekend sees.
+        store.Age(idle.MatchId, TimeSpan.FromDays(2));
+        var restarted = new InMemoryMatchService(null, store, loadPersisted: true);
+        restarted.CreateMatch(new CreateMatchRequest("Blue", "Newcomer", Rules: TestRules.Invented));
+
+        Assert.Throws<NotFoundException>(() => restarted.GetSnapshot(idle.MatchId));
+        Assert.Equal("Live", restarted.GetSnapshot(live.MatchId).Name);
+
+        // Retired is retired: the stored copy went with it, or the next restart would undo it.
+        var after = new InMemoryMatchService(null, store, loadPersisted: true);
+        Assert.Throws<NotFoundException>(() => after.GetSnapshot(idle.MatchId));
+        Assert.Equal("Live", after.GetSnapshot(live.MatchId).Name);
+    }
+
+    [Fact]
+    public void AtTheCeilingAnIdleMatchGivesWayAndALiveOneDoesNot()
+    {
+        var store = new InMemoryTestStore();
+        var service = new InMemoryMatchService(null, store, loadPersisted: true);
+        var idle = service.CreateMatch(new CreateMatchRequest("Blue", "Idle", Rules: TestRules.Invented));
+        for (var i = 1; i < 500; i++)
         {
-            service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}", Rules: TestRules.Invented));
+            service.CreateMatch(new CreateMatchRequest("Blue", $"Live {i}", Rules: TestRules.Invented));
         }
 
-        Assert.Throws<InvalidOperationException>(() => service.GetSnapshot(first.MatchId));
+        // Full, and one of the five hundred is stale. Refusing would be wrong here: there is room
+        // to be had without destroying anything anyone is playing.
+        store.Age(idle.MatchId, TimeSpan.FromDays(2));
+        var restarted = new InMemoryMatchService(null, store, loadPersisted: true);
+        var newcomer = restarted.CreateMatch(new CreateMatchRequest("Blue", "Newcomer", Rules: TestRules.Invented));
+
+        Assert.Equal("Newcomer", restarted.GetSnapshot(newcomer.MatchId).Name);
+        Assert.Throws<NotFoundException>(() => restarted.GetSnapshot(idle.MatchId));
+
+        // And now every match is live, so the next one is turned away rather than any of them.
+        Assert.Throws<InvalidOperationException>(() =>
+            restarted.CreateMatch(new CreateMatchRequest("Blue", "One Too Many", Rules: TestRules.Invented)));
+    }
+
+    [Fact]
+    public void ARowThatParsesButHoldsNoMatchIsSkippedAndCounted()
+    {
+        var store = new InMemoryTestStore();
+        var before = new InMemoryMatchService(null, store, loadPersisted: true);
+        var good = before.CreateMatch(new CreateMatchRequest("Blue", "Readable", Rules: TestRules.Invented));
+
+        // Valid JSON in the right format with nobody in it. This used to get past the parser and
+        // then index the first seat of an empty list, inside the constructor, on startup - so one
+        // bad row took the whole API down with it.
+        var empty = Guid.NewGuid();
+        store.Save(empty, """{"formatVersion":1,"participants":[]}""");
+        var wrongFormat = Guid.NewGuid();
+        store.Save(wrongFormat, """{"formatVersion":99}""");
 
         var after = new InMemoryMatchService(null, store, loadPersisted: true);
-        Assert.Throws<InvalidOperationException>(() => after.GetSnapshot(first.MatchId));
+
+        Assert.Equal("Readable", after.GetSnapshot(good.MatchId).Name);
+        Assert.Equal(2, after.SkippedSaves.Count);
+        Assert.Contains(after.SkippedSaves, skip => skip.MatchId == empty && skip.Reason.Contains("participants", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(after.SkippedSaves, skip => skip.MatchId == wrongFormat && skip.Reason.Contains("format", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -182,5 +240,12 @@ public sealed class MatchPersistenceTests
 
         public IReadOnlyList<StoredMatch> LoadAll() =>
             [.. _rows.Select(row => new StoredMatch(row.Key, row.Value))];
+
+        /// <summary>Rewrites a row's last activity into the past, as a long idle would.</summary>
+        public void Age(Guid matchId, TimeSpan by)
+        {
+            var then = (DateTimeOffset.UtcNow - by).ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+            _rows[matchId] = LastActivity().Replace(_rows[matchId], $"\"lastActivity\":\"{then}\"");
+        }
     }
 }

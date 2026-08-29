@@ -66,6 +66,14 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
         // is also what leaves the file readable if the process dies mid-write.
         Execute("PRAGMA journal_mode=WAL;");
         Execute("PRAGMA synchronous=NORMAL;");
+
+        // Three stores - one per game - open this one file, and write-ahead mode still allows one
+        // writer at a time. A write that finds the file busy waits inside SQLite for up to this
+        // long rather than failing on the spot, which is what a save from a table across the room
+        // landing in the same millisecond deserves. Bounded, because the wait happens inside the
+        // service's lock: a file that stays busy for five seconds is a fault to report, not a
+        // queue to sit in.
+        Execute("PRAGMA busy_timeout=5000;");
         Execute($"""
             CREATE TABLE IF NOT EXISTS {_table} (
                 match_id   TEXT PRIMARY KEY,

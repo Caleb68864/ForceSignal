@@ -1,3 +1,4 @@
+using ForceSignal.Application;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Matches;
 using ForceSignal.Domain.Rules;
@@ -190,7 +191,7 @@ public sealed class InMemoryMatchServiceRestoreTests
             service.UpdateShipDamage(restoredRedShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0)));
 
         // Source ids belong to the other service instance and are unknown here.
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<NotFoundException>(() =>
             service.UpdateShipDamage(blueShip.Id, new UpdateShipDamageRequest(blueSession.ParticipantToken, 1, 0, 0, 0, 0)));
         Assert.NotEqual(blueShip.Id, restoredBlueShip.Id);
         Assert.NotEqual(redShip.Id, restoredRedShip.Id);
@@ -314,12 +315,12 @@ public sealed class InMemoryMatchServiceRestoreTests
         var service = new InMemoryMatchService();
         var restored = service.RestoreMatch(source.GetSnapshot(owner.MatchId), null);
 
-        var unknownSeat = Assert.Throws<InvalidOperationException>(() =>
+        var unknownSeat = Assert.Throws<NotFoundException>(() =>
             service.ClaimSeat(restored.MatchId, Guid.NewGuid(), new ClaimSeatRequest("Nobody", restored.JoinCode)));
-        // "not found" is what the API layer maps to 404.
+        // The type is what the API layer maps to 404; the words are for the player.
         Assert.Contains("not found", unknownSeat.Message, StringComparison.OrdinalIgnoreCase);
 
-        var unknownMatch = Assert.Throws<InvalidOperationException>(() =>
+        var unknownMatch = Assert.Throws<NotFoundException>(() =>
             service.ClaimSeat(Guid.NewGuid(), restored.Seats.Single().ParticipantId, new ClaimSeatRequest("Nobody", restored.JoinCode)));
         Assert.Contains("not found", unknownMatch.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -340,7 +341,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         // Nothing was committed: the room code is still free, so a good restore can reuse it.
         var good = service.RestoreMatch(exported, null);
         Assert.False(good.ReusedJoinCode); // the source match still holds the original code
-        var afterFailure = Assert.Throws<InvalidOperationException>(() => service.FindMatchByCode("NO-SUCH-ROOM"));
+        var afterFailure = Assert.Throws<NotFoundException>(() => service.FindMatchByCode("NO-SUCH-ROOM"));
         Assert.Contains("not found", afterFailure.Message, StringComparison.OrdinalIgnoreCase);
 
         // The source match is intact and still commandable.

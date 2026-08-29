@@ -24,9 +24,9 @@ public sealed partial class InMemoryMatchService
             var participant = FindParticipant(match, request.ParticipantToken);
             var attacker = FindOwnedShip(match, participant.Id, request.AttackerShipId);
             var target = match.Ships.SingleOrDefault(s => s.Id == request.TargetShipId)
-                ?? throw new InvalidOperationException("Target ship was not found.");
+                ?? throw new NotFoundException("Target ship was not found.");
             var weapon = attacker.Weapons.SingleOrDefault(w => w.Id == request.WeaponId)
-                ?? throw new InvalidOperationException("Weapon mount was not found.");
+                ?? throw new NotFoundException("Weapon mount was not found.");
 
             // A restored match arrives mid-phase with no turn order, so settle one before checking it.
             if (match.FiringParticipantId is null)
