@@ -132,3 +132,7 @@ Deviations from the package lists above, each recorded in the implementation rep
   the build machine); `scripts/verify.ps1 -IncludeDocker` covers it.
 - `/ready` still returns 200 with warnings; the skipped-save counts are logged at startup rather
   than surfaced there, so an engine that is off does not get resolved just to be asked.
+- Found while clicking through: a match the server no longer holds answered 403, and the client
+  only let go of a stored session on a 404 - so after an in-memory restart every device sat on a
+  dead room. The snapshot route now says 404 before it judges the token, and the client treats
+  either answer to a stored session as reason to offer the join form.

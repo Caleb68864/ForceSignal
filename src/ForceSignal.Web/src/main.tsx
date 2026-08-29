@@ -1153,8 +1153,12 @@ function App() {
     setActiveFleetId(null);
   }
 
+  // Called for the snapshot loads that keep a stored session alive. A 404 means the match is gone;
+  // a 403 means this device's token no longer opens it, which for a session read back out of
+  // storage comes to the same thing - nothing this screen can do will make it work again, so the
+  // only useful answer is to let go and offer the join form.
   function handleSessionError(error: unknown) {
-    if (error instanceof ApiRequestError && error.status === 404) {
+    if (error instanceof ApiRequestError && (error.status === 404 || error.status === 403)) {
       clearSession();
       setMessage('Match session expired. Create or join a room again.');
       return;

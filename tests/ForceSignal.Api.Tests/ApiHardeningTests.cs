@@ -77,6 +77,24 @@ public sealed class ApiHardeningTests
     }
 
     [Fact]
+    public async Task AMatchTheServerNoLongerHolds_IsNotFoundBeforeTheTokenIsJudged()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        // A device that kept its session across a restart of an in-memory server asks for a match
+        // that is simply gone. Answering 403 - which is what an unknown match used to get, since no
+        // participant could be found in it - told the client its token was bad, and the client only
+        // knows to let go of a session on a 404. Every table was stuck on a dead room until someone
+        // found "Leave Device Session".
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/matches/{Guid.NewGuid()}/snapshot");
+        request.Headers.TryAddWithoutValidation("X-Participant-Token", "a-token-from-before-the-restart");
+
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task MissingParticipantTokenHeader_IsRefused()
     {
         using var factory = CreateFactory();

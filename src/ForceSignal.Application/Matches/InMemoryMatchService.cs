@@ -20,6 +20,9 @@ public interface IMatchService
     /// <summary>Gets the authoritative match snapshot.</summary>
     MatchSnapshotDto GetSnapshot(Guid matchId);
 
+    /// <summary>Returns true when the server currently holds a match with this id.</summary>
+    bool MatchExists(Guid matchId);
+
     /// <summary>Returns true when the token belongs to a participant of the match.</summary>
     bool IsMatchParticipant(Guid matchId, string participantToken);
 
@@ -292,6 +295,14 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
         lock (_gate)
         {
             return ToSnapshot(FindMatch(matchId));
+        }
+    }
+
+    public bool MatchExists(Guid matchId)
+    {
+        lock (_gate)
+        {
+            return _matches.ContainsKey(matchId);
         }
     }
 

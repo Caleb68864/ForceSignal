@@ -447,6 +447,15 @@ app.MapPost("/api/matches/{matchId:guid}/seats/{participantId:guid}/claim", asyn
 app.MapGet("/api/matches/{matchId:guid}/snapshot", (Guid matchId, HttpRequest http, IMatchService matches) =>
 {
     var token = ReadParticipantToken(http);
+
+    // A match that is gone is said to be gone, before the token is judged. The id is not a secret,
+    // and a device holding a session from before a restart needs the 404 to know to let go of it;
+    // a 403 would tell it the token was wrong, which is a different problem with a different cure.
+    if (!matches.MatchExists(matchId))
+    {
+        throw new NotFoundException("Match was not found.");
+    }
+
     if (!matches.IsMatchParticipant(matchId, token))
     {
         throw new UnauthorizedAccessException("Only a player in this match can read its state.");
