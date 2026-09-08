@@ -357,6 +357,18 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                     $"{participant.DisplayName} is {overBy} points over the {match.PointsLimit} point limit. Trim the fleet or ask the owner to change the limit.");
             }
 
+            // A match keeps RulesProfile.Empty until the owner fills one in, and Empty has no beam
+            // damage table in it. Nothing downstream refuses to resolve against that - a beam simply
+            // matches no row and scores nothing - so a table that skipped this step played a whole
+            // game of volleys that all came back zero with nothing anywhere saying why. Readiness is
+            // the last moment the profile can still be edited, so it is the place to insist.
+            if (isReady && !match.Rules.IsPlayable)
+            {
+                throw new InvalidOperationException(
+                    "This match has no rules layer yet, so every shot would score nothing. "
+                        + "The owner needs to fill one in before anyone declares ready.");
+            }
+
             participant.IsReady = isReady;
             // A single-device local match (one admiral tracking the table) must be able to start,
             // so readiness gates on ships being present rather than on a second participant.
@@ -1716,16 +1728,38 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     /// <summary>
     /// Words a room code is built from. A code is read aloud across a table, so the list is all
     /// short, unambiguous, distinctly-sounding words - no near-homophones, and nothing that reads
-    /// the same over a noisy room. Thirty-two words in three slots is 32,768 codes, which is what
-    /// keeps a code from being guessed by someone walking the space; see <see cref="CreateJoinCode"/>.
+    /// the same over a noisy room. Sixty-four words in <see cref="JoinCodeWordSlots"/> slots is
+    /// 16,777,216 codes; see <see cref="CreateJoinCode"/> for why that number matters.
     /// </summary>
+    /// <remarks>
+    /// Adding a word is safe; removing or reordering one is not, because a code already read aloud
+    /// at a table has to keep working. The list is only ever appended to.
+    /// </remarks>
     private static readonly string[] JoinCodeWords =
     [
         "BLUE", "COMET", "SEVEN", "IRON", "ORBIT", "NOVA", "VECTOR", "LANCE",
         "DRIFT", "EMBER", "AXIS", "BRAVO", "CINDER", "DELTA", "ECHO", "FLARE",
         "GAMMA", "HELIX", "INDIGO", "JUNO", "KILO", "LUMEN", "MERIDIAN", "NADIR",
         "OSPREY", "PULSAR", "QUASAR", "RAVEN", "SIGMA", "TALON", "UMBRA", "ZENITH",
+        "ANCHOR", "BEACON", "CANYON", "COBALT", "CRIMSON", "DAGGER", "EAGLE", "FALCON",
+        "GRANITE", "HARBOR", "JASPER", "KESTREL", "LOTUS", "MAGNET", "MARBLE", "MONSOON",
+        "ONYX", "PHOENIX", "PIVOT", "RIVER", "RUBY", "SABLE", "SUMMIT", "TEMPO",
+        "THUNDER", "TOPAZ", "VIOLET", "WALNUT", "WILLOW", "YONDER", "ZEBRA", "CASTLE",
     ];
+
+    /// <summary>
+    /// How many words a room code is made of.
+    /// </summary>
+    /// <remarks>
+    /// Four rather than three. The code is the only thing standing between a stranger and a seat, so
+    /// the size of the space it is drawn from is a security property, not a formatting choice: three
+    /// slots out of thirty-two words is 32,768 codes, and a server holding a few hundred live matches
+    /// is then one that a script walking the space finds a seat in on the order of a hundred tries.
+    /// Widening the list to sixty-four and taking a fourth word costs one more syllable to say across
+    /// a table and buys five hundred times the space, which puts guessing back out of reach of the
+    /// rate limit in front of it.
+    /// </remarks>
+    private const int JoinCodeWordSlots = 4;
 
     /// <summary>
     /// Mints an unused room code. The code is the only thing standing between a stranger and a
@@ -1738,7 +1772,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     {
         for (var attempt = 0; attempt < 64; attempt++)
         {
-            var code = string.Join("-", Enumerable.Range(0, 3)
+            var code = string.Join("-", Enumerable.Range(0, JoinCodeWordSlots)
                 .Select(_ => JoinCodeWords[System.Security.Cryptography.RandomNumberGenerator.GetInt32(JoinCodeWords.Length)]));
             if (!_joinCodes.ContainsKey(code))
             {
@@ -1750,7 +1784,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
         // and cannot collide for long.
         for (var attempt = 0; attempt < 1024; attempt++)
         {
-            var code = string.Join("-", Enumerable.Range(0, 3)
+            var code = string.Join("-", Enumerable.Range(0, JoinCodeWordSlots)
                 .Select(_ => JoinCodeWords[System.Security.Cryptography.RandomNumberGenerator.GetInt32(JoinCodeWords.Length)]))
                 + "-" + System.Security.Cryptography.RandomNumberGenerator.GetInt32(100, 1000);
             if (!_joinCodes.ContainsKey(code))

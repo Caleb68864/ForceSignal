@@ -47,6 +47,52 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     }
 
     [Fact]
+    public void NobodyCanDeclareReadyUntilTheMatchHasAProfileToPlayAgainst()
+    {
+        var service = new InMemoryMatchService(() => 4);
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "No Rules Yet"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24));
+
+        // Nothing downstream refuses to resolve against an empty profile - a beam simply matches no
+        // row of a table that is not there and scores nothing - so without this the table played a
+        // whole game of volleys that all came back zero and nothing anywhere said why.
+        var refused = Assert.Throws<InvalidOperationException>(
+            () => service.SetReady(owner.MatchId, owner.ParticipantToken, true));
+        Assert.Contains("rules layer", refused.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("FleetSetup", service.GetSnapshot(owner.MatchId).Phase);
+    }
+
+    [Fact]
+    public void ReadinessOpensOrderEntryOnceTheProfileIsFilledIn()
+    {
+        var service = new InMemoryMatchService(() => 4);
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Rules Then Ready"));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24));
+        service.UpdateRulesProfile(
+            owner.MatchId, new UpdateRulesProfileRequest(owner.ParticipantToken, TestRules.Invented));
+
+        // The refusal above is a gate, not a wall: filling the profile in is the whole remedy, and
+        // standing down and back up must not be needed to pick the change up.
+        Assert.Equal("OrderEntry", service.SetReady(owner.MatchId, owner.ParticipantToken, true).Phase);
+    }
+
+    [Fact]
+    public void StandingDownIsAlwaysAllowedEvenWithNoProfile()
+    {
+        var service = new InMemoryMatchService(() => 4);
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Stand Down"));
+
+        // Clearing readiness is how a player gets out of a state, so it can never be the thing that
+        // is refused - only declaring ready is.
+        service.SetReady(owner.MatchId, owner.ParticipantToken, false);
+        Assert.False(service.GetSnapshot(owner.MatchId).Participants.Single().IsReady);
+    }
+
+    [Fact]
     public void AShipCannotCarryScreensAboveTheProfilesCeiling()
     {
         var table = ProfileTable.Build(Other);
