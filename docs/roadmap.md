@@ -282,6 +282,33 @@ the roadmap lists only what a table can reach.
       keeps the match across a restart — so what remains is real-world testing rather than a
       missing piece.
 
+## Closed 2026-09-08 (audit follow-up)
+
+- [x] **A locked order cannot be moved out from under itself.** `UpdateShipProfile` wrote position,
+      velocity and course with no guard at all, so a player could watch the reveal and then
+      reposition. The four commitment fields are now frozen from the moment *that ship* locks until
+      the turn is executed. Keyed on the ship's own commitment rather than on the match phase, which
+      is what the first attempt got wrong: a ship locks while the match is still in `OrderEntry` --
+      the phase only turns over when everyone has locked -- so a phase test left open the whole
+      interval between the first lock and the last, which is exactly the interval a player sitting
+      on a locked order would use. Name, hull and points stay editable; a typo noticed mid-turn
+      should not have to wait a turn. Firing is deliberately not covered.
+- [x] **A locked order can no longer be destroyed by editing its draft.** The server holds a hash
+      and nothing else, by design, so the local draft is the only copy of the plaintext. Editing it
+      between the lock and the reveal meant `Verify` failed and -- once anyone else had revealed --
+      the order was discarded and the ship held course and speed, with nothing telling the player
+      they had lost a manoeuvre. Every plotting control routes through `updateDraft`, so the guard
+      sits there; "Copy Fleet" now skips locked ships and says how many it left alone, rather than
+      invalidating a squadron's commitments in one tap. The rule lives in `lib/orders.ts` so the two
+      callers cannot drift apart on what "locked" means.
+- [x] **The client no longer ships ship stat blocks.** `constants.ts` carried seven named classes
+      with hull, armour, screens, fire control, point defence, thrust and weapon mounts, plus
+      per-weapon maximum ranges, and `ShipCard` clamped a torpedo to one shot and a published reach
+      on kind switch. Presets now name a class and pick an icon and stop there. The ranges were
+      doubly wrong to hold here: they are published numbers, *and* they were already the player's --
+      `torpedoMaximumRange` and `needleBeamRange` are fields on the rules profile, so the constants
+      were a second copy nobody had entered and nobody could edit. See the README's Content Policy.
+
 ## Current Constraint
 
 ForceSignal remains a tabletop helper first. Match state is session-based, with browser snapshot export for recovery and after-action review. Durable online hosting is intentionally deferred.

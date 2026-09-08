@@ -2,12 +2,13 @@
  * Fixed values the app is built around: the keys it stores things under, the canonical order of
  * the firing arcs, and the starting points a player edits from.
  *
- * The ship presets are conveniences, not rules - every number in them is a starting point the
- * player is expected to replace from their own records.
+ * The ship presets name a class and pick an icon. They deliberately carry no numbers: hull rows,
+ * armour, screens, fire control, thrust and weapon reach are the player's, entered from their own
+ * records and held by the rules profile. A starting point the player is "expected to replace" is
+ * still a number this app shipped, which is the thing it does not do.
  */
 
 import { newId } from './lib/api.ts';
-import { weaponPreset } from './lib/weapons.ts';
 import type { FighterStatus, FiringArc, ShipForm, ShipIconKey, WeaponKind } from './types.ts';
 
 export const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
@@ -95,38 +96,27 @@ export const arcAbbreviations: Record<FiringArc, string> = {
   AftPort: 'AP',
   ForePort: 'FP',
 };
-export const weaponKinds: { key: WeaponKind; label: string; maxRange: number }[] = [
-  { key: 'Beam', label: 'Beam battery', maxRange: 36 },
-  { key: 'PulseTorpedo', label: 'Pulse torpedo', maxRange: 30 },
-  { key: 'NeedleBeam', label: 'Needle beam', maxRange: 9 },
+// The kinds the engine has procedures for, and nothing else. Reach used to be recorded here as
+// well - 36, 30 and 9 - which are published numbers, and the app ships none of those. They are
+// also already the player's: `torpedoMaximumRange` and `needleBeamRange` live on the rules
+// profile, so having them here made a second copy that no one had entered and no one could edit.
+export const weaponKinds: { key: WeaponKind; label: string }[] = [
+  { key: 'Beam', label: 'Beam battery' },
+  { key: 'PulseTorpedo', label: 'Pulse torpedo' },
+  { key: 'NeedleBeam', label: 'Needle beam' },
 ];
+// Hull shapes, not stat blocks. A preset names a class and picks its icon so the ships on the map
+// are tellable apart at a glance, and stops there: hull rows, armour, screens, fire control, point
+// defence, thrust and weapon mounts are numbers, and by this project's own rule the player owns
+// every number the procedures read. This list used to carry a full profile for each of seven
+// classes. The server was scrubbed of published numbers before it shipped; the client was not, and
+// a default that happens to be somebody's published values is still those values.
 export const shipPresets: { label: string; patch: Partial<ShipForm> }[] = [
-  {
-    label: 'Escort',
-    patch: { className: 'Escort', iconKey: 'escort', thrustRating: 6, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 0, weapons: [weaponPreset('Class-1 Beam', 1, 12, ['Fore'])] },
-  },
-  {
-    label: 'Frigate',
-    patch: { className: 'Frigate', iconKey: 'frigate', thrustRating: 5, hullMax: 8, armorMax: 1, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
-  },
-  {
-    label: 'Destroyer',
-    patch: { className: 'Destroyer', iconKey: 'destroyer', thrustRating: 4, hullMax: 10, armorMax: 2, screenRating: 1, fireControlMax: 1, pointDefenseSystems: 1, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard'])] },
-  },
-  {
-    label: 'Cruiser',
-    patch: { className: 'Cruiser', iconKey: 'cruiser', thrustRating: 4, hullMax: 12, armorMax: 4, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 2, weapons: [weaponPreset('Class-2 Beam', 2, 24, ['ForePort', 'Fore', 'ForeStarboard']), weaponPreset('Class-1 Beam', 1, 12, [...firableArcs]), weaponPreset('Torpedo Tube', 1, 30, ['Fore'], 0, 'PulseTorpedo')] },
-  },
-  {
-    label: 'Carrier',
-    patch: { className: 'Carrier', iconKey: 'carrier', thrustRating: 4, hullMax: 14, armorMax: 5, screenRating: 1, fireControlMax: 2, pointDefenseSystems: 3, fighterBays: 4, weapons: [weaponPreset('Fighter Bay', 3, 12, [...firableArcs])] },
-  },
-  {
-    label: 'Fighters',
-    patch: { className: 'Fighter Group', iconKey: 'fighter-group', thrustRating: 6, currentVelocity: 12, hullMax: 6, armorMax: 0, screenRating: 0, fireControlMax: 1, pointDefenseSystems: 0, weapons: [weaponPreset('Fighter Attack', 3, 6, ['Fore'])], fighterEnduranceMax: 6, fighterEnduranceUsed: 0, fighterMaxRange: 24, fighterStatus: 'Docked' },
-  },
-  {
-    label: 'Station',
-    patch: { className: 'Station', iconKey: 'station', thrustRating: 0, currentVelocity: 0, hullMax: 18, armorMax: 6, screenRating: 2, fireControlMax: 3, pointDefenseSystems: 4, weapons: [weaponPreset('Heavy Battery', 3, 30, [...firableArcs])] },
-  },
+  { label: 'Escort', patch: { className: 'Escort', iconKey: 'escort' } },
+  { label: 'Frigate', patch: { className: 'Frigate', iconKey: 'frigate' } },
+  { label: 'Destroyer', patch: { className: 'Destroyer', iconKey: 'destroyer' } },
+  { label: 'Cruiser', patch: { className: 'Cruiser', iconKey: 'cruiser' } },
+  { label: 'Carrier', patch: { className: 'Carrier', iconKey: 'carrier' } },
+  { label: 'Fighters', patch: { className: 'Fighter Group', iconKey: 'fighter-group', fighterStatus: 'Docked' } },
+  { label: 'Station', patch: { className: 'Station', iconKey: 'station' } },
 ];

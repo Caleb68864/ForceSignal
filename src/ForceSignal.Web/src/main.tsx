@@ -5,6 +5,7 @@ import './style.css';
 import { CourseCompass, DamageControl, DamageControlPanel, DamageMeter, FiringConsole, PreTurnChecklist, ShipEditor, ShipProfileFields } from './components/ShipCard.tsx';
 import { PlayMap } from './components/map/PlayMap.tsx';
 import { carrierImportRank, fleetPoints, nextShipName, shipsPoints } from './lib/fleetMath.ts';
+import { fleetCopyTargets, isOrderLocked } from './lib/orders.ts';
 import { captureDamageState, firingDraftFor, focusedFirstShips } from './lib/rules.ts';
 import { normalizeMatchSnapshot } from './lib/normalize.ts';
 import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
@@ -1128,10 +1129,23 @@ function App() {
 
   function applyOrderToOwnedFleet(sourceShipId: string) {
     const sourceDraft = draftFor(sourceShipId, drafts);
+    // Destroyed ships and ships already holding a locked order are both left out, for the reasons
+    // set out in `lib/orders.ts`. This reports what it skipped rather than doing it quietly,
+    // because one tap would otherwise reach a whole squadron.
+    const { eligible, lockedOut } = fleetCopyTargets(ownedShips, snapshot?.orderStatuses);
+    const skipped = lockedOut.length;
+    if (eligible.length === 0) {
+      setMessage(
+        skipped > 0
+          ? 'Every ship that could take this order has already locked one. Reveal or advance the turn first.'
+          : 'No ship is able to take that order.',
+      );
+      return;
+    }
+
     setDrafts((current) => {
       const next = { ...current };
-      // A destroyed ship takes no order; giving it one only inflates the "holds course" count.
-      for (const ship of ownedShips.filter((candidate) => !candidate.isDestroyed)) {
+      for (const ship of eligible) {
         next[ship.id] = {
           ...sourceDraft,
           salt: draftFor(ship.id, current).salt,
@@ -1140,7 +1154,11 @@ function App() {
 
       return next;
     });
-    setMessage('Order copied to your fleet.');
+    setMessage(
+      skipped > 0
+        ? `Order copied to ${eligible.length} ship(s). ${skipped} already locked and were left alone.`
+        : 'Order copied to your fleet.',
+    );
   }
 
   async function advanceTurn() {
@@ -1973,7 +1991,20 @@ function App() {
     </main>
   );
 
+  /** This ship's order is locked and unrevealed: see `lib/orders.ts` for why that is a wall. */
+  function orderIsLocked(shipId: string) {
+    return isOrderLocked(snapshot?.orderStatuses, shipId);
+  }
+
   function updateDraft(shipId: string, patch: Partial<DraftOrder>) {
+    // Every plotting control routes through here, which is why the guard lives here rather than on
+    // each of them: a locked order edited by any route is an order that cannot be revealed, and the
+    // loss is silent - the plot is simply gone at reveal, and the ship drifts.
+    if (orderIsLocked(shipId)) {
+      setMessage('That order is locked. Reveal it, or advance the turn, before plotting again.');
+      return;
+    }
+
     setDrafts((current) => ({
       ...current,
       [shipId]: { ...draftFor(shipId, current), ...patch },

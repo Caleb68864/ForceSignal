@@ -570,6 +570,44 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
             }
 
+            // Where a ship is, how fast it is going and which way it faces are the
+            // commitment. They are frozen from the moment *this ship* locks an order
+            // until the turn has been executed, because that window is the whole point
+            // of the lock-and-reveal ceremony: a player who can watch everyone else's
+            // plot come up and then nudge their own ship has not been held to anything,
+            // and nothing else in the match would record that they had.
+            //
+            // Keyed on the ship's own commitment rather than on the match phase, which
+            // is the distinction the first version of this guard got wrong. A ship locks
+            // while the match is still in OrderEntry -- the phase only turns over when
+            // *everyone* has locked -- so a phase test left the whole interval between
+            // one player locking and the last player locking wide open, which is exactly
+            // the interval a player sitting on a locked order would use.
+            //
+            // Only these four fields are frozen, not the whole form. A name, a hull row,
+            // a points value are bookkeeping, and a typo noticed mid-turn should not have
+            // to wait a turn to be corrected.
+            //
+            // Firing is deliberately not covered. By then the commitments are revealed
+            // and the turn's movement is resolved; the physical table is the authority,
+            // and a ship measured into the wrong square needs putting right there and
+            // then, having already been held to the plot it wrote.
+            var lockedOrder = match.Commitments.TryGetValue(ship.Id, out var heldOrder) && !heldOrder.IsRevealed;
+            if (lockedOrder || match.Phase is MatchPhase.Reveal or MatchPhase.Movement)
+            {
+                var requestedX = ClampPosition(request.PositionX, match.TableWidth);
+                var requestedY = ClampPosition(request.PositionY, match.TableDepth);
+                if (requestedX != ship.PositionX
+                    || requestedY != ship.PositionY
+                    || request.CurrentVelocity != ship.CurrentVelocity
+                    || request.CurrentCourse != ship.CurrentCourse)
+                {
+                    throw new InvalidOperationException(
+                        "Position, velocity and course are settled once this ship's order is locked. "
+                        + "Correct them before locking, or after the turn advances.");
+                }
+            }
+
             ship.Name = NormalizeText(request.Name, ship.Name);
             ship.ClassName = NormalizeOptionalText(request.ClassName);
             ship.ThrustRating = Math.Clamp(request.ThrustRating, 0, 20);
