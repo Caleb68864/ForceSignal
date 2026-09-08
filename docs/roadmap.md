@@ -1,5 +1,97 @@
 # ForceSignal Roadmap
 
+> **Audit 2026-09-08.** A five-pass re-scan (notes in `vault/`, gitignored;
+> cross-project view in `../../ROADMAP.md`) checked this file's boxes against
+> the code rather than trusting them. **They hold up** — including
+> "Spectator/public table display", which is implemented as `publicMode`
+> (`ForceSignal.Web/src/main.tsx:73,376,1910`, `style.css:1714`) and removes
+> hidden information at the data layer, not just visually. An automated pass
+> that grepped for "spectator" reported it missing; that was wrong, and the
+> box stays checked.
+>
+> Baseline on that date: `dotnet build` clean with warnings-as-errors,
+> `dotnet test` 1289 passing across 8 projects. Web tests were *not* run,
+> because `scripts/verify.ps1` never invokes them even though
+> `package.json:10` defines `test`.
+>
+> The audit's headline is not on this list at all: `docs/rules-fidelity-gaps.md`
+> records that no two-device match has been played end to end since the turn
+> structure changed, `scripts/two-player-smoke.py` exists and is referenced
+> from nowhere, and several defects found by reading code are exactly what
+> that script would surface — most sharply, joining a second room still
+> displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
+
+## Closed from the 2026-09-08 audit
+
+Seven findings, on `fix/audit-2026-09-08`. Every one carries a test that was
+confirmed to fail before its fix and pass after. Baseline going in: 1289 .NET
+tests across 8 projects, 0 warnings with warnings-as-errors; web tests were not
+runnable in CI at all. Coming out: 1297 .NET tests and 133 web tests, both gated.
+
+- [x] **The board is let go of with the match, not after it.** The version high
+      water mark that `applySnapshot` drops stale snapshots against is per match,
+      and every room starts again at version 1, so it has to come down with the
+      match. `clearSession` did reset it, but only at the moment of leaving, and
+      the screen refetches the whole snapshot on every hub notification without
+      cancelling. A response still in the air when the player taps Leave put the
+      old match's version back, and the next room's first snapshot was then read
+      as stale and dropped - the join succeeded and the screen went on showing
+      the previous room's code. Clearing now happens in `clearLocalMatchState`,
+      which is the first thing create, join and restore do.
+      Test: `Web/src/main.test.tsx`.
+      *The audit described this as a plain create-then-join failure. It is not:
+      the create/join form only renders with no session, and the only route to no
+      session already cleared the board. The defect is real, but it needs the
+      late-response race to reach it, which is what the test drives.*
+- [x] **Readiness needs a rules profile.** A match keeps `RulesProfile.Empty`
+      until its owner fills one in, and nothing downstream refuses to resolve
+      against that - a beam matches no row of a table that is not there and
+      scores nothing - so a table that skipped the step played a whole game of
+      volleys that all came back zero. `SetReady` now refuses; standing down
+      stays unconditional. Tests: `InMemoryMatchServiceRulesProfileTests`.
+- [x] **A room code comes from a space worth having.** Three slots of thirty-two
+      words is 32,768 codes; a server holding a few hundred live matches is one a
+      script walks into a seat in within a couple of hundred tries. Now sixty-four
+      words in four slots, 16,777,216 codes. The word list is append-only, because
+      a code already read aloud has to keep working.
+      Test: `InMemoryMatchServiceHardeningTests`.
+- [x] **A mount fires only so many barrels.** The count arrives off the wire and
+      was floored at one and left alone above, where it became the trip count of
+      the dice loop in `DirectFire` - inside the service lock, so one request
+      stopped every other game on the server. `StarGruntGame.Assault.cs:270`
+      clamps the identical path with a comment saying exactly this. The ceiling
+      now lives with the others in `GroundGameGuards`.
+      Test: `GroundGameHardeningTests` (fails pre-fix with `OutOfMemoryException`).
+- [x] **CI runs the web tests, honours the lockfile, and fails on a CVE.**
+      `scripts/verify.ps1` never invoked `npm run test`, used `npm install` where
+      the Dockerfile already used `npm ci`, and ran `dotnet list --vulnerable`
+      through a helper that gates on an exit code the command never sets. Turning
+      the web tests on immediately found two test files failing: recent Node
+      versions define their own experimental `localStorage`, and vitest's jsdom
+      environment leaves it in place rather than installing jsdom's working one.
+- [x] **An Under Fire marker comes off again.** It went on in the assault
+      aftermath and came off nowhere at all. `UnderFire.After` exists and says
+      when it lapses - the end of the marked unit's own activation, never the end
+      of the turn - and nothing called it, so a platoon that lost an assault owed
+      a reaction test before every move it made for the rest of the game.
+      Tests: `DirtsideGameAssaultTests`, including that a defender marked during
+      somebody else's activation keeps its marker.
+- [x] **A database file that will not open costs the persistence, not the
+      server.** The store is built in a DI factory and the host resolves the match
+      service at startup to report what it could not restore, so a corrupt or
+      unwritable SQLite file stopped the server coming up rather than failing one
+      match. The three factories now share a helper that falls back to memory and
+      logs at Error with the path; the file is left alone so it can be recovered.
+      Test: `ApiHardeningTests` (fails pre-fix with `SQLite Error 26: file is not
+      a database` out of the DI factory).
+
+Still open from that audit, in its own ranking: ship position editable during
+Reveal/Movement, locked orders silently overwritten, `docker-smoke.ps1` asserting
+the wrong persistence mode, unbounded restored dice-roll arrays, unrated ground
+game creation, `SequenceGuards` unguarded on the write path, the rules-profile
+editor seeded blank, "finished plotting" being final, the hardcoded 12/24/36
+range-band label, and the twelve web handlers with no double-submit guard.
+
 ForceSignal is currently focused on being a session-based tabletop helper for in-person games. Online play and durable persistence remain future options after real table testing.
 
 ## Near-Term Tabletop Priorities
