@@ -1,4 +1,5 @@
 using ForceSignal.Modules.Dirtside.Combat;
+using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
@@ -298,9 +299,38 @@ public sealed partial record DirtsideGame
                 .WithLog($"{Unit(taken.Attacker.Unit).Name} consolidated on the position rather than test to drive on through.");
         }
 
-        return closing.Apply(
+        // Whose activation is closing, read before the frame goes: an Under Fire marker lapses at the
+        // end of the marked unit's *own* activation, and once the frame is closed there is nothing
+        // left to say which unit that was.
+        var activating = closing.Session.CurrentFrame is { Kind: FrameKind.Activation } closingFrame
+            ? closingFrame.Unit
+            : (UnitId?)null;
+
+        var ended = closing.Apply(
             GroundCombatSequence.CanEndFrame(closing.Session, policy),
             () => GroundCombatSequence.EndFrame(closing.Session, policy));
+
+        // The marker went on in the assault aftermath and, until this, came off nowhere at all: no
+        // route in the game cleared it, and EndTurn deliberately cannot, because the clearing is tied
+        // to the unit's own activation rather than to the turn - which is the whole reason
+        // UnderFire.After takes that flag. A platoon that lost an assault therefore owed a reaction
+        // test before every move it made for the rest of the game.
+        if (!ended.IsAllowed || activating is not { } marked)
+        {
+            return ended;
+        }
+
+        var closed = ended.Value!;
+        var wasMarked = closed.Status(marked).IsUnderFire;
+        var stillMarked = UnderFire.After(wasMarked, itsOwnActivationEnded: true);
+        if (wasMarked == stillMarked)
+        {
+            return GameOutcome.Allowed(closed);
+        }
+
+        return GameOutcome.Allowed(closed
+            .WithStatus(marked, status => status with { IsUnderFire = stillMarked })
+            .WithLog($"{closed.Unit(marked).Name} has finished its activation and is no longer under fire."));
     }
 
     /// <summary>Declines to activate anything.</summary>

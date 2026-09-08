@@ -33,6 +33,14 @@ internal static class GroundGameGuards
     /// <summary>Weapons one unit, or one element, may carry.</summary>
     public const int MaxWeaponsPerUnit = 40;
 
+    /// <summary>
+    /// Barrels one mount may fire together. Far above any real mount - a quad is four - and here for
+    /// the same reason StarGrunt clamps its downed-figure count: the number arrives off the wire and
+    /// becomes the trip count of a dice loop that runs inside the service's lock, so an uncapped one
+    /// wedges the engine for every game on the server, not just the one that sent it.
+    /// </summary>
+    public const int MaxBarrelsPerMount = 20;
+
     /// <summary>Melee pairings one round may name. A pairing is two figures, and a unit holds fifty.</summary>
     public const int MaxMeleePairings = 100;
 
