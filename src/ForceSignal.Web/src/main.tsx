@@ -1158,7 +1158,6 @@ function App() {
   function clearSession() {
     clearLocalMatchState();
     setSession(null);
-    applySnapshot(null);
   }
 
   function clearLocalMatchState() {
@@ -1168,6 +1167,13 @@ function App() {
     setFiringDrafts({});
     setEditingShipId(null);
     setActiveFleetId(null);
+    // The board goes with the rest of it, and this is the load-bearing half. Version numbers are
+    // per match and start again from one, so a device leaving a long game and joining a fresh room
+    // carried a high water mark into it: applySnapshot drops anything at or below the version it
+    // last saw, and the new room's first snapshot is version 1. The join succeeded, the request
+    // returned the right board, and the screen went on showing the previous match's room code and
+    // fleet - until that room happened to out-number the one before it.
+    applySnapshot(null);
   }
 
   // Called for the snapshot loads that keep a stored session alive. A 404 means the match is gone;
