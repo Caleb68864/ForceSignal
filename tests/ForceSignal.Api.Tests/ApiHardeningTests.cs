@@ -291,6 +291,62 @@ public sealed class ApiHardeningTests
     }
 
     [Fact]
+    public async Task ADatabaseFileThatWillNotOpenCostsThePersistenceAndNotTheServer()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"forcesignal-corrupt-{Guid.NewGuid():n}");
+        Directory.CreateDirectory(directory);
+        var databasePath = Path.Combine(directory, "matches.db");
+
+        // A file where the database should be, that is not one. This is what a bad shutdown, a
+        // half-finished copy, or a restore from the wrong backup leaves behind.
+        await File.WriteAllTextAsync(databasePath, "this is not a database, it is a text file");
+
+        try
+        {
+            using var factory = CreateFactory(new Dictionary<string, string?>
+            {
+                ["Persistence:MatchDatabasePath"] = databasePath,
+                // Both ground engines on, so all three stores are opened and all three have to
+                // survive the same file.
+                ["Features:StarGrunt"] = "true",
+                ["Features:Dirtside"] = "true",
+            });
+
+            // The store is opened from a DI factory, and the host resolves the match service at
+            // startup to report what it could not restore - so an exception let out of that factory
+            // does not fail one request, it stops the server coming up at all. One damaged file then
+            // costs every table on the machine, including the ones with nothing stored, which
+            // inverts the entire point of writing games to disk.
+            using var client = factory.CreateClient();
+
+            var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest(
+                "Blue", "Bad Disk", 72, 48, Rules: TestRules.Invented))).Content.ReadFromJsonAsync<MatchCreatedResponse>();
+            Assert.NotNull(created);
+
+            // And the game is playable, just not durable - which is exactly the mode a server with no
+            // path configured has always run in, and which readiness already warns about.
+            using var read = new HttpRequestMessage(HttpMethod.Get, $"/api/matches/{created.MatchId}/snapshot");
+            read.Headers.TryAddWithoutValidation("X-Participant-Token", created.ParticipantToken);
+            using var snapshot = await client.SendAsync(read);
+            snapshot.EnsureSuccessStatusCode();
+
+            // The bad file is left where it is, so whoever has to recover it still can.
+            Assert.Equal("this is not a database, it is a text file", await File.ReadAllTextAsync(databasePath));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A stray temp directory is untidy, not a failing test.
+            }
+        }
+    }
+
+    [Fact]
     public async Task MatchCreation_IsBudgetedSoAStrangerCannotFillTheServer()
     {
         using var factory = CreateFactory();

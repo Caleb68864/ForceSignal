@@ -22,4 +22,10 @@ internal static partial class ServerLog
     /// <summary>The database refused a write; memory may now be ahead of the file.</summary>
     [LoggerMessage(Level = LogLevel.Error, Message = "Storage failed answering {Method} {Path}; the in-memory game may be ahead of the file")]
     public static partial void StorageFailed(ILogger logger, Exception exception, string method, string path);
+
+    /// <summary>The store would not open at all, so this engine is running without one.</summary>
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Could not open the {Engine} store at {Path}; this engine is running in memory and nothing it holds will survive a restart")]
+    public static partial void StoreUnavailable(ILogger logger, Exception exception, string engine, string path);
 }

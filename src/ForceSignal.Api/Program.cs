@@ -58,13 +58,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 //
 // Read from the built configuration rather than the builder's, so settings a host layers in during
 // startup - a container, or an integration test - are seen rather than missed.
-builder.Services.AddSingleton<IMatchStore>(sp =>
-{
-    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
-    return string.IsNullOrWhiteSpace(path)
-        ? NoMatchStore.Instance
-        : new SqliteMatchStore(path);
-});
+builder.Services.AddSingleton<IMatchStore>(sp => OpenMatchStore(sp, "Full Thrust", "matches"));
 builder.Services.AddSingleton<IMatchService>(sp =>
     new InMemoryMatchService(null, sp.GetRequiredService<IMatchStore>(), loadPersisted: true));
 
@@ -73,22 +67,10 @@ builder.Services.AddSingleton<IMatchService>(sp =>
 // handed the other's saves at startup. Registered unconditionally: the flag governs whether any
 // route reaches this, and a service nobody can call costs a dictionary.
 builder.Services.AddSingleton<IStarGruntGameService>(sp =>
-{
-    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
-    IMatchStore groundStore = string.IsNullOrWhiteSpace(path)
-        ? NoMatchStore.Instance
-        : new SqliteMatchStore(path, "stargrunt_games");
-    return new StarGruntGameService(null, groundStore);
-});
+    new StarGruntGameService(null, OpenMatchStore(sp, "StarGrunt", "stargrunt_games")));
 
 builder.Services.AddSingleton<IDirtsideGameService>(sp =>
-{
-    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
-    IMatchStore groundStore = string.IsNullOrWhiteSpace(path)
-        ? NoMatchStore.Instance
-        : new SqliteMatchStore(path, "dirtside_games");
-    return new DirtsideGameService(null, groundStore);
-});
+    new DirtsideGameService(null, OpenMatchStore(sp, "Dirtside", "dirtside_games")));
 
 // Which optional game engines this server offers. Both ground-combat engines default to off: they
 // are built alongside the working Full Thrust game and must not be able to reach a table that
@@ -348,6 +330,42 @@ static string[]? SplitOrigins(string? value) =>
 // Where matches are written, or null when they are only held in memory.
 static string? ReadMatchDatabasePath(IConfiguration configuration) =>
     configuration["Persistence:MatchDatabasePath"] ?? configuration["FORCESIGNAL_MATCH_DB"];
+
+// Opens one engine's durable store, or falls back to memory when the file will not open.
+//
+// A SQLite file that was truncated by a bad shutdown, is not a database at all, or sits somewhere the
+// process cannot write throws from the store's constructor. Left to propagate, that throw comes out of
+// a DI factory the first time anything needs a match, and the host dies - so one damaged file costs
+// every table on the machine, including the two engines whose own tables were fine and every game that
+// had nothing stored in the first place. The whole point of persistence here is that a restart does
+// not end the game; taking the server down over it inverts that.
+//
+// So the server keeps serving without a disk behind it: games still play, they just do not survive a
+// restart, which is exactly the in-memory mode a server with no path configured runs in and which
+// readiness already warns about. The file is left untouched rather than recreated, because an operator
+// reading the error should still be able to recover what is in it.
+static IMatchStore OpenMatchStore(IServiceProvider services, string engine, string tableName)
+{
+    var path = ReadMatchDatabasePath(services.GetRequiredService<IConfiguration>());
+    if (string.IsNullOrWhiteSpace(path))
+    {
+        return NoMatchStore.Instance;
+    }
+
+    try
+    {
+        return new SqliteMatchStore(path, tableName);
+    }
+    catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or ArgumentException)
+    {
+        ServerLog.StoreUnavailable(
+            services.GetRequiredService<ILoggerFactory>().CreateLogger("ForceSignal.Api.Persistence"),
+            error,
+            engine,
+            path);
+        return NoMatchStore.Instance;
+    }
+}
 
 // Whether to believe X-Forwarded-For. Off unless the operator says so, and only "true" says so:
 // blank, missing or misspelt leaves the proxy untrusted, the same way a feature flag fails closed.
