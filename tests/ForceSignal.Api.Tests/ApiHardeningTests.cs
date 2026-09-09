@@ -414,6 +414,83 @@ public sealed class ApiHardeningTests
     }
 
     [Fact]
+    public async Task AWrongShapedTableCostsThatEnginesPersistenceAndNotTheServer()
+    {
+        // The other half of "a database file that will not open costs the persistence, not the
+        // server". A file that will not open is caught; a file that opens and holds the wrong table
+        // was not. CREATE TABLE IF NOT EXISTS is a no-op against an object of that name whatever its
+        // shape, so a drifted or hand-restored dirtside_games table opened cleanly and then threw
+        // out of the DI factory on the first SELECT - and the API did not start at all.
+        var directory = Path.Combine(Path.GetTempPath(), $"forcesignal-shape-{Guid.NewGuid():n}");
+        Directory.CreateDirectory(directory);
+        var databasePath = Path.Combine(directory, "matches.db");
+
+        await using (var raw = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            await raw.OpenAsync();
+            await using var command = raw.CreateCommand();
+            command.CommandText = "CREATE TABLE dirtside_games (game_id TEXT PRIMARY KEY, payload TEXT NOT NULL);";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            using var factory = CreateFactory(new Dictionary<string, string?>
+            {
+                ["Persistence:MatchDatabasePath"] = databasePath,
+                ["Features:Dirtside"] = "true",
+            });
+            using var client = factory.CreateClient();
+
+            // The server comes up, and Full Thrust - whose table is fine - is on disk.
+            var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest(
+                "Blue", "Wrong Shape", 72, 48, Rules: TestRules.Invented))).Content.ReadFromJsonAsync<MatchCreatedResponse>();
+            Assert.NotNull(created);
+
+            var ready = await client.GetFromJsonAsync<JsonElement>("/ready");
+            var stores = ready.GetProperty("stores").EnumerateArray()
+                .ToDictionary(
+                    store => store.GetProperty("engine").GetString() ?? string.Empty,
+                    store => store.GetProperty("persistence").GetString() ?? string.Empty,
+                    StringComparer.Ordinal);
+
+            Assert.Equal("sqlite", stores["Full Thrust"]);
+            Assert.Equal("in-memory", stores["Dirtside"]);
+
+            // And readiness says the machine is not what it was asked to be. This is the state that
+            // used to report a healthy "sqlite" while every Dirtside game on the machine was going
+            // to memory - the operator's readiness check green, and the games gone at the restart.
+            Assert.Equal("mixed", ready.GetProperty("persistence").GetString());
+            var warnings = ready.GetProperty("warnings").EnumerateArray()
+                .Select(warning => warning.GetString() ?? string.Empty)
+                .ToArray();
+            Assert.Contains(warnings, warning =>
+                warning.Contains("Dirtside", StringComparison.Ordinal)
+                && warning.Contains("stored in memory", StringComparison.OrdinalIgnoreCase));
+
+            // The Dirtside table is left exactly as it was found, so whoever has to recover it can.
+            await using var check = new SqliteConnection($"Data Source={databasePath};Pooling=False");
+            await check.OpenAsync();
+            await using var columns = check.CreateCommand();
+            columns.CommandText = "SELECT sql FROM sqlite_master WHERE name = 'dirtside_games';";
+            Assert.Equal(
+                "CREATE TABLE dirtside_games (game_id TEXT PRIMARY KEY, payload TEXT NOT NULL)",
+                (string?)await columns.ExecuteScalarAsync());
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A stray temp directory is untidy, not a failing test.
+            }
+        }
+    }
+
+    [Fact]
     public async Task EveryEngineThisServerOffers_ReportsAStoreOfItsOwn()
     {
         // The drift guard, and the reason this was fixed with a report rather than with two more

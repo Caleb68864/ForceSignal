@@ -62,6 +62,22 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
         }.ToString());
         _connection.Open();
 
+        try
+        {
+            Prepare();
+        }
+        catch
+        {
+            // A store that failed to open holds nothing, so it holds no handle on the file either:
+            // the caller falls back to memory and whoever has to recover the database must be able
+            // to move it.
+            _connection.Dispose();
+            throw;
+        }
+    }
+
+    private void Prepare()
+    {
         // Write-ahead logging is what makes a synchronous write cheap enough to do inline, and it
         // is also what leaves the file readable if the process dies mid-write.
         Execute("PRAGMA journal_mode=WAL;");
@@ -81,6 +97,19 @@ public sealed class SqliteMatchStore : IMatchStore, IDisposable
                 written_at TEXT NOT NULL
             );
             """);
+
+        // IF NOT EXISTS is a no-op when an object of that name is already there, whatever shape it
+        // is in - a drifted table, a hand-restored backup, a table written by another tool, or an
+        // object that is not a table at all. So creating the table proves nothing about the table,
+        // and this store would open cleanly and then throw on its first read.
+        //
+        // That distinction is the whole difference between losing a file and losing the server. The
+        // host wraps the opening of a store so that a database it cannot use costs the persistence
+        // and not the process; a throw on the first read arrives instead from inside a DI factory,
+        // takes the host down with it, and so costs every engine on the machine including the ones
+        // whose tables were fine. Reading no rows is the cheapest way to make the file's shape
+        // answer for itself, and it answers here, where the caller is still able to fall back.
+        Execute($"SELECT match_id, state, written_at FROM {_table} LIMIT 0;");
     }
 
     /// <inheritdoc />

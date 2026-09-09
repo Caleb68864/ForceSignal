@@ -131,6 +131,32 @@ public sealed class SqliteMatchStoreTests : IDisposable
     }
 
     [Theory]
+    // Schema drift, a hand-restored backup, a table written by a different tool: the file opens and
+    // the object is there, under the right name, holding something else.
+    [InlineData("CREATE TABLE matches (id TEXT PRIMARY KEY, blob TEXT NOT NULL);")]
+    // And the same thing in the shape that is hardest to see: an object of that name that is not a
+    // table at all. CREATE TABLE IF NOT EXISTS is a no-op against any object with the name, whatever
+    // it is, so nothing complains here either.
+    [InlineData("CREATE VIEW matches AS SELECT 1 AS id;")]
+    public void ATableOfTheRightNameAndTheWrongShapeIsRefusedOnOpening(string sql)
+    {
+        Directory.CreateDirectory(_directory);
+        using (var raw = new SqliteConnection($"Data Source={DatabasePath};Pooling=False"))
+        {
+            raw.Open();
+            using var command = raw.CreateCommand();
+            command.CommandText = sql;
+            command.ExecuteNonQuery();
+        }
+
+        // It has to be refused *here*, on opening. The host's one guard against a database file it
+        // cannot use wraps the constructor - a store that opens cleanly and then throws on the first
+        // read throws out of a DI factory instead, and the API does not start at all. One bad file
+        // then costs every engine on the machine, including the ones whose tables are fine.
+        Assert.Throws<SqliteException>(() => new SqliteMatchStore(DatabasePath));
+    }
+
+    [Theory]
     [InlineData("matches; DROP TABLE matches--")]
     [InlineData("2fast")]
     [InlineData("has space")]
