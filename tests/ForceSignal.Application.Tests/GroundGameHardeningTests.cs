@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
+using ForceSignal.Modules.Dirtside.Chits;
 using ForceSignal.Modules.Dirtside.Game;
 using ForceSignal.Modules.StarGrunt.Game;
 
@@ -200,6 +201,47 @@ public sealed partial class GroundGameHardeningTests
                 ],
             }));
         Assert.Contains("weapons", bristling.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AMountFiresOnlySoManyBarrelsHoweverManyItClaimsToHave()
+    {
+        // The target rolls first and the barrel second, so every barrel that fires hits and lands in
+        // the log by name - which is how the count below is taken.
+        var service = new DirtsideGameService(
+            new ScriptedQualityDice(1, 8),
+            null,
+            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 8)));
+        var game = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9")).GameId;
+
+        // A mount claiming every barrel an int can hold. The number arrives off the wire and used to
+        // be floored at one and left alone above, where it became the trip count of the dice loop in
+        // DirectFire - and that loop runs inside the service's lock, so this one request stopped
+        // every other game on the server too. StarGruntGame.Assault.cs clamps its downed-figure
+        // count with a comment saying exactly this; the same loop one engine over did not.
+        service.AddPlatoon(game, DirtsideGameServiceTests.Platoon("alpha", "Alpha Troop", "blue") with
+        {
+            Elements =
+            [
+                DirtsideGameServiceTests.Vehicle("alpha-1", "Alpha Troop One") with
+                {
+                    Weapons = [DirtsideGameServiceTests.MainGun with { Barrels = int.MaxValue }],
+                },
+            ],
+        });
+        service.AddPlatoon(game, DirtsideGameServiceTests.Platoon("bravo", "Bravo Troop", "red"));
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseDirtsideFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(game, new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var fired = service.Fire(game, new DirtsideFireRequest("alpha-1", "Main Gun", "bravo", "bravo-1", "Close"));
+
+        // The shot writes one roll into the log per barrel that actually fired - "<die> <n> against
+        // <m>: hit" - so counting those counts the barrels the engine was willing to roll for.
+        // Twenty is GroundGameGuards.MaxBarrelsPerMount, spelt out here because the guards are
+        // internal to the application, as the other ceilings in this file are.
+        var barrelsFired = fired.Log[^1].Split(" against ", StringSplitOptions.None).Length - 1;
+        Assert.InRange(barrelsFired, 1, 20);
     }
 
     [Fact]

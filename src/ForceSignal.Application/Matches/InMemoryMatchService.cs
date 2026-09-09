@@ -86,7 +86,10 @@ public interface IMatchService
     /// <summary>Flies a fighter group up to its move allowance in any direction.</summary>
     MatchSnapshotDto MoveFighterGroup(Guid matchId, MoveFighterGroupRequest request);
 
-    /// <summary>Declares a participant has finished plotting, leaving unordered ships to hold course.</summary>
+    /// <summary>
+    /// Declares a participant has finished plotting, leaving unordered ships to hold course, or
+    /// takes that declaration back while order entry is still open.
+    /// </summary>
     MatchSnapshotDto DeclareOrdersComplete(Guid matchId, DeclareOrdersCompleteRequest request);
 
     /// <summary>
@@ -192,6 +195,13 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     private const int MaxWeaponsPerShip = 40;
     private const int MaxOrdnanceMarkersPerMatch = 400;
     private const int MaxFiringResultsPerMatch = 5000;
+
+    /// <summary>
+    /// Dice one shot may have rolled. The list is the table's audit trail for a volley, so it is
+    /// kept and replayed into every snapshot - which is exactly why a restored one needs a ceiling.
+    /// No mount on any profile rolls anywhere near this many.
+    /// </summary>
+    private const int MaxDiceRollsPerFiringResult = 200;
 
     /// <summary>
     /// How many battle log entries a match keeps. The log is replayed in full inside every
@@ -355,6 +365,18 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             {
                 throw new InvalidOperationException(
                     $"{participant.DisplayName} is {overBy} points over the {match.PointsLimit} point limit. Trim the fleet or ask the owner to change the limit.");
+            }
+
+            // A match keeps RulesProfile.Empty until the owner fills one in, and Empty has no beam
+            // damage table in it. Nothing downstream refuses to resolve against that - a beam simply
+            // matches no row and scores nothing - so a table that skipped this step played a whole
+            // game of volleys that all came back zero with nothing anywhere saying why. Readiness is
+            // the last moment the profile can still be edited, so it is the place to insist.
+            if (isReady && !match.Rules.IsPlayable)
+            {
+                throw new InvalidOperationException(
+                    "This match has no rules layer yet, so every shot would score nothing. "
+                        + "The owner needs to fill one in before anyone declares ready.");
             }
 
             participant.IsReady = isReady;
@@ -556,6 +578,44 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             if (!validation.IsValid)
             {
                 throw new InvalidOperationException(string.Join(" ", validation.Errors));
+            }
+
+            // Where a ship is, how fast it is going and which way it faces are the
+            // commitment. They are frozen from the moment *this ship* locks an order
+            // until the turn has been executed, because that window is the whole point
+            // of the lock-and-reveal ceremony: a player who can watch everyone else's
+            // plot come up and then nudge their own ship has not been held to anything,
+            // and nothing else in the match would record that they had.
+            //
+            // Keyed on the ship's own commitment rather than on the match phase, which
+            // is the distinction the first version of this guard got wrong. A ship locks
+            // while the match is still in OrderEntry -- the phase only turns over when
+            // *everyone* has locked -- so a phase test left the whole interval between
+            // one player locking and the last player locking wide open, which is exactly
+            // the interval a player sitting on a locked order would use.
+            //
+            // Only these four fields are frozen, not the whole form. A name, a hull row,
+            // a points value are bookkeeping, and a typo noticed mid-turn should not have
+            // to wait a turn to be corrected.
+            //
+            // Firing is deliberately not covered. By then the commitments are revealed
+            // and the turn's movement is resolved; the physical table is the authority,
+            // and a ship measured into the wrong square needs putting right there and
+            // then, having already been held to the plot it wrote.
+            var lockedOrder = match.Commitments.TryGetValue(ship.Id, out var heldOrder) && !heldOrder.IsRevealed;
+            if (lockedOrder || match.Phase is MatchPhase.Reveal or MatchPhase.Movement)
+            {
+                var requestedX = ClampPosition(request.PositionX, match.TableWidth);
+                var requestedY = ClampPosition(request.PositionY, match.TableDepth);
+                if (requestedX != ship.PositionX
+                    || requestedY != ship.PositionY
+                    || request.CurrentVelocity != ship.CurrentVelocity
+                    || request.CurrentCourse != ship.CurrentCourse)
+                {
+                    throw new InvalidOperationException(
+                        "Position, velocity and course are settled once this ship's order is locked. "
+                        + "Correct them before locking, or after the turn advances.");
+                }
             }
 
             ship.Name = NormalizeText(request.Name, ship.Name);
@@ -1248,6 +1308,29 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
                 throw new InvalidOperationException("Plotting can only be closed out during order entry.");
             }
 
+            // Saying you are done is a declaration about your own fleet, and until the last player
+            // makes theirs nothing has happened yet. It was one-way: a tap meant for something else
+            // handed the turn over with unordered ships holding course, and the only way back was to
+            // play the turn out. So it can be taken back for exactly as long as it means nothing -
+            // while order entry is still open. Once the last declaration lands the phase moves on,
+            // orders are sealed, and re-opening the turn is no longer one player's to do.
+            if (!request.Complete)
+            {
+                if (match.Phase != MatchPhase.OrderEntry)
+                {
+                    throw new InvalidOperationException(
+                        "Everyone has finished plotting and the orders are sealed, so this cannot be taken back now.");
+                }
+
+                participant.OrdersComplete = false;
+                match.AddLog(
+                    "Orders",
+                    match.Phase.ToString(),
+                    $"{participant.DisplayName} is plotting again.");
+                match.Touch("OrdersDeclarationWithdrawn");
+                return ToSnapshot(match);
+            }
+
             participant.OrdersComplete = true;
             var drifting = DriftingShipIds(match, participant.Id).Count;
             match.AddLog(
@@ -1716,16 +1799,38 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     /// <summary>
     /// Words a room code is built from. A code is read aloud across a table, so the list is all
     /// short, unambiguous, distinctly-sounding words - no near-homophones, and nothing that reads
-    /// the same over a noisy room. Thirty-two words in three slots is 32,768 codes, which is what
-    /// keeps a code from being guessed by someone walking the space; see <see cref="CreateJoinCode"/>.
+    /// the same over a noisy room. Sixty-four words in <see cref="JoinCodeWordSlots"/> slots is
+    /// 16,777,216 codes; see <see cref="CreateJoinCode"/> for why that number matters.
     /// </summary>
+    /// <remarks>
+    /// Adding a word is safe; removing or reordering one is not, because a code already read aloud
+    /// at a table has to keep working. The list is only ever appended to.
+    /// </remarks>
     private static readonly string[] JoinCodeWords =
     [
         "BLUE", "COMET", "SEVEN", "IRON", "ORBIT", "NOVA", "VECTOR", "LANCE",
         "DRIFT", "EMBER", "AXIS", "BRAVO", "CINDER", "DELTA", "ECHO", "FLARE",
         "GAMMA", "HELIX", "INDIGO", "JUNO", "KILO", "LUMEN", "MERIDIAN", "NADIR",
         "OSPREY", "PULSAR", "QUASAR", "RAVEN", "SIGMA", "TALON", "UMBRA", "ZENITH",
+        "ANCHOR", "BEACON", "CANYON", "COBALT", "CRIMSON", "DAGGER", "EAGLE", "FALCON",
+        "GRANITE", "HARBOR", "JASPER", "KESTREL", "LOTUS", "MAGNET", "MARBLE", "MONSOON",
+        "ONYX", "PHOENIX", "PIVOT", "RIVER", "RUBY", "SABLE", "SUMMIT", "TEMPO",
+        "THUNDER", "TOPAZ", "VIOLET", "WALNUT", "WILLOW", "YONDER", "ZEBRA", "CASTLE",
     ];
+
+    /// <summary>
+    /// How many words a room code is made of.
+    /// </summary>
+    /// <remarks>
+    /// Four rather than three. The code is the only thing standing between a stranger and a seat, so
+    /// the size of the space it is drawn from is a security property, not a formatting choice: three
+    /// slots out of thirty-two words is 32,768 codes, and a server holding a few hundred live matches
+    /// is then one that a script walking the space finds a seat in on the order of a hundred tries.
+    /// Widening the list to sixty-four and taking a fourth word costs one more syllable to say across
+    /// a table and buys five hundred times the space, which puts guessing back out of reach of the
+    /// rate limit in front of it.
+    /// </remarks>
+    private const int JoinCodeWordSlots = 4;
 
     /// <summary>
     /// Mints an unused room code. The code is the only thing standing between a stranger and a
@@ -1738,7 +1843,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     {
         for (var attempt = 0; attempt < 64; attempt++)
         {
-            var code = string.Join("-", Enumerable.Range(0, 3)
+            var code = string.Join("-", Enumerable.Range(0, JoinCodeWordSlots)
                 .Select(_ => JoinCodeWords[System.Security.Cryptography.RandomNumberGenerator.GetInt32(JoinCodeWords.Length)]));
             if (!_joinCodes.ContainsKey(code))
             {
@@ -1750,7 +1855,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
         // and cannot collide for long.
         for (var attempt = 0; attempt < 1024; attempt++)
         {
-            var code = string.Join("-", Enumerable.Range(0, 3)
+            var code = string.Join("-", Enumerable.Range(0, JoinCodeWordSlots)
                 .Select(_ => JoinCodeWords[System.Security.Cryptography.RandomNumberGenerator.GetInt32(JoinCodeWords.Length)]))
                 + "-" + System.Security.Cryptography.RandomNumberGenerator.GetInt32(100, 1000);
             if (!_joinCodes.ContainsKey(code))

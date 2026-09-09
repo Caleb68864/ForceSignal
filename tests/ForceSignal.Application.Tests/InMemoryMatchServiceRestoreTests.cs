@@ -562,4 +562,63 @@ public sealed class InMemoryMatchServiceRestoreTests
         Assert.Contains(restoredShip.Id, restored.ActivatedShipIds);
         Assert.Equal(afterCeaseFire.FiringParticipantId, restored.FiringParticipantId);
     }
+
+    [Fact]
+    public void RestoreMatch_WithAShotCarryingMoreDiceThanAMatchHolds_IsRefusedByName()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Loaded Dice", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Watch", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24));
+        var exported = service.GetSnapshot(owner.MatchId);
+
+        // The number of shots is already refused past its ceiling, so this is the way left to turn a
+        // small file into a large match: one shot, holding a quarter of a million dice. Every one of
+        // them is kept for the after-action review and written back out inside every later snapshot.
+        var ship = exported.Ships.Single();
+        var loaded = exported with
+        {
+            FiringResults =
+            [
+                new FiringResultDto(
+                    ship.Id, ship.Id, Guid.NewGuid(), "Overloaded Battery", 1, 6, "close", FiringArc.Fore,
+                    1, 0, 0, 0, 1, 0, 1, [.. Enumerable.Repeat(6, 250_000)]),
+            ],
+        };
+
+        var refused = Assert.Throws<InvalidOperationException>(
+            () => new InMemoryMatchService().RestoreMatch(loaded, savedAt: null));
+
+        Assert.Contains("Overloaded Battery", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("dice on one shot", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RestoreMatch_WithAnOrdinaryVolley_KeepsEveryDieTheTableRolled()
+    {
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Real Volley", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Watch", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24));
+        var exported = service.GetSnapshot(owner.MatchId);
+        var ship = exported.Ships.Single();
+
+        // The ceiling is a guard against a crafted file, not a rules limit: a real broadside's worth
+        // of dice has to come back untouched, or the ceiling has cost the table its audit trail.
+        var volley = exported with
+        {
+            FiringResults =
+            [
+                new FiringResultDto(
+                    ship.Id, ship.Id, Guid.NewGuid(), "Heavy Battery", 1, 6, "close", FiringArc.Fore,
+                    24, 0, 0, 0, 8, 0, 8, [.. Enumerable.Repeat(5, 24)]),
+            ],
+        };
+
+        var restored = new InMemoryMatchService().RestoreMatch(volley, savedAt: null);
+
+        Assert.Equal(24, restored.Snapshot.FiringResults.Single().DiceRolls.Count);
+    }
 }

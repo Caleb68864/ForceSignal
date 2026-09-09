@@ -3,6 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "//engines": [
+    "vitest.config.ts passes --no-experimental-webstorage, which exists only from Node 22.4 -",
+    "the same release that introduced the inert globalThis.localStorage the flag is there to",
+    "switch off. On anything older `npm test` dies on an unrecognised option rather than",
+    "failing a test, which is a confusing way to find out. Declared so npm says so first."
+  ],
+  "engines": {
+    "node": ">=22.4"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -29,6 +29,42 @@ public sealed class InMemoryMatchServiceHardeningTests
     }
 
     [Fact]
+    public void JoinCodes_AreDrawnFromASpaceTooLargeForAGuesserToWalk()
+    {
+        var service = new InMemoryMatchService();
+        var words = new HashSet<string>(StringComparer.Ordinal);
+        var slotCounts = new HashSet<int>();
+        for (var i = 0; i < 400; i++)
+        {
+            var parts = service.CreateMatch(new CreateMatchRequest("Blue", $"Match {i}", Rules: TestRules.Invented))
+                .JoinCode.Split('-');
+            slotCounts.Add(parts.Length);
+            foreach (var part in parts)
+            {
+                words.Add(part);
+            }
+        }
+
+        // Four hundred codes is well short of crowding the space, so none of them should have taken
+        // the numeric-suffix fallback and every code should be the same shape.
+        var slots = Assert.Single(slotCounts);
+
+        // Four hundred codes is 1,600 draws from the list, so a word going unseen is vanishingly
+        // unlikely; the margin is here so the test cannot flake rather than because it is expected
+        // to be used.
+        Assert.True(words.Count >= 60, $"Only {words.Count} distinct code words were ever drawn.");
+
+        // The property that actually matters, stated as the number it is. A room code is the only
+        // thing between a stranger and a seat, so the space it comes from has to stay far enough
+        // ahead of the rate limiter that walking it is hopeless. Three slots out of thirty-two words
+        // was 32,768 codes - a server holding a few hundred live matches was one a script found a
+        // seat in within a couple of hundred tries.
+        Assert.True(
+            Math.Pow(words.Count, slots) >= 1_000_000,
+            $"{words.Count} words in {slots} slots is only {Math.Pow(words.Count, slots):N0} codes.");
+    }
+
+    [Fact]
     public void JoinCode_IsRefusedWhenItIsNotTheOneThatWasIssued()
     {
         var service = new InMemoryMatchService();

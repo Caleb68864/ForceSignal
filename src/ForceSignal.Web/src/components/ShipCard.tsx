@@ -231,14 +231,11 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
               <select
                 value={weapon.kind}
                 onChange={(event) => {
-                  const kind = event.target.value as WeaponKind;
-                  const preset = weaponKinds.find((option) => option.key === kind);
-                  onChange(updateWeapon(form, weapon.id, {
-                    kind,
-                    // A torpedo fires one shot and reaches 30mu, so keep the numbers sane on switch.
-                    attackDice: kind === 'PulseTorpedo' ? 1 : weapon.attackDice,
-                    maxRange: Math.min(weapon.maxRange, preset?.maxRange ?? weapon.maxRange),
-                  }));
+                  // Changing the kind changes which procedure the engine runs, and nothing else.
+                  // It used to also clamp the reach to a published maximum and force a torpedo to
+                  // one shot - both numbers this app is not the source of. The player's figures
+                  // stay as typed; the rules profile they entered is what the server holds them to.
+                  onChange(updateWeapon(form, weapon.id, { kind: event.target.value as WeaponKind }));
                 }}
               >
                 {weaponKinds.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}

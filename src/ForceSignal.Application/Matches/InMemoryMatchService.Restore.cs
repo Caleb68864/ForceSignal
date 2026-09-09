@@ -46,6 +46,18 @@ public sealed partial class InMemoryMatchService
             RequireWithin(ship.Weapons?.Count ?? 0, MaxWeaponsPerShip, $"weapon mounts on {NormalizeText(ship.Name, "a ship")}");
         }
 
+        // The count of shots is capped above, but each shot carries the dice it rolled, and that
+        // list is kept for the after-action review and written back out inside every snapshot. Left
+        // uncapped it is the one place in a restore file where a few kilobytes of shots can hold
+        // however much the author felt like, and it gets re-serialised on every mutation thereafter.
+        foreach (var firing in snapshot.FiringResults ?? [])
+        {
+            RequireWithin(
+                firing.DiceRolls?.Count ?? 0,
+                MaxDiceRollsPerFiringResult,
+                $"dice on one shot from {NormalizeText(firing.WeaponName, "a weapon")}");
+        }
+
         lock (_gate)
         {
             EvictIdleMatches();

@@ -77,6 +77,44 @@ public sealed class DirtsideGameAssaultTests
     }
 
     [Fact]
+    public void TheMarkerAnAssaultLeftComesOffAtTheEndOfThatUnitsOwnActivation()
+    {
+        // Alpha's assault is thrown back, so Alpha falls back under fire - during Alpha's own
+        // activation, which is the activation the marker lapses at the end of.
+        var settled = Fought(DamageChit.Numerical(ChitColour.Red, 1))
+            .ResolveAssaultAftermath(1, 3, new ScriptedDice(6, 1)).Value!;
+        Assert.True(settled.Status(GameFixtures.Alpha).IsUnderFire);
+
+        var closed = settled.EndActivation();
+        Assert.True(closed.IsAllowed, closed.Reason);
+
+        // The marker used to go on here and come off nowhere at all: nothing in the game cleared it,
+        // and EndTurn cannot, because the clearing is tied to the unit's own activation rather than
+        // to the turn. A platoon that lost an assault therefore owed a reaction test before every
+        // move it made for the rest of the game, which is a trapdoor rather than a marker.
+        Assert.False(closed.Value!.Status(GameFixtures.Alpha).IsUnderFire);
+        Assert.Contains(
+            closed.Value.Log,
+            entry => entry.Contains("no longer under fire", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AMarkerPutOnTheDefenderOutlivesTheAttackersActivation()
+    {
+        // The other half of the same rule, and the reason it is not simply cleared at the end of the
+        // frame for everyone. Bravo broke and fell back under fire during Alpha's activation; Bravo
+        // has not activated, so it still carries the marker and still owes a test when it does.
+        var settled = Fought(DamageChit.Numerical(ChitColour.Red, 1))
+            .ResolveAssaultAftermath(1, 3, new ScriptedDice(1)).Value!;
+        Assert.True(settled.Status(GameFixtures.Bravo).IsUnderFire);
+
+        var closed = settled.EndActivation();
+        Assert.True(closed.IsAllowed, closed.Reason);
+
+        Assert.True(closed.Value!.Status(GameFixtures.Bravo).IsUnderFire);
+    }
+
+    [Fact]
     public void TwoSidesThatBothHoldGoAgainHandToHand()
     {
         var again = Fought(DamageChit.Numerical(ChitColour.Red, 1))

@@ -5,6 +5,7 @@ import './style.css';
 import { CourseCompass, DamageControl, DamageControlPanel, DamageMeter, FiringConsole, PreTurnChecklist, ShipEditor, ShipProfileFields } from './components/ShipCard.tsx';
 import { PlayMap } from './components/map/PlayMap.tsx';
 import { carrierImportRank, fleetPoints, nextShipName, shipsPoints } from './lib/fleetMath.ts';
+import { fleetCopyTargets, isOrderLocked } from './lib/orders.ts';
 import { captureDamageState, firingDraftFor, focusedFirstShips } from './lib/rules.ts';
 import { normalizeMatchSnapshot } from './lib/normalize.ts';
 import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
@@ -86,6 +87,11 @@ function App() {
   // and on a slow link a player who saw nothing happen would tap again - firing the same weapon
   // twice, or skipping a phase with two taps of Advance Turn. The guards that would have caught it
   // are computed from a snapshot that has not come back yet, so the UI did not even grey out.
+  //
+  // Every handler that changes the game goes through this, including the setup ones: a second tap
+  // of Create Fleet is a second fleet, of Duplicate a second ship, of Bring a second copy of the
+  // library fleet, and of Repair a second roll of the damage-control dice - which is the one that
+  // cannot be undone by deleting anything.
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
 
@@ -736,6 +742,27 @@ function App() {
       : `${lockedNote}. Plotting closed; ${holding} ship${holding === 1 ? ' holds' : 's hold'} course and speed.`);
   }
 
+  /**
+   * Takes back "that is my plotting done", so the ships still holding course can be given an order.
+   *
+   * Locking a fleet declares the plotting closed in the same tap, which is right nearly always and
+   * wrong exactly once: when the tap came before the orders did. The orders already committed stay
+   * committed - a lock is a promise - but the turn stops waiting to be advanced, and anything that
+   * was going to drift can still be plotted.
+   */
+  async function resumePlotting() {
+    if (!session) {
+      return;
+    }
+
+    const reopened = await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/complete`, {
+      participantToken: session.participantToken,
+      complete: false,
+    });
+    applySnapshot(reopened);
+    setMessage('Plotting reopened. Orders already locked stay locked.');
+  }
+
   async function revealOwnedOrders() {
     if (!session || !snapshot) {
       return;
@@ -1128,10 +1155,23 @@ function App() {
 
   function applyOrderToOwnedFleet(sourceShipId: string) {
     const sourceDraft = draftFor(sourceShipId, drafts);
+    // Destroyed ships and ships already holding a locked order are both left out, for the reasons
+    // set out in `lib/orders.ts`. This reports what it skipped rather than doing it quietly,
+    // because one tap would otherwise reach a whole squadron.
+    const { eligible, lockedOut } = fleetCopyTargets(ownedShips, snapshot?.orderStatuses);
+    const skipped = lockedOut.length;
+    if (eligible.length === 0) {
+      setMessage(
+        skipped > 0
+          ? 'Every ship that could take this order has already locked one. Reveal or advance the turn first.'
+          : 'No ship is able to take that order.',
+      );
+      return;
+    }
+
     setDrafts((current) => {
       const next = { ...current };
-      // A destroyed ship takes no order; giving it one only inflates the "holds course" count.
-      for (const ship of ownedShips.filter((candidate) => !candidate.isDestroyed)) {
+      for (const ship of eligible) {
         next[ship.id] = {
           ...sourceDraft,
           salt: draftFor(ship.id, current).salt,
@@ -1140,7 +1180,11 @@ function App() {
 
       return next;
     });
-    setMessage('Order copied to your fleet.');
+    setMessage(
+      skipped > 0
+        ? `Order copied to ${eligible.length} ship(s). ${skipped} already locked and were left alone.`
+        : 'Order copied to your fleet.',
+    );
   }
 
   async function advanceTurn() {
@@ -1158,7 +1202,6 @@ function App() {
   function clearSession() {
     clearLocalMatchState();
     setSession(null);
-    applySnapshot(null);
   }
 
   function clearLocalMatchState() {
@@ -1168,6 +1211,13 @@ function App() {
     setFiringDrafts({});
     setEditingShipId(null);
     setActiveFleetId(null);
+    // The board goes with the rest of it, and this is the load-bearing half. Version numbers are
+    // per match and start again from one, so a device leaving a long game and joining a fresh room
+    // carried a high water mark into it: applySnapshot drops anything at or below the version it
+    // last saw, and the new room's first snapshot is version 1. The join succeeded, the request
+    // returned the right board, and the screen went on showing the previous match's room code and
+    // fleet - until that room happened to out-number the one before it.
+    applySnapshot(null);
   }
 
   // Called for the snapshot loads that keep a stored session alive. A 404 means the match is gone;
@@ -1302,7 +1352,7 @@ function App() {
               const file = event.target.files?.[0];
               event.target.value = '';
               if (file) {
-                restoreFromBackupFile(file).catch(showError(setMessage));
+                run(() => restoreFromBackupFile(file));
               }
             }}
           />
@@ -1330,14 +1380,14 @@ function App() {
                   <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
                 </label>
               </div>
-              <button className="ghost" onClick={() => updateTable().catch(showError(setMessage))}>Set Table</button>
+              <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
             </div>
             <RulesProfileEditor
               value={snapshot?.rules ?? blankRulesProfile}
               editable={snapshot?.phase === 'FleetSetup'}
               onApply={(rules) => {
                 if (snapshot?.phase === 'FleetSetup') {
-                  updateRulesProfile(rules).catch(showError(setMessage));
+                  run(() => updateRulesProfile(rules));
                 }
               }}
             />
@@ -1359,13 +1409,18 @@ function App() {
                   <small>{(snapshot?.pointsLimit ?? 0) > 0 ? `of ${snapshot?.pointsLimit}` : 'no limit'}</small>
                 </div>
               </div>
-              <button className="ghost" onClick={() => updatePointsLimit().catch(showError(setMessage))}>Set Limit</button>
+              <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button>
               <p className="privacy">0 means unlimited. Only the owner can change it, which is how both sides agree to a mismatch.</p>
             </div>
             <div className="side-actions">
               <span className="label">Match commands</span>
               <button onClick={() => run(markReady)} disabled={busy}>Ready</button>
               <button className="ghost" onClick={() => run(lockOwnedOrders)} disabled={busy}>Lock Fleet Orders</button>
+              {/* Only while the declaration still means nothing - once everyone has closed out,
+                  the phase has turned over and reopening the turn is not one player's to do. */}
+              {me?.ordersComplete && snapshot?.phase === 'OrderEntry' ? (
+                <button className="ghost" onClick={() => run(resumePlotting)} disabled={busy}>Resume Plotting</button>
+              ) : null}
               <button className="ghost" onClick={() => run(revealOwnedOrders)} disabled={busy}>Reveal Fleet Orders</button>
               <button onClick={() => run(advanceTurn)} disabled={busy}>Advance Turn</button>
               <button className={publicMode ? 'ghost active' : 'ghost'} onClick={() => {
@@ -1453,7 +1508,7 @@ function App() {
                       Fleet color
                       <input type="color" value={newFleetForm.fleetColor} onChange={(event) => setNewFleetForm({ ...newFleetForm, fleetColor: event.target.value })} />
                     </label>
-                    <button type="button" onClick={() => createAdditionalFleet().catch(showError(setMessage))}>Create Fleet</button>
+                    <button type="button" disabled={busy} onClick={() => run(createAdditionalFleet)}>Create Fleet</button>
                   </div>
                 ) : null}
                 <div className="setup-grid">
@@ -1503,7 +1558,7 @@ function App() {
                         const file = event.target.files?.[0];
                         event.target.value = '';
                         if (file) {
-                          importFleetFile(file).catch(showError(setMessage));
+                          run(() => importFleetFile(file));
                         }
                       }}
                     />
@@ -1524,7 +1579,7 @@ function App() {
                                 </small>
                               </div>
                               <div className="quick-actions">
-                                <button type="button" onClick={() => bringLibraryFleet(entry).catch(showError(setMessage))}>Bring</button>
+                                <button type="button" disabled={busy} onClick={() => run(() => bringLibraryFleet(entry))}>Bring</button>
                                 <button className="ghost" type="button" onClick={() => removeLibraryFleet(entry)}>Remove</button>
                               </div>
                             </div>
@@ -1577,7 +1632,7 @@ function App() {
                 snapshot={snapshot}
                 ownedShipIds={visibleOwnedShipIds}
                 damageUndoLabel={damageUndo?.shipName}
-                onUndoDamage={() => undoLastDamage().catch(showError(setMessage))}
+                onUndoDamage={() => run(undoLastDamage)}
               />
             ) : null}
 
@@ -1629,7 +1684,7 @@ function App() {
                         >
                           {isEditing ? 'Close Editor' : 'Edit Stats'}
                         </button>
-                        {showShipControls ? <button className="ghost" onClick={() => duplicateShip(ship).catch(showError(setMessage))}>Duplicate</button> : null}
+                        {showShipControls ? <button className="ghost" disabled={busy} onClick={() => run(() => duplicateShip(ship))}>Duplicate</button> : null}
                         {showShipControls ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
                       </div>
                     ) : null}
@@ -1637,7 +1692,7 @@ function App() {
                     {canEdit && isEditing ? (
                       <ShipEditor
                         ship={ship}
-                        onSave={(form) => updateProfile(ship, form).catch(showError(setMessage))}
+                        onSave={(form) => run(() => updateProfile(ship, form))}
                         onCancel={() => setEditingShipId(null)}
                       />
                     ) : null}
@@ -1876,7 +1931,7 @@ function App() {
                         {snapshot.phase === 'OrderEntry' || snapshot.phase === 'OrdersLocked' ? (
                           <DamageControlPanel
                             ship={ship}
-                            onRepair={(jobs) => attemptRepairs(ship, jobs).catch(showError(setMessage))}
+                            onRepair={(jobs) => run(() => attemptRepairs(ship, jobs))}
                           />
                         ) : null}
                       </>
@@ -1967,7 +2022,20 @@ function App() {
     </main>
   );
 
+  /** This ship's order is locked and unrevealed: see `lib/orders.ts` for why that is a wall. */
+  function orderIsLocked(shipId: string) {
+    return isOrderLocked(snapshot?.orderStatuses, shipId);
+  }
+
   function updateDraft(shipId: string, patch: Partial<DraftOrder>) {
+    // Every plotting control routes through here, which is why the guard lives here rather than on
+    // each of them: a locked order edited by any route is an order that cannot be revealed, and the
+    // loss is silent - the plot is simply gone at reveal, and the ship drifts.
+    if (orderIsLocked(shipId)) {
+      setMessage('That order is locked. Reveal it, or advance the turn, before plotting again.');
+      return;
+    }
+
     setDrafts((current) => ({
       ...current,
       [shipId]: { ...draftFor(shipId, current), ...patch },

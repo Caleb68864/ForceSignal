@@ -24,7 +24,7 @@ public static class SequenceGuards
     /// <returns>
     /// The side with fewer units on the table, or null when the two are level - the rules leave a tie
     /// to a die roll or to a house convention, so the shared layer names nobody and lets the caller
-    /// settle it.
+    /// settle it. Null too when the session does not hold exactly two sides, for the same reason.
     /// </returns>
     /// <remarks>
     /// Note that this counts units <em>on the table</em>, not unactivated units. It is a different
@@ -35,6 +35,17 @@ public static class SequenceGuards
     public static SideId? FirstActivationChooser(GroundCombatSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
+
+        // "The side with fewer units" presumes two sides to compare. A session that holds any other
+        // number - a save file edited by hand, a game that never finished being set up - has nobody
+        // the rule can name, so it is answered the way a level count is: the rule is silent and the
+        // table settles it. Asking the sides directly threw instead, which turned the first turn of
+        // such a game into a server fault. The route that reads this already answered with silence;
+        // this is the same answer where the turn is actually begun.
+        if (session.Sides.IsDefaultOrEmpty || session.Sides.Length != 2)
+        {
+            return null;
+        }
 
         var (first, second) = (session.Sides[0], session.Sides[1]);
         if (first.UnitsOnTable == second.UnitsOnTable)

@@ -17,3 +17,6 @@ bash.exe.stackdump
 
 # Agent worktrees live inside the repo but are separate checkouts of it.
 .claude/worktrees/
+
+# Local planning/notes vault (not for the repo)
+vault/

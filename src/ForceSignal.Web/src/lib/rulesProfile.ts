@@ -64,6 +64,34 @@ export function gapsIn(profile: RulesProfile): string[] {
 /** True when a profile has enough in it to play a match against. */
 export const isPlayable = (profile: RulesProfile) => gapsIn(profile).length === 0;
 
+/**
+ * Whether two profiles hold the same numbers.
+ *
+ * By content, not by identity, and that is the whole point of it: a profile arrives freshly parsed
+ * inside every snapshot, so two objects that are not the same object are still almost always the
+ * same numbers. Anything watching for the table's profile to change has to be able to tell those
+ * two cases apart, or it fires on every ship anyone moves.
+ *
+ * Keys are sorted before comparing so that a profile built by the form and one parsed off the wire
+ * compare equal despite having been assembled in different orders.
+ */
+export function sameProfile(left: RulesProfile, right: RulesProfile): boolean {
+  return stableJson(left) === stableJson(right);
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+      return item;
+    }
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(item as Record<string, unknown>).sort()) {
+      sorted[key] = (item as Record<string, unknown>)[key];
+    }
+    return sorted;
+  });
+}
+
 /** Profiles this browser has saved, so a set of numbers is entered once and reused. */
 export function savedProfiles(): RulesProfile[] {
   try {

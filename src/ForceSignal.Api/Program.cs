@@ -58,13 +58,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 //
 // Read from the built configuration rather than the builder's, so settings a host layers in during
 // startup - a container, or an integration test - are seen rather than missed.
-builder.Services.AddSingleton<IMatchStore>(sp =>
-{
-    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
-    return string.IsNullOrWhiteSpace(path)
-        ? NoMatchStore.Instance
-        : new SqliteMatchStore(path);
-});
+builder.Services.AddSingleton<IMatchStore>(sp => OpenMatchStore(sp, "Full Thrust", "matches"));
 builder.Services.AddSingleton<IMatchService>(sp =>
     new InMemoryMatchService(null, sp.GetRequiredService<IMatchStore>(), loadPersisted: true));
 
@@ -73,22 +67,10 @@ builder.Services.AddSingleton<IMatchService>(sp =>
 // handed the other's saves at startup. Registered unconditionally: the flag governs whether any
 // route reaches this, and a service nobody can call costs a dictionary.
 builder.Services.AddSingleton<IStarGruntGameService>(sp =>
-{
-    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
-    IMatchStore groundStore = string.IsNullOrWhiteSpace(path)
-        ? NoMatchStore.Instance
-        : new SqliteMatchStore(path, "stargrunt_games");
-    return new StarGruntGameService(null, groundStore);
-});
+    new StarGruntGameService(null, OpenMatchStore(sp, "StarGrunt", "stargrunt_games")));
 
 builder.Services.AddSingleton<IDirtsideGameService>(sp =>
-{
-    var path = ReadMatchDatabasePath(sp.GetRequiredService<IConfiguration>());
-    IMatchStore groundStore = string.IsNullOrWhiteSpace(path)
-        ? NoMatchStore.Instance
-        : new SqliteMatchStore(path, "dirtside_games");
-    return new DirtsideGameService(null, groundStore);
-});
+    new DirtsideGameService(null, OpenMatchStore(sp, "Dirtside", "dirtside_games")));
 
 // Which optional game engines this server offers. Both ground-combat engines default to off: they
 // are built alongside the working Full Thrust game and must not be able to reach a table that
@@ -125,9 +107,11 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         }));
 
-    // Creating a match needs no credentials and allocates state the server keeps for a day, so it
-    // is the one route a stranger can use to fill the server up. Ten a minute is more than any
-    // table opens and far fewer than it takes to reach the ceiling.
+    // Opening a game needs no credentials and allocates state the server keeps for a day, so these
+    // are the routes a stranger can use to fill the server up. Ten a minute is more than any table
+    // opens and far fewer than it takes to reach the ceiling. The two ground creates share this one
+    // budget rather than getting their own: they cost the same machine the same memory, and three
+    // separate allowances would just mean three times as much of it.
     options.AddPolicy(RateLimitPolicies.MatchCreate, context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -252,16 +236,26 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "ForceSign
     .WithTags("Operations")
     .WithSummary("Reports API liveness.")
     .Produces(StatusCodes.Status200OK);
-app.MapGet("/ready", () => Results.Ok(new
+// Readiness reports what the server is doing, not what it was asked to do. Those differ in exactly
+// one case and it is the case that matters: a database file that will not open leaves the server
+// running on memory, deliberately, so one bad file does not end every game on the machine. Reading
+// the configured path alone said "sqlite" anyway - so the operator believed their games survived a
+// restart when they did not, and the container's own healthcheck called that stack healthy. The
+// store the match service was actually handed is the only honest answer to the question.
+app.MapGet("/ready", (IMatchStore matchStore) =>
 {
-    status = "ready",
-    service = "ForceSignal.Api",
-    environment = app.Environment.EnvironmentName,
-    cors = allowedOrigins.AllowAnyOrigin ? "development-private-network" : "configured",
-    persistence = string.IsNullOrWhiteSpace(matchDatabasePath) ? "in-memory" : "sqlite",
-    features = features.ToDto(),
-    warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath)
-}))
+    var durable = matchStore is not NoMatchStore;
+    return Results.Ok(new
+    {
+        status = "ready",
+        service = "ForceSignal.Api",
+        environment = app.Environment.EnvironmentName,
+        cors = allowedOrigins.AllowAnyOrigin ? "development-private-network" : "configured",
+        persistence = durable ? "sqlite" : "in-memory",
+        features = features.ToDto(),
+        warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath, durable)
+    });
+})
     .WithName("GetReadiness")
     .WithTags("Operations")
     .WithSummary("Reports API readiness and deployment-critical configuration state.")
@@ -349,6 +343,42 @@ static string[]? SplitOrigins(string? value) =>
 static string? ReadMatchDatabasePath(IConfiguration configuration) =>
     configuration["Persistence:MatchDatabasePath"] ?? configuration["FORCESIGNAL_MATCH_DB"];
 
+// Opens one engine's durable store, or falls back to memory when the file will not open.
+//
+// A SQLite file that was truncated by a bad shutdown, is not a database at all, or sits somewhere the
+// process cannot write throws from the store's constructor. Left to propagate, that throw comes out of
+// a DI factory the first time anything needs a match, and the host dies - so one damaged file costs
+// every table on the machine, including the two engines whose own tables were fine and every game that
+// had nothing stored in the first place. The whole point of persistence here is that a restart does
+// not end the game; taking the server down over it inverts that.
+//
+// So the server keeps serving without a disk behind it: games still play, they just do not survive a
+// restart, which is exactly the in-memory mode a server with no path configured runs in and which
+// readiness already warns about. The file is left untouched rather than recreated, because an operator
+// reading the error should still be able to recover what is in it.
+static IMatchStore OpenMatchStore(IServiceProvider services, string engine, string tableName)
+{
+    var path = ReadMatchDatabasePath(services.GetRequiredService<IConfiguration>());
+    if (string.IsNullOrWhiteSpace(path))
+    {
+        return NoMatchStore.Instance;
+    }
+
+    try
+    {
+        return new SqliteMatchStore(path, tableName);
+    }
+    catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or ArgumentException)
+    {
+        ServerLog.StoreUnavailable(
+            services.GetRequiredService<ILoggerFactory>().CreateLogger("ForceSignal.Api.Persistence"),
+            error,
+            engine,
+            path);
+        return NoMatchStore.Instance;
+    }
+}
+
 // Whether to believe X-Forwarded-For. Off unless the operator says so, and only "true" says so:
 // blank, missing or misspelt leaves the proxy untrusted, the same way a feature flag fails closed.
 static bool ReadTrustForwardedHeaders(IConfiguration configuration) =>
@@ -373,7 +403,8 @@ static string[] ReadDeploymentWarnings(
     IHostEnvironment environment,
     CorsOriginSettings allowedOrigins,
     FeatureFlags features,
-    string? matchDatabasePath)
+    string? matchDatabasePath,
+    bool durable)
 {
     var warnings = new List<string>();
 
@@ -382,6 +413,16 @@ static string[] ReadDeploymentWarnings(
     if (string.IsNullOrWhiteSpace(matchDatabasePath))
     {
         warnings.Add("Matches are stored in memory and will be lost on API restart. Set Persistence:MatchDatabasePath to keep them.");
+    }
+    else if (!durable)
+    {
+        // Storage was asked for and could not be had. Silence here is worse than the fallback it
+        // describes: the games play, so nothing looks wrong until the restart that ends all of them.
+        // The path is left out on purpose - this route answers anyone who can reach it, and the API
+        // log already names the file for whoever has to go and fix it.
+        warnings.Add(
+            "Matches are stored in memory and will be lost on API restart: the configured database could not be "
+            + "opened, so the server fell back. The file has been left as it is; see the API log to recover it.");
     }
 
     // An in-progress engine being switched on is worth saying out loud, because the reason to

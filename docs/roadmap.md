@@ -1,5 +1,97 @@
 # ForceSignal Roadmap
 
+> **Audit 2026-09-08.** A five-pass re-scan (notes in `vault/`, gitignored;
+> cross-project view in `../../ROADMAP.md`) checked this file's boxes against
+> the code rather than trusting them. **They hold up** — including
+> "Spectator/public table display", which is implemented as `publicMode`
+> (`ForceSignal.Web/src/main.tsx:73,376,1910`, `style.css:1714`) and removes
+> hidden information at the data layer, not just visually. An automated pass
+> that grepped for "spectator" reported it missing; that was wrong, and the
+> box stays checked.
+>
+> Baseline on that date: `dotnet build` clean with warnings-as-errors,
+> `dotnet test` 1289 passing across 8 projects. Web tests were *not* run,
+> because `scripts/verify.ps1` never invokes them even though
+> `package.json:10` defines `test`.
+>
+> The audit's headline is not on this list at all: `docs/rules-fidelity-gaps.md`
+> records that no two-device match has been played end to end since the turn
+> structure changed, `scripts/two-player-smoke.py` exists and is referenced
+> from nowhere, and several defects found by reading code are exactly what
+> that script would surface — most sharply, joining a second room still
+> displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
+
+## Closed from the 2026-09-08 audit
+
+Seven findings, on `fix/audit-2026-09-08`. Every one carries a test that was
+confirmed to fail before its fix and pass after. Baseline going in: 1289 .NET
+tests across 8 projects, 0 warnings with warnings-as-errors; web tests were not
+runnable in CI at all. Coming out: 1297 .NET tests and 133 web tests, both gated.
+
+- [x] **The board is let go of with the match, not after it.** The version high
+      water mark that `applySnapshot` drops stale snapshots against is per match,
+      and every room starts again at version 1, so it has to come down with the
+      match. `clearSession` did reset it, but only at the moment of leaving, and
+      the screen refetches the whole snapshot on every hub notification without
+      cancelling. A response still in the air when the player taps Leave put the
+      old match's version back, and the next room's first snapshot was then read
+      as stale and dropped - the join succeeded and the screen went on showing
+      the previous room's code. Clearing now happens in `clearLocalMatchState`,
+      which is the first thing create, join and restore do.
+      Test: `Web/src/main.test.tsx`.
+      *The audit described this as a plain create-then-join failure. It is not:
+      the create/join form only renders with no session, and the only route to no
+      session already cleared the board. The defect is real, but it needs the
+      late-response race to reach it, which is what the test drives.*
+- [x] **Readiness needs a rules profile.** A match keeps `RulesProfile.Empty`
+      until its owner fills one in, and nothing downstream refuses to resolve
+      against that - a beam matches no row of a table that is not there and
+      scores nothing - so a table that skipped the step played a whole game of
+      volleys that all came back zero. `SetReady` now refuses; standing down
+      stays unconditional. Tests: `InMemoryMatchServiceRulesProfileTests`.
+- [x] **A room code comes from a space worth having.** Three slots of thirty-two
+      words is 32,768 codes; a server holding a few hundred live matches is one a
+      script walks into a seat in within a couple of hundred tries. Now sixty-four
+      words in four slots, 16,777,216 codes. The word list is append-only, because
+      a code already read aloud has to keep working.
+      Test: `InMemoryMatchServiceHardeningTests`.
+- [x] **A mount fires only so many barrels.** The count arrives off the wire and
+      was floored at one and left alone above, where it became the trip count of
+      the dice loop in `DirectFire` - inside the service lock, so one request
+      stopped every other game on the server. `StarGruntGame.Assault.cs:270`
+      clamps the identical path with a comment saying exactly this. The ceiling
+      now lives with the others in `GroundGameGuards`.
+      Test: `GroundGameHardeningTests` (fails pre-fix with `OutOfMemoryException`).
+- [x] **CI runs the web tests, honours the lockfile, and fails on a CVE.**
+      `scripts/verify.ps1` never invoked `npm run test`, used `npm install` where
+      the Dockerfile already used `npm ci`, and ran `dotnet list --vulnerable`
+      through a helper that gates on an exit code the command never sets. Turning
+      the web tests on immediately found two test files failing: recent Node
+      versions define their own experimental `localStorage`, and vitest's jsdom
+      environment leaves it in place rather than installing jsdom's working one.
+- [x] **An Under Fire marker comes off again.** It went on in the assault
+      aftermath and came off nowhere at all. `UnderFire.After` exists and says
+      when it lapses - the end of the marked unit's own activation, never the end
+      of the turn - and nothing called it, so a platoon that lost an assault owed
+      a reaction test before every move it made for the rest of the game.
+      Tests: `DirtsideGameAssaultTests`, including that a defender marked during
+      somebody else's activation keeps its marker.
+- [x] **A database file that will not open costs the persistence, not the
+      server.** The store is built in a DI factory and the host resolves the match
+      service at startup to report what it could not restore, so a corrupt or
+      unwritable SQLite file stopped the server coming up rather than failing one
+      match. The three factories now share a helper that falls back to memory and
+      logs at Error with the path; the file is left alone so it can be recovered.
+      Test: `ApiHardeningTests` (fails pre-fix with `SQLite Error 26: file is not
+      a database` out of the DI factory).
+
+Still open from that audit, in its own ranking: ship position editable during
+Reveal/Movement, locked orders silently overwritten, `docker-smoke.ps1` asserting
+the wrong persistence mode, unbounded restored dice-roll arrays, unrated ground
+game creation, `SequenceGuards` unguarded on the write path, the rules-profile
+editor seeded blank, "finished plotting" being final, the hardcoded 12/24/36
+range-band label, and the twelve web handlers with no double-submit guard.
+
 ForceSignal is currently focused on being a session-based tabletop helper for in-person games. Online play and durable persistence remain future options after real table testing.
 
 ## Near-Term Tabletop Priorities
@@ -189,6 +281,90 @@ the roadmap lists only what a table can reach.
       place — the client reconnects, rejoins the notification group and resyncs, and the server
       keeps the match across a restart — so what remains is real-world testing rather than a
       missing piece.
+
+## Closed 2026-09-08 (audit follow-up)
+
+- [x] **A locked order cannot be moved out from under itself.** `UpdateShipProfile` wrote position,
+      velocity and course with no guard at all, so a player could watch the reveal and then
+      reposition. The four commitment fields are now frozen from the moment *that ship* locks until
+      the turn is executed. Keyed on the ship's own commitment rather than on the match phase, which
+      is what the first attempt got wrong: a ship locks while the match is still in `OrderEntry` --
+      the phase only turns over when everyone has locked -- so a phase test left open the whole
+      interval between the first lock and the last, which is exactly the interval a player sitting
+      on a locked order would use. Name, hull and points stay editable; a typo noticed mid-turn
+      should not have to wait a turn. Firing is deliberately not covered.
+- [x] **A locked order can no longer be destroyed by editing its draft.** The server holds a hash
+      and nothing else, by design, so the local draft is the only copy of the plaintext. Editing it
+      between the lock and the reveal meant `Verify` failed and -- once anyone else had revealed --
+      the order was discarded and the ship held course and speed, with nothing telling the player
+      they had lost a manoeuvre. Every plotting control routes through `updateDraft`, so the guard
+      sits there; "Copy Fleet" now skips locked ships and says how many it left alone, rather than
+      invalidating a squadron's commitments in one tap. The rule lives in `lib/orders.ts` so the two
+      callers cannot drift apart on what "locked" means.
+- [x] **The client no longer ships ship stat blocks.** `constants.ts` carried seven named classes
+      with hull, armour, screens, fire control, point defence, thrust and weapon mounts, plus
+      per-weapon maximum ranges, and `ShipCard` clamped a torpedo to one shot and a published reach
+      on kind switch. Presets now name a class and pick an icon and stop there. The ranges were
+      doubly wrong to hold here: they are published numbers, *and* they were already the player's --
+      `torpedoMaximumRange` and `needleBeamRange` are fields on the rules profile, so the constants
+      were a second copy nobody had entered and nobody could edit. See the README's Content Policy.
+- [x] **Readiness reports the persistence it has, not the one it asked for.** A database file that
+      will not open leaves the server running on memory -- deliberately, so one bad file does not
+      end every game on the machine -- but `/ready` read the configured path and said "sqlite"
+      anyway. So the operator believed their games survived a restart, and the container's own
+      healthcheck agreed with them, right up until the restart that ended all of them. It now asks
+      the store the match service was actually handed, and warns when the two disagree. The path
+      stays out of the warning: that route answers anyone who can reach it, and the API log already
+      names the file for whoever has to recover it.
+- [x] **`docker-smoke.ps1` passes on a healthy stack.** It asserted `persistence == "in-memory"` and
+      demanded at least one warning, from a stack whose compose file mounts a volume and configures
+      sqlite and therefore has nothing to warn about -- so it failed on exactly the deployment it
+      exists to check. Both assertions were inverted rather than dropped: sqlite, and *no* storage
+      warning, which is precisely the fallback above. Fixing the script alone would have left the
+      readiness report untrustworthy; fixing readiness alone would have left the script wrong.
+- [x] **A restored shot's dice have a ceiling.** Every other collection on the untrusted restore
+      path was capped and this one was not, which left one shot holding however many dice the file's
+      author felt like -- kept for the after-action review and re-serialised into every snapshot
+      thereafter. Refused by name beside the others rather than truncated, so the file is rejected
+      instead of silently altered.
+- [x] **"Finished plotting" can be taken back.** It was reset only by `AdvanceTurn`, so a tap meant
+      for something else handed the turn over with unordered ships holding course and the only way
+      back was to play the turn out. It can now be withdrawn for as long as it means nothing -- while
+      order entry is still open. Once the last admiral declares, the orders are sealed and re-opening
+      the turn is the table's business rather than one player's. The flag rides on the existing
+      request and defaults to true, so a client that only ever says "I am done" is unchanged. The
+      client half matters as much: "Lock Fleet Orders" declares the plotting closed in the same tap,
+      so **Resume Plotting** now appears beside it while -- and only while -- the declaration still
+      means nothing. Orders already locked stay locked; a lock is a promise.
+- [x] **`scripts/two-player-smoke.py` runs, and passes.** `docs/rules-fidelity-gaps.md` recorded that
+      no two-device match had been played end to end since the turn structure changed, and the script
+      that would have checked it was referenced from nowhere and no longer worked: a match now
+      arrives with an empty rules profile and readiness refuses to start without one, which is
+      exactly the guard added earlier in this pass. The script brings its own profile -- invented,
+      loaded through the editor's own Import JSON -- and now drives two browser contexts through
+      create, join, ready, the early-tap take-back above, independent lock and reveal, and two phase
+      turnovers seen live on both devices. Zero problems, zero console errors.
+- [x] **Opening a ground game is budgeted.** The two ground creates take no credentials and allocate
+      state kept for a day, exactly like `POST /api/matches`, which has been rate-limited for that
+      reason since it was written. They join that same budget rather than getting one each: the
+      machine does not care which engine filled it up, and three allowances would just mean three
+      times as much of it.
+- [x] **A game with other than two sides no longer 500s on its first turn.** `FirstActivationChooser`
+      read `Sides[0]` and `Sides[1]` directly. The rule's own sentence -- "the side with fewer units"
+      -- presumes two sides, so any other number is now answered the way a level count is: the rule
+      is silent and the table settles it. The read path had been guarding this with its own copy of
+      the check; the guard moved into the rule and the copy came out, so the two cannot drift.
+- [x] **The rules-profile editor follows the table.** It seeded its draft from the snapshot on mount,
+      and the snapshot has not arrived when it mounts, so it was seeded blank and stayed blank for
+      the session -- a match that already had a profile showed zeros, and Save wrote those zeros over
+      the real numbers. It now resyncs when the table's profile changes, compared by *content*: a
+      snapshot lands on every mutation carrying a freshly parsed profile object, so watching for a
+      new object would wipe a half-typed form every time the opponent moved a ship.
+- [x] **Eleven more handlers cannot be double-submitted.** Create Fleet made two fleets, Duplicate
+      two ships, Bring two copies of a library fleet, and Repair rolled the damage-control dice
+      twice -- the one of those that nothing can undo. They now go through the `busy`/`run()` wrapper
+      the rest of the screen already used, rather than a second mechanism beside it. The audit
+      counted twelve; eleven mutating handlers were actually unguarded.
 
 ## Current Constraint
 

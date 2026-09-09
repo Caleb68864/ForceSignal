@@ -30,11 +30,20 @@ $ready = Invoke-Json "$ApiBaseUrl/ready"
 if ($ready.status -ne "ready") {
     throw "API readiness returned '$($ready.status)'."
 }
-if ($ready.persistence -ne "in-memory") {
-    throw "API readiness returned unexpected persistence '$($ready.persistence)'."
+# docker-compose.yml mounts a volume and points Persistence:MatchDatabasePath at it, precisely so a
+# restarted container resumes the game instead of ending it. So sqlite is what a healthy stack
+# reports, and "in-memory" here means the server could not open that file and fell back: every game
+# still plays, and every one of them dies at the next restart. That is the failure this stack exists
+# to rule out, so it is the one worth asserting.
+if ($ready.persistence -ne "sqlite") {
+    throw "API readiness returned persistence '$($ready.persistence)'; the compose stack configures sqlite, so the database file did not open."
 }
-if (-not $ready.warnings -or $ready.warnings.Count -lt 1) {
-    throw "API readiness should report production warnings until persistent storage is enabled."
+
+# And the same fallback says so in the warnings, which is the half an operator reads. A healthy
+# stack has nothing to say about storage at all.
+$storageWarnings = @($ready.warnings) | Where-Object { $_ -match "stored in memory" }
+if ($storageWarnings) {
+    throw "API readiness warns that matches are not durable: $($storageWarnings -join ' ')"
 }
 
 Write-Host "Checking web health..."

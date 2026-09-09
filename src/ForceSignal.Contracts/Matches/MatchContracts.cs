@@ -184,7 +184,11 @@ public sealed record UpdateShipDamageRequest(
 /// simply hold their course and speed, so a fleet does not need an order written for every hull.
 /// </summary>
 /// <param name="ParticipantToken">Session token of the participant who is done plotting.</param>
-public sealed record DeclareOrdersCompleteRequest(string ParticipantToken);
+/// <param name="Complete">
+/// False to take the declaration back and carry on plotting. Defaults to true, so a client that
+/// only ever says "I am done" keeps sending exactly what it always sent.
+/// </param>
+public sealed record DeclareOrdersCompleteRequest(string ParticipantToken, bool Complete = true);
 
 /// <summary>
 /// Flies a fighter group to a new spot on the table. A group takes no written orders: it simply moves

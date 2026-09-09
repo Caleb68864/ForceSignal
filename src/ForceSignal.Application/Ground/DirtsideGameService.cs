@@ -494,7 +494,12 @@ public sealed class DirtsideGameService : IDirtsideGameService
         return new WeaponDefinition(
             Required(weapon.Name, "A weapon needs a name."),
             weapon.ChitCount,
-            Math.Max(1, weapon.Barrels),
+            // Clamped at both ends. The floor is what DirectFire.Resolve requires; the ceiling is
+            // there because the barrel count is the trip count of a dice loop that runs inside the
+            // service's lock, so a mount declaring two billion barrels rolls two billion dice with
+            // every other game on the server waiting behind it. StarGruntGame.Assault.cs clamps its
+            // downed-figure count for exactly this, and this is the same loop one engine over.
+            Math.Clamp(weapon.Barrels, 1, GroundGameGuards.MaxBarrelsPerMount),
             weapon.IsFixedMount,
             new WeaponValidityCard(
                 ToValidity(weapon.Close),
