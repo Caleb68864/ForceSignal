@@ -465,7 +465,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
     private static QualityDie? Die(string? name) =>
         string.IsNullOrWhiteSpace(name) ? null
         : Enum.TryParse<QualityDie>(name, ignoreCase: true, out var die) && Enum.IsDefined(die) ? die
-        : throw new InvalidOperationException($"'{name}' is not a quality die (D4, D6, D8, D10, D12).");
+        : throw new InvalidOperationException(
+            $"'{name}' is not a quality die ({string.Join(", ", DirtsideWire.QualityDice)}).");
 
     private static ElementDefinition ToElement(DirtsideElementDto element)
     {
@@ -477,7 +478,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
             Required(element.Name, "An element needs a name."),
             Enum.TryParse<FireControlLevel>(element.FireControl, ignoreCase: true, out var control)
                 ? control
-                : throw new InvalidOperationException($"'{element.FireControl}' is not a fire control level."),
+                : throw new InvalidOperationException(
+                    $"'{element.FireControl}' is not a fire control level ({string.Join(", ", DirtsideWire.FireControls)})."),
             element.Signature,
             element.ArmourValue,
             element.Movement,
@@ -538,7 +540,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
     private static WeaponRangeBand Band(string? band) =>
         Enum.TryParse<WeaponRangeBand>(band, ignoreCase: true, out var parsed)
             ? parsed
-            : throw new InvalidOperationException($"'{band}' is not a range band (Close, Medium, Long).");
+            : throw new InvalidOperationException(
+                $"'{band}' is not a range band ({string.Join(", ", DirtsideWire.Bands)}).");
 
     /// <summary>A string the request has to carry, trimmed and cut to the display ceiling.</summary>
     private static string Required(string? value, string message) =>

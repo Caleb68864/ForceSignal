@@ -15,6 +15,23 @@ namespace ForceSignal.Contracts.Ground;
 /// card. This assembly ships none of them.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// <para>
+/// These are the words themselves, and they are the only copy anything is allowed to keep. The
+/// service builds every refusal about an unrecognised value out of them, so a player who sends
+/// something else is told exactly what this list says; the web client imports the same names from
+/// one module rather than typing them out beside each dropdown; and the module tests hold each
+/// array against the engine enum it stands for, so a rung added to a ladder cannot quietly leave
+/// the wire behind. Three copies of a vocabulary with no authority among them is how the API comes
+/// to accept a word that no screen offers.
+/// </para>
+/// <para>
+/// The arrays are ordered as a table reads them, which is not always the order the enum declares:
+/// the range bands carry the die shift as their value, so Close, Medium and Long number 1, 0 and
+/// -1 and would come back reversed from the enum. The tests compare the contents, and this order is
+/// what the client's dropdowns present.
+/// </para>
+/// </remarks>
 public static class DirtsideWire
 {
     /// <summary>Range bands a shot can be measured at.</summary>

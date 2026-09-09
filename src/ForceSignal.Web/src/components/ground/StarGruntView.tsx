@@ -14,11 +14,11 @@ import { starGruntGameKey } from '../../constants.ts';
 import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import { fromForceFile, toForceFile } from '../../lib/forceIo.ts';
 import { downloadText, wholeNumberFrom } from '../../lib/format.ts';
+// The ladder the API accepts, not this screen's idea of it. See groundVocabulary.ts.
+import { qualityLadder as ladder } from '../../lib/groundVocabulary.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { GameHandle, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
-
-const ladder = [4, 6, 8, 10, 12];
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
 // - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
