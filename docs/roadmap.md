@@ -367,6 +367,76 @@ fallback, and it is now impossible to play on it without being told.
 
 Still open: **the on-screen validity-card editor** (gap 16). The pot half of gap 15 shipped.
 
+## Closed 2026-09-09 (maintainability tail)
+
+*The rows left over from `vault/maintainability-2026-09-09.md` after the two earlier passes. Every
+claim was re-derived before acting; two of them were wrong, and one was wrong in a way that made the
+real defect worse than reported.*
+
+- [x] **An empty origins list in `appsettings.json` was disabling both CORS fallbacks (#20).** The
+      finding said an empty JSON array "yields no config children" and therefore overrides nothing.
+      It yields a **non-null empty array** from the binder, so
+      `GetSection("Cors:AllowedOrigins").Get<string[]>()` was never null, the `??` chain never fell
+      through, and neither read underneath it could fire unless something had already put a value on
+      that same key. A declaration that configured nothing was silently switching off the fallbacks
+      below it. `NonEmpty` makes each read fall through only when it found no origins rather than no
+      key. The empty array stays, naming the key for whoever opens the file, and is now harmless.
+- [x] **The CORS fallback read a variable no document names (#20).** Every other `FORCESIGNAL_` name
+      in `.env.example` is honoured directly by the code as well as through compose's interpolation --
+      `FORCESIGNAL_MATCH_DB` by `ReadMatchDatabasePath`, the two `FORCESIGNAL_FEATURES_` names by
+      `FeatureFlags`. CORS read `FORCESIGNAL_CORS_ALLOWED_ORIGINS`, which appears in no README, no
+      `.env.example`, no compose file and no test, so an operator who set the documented
+      `FORCESIGNAL_WEB_ORIGIN` and started the API without compose was refused startup citing a
+      setting they had supplied. It now reads `FORCESIGNAL_WEB_ORIGIN`.
+      `ProductionHost_WithTheDocumentedWebOriginVariable_StartsRatherThanRefusing` fails on both
+      halves of the previous state.
+- [x] **The invented `Class-2 Beam` is gone from all four places (#17).** The scan named three; the
+      fourth was the server's, at `InMemoryMatchService.Normalization.cs`, and it was the worst of
+      them because it was invisible -- a ship created with an empty weapons list came back armed with
+      a class name, a damage rating of two dice and a reach of twenty-four, and nothing told the
+      player the server had written the stats for them. A ship that named no mounts now has none.
+      The client's three copies collapse to one `newWeaponMount()` holding a placeholder label and
+      the floors the server's own clamps impose, which mean "not entered".
+      `constants.ts`'s own header already said a starting point the player is "expected to replace"
+      is still a number this app shipped.
+- [x] **Three dead members removed (#19), each re-verified.** `FeatureFlags.IsFullThrustOnly` (only
+      callers were two assertions in `FeatureFlagTests`; the gate reads `StarGrunt` and `Dirtside`
+      directly). `DirtsideBoard.RemoveElement` (zero references anywhere in the repository, not even
+      a test). `DamagedEffects.CanFireAt` -- reported as "a written, tested rule never applied", which
+      is **wrong**: the rule is applied, through `EffectiveRangeBand.CanFire`, which is what
+      `DirectFire.Resolve` asks and which consults `DamagedEffects.Band`. `CanFireAt` was a second
+      way to ask the same question with no caller but its own test; the wrapper went and the coverage
+      moved to the property the resolver actually reads.
+
+**Verified dead and deliberately left, with the evidence, so the next pass need not re-derive it:**
+
+- `DirtsideElementStateDto.HasChosen` and `DirtsideSnapshotDto.ElementsStillToChoose`. Both are
+  written by `DirtsideGameService` and read by no production code in either language -- the screen
+  uses `hasMoved`/`hasTakenCombatAction`/`hasStoodDown` and `canEndActivation`/
+  `whyActivationCannotEnd` instead, which is what `HasChosen`'s own remarks say it should. Left
+  because removing a snapshot field is a wire change and the better answer for
+  `ElementsStillToChoose` is probably to render it, the way the order preview's verdict was.
+- `DirtsideWeaponDto.IsInterceptable` and `WeaponDefinition.IsInterceptable`: a complete write-only
+  chain -- copied DTO to definition at `DirtsideGameService.cs`, read nowhere, and not even sent by
+  the client, whose `DirtsideWeaponInput` does not carry the field. Its doc defends keeping it as
+  "the player's own reading of their card", which is not true while no client sends it. Left because
+  interception cannot be resolved by this API at all (see the area-defence entry above), so the
+  honest options are to wire the whole feature or to drop the field, and neither is a tail item.
+- `GET /api/stargrunt/status` and `GET /api/dirtside/status`: no client call, no script, no
+  healthcheck; the client asks `/api/features`. Used only by tests as a 200-vs-404 probe for the
+  feature flag, which `/api/features` already answers. They also state engine readiness a third time
+  (`"in-development"`, `"playable"`) beside `/api/features` and the `/ready` warnings, which is the
+  drift this repository has paid for elsewhere. Left because removing them is a three-file test
+  rewrite rather than a tail item.
+- `defaultShipForm`'s remaining stat numbers in `constants.ts` -- `thrustRating: 4`, `hullMax: 12`,
+  `armorMax: 4`, `fireControlMax: 2`, `pointDefenseSystems: 1`, `damageControlParties: 2`,
+  `screenRating: 1`. The same content-policy problem as the mount, condemned by the same file header,
+  but blanking them needs the create-ship form driven in a browser to see what a zero does, which is
+  not something this pass could check.
+- Roughly 32 further engine rules with tests and no Application caller (infantry combat entire,
+  opportunity fire, reaction fire, `ForfeitPriority`, `DeclineReaction`). These are the unfinished
+  slices the readiness warnings already name out loud, not dead code.
+
 ## Closed 2026-09-08 (audit follow-up)
 
 *Maintainability pass, 2026-09-09. Eleven items from `vault/maintainability-2026-09-09.md`, added

@@ -8,7 +8,7 @@
  * still a number this app shipped, which is the thing it does not do.
  */
 
-import { newId } from './lib/api.ts';
+import { newWeaponMount } from './lib/weapons.ts';
 import type { FighterStatus, FiringArc, ShipForm, ShipIconKey, WeaponKind } from './types.ts';
 
 export const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
@@ -44,17 +44,9 @@ export const defaultShipForm: ShipForm = {
   fighterBays: 0,
   damageControlParties: 2,
   screenRating: 1,
-  weapons: [{
-    id: newId(),
-    name: 'Class-2 Beam',
-    attackDice: 2,
-    maxRange: 24,
-    arcs: ['Fore'],
-    kind: 'Beam',
-    ammoMax: 0,
-    ammoUsed: 0,
-    reloadTurns: 0,
-  }],
+  // Built by newWeaponMount rather than written out again: this was the third copy of the same
+  // invented "Class-2 Beam", and a mount with no numbers on it has no reason to exist twice.
+  weapons: [newWeaponMount()],
   fighterEnduranceMax: 0,
   fighterEnduranceUsed: 0,
   fighterMaxRange: 0,

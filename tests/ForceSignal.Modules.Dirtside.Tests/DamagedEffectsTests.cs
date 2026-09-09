@@ -38,9 +38,13 @@ public sealed class DamagedEffectsTests
         // Not "harder" - gone. The band itself moves, and there is no band past long for it to move
         // into, so the shot disappears rather than becoming unlikely.
         Assert.Null(DamagedEffects.Band(WeaponRangeBand.Long));
-        Assert.False(DamagedEffects.CanFireAt(WeaponRangeBand.Long));
-        Assert.True(DamagedEffects.CanFireAt(WeaponRangeBand.Close));
-        Assert.True(DamagedEffects.CanFireAt(WeaponRangeBand.Medium));
+
+        // Asked the way the resolver asks it. DamagedEffects used to carry a CanFireAt predicate
+        // saying the same thing a second way; nothing but this test called it, while the rule itself
+        // reaches DirectFire through here, so the wrapper went and the coverage stayed.
+        Assert.False(EffectiveRangeBand.For(WeaponRangeBand.Long, firerIsDamaged: true).CanFire);
+        Assert.True(EffectiveRangeBand.For(WeaponRangeBand.Close, firerIsDamaged: true).CanFire);
+        Assert.True(EffectiveRangeBand.For(WeaponRangeBand.Medium, firerIsDamaged: true).CanFire);
     }
 
     [Fact]

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { expandLegacyArc, normalizeArcs, normalizeBattleView, normalizeFleetColor, normalizeGameHandle, normalizeGameMode, normalizeSession, normalizeShipIconKey } from './normalize.ts';
+import { expandLegacyArc, normalizeArcs, normalizeBattleView, normalizeFleetColor, normalizeGameHandle, normalizeGameMode, normalizeSession, normalizeShipIconKey, normalizeWeaponMount } from './normalize.ts';
+import { defaultShipForm } from '../constants.ts';
+import { newWeaponMount } from './weapons.ts';
 
 /**
  * These take `unknown` on purpose: a snapshot comes off the wire and a fleet comes out of a file
@@ -118,5 +120,36 @@ describe('normalizeBattleView', () => {
     expect(normalizeBattleView('log')).toBe('log');
     expect(normalizeBattleView('fleet')).toBeNull();
     expect(normalizeBattleView(1)).toBeNull();
+  });
+});
+
+describe('a mount nobody filled in', () => {
+  // This app ships no stat blocks, and a starting point the player is "expected to replace" is
+  // still a number it shipped. A blank mount used to arrive as a "Class-2 Beam" firing two dice
+  // out to twenty-four: a class name, a damage rating and a reach, in three separate copies plus
+  // an invisible fourth on the server.
+  const published = ['Class-2 Beam'];
+
+  it('carries no class name from any of the copies', () => {
+    for (const name of published) {
+      expect(newWeaponMount().name).not.toBe(name);
+      expect(defaultShipForm.weapons[0].name).not.toBe(name);
+      expect(normalizeWeaponMount({}).name).not.toBe(name);
+    }
+  });
+
+  it('carries no damage rating or reach anybody could mistake for a reading', () => {
+    // The floors the server's own clamps impose, which mean "not entered".
+    for (const mount of [newWeaponMount(), defaultShipForm.weapons[0], normalizeWeaponMount({})]) {
+      expect(mount.attackDice).toBe(1);
+      expect(mount.maxRange).toBe(1);
+    }
+  });
+
+  it('still keeps what the player did enter', () => {
+    const mount = normalizeWeaponMount({ name: 'Heavy Battery', attackDice: 4, maxRange: 30 });
+    expect(mount.name).toBe('Heavy Battery');
+    expect(mount.attackDice).toBe(4);
+    expect(mount.maxRange).toBe(30);
   });
 });

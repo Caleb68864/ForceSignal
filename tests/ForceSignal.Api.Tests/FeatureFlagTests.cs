@@ -23,7 +23,6 @@ public sealed class FeatureFlagTests
 
         Assert.False(features.StarGrunt);
         Assert.False(features.Dirtside);
-        Assert.True(features.IsFullThrustOnly);
     }
 
     [Theory]
@@ -59,7 +58,6 @@ public sealed class FeatureFlagTests
 
         Assert.True(features.StarGrunt);
         Assert.False(features.Dirtside);
-        Assert.False(features.IsFullThrustOnly);
     }
 
     [Fact]

@@ -45,9 +45,6 @@ public sealed class FeatureFlags
     /// <summary>True when the vehicle-scale Dirtside engine is offered by this server.</summary>
     public bool Dirtside { get; init; }
 
-    /// <summary>True when no optional engine is switched on, which is the default posture.</summary>
-    public bool IsFullThrustOnly => !StarGrunt && !Dirtside;
-
     /// <summary>Projects the flags into the shape the web client reads at startup.</summary>
     public FeatureFlagsDto ToDto() => new(StarGrunt, Dirtside);
 
