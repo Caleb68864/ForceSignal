@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { blankRulesProfile, type RulesProfile } from '../types.ts';
 import { wholeNumberFrom } from '../lib/format.ts';
-import { deleteProfile, exportProfile, gapsIn, readProfile, savedProfiles, saveProfile } from '../lib/rulesProfile.ts';
+import { deleteProfile, exportProfile, gapsIn, readProfile, sameProfile, savedProfiles, saveProfile } from '../lib/rulesProfile.ts';
 
 type Props = {
   /** The profile the match is currently played against. */
@@ -24,6 +24,21 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
   const [saved, setSaved] = useState<RulesProfile[]>(savedProfiles);
   const [open, setOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // The form is on screen before the first snapshot lands, so the profile it was seeded with was
+  // always the blank one, and it stayed blank for the rest of the session: a match that already had
+  // a profile - restored, or joined after the owner set it - showed zeros for every number, and a
+  // player who touched Save wrote those zeros over the real ones. So the form follows the table.
+  //
+  // Only when the table's own numbers change, though, and compared by content rather than by
+  // identity: a snapshot arrives on every mutation anyone makes, and each one carries a freshly
+  // parsed profile object. Adopting on identity would wipe whatever was half-typed each time the
+  // opponent moved a ship.
+  const [lastFromTable, setLastFromTable] = useState<RulesProfile>(value);
+  if (!sameProfile(lastFromTable, value)) {
+    setLastFromTable(value);
+    setDraft(value);
+  }
 
   const gaps = gapsIn(draft);
   const patch = (change: Partial<RulesProfile>) => setDraft((current) => ({ ...current, ...change }));

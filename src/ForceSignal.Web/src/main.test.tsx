@@ -138,3 +138,63 @@ describe('leaving one room and joining the next', () => {
     expect(screen.queryByText('ALPHA')).toBeNull();
   });
 });
+
+describe('tapping a setup control twice', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+  });
+
+  it('creates one fleet, not two', async () => {
+    // The create is held open, which is what a slow link looks like from the table: the player taps,
+    // nothing on screen changes, and they tap again.
+    let finishCreate: (value: MatchSnapshot) => void = () => undefined;
+    const pendingCreate = new Promise<MatchSnapshot>((resolve) => {
+      finishCreate = resolve;
+    });
+
+    // A match that already has one fleet, which is what puts New Fleet on screen.
+    const withAFleet = (version: number): MatchSnapshot => ({
+      ...snapshot('ALPHA', version),
+      fleets: [{
+        id: 'fleet-1',
+        ownerParticipantId: 'participant-ALPHA',
+        name: 'Blue Watch',
+        fleetColor: '#f5c766',
+      }],
+    });
+
+    post.mockImplementation((path) => path === '/api/matches'
+      ? Promise.resolve(session('ALPHA'))
+      : pendingCreate);
+    get.mockImplementation(() => Promise.resolve(withAFleet(1)));
+
+    await import('./main.tsx');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Created room ALPHA.');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New Fleet' }));
+    const createFleet = await screen.findByRole('button', { name: 'Create Fleet' });
+    fireEvent.click(createFleet);
+    fireEvent.click(createFleet);
+
+    // Two taps used to be two fleets, and the second one is not obviously a mistake afterwards -
+    // it is an empty fleet with the same name that somebody has to notice and delete.
+    const fleetPosts = post.mock.calls.filter(([path]) => path.endsWith('/fleets'));
+    expect(fleetPosts).toHaveLength(1);
+
+    finishCreate(snapshot('ALPHA', 2));
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: 'Create Fleet' }) as HTMLButtonElement).disabled).toBe(false);
+    });
+  });
+});

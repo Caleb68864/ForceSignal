@@ -87,6 +87,11 @@ function App() {
   // and on a slow link a player who saw nothing happen would tap again - firing the same weapon
   // twice, or skipping a phase with two taps of Advance Turn. The guards that would have caught it
   // are computed from a snapshot that has not come back yet, so the UI did not even grey out.
+  //
+  // Every handler that changes the game goes through this, including the setup ones: a second tap
+  // of Create Fleet is a second fleet, of Duplicate a second ship, of Bring a second copy of the
+  // library fleet, and of Repair a second roll of the damage-control dice - which is the one that
+  // cannot be undone by deleting anything.
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
 
@@ -1326,7 +1331,7 @@ function App() {
               const file = event.target.files?.[0];
               event.target.value = '';
               if (file) {
-                restoreFromBackupFile(file).catch(showError(setMessage));
+                run(() => restoreFromBackupFile(file));
               }
             }}
           />
@@ -1354,14 +1359,14 @@ function App() {
                   <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
                 </label>
               </div>
-              <button className="ghost" onClick={() => updateTable().catch(showError(setMessage))}>Set Table</button>
+              <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
             </div>
             <RulesProfileEditor
               value={snapshot?.rules ?? blankRulesProfile}
               editable={snapshot?.phase === 'FleetSetup'}
               onApply={(rules) => {
                 if (snapshot?.phase === 'FleetSetup') {
-                  updateRulesProfile(rules).catch(showError(setMessage));
+                  run(() => updateRulesProfile(rules));
                 }
               }}
             />
@@ -1383,7 +1388,7 @@ function App() {
                   <small>{(snapshot?.pointsLimit ?? 0) > 0 ? `of ${snapshot?.pointsLimit}` : 'no limit'}</small>
                 </div>
               </div>
-              <button className="ghost" onClick={() => updatePointsLimit().catch(showError(setMessage))}>Set Limit</button>
+              <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button>
               <p className="privacy">0 means unlimited. Only the owner can change it, which is how both sides agree to a mismatch.</p>
             </div>
             <div className="side-actions">
@@ -1477,7 +1482,7 @@ function App() {
                       Fleet color
                       <input type="color" value={newFleetForm.fleetColor} onChange={(event) => setNewFleetForm({ ...newFleetForm, fleetColor: event.target.value })} />
                     </label>
-                    <button type="button" onClick={() => createAdditionalFleet().catch(showError(setMessage))}>Create Fleet</button>
+                    <button type="button" disabled={busy} onClick={() => run(createAdditionalFleet)}>Create Fleet</button>
                   </div>
                 ) : null}
                 <div className="setup-grid">
@@ -1527,7 +1532,7 @@ function App() {
                         const file = event.target.files?.[0];
                         event.target.value = '';
                         if (file) {
-                          importFleetFile(file).catch(showError(setMessage));
+                          run(() => importFleetFile(file));
                         }
                       }}
                     />
@@ -1548,7 +1553,7 @@ function App() {
                                 </small>
                               </div>
                               <div className="quick-actions">
-                                <button type="button" onClick={() => bringLibraryFleet(entry).catch(showError(setMessage))}>Bring</button>
+                                <button type="button" disabled={busy} onClick={() => run(() => bringLibraryFleet(entry))}>Bring</button>
                                 <button className="ghost" type="button" onClick={() => removeLibraryFleet(entry)}>Remove</button>
                               </div>
                             </div>
@@ -1601,7 +1606,7 @@ function App() {
                 snapshot={snapshot}
                 ownedShipIds={visibleOwnedShipIds}
                 damageUndoLabel={damageUndo?.shipName}
-                onUndoDamage={() => undoLastDamage().catch(showError(setMessage))}
+                onUndoDamage={() => run(undoLastDamage)}
               />
             ) : null}
 
@@ -1653,7 +1658,7 @@ function App() {
                         >
                           {isEditing ? 'Close Editor' : 'Edit Stats'}
                         </button>
-                        {showShipControls ? <button className="ghost" onClick={() => duplicateShip(ship).catch(showError(setMessage))}>Duplicate</button> : null}
+                        {showShipControls ? <button className="ghost" disabled={busy} onClick={() => run(() => duplicateShip(ship))}>Duplicate</button> : null}
                         {showShipControls ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
                       </div>
                     ) : null}
@@ -1661,7 +1666,7 @@ function App() {
                     {canEdit && isEditing ? (
                       <ShipEditor
                         ship={ship}
-                        onSave={(form) => updateProfile(ship, form).catch(showError(setMessage))}
+                        onSave={(form) => run(() => updateProfile(ship, form))}
                         onCancel={() => setEditingShipId(null)}
                       />
                     ) : null}
@@ -1900,7 +1905,7 @@ function App() {
                         {snapshot.phase === 'OrderEntry' || snapshot.phase === 'OrdersLocked' ? (
                           <DamageControlPanel
                             ship={ship}
-                            onRepair={(jobs) => attemptRepairs(ship, jobs).catch(showError(setMessage))}
+                            onRepair={(jobs) => run(() => attemptRepairs(ship, jobs))}
                           />
                         ) : null}
                       </>
