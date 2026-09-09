@@ -91,8 +91,30 @@ public sealed class DirtsideChitPotTests
             });
 
         service.CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        var fallback = Assert.Single(built);
 
-        Assert.Equal(ChitPotComposition.Default.Count, Assert.Single(built).Count);
+        // Held to the composition itself rather than to its total. This read
+        // `Assert.Equal(ChitPotComposition.Default.Count, ...Count)`, and the pot the fallback path
+        // returns *is* Default - so it compared Default's total to Default's total, and it compared
+        // a total rather than contents. Replacing the fallback with a hundred and eighteen Boom
+        // chits - every hit a kill whatever the armour, the most destructive change this engine
+        // admits - left all 1350 tests green. This is the guard that was missing: the fallback is
+        // the documented guess, and not a bag of the same size.
+        Assert.Same(ChitPotComposition.Default, fallback);
+
+        // And what that reference is worth, so the assertion above cannot be satisfied by a
+        // different composition that happens to be assigned to Default one day: a hundred numbered
+        // chits, half red and the rest split, with the specials the minority the counter sheet
+        // describes. The special counts themselves are a documented guess and are deliberately not
+        // pinned here - ChitPotCompositionTests owns the composition's own coherence, and says why.
+        Assert.Equal(100, fallback.Chits.Count(chit => !chit.IsSpecial));
+        Assert.Equal(50, fallback.Chits.Count(chit => chit.Colour == ChitColour.Red));
+        Assert.Equal(25, fallback.Chits.Count(chit => chit.Colour == ChitColour.Yellow));
+        Assert.Equal(25, fallback.Chits.Count(chit => chit.Colour == ChitColour.Green));
+        Assert.True(
+            fallback.CountOf(DamageChit.Of(ChitSpecial.Boom))
+            < fallback.CountOf(DamageChit.Numerical(ChitColour.Red, 0)),
+            "A table on the fallback must not draw Boom more often than it draws a numbered chit.");
     }
 
     [Fact]
