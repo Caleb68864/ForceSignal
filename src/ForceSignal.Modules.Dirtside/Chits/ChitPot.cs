@@ -44,9 +44,6 @@ public sealed class ChitPot(ChitPotComposition? composition = null, Func<int, in
     private readonly ChitPotComposition _composition = composition ?? ChitPotComposition.Default;
     private readonly Func<int, int> _nextIndex = nextIndex ?? Random.Shared.Next;
 
-    /// <summary>What is in the pot.</summary>
-    public ChitPotComposition Composition => _composition;
-
     /// <inheritdoc />
     /// <exception cref="ArgumentOutOfRangeException">
     /// The count is negative, or larger than the pot holds - a hand bigger than the pot is a caller

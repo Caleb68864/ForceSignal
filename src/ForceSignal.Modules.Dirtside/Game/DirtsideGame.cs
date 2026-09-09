@@ -176,9 +176,20 @@ public sealed partial record DirtsideGame : IDirtsideBoard
 
     /// <inheritdoc />
     /// <remarks>
-    /// Null for now, for the same reason as <see cref="OpportunityFireOpening"/>. The weapon card
-    /// already records which systems throw something interceptable, so the missing half is only who
-    /// is watching.
+    /// <para>
+    /// Null for now, but no longer for the reason <see cref="OpportunityFireOpening"/> gives. Both
+    /// halves this needs are here: the weapon card records which systems throw something
+    /// interceptable, and <see cref="InterceptWithAreaDefence"/> knows which elements have their
+    /// sensors on. What is missing is on the other side of the API. An open window refuses every
+    /// step and refuses to let the frame close until it is answered, and no route answers or
+    /// declines one, so returning an opening here would deadlock the game it was meant to enrich -
+    /// a platoon unable to act, unable to finish, and unable to say it does not want to intercept.
+    /// </para>
+    /// <para>
+    /// So the order is: routes for answering and declining a window first, then this stops returning
+    /// null. Until then the rule lives on the game, where a caller can ask whether an element may
+    /// intercept and be told, which is the half that costs a combat action.
+    /// </para>
     /// </remarks>
     public InterruptOpening? InterceptionOpening(UnitId firer, ElementId element, string weapon) => null;
 

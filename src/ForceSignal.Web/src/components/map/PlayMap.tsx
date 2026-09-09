@@ -19,6 +19,7 @@ import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
 import { describeArcs, firingDraftFor, firingTargetOptions, isFighterGroup } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
+import { OrderPreviewNotice } from '../OrderPreviewNotice.tsx';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, Ship, TablePoint, FiringSolution } from '../../types.ts';
 
 export function PlayMap({
@@ -846,6 +847,9 @@ export function PlayMap({
                 <span className="label">Helm plotting</span>
                 <p className="privacy">{selectedCanPlot ? 'Right-click, tap, or long press open table space to plot this ship within remaining thrust.' : 'Opponent helm is read-only.'}</p>
                 <strong>{selectedDraft ? formatTurnSequence(selectedDraft) : 'No turn'} · planned C{selectedPlannedCourse ?? selectedShip.currentCourse}</strong>
+                {/* The same preview the overlay draws, said in words. The overlay shows where the
+                    plot goes; this shows whether it will be allowed to go there. */}
+                <OrderPreviewNotice preview={orderPreview} />
               </div>
             ) : null}
             {inspectorMode === 'fire' && selectedShip && ownedShipIds.has(selectedShip.id) ? (

@@ -3,13 +3,24 @@ services:
     build:
       context: .
       dockerfile: src/ForceSignal.Api/Dockerfile
+    # Every setting an operator is told to change is interpolated from a named variable, so a value
+    # put in .env reaches the container. Compose does not pass .env through to a service by itself:
+    # it only substitutes it into this file, which is why nothing here is a bare literal. Anything
+    # added below needs a matching name in .env.example - scripts/check-deployment-config.py fails
+    # the build if the two drift, because a documented knob that turns nothing is worse than none.
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Cors__AllowedOrigins__0: ${FORCESIGNAL_WEB_ORIGIN:-http://localhost:6297}
       # Matches live on the volume below, so restarting the container - or the machine - resumes the
-      # game instead of ending it.
-      Persistence__MatchDatabasePath: /var/lib/forcesignal/matches.db
+      # game instead of ending it. Point it somewhere else only if you have mounted somewhere else.
+      Persistence__MatchDatabasePath: ${FORCESIGNAL_MATCH_DB:-/var/lib/forcesignal/matches.db}
+      # Off unless the operator says there is a proxy in front: X-Forwarded-For is a claim any
+      # caller can make, and believing it without one hands out the per-client rate limits.
+      Proxy__TrustForwardedHeaders: ${FORCESIGNAL_TRUST_FORWARDED_HEADERS:-false}
+      # The ground-combat engines are built alongside the working game and are off until asked for.
+      Features__StarGrunt: ${FORCESIGNAL_FEATURES_STARGRUNT:-false}
+      Features__Dirtside: ${FORCESIGNAL_FEATURES_DIRTSIDE:-false}
     ports:
       - "8080:8080"
     volumes:

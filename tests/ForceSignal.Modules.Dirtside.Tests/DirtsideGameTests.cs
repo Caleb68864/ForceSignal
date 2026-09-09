@@ -288,6 +288,39 @@ public sealed class DirtsideGameTests
     }
 
     [Fact]
+    public void SensorsThatWereNeverSwitchedOnCannotIntercept()
+    {
+        // The point of the combat action. Until the interception rule read this flag, an element
+        // that had never spent the action could intercept exactly as freely as one that had, which
+        // made the action a purchase of nothing - the worst kind, because the table believes it
+        // bought something.
+        var game = GameFixtures.Activated();
+
+        var refusal = game.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne);
+        Assert.NotNull(refusal);
+        Assert.Contains("area-defence sensors", refusal, StringComparison.OrdinalIgnoreCase);
+        Assert.False(game.InterceptWithAreaDefence(GameFixtures.Alpha, GameFixtures.AlphaOne).IsAllowed);
+
+        var live = game.SetAreaDefenceSensors(GameFixtures.AlphaOne, live: true).Value!;
+        Assert.Null(live.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne));
+    }
+
+    [Fact]
+    public void AnElementWhoseSystemsAreDownCannotInterceptHoweverLiveItsSensorsWere()
+    {
+        // The sensors were paid for and are still on; the vehicle is simply not answering. Checked
+        // because the two flags are set by different rules and could easily contradict each other.
+        var live = GameFixtures.Activated().SetAreaDefenceSensors(GameFixtures.AlphaOne, live: true).Value!;
+        var down = live.WithStatus(
+            GameFixtures.Alpha,
+            status => status.WithElement(GameFixtures.AlphaOne, element => element with { IsSystemsDown = true }));
+
+        var refusal = down.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne);
+        Assert.NotNull(refusal);
+        Assert.Contains("systems down", refusal, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void AGunThatFailsPutsTheFirersOwnSystemsDownAndLeavesTheTargetAlone()
     {
         // The chit that says the firer's own systems failed replaces the result rather than adding to

@@ -23,24 +23,11 @@ public sealed class MatchHub(IMatchService matches) : Hub
         await NotifyPresence(parsedMatchId, participantToken, true);
     }
 
-    /// <summary>Removes the connection from a match notification group.</summary>
-    /// <remarks>
-    /// Parsed for symmetry with joining: a group is named by the match id in one fixed form, and a
-    /// string that is not a match id names no group this hub ever put anyone in. Presence is still
-    /// settled either way, because the session is what tracks it.
-    /// </remarks>
-    public async Task LeaveMatchGroup(string matchId)
-    {
-        if (Guid.TryParse(matchId, out var parsedMatchId))
-        {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, parsedMatchId.ToString());
-        }
-
-        if (Context.Items.Remove(SessionKey, out var session) && session is (Guid trackedMatchId, string token))
-        {
-            await NotifyPresence(trackedMatchId, token, false);
-        }
-    }
+    // There is deliberately no LeaveMatchGroup. There was one, and nothing ever called it: a
+    // connection lives exactly as long as this device's seat at this match, so leaving is stopping,
+    // and stopping is what OnDisconnectedAsync below already answers. A hub method is remotely
+    // invokable by anyone who can reach the hub, which makes an uncalled one surface without a
+    // caller to justify it. MatchHubSurfaceTests keeps the list to what is actually used.
 
     /// <inheritdoc />
     public override async Task OnDisconnectedAsync(Exception? exception)

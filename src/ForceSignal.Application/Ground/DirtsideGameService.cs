@@ -465,7 +465,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
     private static QualityDie? Die(string? name) =>
         string.IsNullOrWhiteSpace(name) ? null
         : Enum.TryParse<QualityDie>(name, ignoreCase: true, out var die) && Enum.IsDefined(die) ? die
-        : throw new InvalidOperationException($"'{name}' is not a quality die (D4, D6, D8, D10, D12).");
+        : throw new InvalidOperationException(
+            $"'{name}' is not a quality die ({string.Join(", ", DirtsideWire.QualityDice)}).");
 
     private static ElementDefinition ToElement(DirtsideElementDto element)
     {
@@ -477,7 +478,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
             Required(element.Name, "An element needs a name."),
             Enum.TryParse<FireControlLevel>(element.FireControl, ignoreCase: true, out var control)
                 ? control
-                : throw new InvalidOperationException($"'{element.FireControl}' is not a fire control level."),
+                : throw new InvalidOperationException(
+                    $"'{element.FireControl}' is not a fire control level ({string.Join(", ", DirtsideWire.FireControls)})."),
             element.Signature,
             element.ArmourValue,
             element.Movement,
@@ -538,7 +540,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
     private static WeaponRangeBand Band(string? band) =>
         Enum.TryParse<WeaponRangeBand>(band, ignoreCase: true, out var parsed)
             ? parsed
-            : throw new InvalidOperationException($"'{band}' is not a range band (Close, Medium, Long).");
+            : throw new InvalidOperationException(
+                $"'{band}' is not a range band ({string.Join(", ", DirtsideWire.Bands)}).");
 
     /// <summary>A string the request has to carry, trimmed and cut to the display ceiling.</summary>
     private static string Required(string? value, string message) =>
@@ -642,6 +645,13 @@ public sealed class DirtsideGameService : IDirtsideGameService
         // "nothing is activated", which is true and not what a screen wants beside every vehicle.
         var recovery = frame is null ? "Nothing is activated." : game.WhyRecoverSystemsIsRefused(element.Id);
 
+        // What the tape may measure out to now, rather than what the record card says. A DMG marker
+        // halves an element's movement, and the engine had that rule written and tested and applied
+        // to nothing: the card's number went into the roster and came back out unchanged, so a
+        // damaged vehicle reported the same movement it had when it was whole and the player was
+        // left to remember. It is a halving of the player's own number, not a number of ours.
+        var movement = state.IsDamaged ? DamagedEffects.Movement(element.Movement) : element.Movement;
+
         return new DirtsideElementStateDto(
             element.Id.Value,
             element.Name,
@@ -651,6 +661,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
             state.IsImmobilised,
             state.MovedOverHalf,
             state.AreaDefenceSensorsLive,
+            movement,
             chosen.Contains(element.Id),
             hasMoved,
             hasActed,

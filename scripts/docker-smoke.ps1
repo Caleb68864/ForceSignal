@@ -52,6 +52,26 @@ if ($webHealth.StatusCode -ne 200) {
     throw "Web health returned HTTP $($webHealth.StatusCode)."
 }
 
+# Every location in nginx.conf includes the same header file, and it has to, because nginx drops a
+# parent's add_header lines the moment a location declares one of its own. /health declares
+# Content-Type, so it is the location that loses them, and it is the one nothing else would notice:
+# it answers 200 either way. Asserting on the running container is the only check that reads what
+# nginx actually assembled rather than what the config looks like it says.
+$requiredHeaders = @(
+    "X-Content-Type-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "X-Frame-Options",
+    "Content-Security-Policy"
+)
+foreach ($url in @("$WebBaseUrl/health", $WebBaseUrl)) {
+    $response = Invoke-WebRequest $url -UseBasicParsing
+    $missing = $requiredHeaders | Where-Object { -not $response.Headers.ContainsKey($_) }
+    if ($missing) {
+        throw "$url answered without the security headers: $($missing -join ', ')."
+    }
+}
+
 Write-Host "Checking web shell..."
 $web = Invoke-WebRequest $WebBaseUrl -UseBasicParsing
 if ($web.StatusCode -ne 200 -or $web.Content -notmatch "ForceSignal") {

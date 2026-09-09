@@ -13,11 +13,19 @@ namespace ForceSignal.Application.Features;
 /// table that turned up to play Full Thrust.
 /// </para>
 /// <para>
-/// So both default to <c>false</c>, and the flag is checked in three places rather than one: the
-/// endpoints an engine adds are not mapped at all when it is off, the client is told what is
-/// available and hides the rest, and a match cannot be created under a ruleset that is not
-/// offered. Turning a flag off is enough to make the engine cease to exist as far as a running
-/// match is concerned - no partially-wired state is left behind to interfere.
+/// So both default to <c>false</c>, and the flag is checked in two places rather than one: the
+/// endpoints an engine adds are not mapped at all when it is off, so every route under it answers
+/// 404 rather than existing half-wired, and the client is told at startup what is available and
+/// hides the rest. Turning a flag off is enough to make the engine cease to exist as far as a
+/// running match is concerned - no partially-wired state is left behind to interfere.
+/// </para>
+/// <para>
+/// There is deliberately no third check inside the services. Nothing takes these flags below the
+/// endpoint layer, because a match carries no ruleset for a service to compare them against: a Full
+/// Thrust match and a ground-combat game are separate objects reached through separate routes, and
+/// not mapping the routes is the whole of the gate. This paragraph exists because the remark it
+/// replaced claimed a third check that no code performed, which is a worse thing for a comment
+/// about a safety gate to do than say nothing at all.
 /// </para>
 /// <para>
 /// Configuration comes from the <c>Features</c> section, or from the matching environment

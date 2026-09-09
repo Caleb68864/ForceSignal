@@ -1,0 +1,42 @@
+/**
+ * The words the ground-combat API accepts, in one place.
+ *
+ * These are not the client's choices. Every one is a copy of a `DirtsideWire` or `StarGruntWire`
+ * field in `ForceSignal.Contracts`, which is in turn held against the engine enum it stands for by
+ * a test in `ForceSignal.Application.Tests`. `scripts/check-ground-vocabulary.py` compares this file
+ * to those, so the chain runs from the engine enums to the dropdowns without a link anyone has to
+ * remember.
+ *
+ * They used to be typed out beside the dropdowns that render them, which meant a range band existed
+ * in three spellings with none of them authoritative: the API would accept a value no screen
+ * offered, and a screen could offer one the API refused, and neither would say anything until a
+ * player picked it mid-game.
+ *
+ * Nothing here is a rules number. A band is a name for a distance the player measures with a tape,
+ * and the die list is which dice exist, not which one anything uses.
+ */
+
+/** Range bands a shot can be measured at, ordered as a record card reads them. */
+export const bands = ['Close', 'Medium', 'Long'] as const;
+
+/** Gunnery levels an element can have. */
+export const fireControls = ['Basic', 'Enhanced', 'Superior'] as const;
+
+/** Dice a Dirtside platoon's command marker can name. */
+export const qualityDice = ['D4', 'D6', 'D8', 'D10', 'D12'] as const;
+
+/** Where a close assault can stand, as the snapshot reports it. */
+export const assaultStages = [
+  'AwaitingDefender',
+  'AwaitingRound',
+  'AwaitingAftermath',
+  'AwaitingFollowThrough',
+] as const;
+
+/** The same ladder StarGrunt sends as face counts rather than names. */
+export const qualityLadder = [4, 6, 8, 10, 12] as const;
+
+export type Band = (typeof bands)[number];
+export type FireControl = (typeof fireControls)[number];
+export type QualityDieName = (typeof qualityDice)[number];
+export type AssaultStage = (typeof assaultStages)[number];

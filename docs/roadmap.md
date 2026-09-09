@@ -346,6 +346,53 @@ remove it. That gets the numbers in front of the player without retiring anyone'
 
 ## Closed 2026-09-08 (audit follow-up)
 
+*Maintainability pass, 2026-09-09. Eleven items from `vault/maintainability-2026-09-09.md`, added
+here rather than under a heading of their own because they are the same kind of work.*
+
+- [x] **`.env.example` reaches the container.** Five of its variables were interpolated by nothing,
+      so setting them did nothing, and `Proxy__*` and `Features__*` were not in the file at all
+      although the README says to set them. Compose hands `.env` to a service only through `${...}`,
+      so every documented name is now interpolated. `scripts/check-deployment-config.py` holds the
+      two files to each other in both directions and fails on the previous state.
+- [x] **`/health` carries the security headers.** It was the one nginx location without the include,
+      because it declares a `Content-Type` of its own and nginx drops the parent's `add_header`
+      lines the moment a location declares one -- the trap the include file's own comment describes.
+      Checked statically, and read off the running container by `docker-smoke.ps1`.
+- [x] **The Docker smoke test is a gate.** CI never passed `-IncludeDocker`, so the only assertion
+      that the volume and the configured database path take effect -- readiness saying `sqlite`
+      rather than falling back to memory -- had never run. It runs on every push.
+- [x] **The two-player smoke test is a gate.** `scripts/two-player-smoke.py` is the only check that
+      hidden orders lock and reveal independently on two devices and that a phase turning over on
+      one reaches the other without a reload. It now has its own CI job.
+- [x] **`Cors__AllowedOrigins=a,b` is read.** Reported as unreachable code; it was worse. The
+      environment provider rewrites `__` to `:` before configuration is asked, so the literal key
+      could never match, and the section read above it cannot bind a scalar to `string[]` either --
+      so the API refused to start outside Development citing a setting the operator had set.
+- [x] **The wire vocabularies are the single source.** `DirtsideWire` and `StarGruntWire` read as
+      canonical and had no consumer: the client typed its own copies out beside the dropdowns, the
+      server validated against the engine enums, and the refusal messages carried a third copy as
+      literal text. The messages are built from them now, tests hold them against the enums, the
+      client imports one module, and `scripts/check-ground-vocabulary.py` crosses the language
+      boundary the tests cannot.
+- [x] **Area-defence sensors buy something.** The combat action set a flag that no rule read, so an
+      element that had spent nothing could intercept as freely as one that had. The engine's own
+      interception now refuses an element whose sensors are dark; `InterceptionOpening` stays null
+      and says accurately why -- an open window blocks every step and no route answers one, so
+      opening one would deadlock the game rather than enrich it.
+- [x] **A damaged element reports the movement it has.** `DamagedEffects.Movement` was written,
+      tested and applied to nothing, so a damaged vehicle advertised the distance it could cover
+      when it was whole. The snapshot carries the halved figure and the screen renders it.
+- [x] **The order preview's verdict is shown.** `IsValid` and `Errors` exist so a player can find
+      out why a plot will not lock before pressing Lock; both were fetched and thrown away.
+- [x] **`FeatureFlags` describes the gate it has.** Its remark claimed three checks and named one on
+      match creation that no code performs -- a match carries no ruleset to check against.
+- [x] **StarGrunt's readiness warning names its slice boundary**, as Dirtside's already did:
+      transferring an activation to a subordinate and reaction fire are in the engine, tested, and
+      unreachable from this API.
+- [x] **Three members with no callers removed**: `MatchHub.LeaveMatchGroup` (reachable code with no
+      caller, since a hub method is remotely invokable), `ChitPot.Composition`, and the redundant
+      `appsettings.Development.json`. `RepairContracts.cs:14` was reported dead and is not.
+
 - [x] **A locked order cannot be moved out from under itself.** `UpdateShipProfile` wrote position,
       velocity and course with no guard at all, so a player could watch the reveal and then
       reposition. The four commitment fields are now frozen from the moment *that ship* locks until

@@ -15,6 +15,23 @@ namespace ForceSignal.Contracts.Ground;
 /// card. This assembly ships none of them.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// <para>
+/// These are the words themselves, and they are the only copy anything is allowed to keep. The
+/// service builds every refusal about an unrecognised value out of them, so a player who sends
+/// something else is told exactly what this list says; the web client imports the same names from
+/// one module rather than typing them out beside each dropdown; and the module tests hold each
+/// array against the engine enum it stands for, so a rung added to a ladder cannot quietly leave
+/// the wire behind. Three copies of a vocabulary with no authority among them is how the API comes
+/// to accept a word that no screen offers.
+/// </para>
+/// <para>
+/// The arrays are ordered as a table reads them, which is not always the order the enum declares:
+/// the range bands carry the die shift as their value, so Close, Medium and Long number 1, 0 and
+/// -1 and would come back reversed from the enum. The tests compare the contents, and this order is
+/// what the client's dropdowns present.
+/// </para>
+/// </remarks>
 public static class DirtsideWire
 {
     /// <summary>Range bands a shot can be measured at.</summary>
@@ -55,7 +72,12 @@ public sealed record DirtsideValidityDto(
 /// <param name="Close">What its chits may count at close range.</param>
 /// <param name="Medium">What its chits may count at medium range.</param>
 /// <param name="Long">What its chits may count at long range.</param>
-/// <param name="IsInterceptable">True when an area-defence gun could shoot down what it throws.</param>
+/// <param name="IsInterceptable">
+/// True when an area-defence gun could shoot down what it throws. Recorded off the card and not yet
+/// consulted: it is the other half of the interception this API cannot resolve, the half that says
+/// which shots may be answered. Kept rather than dropped because it is the player's own reading of
+/// their card, and the engine already knows which elements could do the answering.
+/// </param>
 // "Long" is the range band's name on the card and the JSON key the client already sends; the
 // analyzer objects because it is also a type name, which is not what it means here.
 #pragma warning disable CA1720
@@ -233,6 +255,11 @@ public sealed record DirtsideAssaultDto(
 /// <param name="IsImmobilised">True when it will never move again, though it may still fire.</param>
 /// <param name="MovedOverHalf">True when it has moved, or has declared it will move, more than half its movement this turn.</param>
 /// <param name="AreaDefenceSensorsLive">True when it may intercept for the rest of the turn.</param>
+/// <param name="Movement">
+/// How far it may go now, in the player's own units: the movement off its record card, halved while
+/// it carries a DMG marker. The halving is the engine's rule; the number being halved is the
+/// player's.
+/// </param>
 /// <param name="HasChosen">True when it has said what it is doing in the open activation.</param>
 /// <param name="HasMoved">True when it has spent its move this activation.</param>
 /// <param name="HasTakenCombatAction">True when it has spent its one combat action.</param>
@@ -258,6 +285,7 @@ public sealed record DirtsideElementStateDto(
     bool IsImmobilised,
     bool MovedOverHalf,
     bool AreaDefenceSensorsLive,
+    int Movement,
     bool HasChosen,
     bool HasMoved,
     bool HasTakenCombatAction,

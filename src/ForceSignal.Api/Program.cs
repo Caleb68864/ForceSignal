@@ -309,9 +309,17 @@ static Task WriteProblem(HttpContext context, int status, string title, string d
 
 static CorsOriginSettings ReadAllowedOrigins(IConfiguration configuration, IHostEnvironment environment)
 {
+    // The third read is the one an operator most naturally reaches for: a single environment
+    // variable holding a comma-separated list. It has to be spelled "Cors:AllowedOrigins" here,
+    // because the environment provider has already rewritten the "__" they typed into ":" before
+    // configuration is ever asked. Reading the literal "Cors__AllowedOrigins" - which is what this
+    // did - could never match anything the provider produced, and the section read above cannot
+    // match it either, because a scalar does not bind to string[]. So setting the obvious variable
+    // configured no origins at all, and the API refused to start with a message about a setting the
+    // operator had in fact set.
     var configured = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
         ?? SplitOrigins(configuration["FORCESIGNAL_CORS_ALLOWED_ORIGINS"])
-        ?? SplitOrigins(configuration["Cors__AllowedOrigins"]);
+        ?? SplitOrigins(configuration["Cors:AllowedOrigins"]);
 
     if (configured is { Length: > 0 })
     {
@@ -429,7 +437,15 @@ static string[] ReadDeploymentWarnings(
     // check readiness before a game is to find out what is about to be in the way.
     if (features.StarGrunt)
     {
-        warnings.Add("StarGrunt ground combat is enabled and is still in development.");
+        // Named rather than left at "still in development", the way Dirtside's is below. The engine
+        // plays and tests two moves this API offers no route for - a commander spending an action to
+        // spring a subordinate, and answering an open reaction-fire window by firing - so a table
+        // reading the module could reasonably expect them and find nothing. The step route refuses
+        // TransferAction by name, which tells whoever already tried; this tells them beforehand.
+        warnings.Add(
+            "StarGrunt ground combat is enabled and is still in development. Fire, close assault, "
+            + "morale and the activation sequence are playable; transferring an activation to a "
+            + "subordinate and reaction fire are not yet reachable from this API.");
     }
 
     if (features.Dirtside)

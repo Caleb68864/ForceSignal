@@ -174,6 +174,76 @@ public sealed partial record DirtsideGame
     }
 
     /// <summary>
+    /// Answers an open area-defence interception window with one element's guns.
+    /// </summary>
+    /// <param name="unit">The platoon answering.</param>
+    /// <param name="element">The element whose sensors are doing the intercepting.</param>
+    /// <returns>The game with the interception under way, or why it was refused.</returns>
+    /// <remarks>
+    /// <para>
+    /// This is what the combat action spent on <see cref="SetAreaDefenceSensors"/> buys, and until
+    /// now nothing spent it on anything: the flag was set, echoed in the snapshot, and read by no
+    /// rule at all, so an element whose sensors had never been switched on could intercept exactly
+    /// as freely as one that had paid for it. A player who spends an action on a standing capability
+    /// has to be able to find out that they have it and that somebody else does not.
+    /// </para>
+    /// <para>
+    /// The interception itself costs nothing, which is why the sensor check is the whole of the
+    /// gate: an element that has already used its activation may still answer, because live sensors
+    /// are a capability bought earlier rather than a go being traded away now.
+    /// </para>
+    /// </remarks>
+    public GameOutcome<DirtsideGame> InterceptWithAreaDefence(UnitId unit, ElementId element)
+    {
+        if (WhyInterceptionIsRefused(unit, element) is { } reason)
+        {
+            return GameOutcome.Refused<DirtsideGame>(reason);
+        }
+
+        return Apply(
+            GroundCombatSequence.CanDeclareReaction(Session, unit, DirtsideActivationPolicy.AreaDefenceCost),
+            () => DirtsideTurn.InterceptWithAreaDefence(Session, unit));
+    }
+
+    /// <summary>
+    /// Why this element cannot intercept, or null when it can.
+    /// </summary>
+    /// <param name="unit">The platoon answering.</param>
+    /// <param name="element">The element whose sensors would do it.</param>
+    /// <returns>The refusal in words, or null.</returns>
+    /// <remarks>
+    /// Shared with <see cref="InterceptWithAreaDefence"/> rather than written twice, so a screen
+    /// showing why a button is disabled uses the same words the command would refuse with.
+    /// </remarks>
+    public string? WhyInterceptionIsRefused(UnitId unit, ElementId element)
+    {
+        if (!HasUnit(unit))
+        {
+            return $"There is no platoon called '{unit}' on the table.";
+        }
+
+        if (Unit(unit).Element(element) is null)
+        {
+            return $"{Unit(unit).Name} has no element called '{element}'.";
+        }
+
+        var status = Status(unit).Element(element);
+        if (status.IsDestroyed)
+        {
+            return $"{Describe(unit, element)} has been destroyed.";
+        }
+
+        if (status.IsSystemsDown)
+        {
+            return $"{Describe(unit, element)} has its systems down and cannot intercept.";
+        }
+
+        return status.AreaDefenceSensorsLive
+            ? null
+            : $"{Describe(unit, element)} does not have its area-defence sensors on.";
+    }
+
+    /// <summary>
     /// Tries to get an element's Systems Down marker off.
     /// </summary>
     /// <param name="element">The element whose crew are trying.</param>

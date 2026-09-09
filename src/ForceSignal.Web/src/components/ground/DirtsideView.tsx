@@ -3,13 +3,11 @@ import { dirtsideGameKey } from '../../constants.ts';
 import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import * as api from '../../lib/dirtsideApi.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
+// The words the API accepts, not this screen's idea of them. See groundVocabulary.ts.
+import { bands, fireControls, qualityDice } from '../../lib/groundVocabulary.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { chitColours, DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
-
-const bands = ['Close', 'Medium', 'Long'];
-const fireControls = ['Basic', 'Enhanced', 'Superior'];
-const qualityDice = ['D4', 'D6', 'D8', 'D10', 'D12'];
 
 /** A number the card may not give. Blank means left out, not zero. */
 function optionalWholeNumber(text: string, min: number, max: number) {
@@ -280,6 +278,10 @@ export function DirtsideView() {
                 {element.isImmobilised ? ' · immobilised' : ''}
                 {element.movedOverHalf ? ' · moved far' : ''}
                 {element.areaDefenceSensorsLive ? ' · sensors live' : ''}
+                {/* What the tape may measure out to now. A DMG marker halves it, and the server has
+                    already done the halving, so a damaged vehicle stops showing the movement it had
+                    when it was whole - which is the number the player would otherwise work from. */}
+                {element.isImmobilised ? '' : ` · move ${element.movement}`}
               </span>
               <button
                 type="button"

@@ -15,6 +15,12 @@ namespace ForceSignal.Contracts.Ground;
 /// own record card.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// The ladder below is the only copy of itself. The service builds its refusal of an off-ladder die
+/// out of it, the web client imports the same numbers rather than repeating them, and a module test
+/// holds it against the quality die enum whose face counts it mirrors - which is what lets this
+/// assembly keep its distance from the module without the two drifting apart in silence.
+/// </remarks>
 public static class StarGruntWire
 {
     /// <summary>Die face counts the quality ladder recognises.</summary>

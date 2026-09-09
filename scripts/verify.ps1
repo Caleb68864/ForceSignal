@@ -34,6 +34,20 @@ function Invoke-Step {
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
 try {
+    # First, because it is the cheapest step and the one whose failures are invisible to every other
+    # step: a deployment file that disagrees with another one still builds, still tests green, and
+    # is only found by whoever deploys it.
+    Invoke-Step "Check deployment configuration" {
+        Invoke-Native python3 (Join-Path $PSScriptRoot "check-deployment-config.py")
+    }
+
+    # The last link in the chain that runs from the ground-combat engine enums to the client's
+    # dropdowns. The two before it are C# and are covered by the .NET tests below; this one crosses
+    # a language boundary, so nothing but a script can hold it.
+    Invoke-Step "Check ground-combat vocabularies" {
+        Invoke-Native python3 (Join-Path $PSScriptRoot "check-ground-vocabulary.py")
+    }
+
     Invoke-Step "Restore .NET dependencies" {
         Invoke-Native dotnet restore ForceSignal.slnx
     }

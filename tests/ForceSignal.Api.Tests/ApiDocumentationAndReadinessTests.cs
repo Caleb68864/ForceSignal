@@ -97,6 +97,60 @@ public sealed class ApiDocumentationAndReadinessTests
     }
 
     [Fact]
+    public async Task ProductionHost_WithOriginsInOneVariable_ReadsThemRatherThanRefusingToStart()
+    {
+        // Cors__AllowedOrigins=a,b is the spelling an operator reaches for first, and it is what a
+        // container platform's single-value setting form forces. The environment provider turns the
+        // "__" into ":" before anything reads it, so this is exactly the key that arrives; the
+        // indexed form the compose file uses is tested above. Both have to work, because the API
+        // fails fast outside Development when it finds no origins, and failing fast over a setting
+        // that was supplied is the worst version of that.
+        var previousOrigin = Environment.GetEnvironmentVariable("Cors__AllowedOrigins");
+        Environment.SetEnvironmentVariable("Cors__AllowedOrigins", "http://localhost:6297, http://board.invalid");
+
+        try
+        {
+            using var factory = CreateFactory("Production");
+            using var client = factory.CreateClient();
+
+            using var ready = await client.GetAsync("/ready");
+            ready.EnsureSuccessStatusCode();
+            var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("configured", readyBody.GetProperty("cors").GetString());
+
+            using var allowed = await SendPreflight(client, "http://board.invalid");
+            Assert.True(allowed.Headers.TryGetValues("Access-Control-Allow-Origin", out var allowedOrigins));
+            Assert.Equal("http://board.invalid", Assert.Single(allowedOrigins));
+
+            using var denied = await SendPreflight(client, "http://example.invalid");
+            Assert.False(denied.Headers.Contains("Access-Control-Allow-Origin"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Cors__AllowedOrigins", previousOrigin);
+        }
+    }
+
+    [Fact]
+    public async Task StarGruntReadiness_NamesTheMovesTheEngineHasAndTheApiDoesNot()
+    {
+        // Dirtside's warning names its slice boundary and StarGrunt's said only "in development",
+        // which reads as "rough" rather than "these two moves are not here". StarGruntTurn plays and
+        // tests both of them, so a table reading the module has every reason to look for them.
+        using var factory = CreateFactory("Development", new Dictionary<string, string?> { ["Features:StarGrunt"] = "true" });
+        using var client = factory.CreateClient();
+
+        using var ready = await client.GetAsync("/ready");
+        ready.EnsureSuccessStatusCode();
+        var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
+        var warning = Assert.Single(
+            readyBody.GetProperty("warnings").EnumerateArray().Select(entry => entry.GetString() ?? string.Empty),
+            entry => entry.StartsWith("StarGrunt ground combat is enabled", StringComparison.Ordinal));
+
+        Assert.Contains("transferring an activation to a subordinate and reaction fire are not yet reachable", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DirtsideReadiness_NamesOnlyWhatIsStillUnreachable()
     {
         // The warning is a to-do list an operator reads before a game. Close assault and

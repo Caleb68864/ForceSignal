@@ -531,7 +531,8 @@ public sealed class StarGruntGameService : IStarGruntGameService
     private static QualityDie Die(int faces, string what) =>
         Enum.IsDefined(typeof(QualityDie), faces)
             ? (QualityDie)faces
-            : throw new InvalidOperationException($"A {what} die of {faces} is not on the quality ladder (4, 6, 8, 10, 12).");
+            : throw new InvalidOperationException(
+                $"A {what} die of {faces} is not on the quality ladder ({string.Join(", ", StarGruntWire.Ladder)}).");
 
     private static CoverLevel Cover(string? cover) =>
         Enum.TryParse<CoverLevel>(cover, ignoreCase: true, out var level)
