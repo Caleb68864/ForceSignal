@@ -22,7 +22,7 @@ public sealed class DirtsideAssaultServiceTests
         var service = new DirtsideGameService(
             new ScriptedQualityDice { Fallback = 6 },
             null,
-            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 8)));
+            ScriptedChitPot.Handing(DamageChit.Numerical(ChitColour.Red, 8)));
         var game = Activated(service);
 
         var launched = service.LaunchAssault(game, new LaunchDirtsideAssaultRequest("bravo", ["alpha-1", "alpha-2"], 1, Everything));
@@ -61,7 +61,7 @@ public sealed class DirtsideAssaultServiceTests
         first.LaunchAssault(game, new LaunchDirtsideAssaultRequest("bravo", ["alpha-1"], 0, Everything));
         var before = first.DefenderStands(game, new DirtsideAssaultStandRequest(["bravo-1"], 0, Everything));
 
-        var restarted = new DirtsideGameService(new ScriptedQualityDice { Fallback = 6 }, store, new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 1)));
+        var restarted = new DirtsideGameService(new ScriptedQualityDice { Fallback = 6 }, store, ScriptedChitPot.Handing(DamageChit.Numerical(ChitColour.Red, 1)));
 
         var after = restarted.GetSnapshot(game);
         Assert.Equal("AwaitingRound", after.Assault!.Stage);
@@ -131,7 +131,7 @@ public sealed class DirtsideAssaultServiceTests
         var service = new DirtsideGameService(
             new ScriptedQualityDice(1, 8) { Fallback = 3 },
             null,
-            new ScriptedChitPot(DamageChit.Of(ChitSpecial.SystemsDownFirer)));
+            ScriptedChitPot.Handing(DamageChit.Of(ChitSpecial.SystemsDownFirer)));
         var game = Activated(service);
 
         var down = service.Fire(game, new DirtsideFireRequest("alpha-1", "Main Gun", "bravo", "bravo-1", "Close"));

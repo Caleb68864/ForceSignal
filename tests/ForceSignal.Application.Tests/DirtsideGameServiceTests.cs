@@ -25,7 +25,7 @@ public sealed class DirtsideGameServiceTests
         var service = new DirtsideGameService(
             new ScriptedQualityDice(1, 8),
             null,
-            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 8)));
+            ScriptedChitPot.Handing(DamageChit.Numerical(ChitColour.Red, 8)));
         var game = Table(service);
 
         var opened = service.BeginTurn(game);
@@ -92,7 +92,7 @@ public sealed class DirtsideGameServiceTests
         var service = new DirtsideGameService(
             new ScriptedQualityDice(1, 8),
             null,
-            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 1)));
+            ScriptedChitPot.Handing(DamageChit.Numerical(ChitColour.Red, 1)));
         var game = Activated(service);
 
         Assert.Equal(12, Element(service.GetSnapshot(game), "bravo", "bravo-1").Movement);

@@ -198,12 +198,15 @@ public sealed partial class InMemoryMatchService
     }
     private static WeaponMountState[] NormalizeWeapons(IReadOnlyList<WeaponMountDto>? weapons)
     {
+        // A ship that named no mounts has none. It used to be handed a "Class-2 Beam" firing two
+        // dice out to twenty-four: a class name, a damage rating and a reach, none of which anybody
+        // entered and all three of which are exactly the kind of number this project does not ship.
+        // Worse than the client's copies of the same mount, because it was invisible - a ship
+        // created with an empty weapons list came back armed, and the player had no way to know the
+        // server had written the stats for them.
         if (weapons is null || weapons.Count == 0)
         {
-            return
-            [
-                new WeaponMountState(Guid.NewGuid(), "Class-2 Beam", 2, 24, [FiringArc.Fore], 0, 0, 0, WeaponKind.Beam)
-            ];
+            return [];
         }
 
         return weapons

@@ -293,9 +293,4 @@ public static class DamagedEffects
         WeaponRangeBand.Medium => WeaponRangeBand.Long,
         _ => null,
     };
-
-    /// <summary>Whether a damaged vehicle can shoot at a given band at all.</summary>
-    /// <param name="band">The band the shot is really at.</param>
-    /// <returns>False for a long-range shot, true otherwise.</returns>
-    public static bool CanFireAt(WeaponRangeBand band) => Band(band) is not null;
 }

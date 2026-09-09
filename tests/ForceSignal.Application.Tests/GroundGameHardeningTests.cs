@@ -211,7 +211,7 @@ public sealed partial class GroundGameHardeningTests
         var service = new DirtsideGameService(
             new ScriptedQualityDice(1, 8),
             null,
-            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 8)));
+            ScriptedChitPot.Handing(DamageChit.Numerical(ChitColour.Red, 8)));
         var game = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9")).GameId;
 
         // A mount claiming every barrel an int can hold. The number arrives off the wire and used to

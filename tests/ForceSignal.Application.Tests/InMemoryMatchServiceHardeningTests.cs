@@ -13,6 +13,49 @@ namespace ForceSignal.Application.Tests;
 public sealed class InMemoryMatchServiceHardeningTests
 {
     [Fact]
+    public void AShipThatNamedNoWeapons_ComesBackWithNone()
+    {
+        // It used to come back armed. A ship created with an empty weapons list was handed a
+        // "Class-2 Beam" firing two dice out to twenty-four - a class name, a damage rating and a
+        // reach, none of which anybody entered - and nothing told the player the server had written
+        // the stats for them. Every number a procedure reads is the player's; this one was ours, and
+        // it was the invisible copy of three.
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Unarmed", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
+            .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+
+        var snapshot = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Unarmed", "Cruiser", 4, 6, 3, 12, 4, Weapons: []));
+
+        Assert.Empty(snapshot.Ships.Single(ship => ship.Name == "Unarmed").Weapons);
+    }
+
+    [Fact]
+    public void AShipWhoseOnlyMountHasNoName_ComesBackWithNoneRatherThanAnInventedOne()
+    {
+        // Same door, one step further in: the nameless mount is dropped by the filter below, which
+        // used to leave the list empty and fall into the same invented default.
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Unarmed", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
+            .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+
+        var snapshot = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken,
+            "Unarmed",
+            "Cruiser",
+            4,
+            6,
+            3,
+            12,
+            4,
+            Weapons: [new WeaponMountDto(Guid.NewGuid(), "   ", 3, 18, [FiringArc.Fore])]));
+
+        Assert.Empty(snapshot.Ships.Single(ship => ship.Name == "Unarmed").Weapons);
+    }
+
+    [Fact]
     public void JoinCodes_AreDrawnFromAWideEnoughSpaceToNotRepeatAcrossAFullEvening()
     {
         var service = new InMemoryMatchService();

@@ -66,12 +66,14 @@ compare("Bands", csharp_strings(dirtside, "Bands"), typescript_values(client, "b
 compare("FireControls", csharp_strings(dirtside, "FireControls"), typescript_values(client, "fireControls"))
 compare("QualityDice", csharp_strings(dirtside, "QualityDice"), typescript_values(client, "qualityDice"))
 compare("AssaultStages", csharp_strings(dirtside, "AssaultStages"), typescript_values(client, "assaultStages"))
+compare("ChitColours", csharp_strings(dirtside, "ChitColours"), typescript_values(client, "chitColours"))
+compare("ChitSpecials", csharp_strings(dirtside, "ChitSpecials"), typescript_values(client, "chitSpecials"))
 compare("Ladder", csharp_numbers(stargrunt, "Ladder"), typescript_values(client, "qualityLadder"))
 
 # A copy nothing reads is the state this was written to end, so check the client actually uses it.
 for module in (ROOT / "src/ForceSignal.Web/src/components/ground").glob("*.tsx"):
     text = module.read_text(encoding="utf-8-sig")
-    for name in ("bands", "fireControls", "qualityDice", "qualityLadder"):
+    for name in ("bands", "fireControls", "qualityDice", "qualityLadder", "chitColours", "chitSpecials"):
         if re.search(rf"^const {name}\s*=\s*\[", text, re.MULTILINE):
             problems.append(
                 f"{module.name} declares its own '{name}' instead of importing it from "

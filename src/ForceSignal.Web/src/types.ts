@@ -604,6 +604,25 @@ export type DirtsideSnapshot = {
   units: DirtsidePlatoonState[];
   log: string[];
   version: number;
+  // What this game's chit pot holds, so the table can read back the counts it is playing on.
+  chitPot?: DirtsideChitPot | null;
+};
+
+/** How many chits of one colour and number the pot holds. Counted off the user's own sheet. */
+export type DirtsideNumericalChits = { colour: string; value: number; count: number };
+
+/** How many of one special chit the pot holds. Counted off the user's own sheet. */
+export type DirtsideSpecialChits = { special: string; count: number };
+
+/**
+ * Everything in the chit pot. Every count here is the user's, off their own counter sheet - except
+ * where `isBuiltInDefaultGuess` says otherwise, which is the server admitting the numbers are its
+ * own guess rather than anybody's reading of a sheet.
+ */
+export type DirtsideChitPot = {
+  numericals: DirtsideNumericalChits[];
+  specials: DirtsideSpecialChits[];
+  isBuiltInDefaultGuess: boolean;
 };
 
 /** A Dirtside game that has just been started. */

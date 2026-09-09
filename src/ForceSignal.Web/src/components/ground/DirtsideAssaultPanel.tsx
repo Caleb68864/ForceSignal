@@ -4,8 +4,8 @@ import type { DirtsideValidityInput } from '../../lib/dirtsideApi.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 
-/** Which chit colours a card can name. */
-export const chitColours = ['All', 'Red', 'Yellow', 'Green'];
+/** Which set of chit colours a validity row can name. Not the same list as the colours a chit is printed in - this is what a weapon may count. */
+export const chitColourSets = ['All', 'Red', 'Yellow', 'Green'];
 /** How the numbers on the chits read. */
 export const valueScales = ['Doubled', 'FaceValue', 'Halved'];
 
@@ -308,7 +308,7 @@ function ValidityFields({ value, onChange, title, prefix }: {
       <label>
         {name('Colours that count', 'colours')}
         <select value={value.colours} onChange={(event) => onChange({ ...value, colours: event.target.value })}>
-          {chitColours.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
+          {chitColourSets.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
         </select>
       </label>
       <label>

@@ -195,20 +195,6 @@ public sealed class DirtsideBoard : IDirtsideBoard
         return this;
     }
 
-    /// <summary>Takes an element off the table.</summary>
-    /// <param name="unit">The unit it belonged to.</param>
-    /// <param name="element">The element lost.</param>
-    /// <returns>This board.</returns>
-    public DirtsideBoard RemoveElement(UnitId unit, ElementId element)
-    {
-        if (elements.TryGetValue(unit, out var list))
-        {
-            list.Remove(element);
-        }
-
-        return this;
-    }
-
     /// <summary>Says that an element's weapon is on a fixed mount.</summary>
     /// <param name="unit">The unit.</param>
     /// <param name="element">The element.</param>

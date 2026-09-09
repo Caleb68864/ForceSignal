@@ -17,7 +17,7 @@ public sealed class DirtsidePersistenceTests
         var first = new DirtsideGameService(
             new ScriptedQualityDice(1, 8),
             store,
-            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 8)));
+            ScriptedChitPot.Handing(DamageChit.Numerical(ChitColour.Red, 8)));
         var game = DirtsideGameServiceTests.Activated(first);
         var before = first.Fire(game, new DirtsideFireRequest("alpha-1", "Main Gun", "bravo", "bravo-1", "Close"));
 

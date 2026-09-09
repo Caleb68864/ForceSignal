@@ -177,9 +177,13 @@ export function normalizeWeaponMount(value: unknown): WeaponMount {
   const record = value as Record<string, unknown>;
   return {
     id: typeof record.id === 'string' && record.id ? record.id : newId(),
-    name: stringFrom(record.name, 'Class-2 Beam'),
-    attackDice: wholeNumberFrom(record.attackDice ?? record.dice, 2, 1, 12),
-    maxRange: wholeNumberFrom(record.maxRange ?? record.range, 24, 1, 72),
+    // A mount that arrived with no name, dice or reach is left visibly unfilled rather than being
+    // given a class, a damage rating and a range nobody entered. The fallbacks are the floors the
+    // server's own clamps impose, which mean "not entered"; "Unnamed Mount" is the label the server
+    // already uses for a nameless mount it restores.
+    name: stringFrom(record.name, 'Unnamed Mount'),
+    attackDice: wholeNumberFrom(record.attackDice ?? record.dice, 1, 1, 12),
+    maxRange: wholeNumberFrom(record.maxRange ?? record.range, 1, 1, 72),
     arcs: normalizeArcs(record.arcs, record.arc),
     isDestroyed: record.isDestroyed === true || record.isDestroyed === 'true',
     kind: normalizeWeaponKind(record.kind),

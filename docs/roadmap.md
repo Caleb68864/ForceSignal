@@ -261,7 +261,10 @@ the roadmap lists only what a table can reach.
       board never opens one, and "Sensors On" currently buys nothing (gaps 7-8).
 - [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10).
 - [ ] Defensive posture declared on the shot (gap 11).
-- [ ] A configurable chit pot and a full validity-card editor on the screen (gaps 15-16).
+- [x] A configurable chit pot, entered on the create screen and carried per game (gap 15,
+      2026-09-09). The composition is the players', optional for one release only, and a game
+      falling back to the built-in default says so on every snapshot.
+- [ ] A full validity-card editor on the screen (gap 16).
 - [ ] Indirect fire (gap 9).
 
 ## Later Production Options
@@ -308,41 +311,131 @@ the roadmap lists only what a table can reach.
       It now uses the same arithmetic the firing rules use, and the weapon's kind picks the width,
       because a pulse torpedo bands differently from a beam. The log is what a table checks a
       disputed volley against, so a label that disagrees with the dice beside it is worse than none.
-- [ ] **The Dirtside chit pot is still baked into a static initialiser.** Verified and *not* changed
-      this pass -- closing it needs a product decision rather than having one right answer. See
-      "Chit pot: the decision to make" below.
+- [x] **The Dirtside chit pot is the players'.** Closed 2026-09-09; see "Chit pot: the decision, and
+      what shipped" below.
 
-## Chit pot: the decision to make
+## Chit pot: the decision, and what shipped
 
-`ChitPotComposition`'s own doc says the composition "belongs where a player can look at it and
-replace it rather than buried in a static initialiser they have to read the source to find", and
-then puts 50/25/25 numericals and 6/6/3/3 specials in exactly a static initialiser
-(`ChitPotComposition.cs:55`, `:128-141`). The doc also concedes the special counts are *a documented
-guess* -- the sheet says only that there are fewer of the firer's Systems Down than the target's.
+**The owner's call: optional on the create request, carried per game, `Default` kept for one release
+behind a readiness warning that says out loud that its counts are a guess, then removed.** This
+section used to hold three open questions; all three are answered, and this is the answer.
 
-The module is not actually the problem: `Of`, `FromCounts`, `WithSpecials` and `ChitPot(composition)`
-are all already there. The problem is that **nothing above the module exposes them**.
-`DirtsideGameService.cs:120` hard-wires `new ChitPot()` into a process-wide singleton,
-`CreateDirtsideGameRequest` is `(string Name)`, and the composition appears nowhere in
-`DirtsideGameSerialization`'s saved record. Dirtside has no analogue of `RulesProfile` at all.
+`ChitPotComposition`'s own doc said the composition "belongs where a player can look at it and
+replace it rather than buried in a static initialiser they have to read the source to find", and then
+put 50/25/25 numericals and 6/6/3/3 specials in exactly a static initialiser. The module was never
+the problem -- `Of`, `FromCounts`, `WithSpecials` and `ChitPot(composition)` were all already there.
+Nothing above the module exposed them.
 
-Three questions that are calls to make, not facts to look up:
+**1. Does the default survive? For one release, and never silently.** Full Thrust's policy is that
+there is no default at all, and the guessed special counts argue for the same here. But removing it
+outright retires every stored Dirtside game and every game already open on a table, so it stays --
+and pays for staying by being labelled everywhere it can be. `/ready` now carries a second Dirtside
+warning naming the guess in as many words: that the special counts (Mobility, Systems Down, Boom) are
+"a guess, not a published distribution", that every damage probability in such a game rests on numbers
+nobody counted, that `chitPot` on create is how to play on your own sheet, and that the fallback is
+kept for one release and then removed. Every snapshot carries `chitPot.isBuiltInDefaultGuess`, and the
+screen renders it in red beside the turn number rather than only at the start -- a table arguing about
+a draw should not have to ask whoever pressed Start Game what is in the bag.
 
-1. **Does the default survive?** Full Thrust's stated policy is that there is no default and "a match
-   carries a profile its players filled in, or it cannot be played". Applying that here is the
-   consistent answer and is the one the guessed special counts argue for -- but it makes every
-   existing Dirtside game unplayable and every new one require numbers up front.
-2. **Per game or per server?** The pot is one process-wide singleton today. A per-game composition
-   means building the pot per command, which collides with the `IChitPot` seam the tests inject
-   through (`ScriptedChitPot`); that seam would have to become something like
-   `Func<ChitPotComposition, IChitPot>`.
-3. **What happens to saved games?** `GroundGameRecord.FormatVersion` is 1 and a mismatched row is
-   **skipped, not migrated**. Adding a required field silently retires every stored Dirtside game
-   unless `Restore` defaults it -- which is question 1 again, wearing a different hat.
+**2. Per game or per server? Per game.** `IChitPot` stays; what was injected became
+`Func<ChitPotComposition, IChitPot>`. One pot is built per game from that game's counts when it is
+created or restored, and held on the service's `Held` record beside the token -- not per command,
+because a pot holds the shuffle's randomness and rebuilding it every draw would hand each resolution
+a fresh source. `Fire` and `FightAssaultRound` take the pot off the game they are playing, through a
+`CommandWithPot` sibling of `Command`. The old shape was a process-wide singleton: every table on the
+server drew from one bag, and none of them could say what was in it. `ScriptedChitPot.Handing(...)`
+is the test-side factory; the module's own doubles are untouched.
 
-Recommendation if a tiebreak is wanted: make the composition optional on the create request and
-carry it per game, keep `Default` for one release with readiness warning that it is a guess, then
-remove it. That gets the numbers in front of the player without retiring anyone's saved game.
+**3. What happens to saved games? Nothing -- they open.** The composition is stored in a **new
+optional `settings` field on `GroundGameRecord`**, not by bumping `FormatVersion`. That was the item
+worth getting right: a mismatched format is *skipped, not migrated*, so a required field would have
+retired every stored ground game on the machine, and the operator would have learned about it from a
+table asking where their game went. Optional costs nothing -- a row written before the field simply
+reads back without it and falls back exactly as a create request carrying no pot does, flagged as the
+guess. The field is opaque to the wrapper, which is shared with StarGrunt and has no business knowing
+what is in it. `DirtsideChitPotTests.AGameStoredBeforeThePotWasCarriedStillOpens` builds a
+pre-change row by hand and asserts it loads with `SkippedSaves` empty; anything genuinely unreadable
+still goes through `SkippedSave`, which the host logs at startup.
+
+**Content policy.** The engine owns procedures; the player owns every number those procedures read.
+The wire vocabulary (`DirtsideWire.ChitColours`, `ChitSpecials`) is which chits exist, which is the
+engine's; how many of each are in the bag is the player's, off their own counter sheet. The create
+screen's pot editor starts empty and adds rows by hand rather than laying out a grid of the values a
+sheet "has" -- how far the numbers run is the sheet's business. `toChitPotInput` sends nothing at all
+when nothing was counted, rather than a plausible bag. The one number this app still invents is the
+fallback, and it is now impossible to play on it without being told.
+
+Still open: **the on-screen validity-card editor** (gap 16). The pot half of gap 15 shipped.
+
+## Closed 2026-09-09 (maintainability tail)
+
+*The rows left over from `vault/maintainability-2026-09-09.md` after the two earlier passes. Every
+claim was re-derived before acting; two of them were wrong, and one was wrong in a way that made the
+real defect worse than reported.*
+
+- [x] **An empty origins list in `appsettings.json` was disabling both CORS fallbacks (#20).** The
+      finding said an empty JSON array "yields no config children" and therefore overrides nothing.
+      It yields a **non-null empty array** from the binder, so
+      `GetSection("Cors:AllowedOrigins").Get<string[]>()` was never null, the `??` chain never fell
+      through, and neither read underneath it could fire unless something had already put a value on
+      that same key. A declaration that configured nothing was silently switching off the fallbacks
+      below it. `NonEmpty` makes each read fall through only when it found no origins rather than no
+      key. The empty array stays, naming the key for whoever opens the file, and is now harmless.
+- [x] **The CORS fallback read a variable no document names (#20).** Every other `FORCESIGNAL_` name
+      in `.env.example` is honoured directly by the code as well as through compose's interpolation --
+      `FORCESIGNAL_MATCH_DB` by `ReadMatchDatabasePath`, the two `FORCESIGNAL_FEATURES_` names by
+      `FeatureFlags`. CORS read `FORCESIGNAL_CORS_ALLOWED_ORIGINS`, which appears in no README, no
+      `.env.example`, no compose file and no test, so an operator who set the documented
+      `FORCESIGNAL_WEB_ORIGIN` and started the API without compose was refused startup citing a
+      setting they had supplied. It now reads `FORCESIGNAL_WEB_ORIGIN`.
+      `ProductionHost_WithTheDocumentedWebOriginVariable_StartsRatherThanRefusing` fails on both
+      halves of the previous state.
+- [x] **The invented `Class-2 Beam` is gone from all four places (#17).** The scan named three; the
+      fourth was the server's, at `InMemoryMatchService.Normalization.cs`, and it was the worst of
+      them because it was invisible -- a ship created with an empty weapons list came back armed with
+      a class name, a damage rating of two dice and a reach of twenty-four, and nothing told the
+      player the server had written the stats for them. A ship that named no mounts now has none.
+      The client's three copies collapse to one `newWeaponMount()` holding a placeholder label and
+      the floors the server's own clamps impose, which mean "not entered".
+      `constants.ts`'s own header already said a starting point the player is "expected to replace"
+      is still a number this app shipped.
+- [x] **Three dead members removed (#19), each re-verified.** `FeatureFlags.IsFullThrustOnly` (only
+      callers were two assertions in `FeatureFlagTests`; the gate reads `StarGrunt` and `Dirtside`
+      directly). `DirtsideBoard.RemoveElement` (zero references anywhere in the repository, not even
+      a test). `DamagedEffects.CanFireAt` -- reported as "a written, tested rule never applied", which
+      is **wrong**: the rule is applied, through `EffectiveRangeBand.CanFire`, which is what
+      `DirectFire.Resolve` asks and which consults `DamagedEffects.Band`. `CanFireAt` was a second
+      way to ask the same question with no caller but its own test; the wrapper went and the coverage
+      moved to the property the resolver actually reads.
+
+**Verified dead and deliberately left, with the evidence, so the next pass need not re-derive it:**
+
+- `DirtsideElementStateDto.HasChosen` and `DirtsideSnapshotDto.ElementsStillToChoose`. Both are
+  written by `DirtsideGameService` and read by no production code in either language -- the screen
+  uses `hasMoved`/`hasTakenCombatAction`/`hasStoodDown` and `canEndActivation`/
+  `whyActivationCannotEnd` instead, which is what `HasChosen`'s own remarks say it should. Left
+  because removing a snapshot field is a wire change and the better answer for
+  `ElementsStillToChoose` is probably to render it, the way the order preview's verdict was.
+- `DirtsideWeaponDto.IsInterceptable` and `WeaponDefinition.IsInterceptable`: a complete write-only
+  chain -- copied DTO to definition at `DirtsideGameService.cs`, read nowhere, and not even sent by
+  the client, whose `DirtsideWeaponInput` does not carry the field. Its doc defends keeping it as
+  "the player's own reading of their card", which is not true while no client sends it. Left because
+  interception cannot be resolved by this API at all (see the area-defence entry above), so the
+  honest options are to wire the whole feature or to drop the field, and neither is a tail item.
+- `GET /api/stargrunt/status` and `GET /api/dirtside/status`: no client call, no script, no
+  healthcheck; the client asks `/api/features`. Used only by tests as a 200-vs-404 probe for the
+  feature flag, which `/api/features` already answers. They also state engine readiness a third time
+  (`"in-development"`, `"playable"`) beside `/api/features` and the `/ready` warnings, which is the
+  drift this repository has paid for elsewhere. Left because removing them is a three-file test
+  rewrite rather than a tail item.
+- `defaultShipForm`'s remaining stat numbers in `constants.ts` -- `thrustRating: 4`, `hullMax: 12`,
+  `armorMax: 4`, `fireControlMax: 2`, `pointDefenseSystems: 1`, `damageControlParties: 2`,
+  `screenRating: 1`. The same content-policy problem as the mount, condemned by the same file header,
+  but blanking them needs the create-ship form driven in a browser to see what a zero does, which is
+  not something this pass could check.
+- Roughly 32 further engine rules with tests and no Application caller (infantry combat entire,
+  opportunity fire, reaction fire, `ForfeitPriority`, `DeclineReaction`). These are the unfinished
+  slices the readiness warnings already name out loud, not dead code.
 
 ## Closed 2026-09-08 (audit follow-up)
 

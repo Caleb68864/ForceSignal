@@ -132,6 +132,42 @@ public sealed class ApiDocumentationAndReadinessTests
     }
 
     [Fact]
+    public async Task ProductionHost_WithTheDocumentedWebOriginVariable_StartsRatherThanRefusing()
+    {
+        // FORCESIGNAL_WEB_ORIGIN is the name .env.example and the README tell an operator to set,
+        // and compose interpolates it into Cors__AllowedOrigins__0 - but an API started without
+        // compose sees only the name the operator set. Every other documented FORCESIGNAL_ name is
+        // read directly by the code as well: FORCESIGNAL_MATCH_DB and the two feature flags both
+        // are. CORS instead read FORCESIGNAL_CORS_ALLOWED_ORIGINS, a name that appears in no
+        // document, no compose file and no test - so the one variable the docs name did nothing, and
+        // the API refused to start citing a setting that had been supplied.
+        var previous = Environment.GetEnvironmentVariable("FORCESIGNAL_WEB_ORIGIN");
+        Environment.SetEnvironmentVariable("FORCESIGNAL_WEB_ORIGIN", "http://board.invalid");
+
+        try
+        {
+            using var factory = CreateFactory("Production");
+            using var client = factory.CreateClient();
+
+            using var ready = await client.GetAsync("/ready");
+            ready.EnsureSuccessStatusCode();
+            var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("configured", readyBody.GetProperty("cors").GetString());
+
+            using var allowed = await SendPreflight(client, "http://board.invalid");
+            Assert.True(allowed.Headers.TryGetValues("Access-Control-Allow-Origin", out var allowedOrigins));
+            Assert.Equal("http://board.invalid", Assert.Single(allowedOrigins));
+
+            using var denied = await SendPreflight(client, "http://example.invalid");
+            Assert.False(denied.Headers.Contains("Access-Control-Allow-Origin"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("FORCESIGNAL_WEB_ORIGIN", previous);
+        }
+    }
+
+    [Fact]
     public async Task StarGruntReadiness_NamesTheMovesTheEngineHasAndTheApiDoesNot()
     {
         // Dirtside's warning names its slice boundary and StarGrunt's said only "in development",
@@ -169,6 +205,29 @@ public sealed class ApiDocumentationAndReadinessTests
         Assert.Contains("close assault", warning[..warning.IndexOf(';', StringComparison.Ordinal)], StringComparison.OrdinalIgnoreCase);
         Assert.Contains("systems-down recovery", warning, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("opportunity fire, area-defence interception and indirect fire are not yet reachable", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DirtsideReadiness_SaysTheFallbackChitPotIsAGuess()
+    {
+        // The one number this engine invents. Every other number a Dirtside game runs on came off a
+        // record card its owner filled in; the fallback pot's special counts did not, and a table
+        // playing on them is playing on our guess about the most sensitive input in the damage
+        // model. Readiness is where the operator finds out before the first shot rather than after
+        // an argument about one, so the warning has to say "guess" in as many words.
+        using var factory = CreateFactory("Development", new Dictionary<string, string?> { ["Features:Dirtside"] = "true" });
+        using var client = factory.CreateClient();
+
+        using var ready = await client.GetAsync("/ready");
+        ready.EnsureSuccessStatusCode();
+        var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
+        var warning = Assert.Single(
+            readyBody.GetProperty("warnings").EnumerateArray().Select(entry => entry.GetString() ?? string.Empty),
+            entry => entry.Contains("chit pot", StringComparison.Ordinal));
+
+        Assert.Contains("are a guess, not a published distribution", warning, StringComparison.Ordinal);
+        Assert.Contains("chitPot", warning, StringComparison.Ordinal);
+        Assert.Contains("kept for one release", warning, StringComparison.Ordinal);
     }
 
     [Fact]

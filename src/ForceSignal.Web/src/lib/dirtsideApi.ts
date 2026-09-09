@@ -8,15 +8,36 @@
  */
 
 import { get, post } from './api.ts';
-import type { DirtsideGameCreated, DirtsideSnapshot, GameHandle } from '../types.ts';
+import type {
+  DirtsideGameCreated,
+  DirtsideNumericalChits,
+  DirtsideSnapshot,
+  DirtsideSpecialChits,
+  GameHandle,
+} from '../types.ts';
 
 function gameAuth(game: GameHandle) {
   return { 'X-Game-Token': game.token };
 }
 
-/** Starts a game. */
-export function createGame(name: string) {
-  return post<DirtsideGameCreated>('/api/dirtside/games', { name });
+/**
+ * What is in the chit pot, counted off the user's own counter sheet. This app supplies none of it.
+ */
+export type DirtsideChitPotInput = {
+  numericals: DirtsideNumericalChits[];
+  specials: DirtsideSpecialChits[];
+};
+
+/**
+ * Starts a game.
+ *
+ * The chit pot is sent when the user has counted one and left out when they have not. Leaving it out
+ * is not free: the server falls back to a built-in composition whose special counts are its own
+ * guess, and says so on the snapshot it hands back. The fallback exists for one release so that
+ * games started before the pot was asked for still open.
+ */
+export function createGame(name: string, chitPot?: DirtsideChitPotInput) {
+  return post<DirtsideGameCreated>('/api/dirtside/games', chitPot ? { name, chitPot } : { name });
 }
 
 /** Reads a game back. */

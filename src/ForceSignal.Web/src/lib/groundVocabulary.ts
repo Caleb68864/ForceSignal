@@ -36,7 +36,18 @@ export const assaultStages = [
 /** The same ladder StarGrunt sends as face counts rather than names. */
 export const qualityLadder = [4, 6, 8, 10, 12] as const;
 
+/** Colours a numerical damage chit can be printed in. */
+export const chitColours = ['Red', 'Yellow', 'Green'] as const;
+
+/**
+ * The non-numerical chits, by the name each one goes by. How many of each are in the bag is the
+ * player's to count; which ones exist is the engine's.
+ */
+export const chitSpecials = ['Mobility', 'SystemsDownTarget', 'SystemsDownFirer', 'Boom'] as const;
+
 export type Band = (typeof bands)[number];
 export type FireControl = (typeof fireControls)[number];
 export type QualityDieName = (typeof qualityDice)[number];
 export type AssaultStage = (typeof assaultStages)[number];
+export type ChitColourName = (typeof chitColours)[number];
+export type ChitSpecialName = (typeof chitSpecials)[number];

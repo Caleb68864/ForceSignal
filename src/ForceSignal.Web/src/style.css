@@ -722,6 +722,12 @@ small,
   text-transform: uppercase;
 }
 
+/* A line stating a number this app guessed at rather than one the player entered. Rare on purpose:
+   the only one today is the fallback chit pot, which is on its way out. */
+.constraint-line.warning {
+  color: var(--red);
+}
+
 /* The last box of a hull row: crossing it off triggers a threshold check. */
 .damage-cells span.row-end {
   margin-right: 5px;

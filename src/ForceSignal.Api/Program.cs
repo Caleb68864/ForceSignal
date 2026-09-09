@@ -317,8 +317,24 @@ static CorsOriginSettings ReadAllowedOrigins(IConfiguration configuration, IHost
     // match it either, because a scalar does not bind to string[]. So setting the obvious variable
     // configured no origins at all, and the API refused to start with a message about a setting the
     // operator had in fact set.
-    var configured = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-        ?? SplitOrigins(configuration["FORCESIGNAL_CORS_ALLOWED_ORIGINS"])
+    // The middle read is the variable the operator is actually told to set. Every other
+    // FORCESIGNAL_ name in .env.example is honoured directly by the code as well as through
+    // compose's interpolation - FORCESIGNAL_MATCH_DB by ReadMatchDatabasePath, the two
+    // FORCESIGNAL_FEATURES_ names by FeatureFlags - so an API run without compose reads the same
+    // names the documentation gives. CORS was the exception: it read FORCESIGNAL_CORS_ALLOWED_ORIGINS,
+    // a name that appears in no README, no .env.example, no compose file and no test, so an operator
+    // who set the documented FORCESIGNAL_WEB_ORIGIN and started the API directly was refused startup
+    // over a setting they had supplied - the same failure the literal "Cors__AllowedOrigins" read
+    // above used to produce.
+    // Each read falls through only when it found nothing, which has to mean "no origins" rather than
+    // "no key": the binder hands back a non-null empty array for a section that exists and is empty,
+    // and appsettings.json carries exactly that - "Cors": { "AllowedOrigins": [] }, which names the
+    // key for whoever opens the file and configures nothing. Without the guard the first read was
+    // therefore never null, the ?? never fell through, and the two reads below could not fire at all
+    // unless something had already put a value on that same key: a declaration that configured
+    // nothing was silently disabling the fallbacks underneath it.
+    var configured = NonEmpty(configuration.GetSection("Cors:AllowedOrigins").Get<string[]>())
+        ?? SplitOrigins(configuration["FORCESIGNAL_WEB_ORIGIN"])
         ?? SplitOrigins(configuration["Cors:AllowedOrigins"]);
 
     if (configured is { Length: > 0 })
@@ -341,6 +357,9 @@ static CorsOriginSettings ReadAllowedOrigins(IConfiguration configuration, IHost
 
     throw new InvalidOperationException("Cors:AllowedOrigins must be configured outside Development.");
 }
+
+// An empty list of origins is not a configured list of origins, so it must not stop the next read.
+static string[]? NonEmpty(string[]? origins) => origins is { Length: > 0 } ? origins : null;
 
 static string[]? SplitOrigins(string? value) =>
     string.IsNullOrWhiteSpace(value)
@@ -454,6 +473,20 @@ static string[] ReadDeploymentWarnings(
             "Dirtside ground combat is enabled. Direct fire, close assault, systems-down recovery and the "
             + "activation sequence are playable; opportunity fire, area-defence interception and indirect "
             + "fire are not yet reachable from this API.");
+
+        // Said out loud because it is the one number in this engine the server invents. Every other
+        // number a Dirtside game runs on came off a record card the player filled in; the fallback
+        // pot did not, and its special counts are not even a published distribution - the sheet says
+        // only that there are fewer of the firer's Systems Down than the target's, and 6/6/3/3
+        // honours that ordering and nothing else. A table that plays on it is playing on our guess
+        // about the most sensitive input in the damage model, and has a right to know before the
+        // first shot rather than after an argument about one.
+        warnings.Add(
+            "Dirtside games created without a chit pot fall back to a built-in default composition, and "
+            + "its special-chit counts (Mobility, Systems Down and Boom) are a guess, not a published "
+            + "distribution - every damage probability in such a game rests on numbers nobody counted. "
+            + "Send chitPot when creating a game to play on your own counter sheet. The fallback is kept "
+            + "for one release so that games stored before it existed still open, and is then removed.");
     }
 
     if (environment.IsDevelopment())
