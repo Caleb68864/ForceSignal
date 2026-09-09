@@ -16,6 +16,7 @@ function unit(overrides: Partial<StarGruntUnit> = {}): StarGruntUnit {
     qualityDie: 8,
     leadershipValue: 2,
     fatigue: 'Fresh',
+    figures: Array.from({ length: 8 }, () => ({ armourDie: 12 })),
     figuresAlive: 5,
     fullStrength: 8,
     figuresWounded: 1,
@@ -51,6 +52,26 @@ describe('toForceFile', () => {
     // A force file is a roster, not a casualty return: reimporting a shot-up squad should give
     // back the squad, not the survivors.
     expect(toForceFile('blue', [unit()]).units[0].figures).toHaveLength(8);
+  });
+
+  it('writes the armour die the player picked, not one of its own', () => {
+    // Export wrote a literal 6 for every figure in every unit. That is both halves of a bad thing
+    // at once: a rules number this app does not own, and silent loss of the player's own data in
+    // the player's own file. A squad the player put on D12 armour came back on D6, and the round
+    // trip below could not see it because import read back what export had written.
+    const file = toForceFile('blue', [unit({ figures: [{ armourDie: 12 }, { armourDie: 10 }, { armourDie: 12 }] })]);
+
+    expect(file.units[0].figures.map((figure) => figure.armourDie)).toEqual([12, 10, 12]);
+  });
+
+  it('keeps a mixed roster mixed through a whole round trip', () => {
+    // A squad may mix armour - that is why figures are listed rather than counted - so the file has
+    // to carry each figure's own die rather than one die for the unit.
+    const written = toForceFile('blue', [unit({ figures: [{ armourDie: 4 }, { armourDie: 12 }] })]);
+
+    const read = fromForceFile(JSON.parse(JSON.stringify(written)));
+
+    expect(read.units[0].figures.map((figure) => figure.armourDie)).toEqual([4, 12]);
   });
 });
 

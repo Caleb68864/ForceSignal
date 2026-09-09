@@ -603,6 +603,9 @@ public sealed class StarGruntGameService : IStarGruntGameService
             (int)unit.QualityDie,
             unit.LeadershipValue,
             unit.Fatigue.ToString(),
+            // The roster as entered, not what is left of it: these are the dice the player typed,
+            // and a client writing the force back out has no other place to read them from.
+            [.. unit.Figures.Select(figure => new StarGruntFigureDto((int)figure.ArmourDie))],
             status.FiguresAlive,
             unit.FullStrength,
             status.FiguresWounded,

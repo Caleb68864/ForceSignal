@@ -380,6 +380,9 @@ export type StarGruntUnit = {
   qualityDie: number;
   leadershipValue: number;
   fatigue: string;
+  // The roster the player entered, at full strength, each figure carrying the armour die they
+  // chose. Export reads the dice from here: there is nowhere else on a snapshot that holds them.
+  figures: StarGruntFigure[];
   figuresAlive: number;
   fullStrength: number;
   figuresWounded: number;
