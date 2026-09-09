@@ -107,9 +107,11 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         }));
 
-    // Creating a match needs no credentials and allocates state the server keeps for a day, so it
-    // is the one route a stranger can use to fill the server up. Ten a minute is more than any
-    // table opens and far fewer than it takes to reach the ceiling.
+    // Opening a game needs no credentials and allocates state the server keeps for a day, so these
+    // are the routes a stranger can use to fill the server up. Ten a minute is more than any table
+    // opens and far fewer than it takes to reach the ceiling. The two ground creates share this one
+    // budget rather than getting their own: they cost the same machine the same memory, and three
+    // separate allowances would just mean three times as much of it.
     options.AddPolicy(RateLimitPolicies.MatchCreate, context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -234,16 +236,26 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "ForceSign
     .WithTags("Operations")
     .WithSummary("Reports API liveness.")
     .Produces(StatusCodes.Status200OK);
-app.MapGet("/ready", () => Results.Ok(new
+// Readiness reports what the server is doing, not what it was asked to do. Those differ in exactly
+// one case and it is the case that matters: a database file that will not open leaves the server
+// running on memory, deliberately, so one bad file does not end every game on the machine. Reading
+// the configured path alone said "sqlite" anyway - so the operator believed their games survived a
+// restart when they did not, and the container's own healthcheck called that stack healthy. The
+// store the match service was actually handed is the only honest answer to the question.
+app.MapGet("/ready", (IMatchStore matchStore) =>
 {
-    status = "ready",
-    service = "ForceSignal.Api",
-    environment = app.Environment.EnvironmentName,
-    cors = allowedOrigins.AllowAnyOrigin ? "development-private-network" : "configured",
-    persistence = string.IsNullOrWhiteSpace(matchDatabasePath) ? "in-memory" : "sqlite",
-    features = features.ToDto(),
-    warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath)
-}))
+    var durable = matchStore is not NoMatchStore;
+    return Results.Ok(new
+    {
+        status = "ready",
+        service = "ForceSignal.Api",
+        environment = app.Environment.EnvironmentName,
+        cors = allowedOrigins.AllowAnyOrigin ? "development-private-network" : "configured",
+        persistence = durable ? "sqlite" : "in-memory",
+        features = features.ToDto(),
+        warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath, durable)
+    });
+})
     .WithName("GetReadiness")
     .WithTags("Operations")
     .WithSummary("Reports API readiness and deployment-critical configuration state.")
@@ -391,7 +403,8 @@ static string[] ReadDeploymentWarnings(
     IHostEnvironment environment,
     CorsOriginSettings allowedOrigins,
     FeatureFlags features,
-    string? matchDatabasePath)
+    string? matchDatabasePath,
+    bool durable)
 {
     var warnings = new List<string>();
 
@@ -400,6 +413,16 @@ static string[] ReadDeploymentWarnings(
     if (string.IsNullOrWhiteSpace(matchDatabasePath))
     {
         warnings.Add("Matches are stored in memory and will be lost on API restart. Set Persistence:MatchDatabasePath to keep them.");
+    }
+    else if (!durable)
+    {
+        // Storage was asked for and could not be had. Silence here is worse than the fallback it
+        // describes: the games play, so nothing looks wrong until the restart that ends all of them.
+        // The path is left out on purpose - this route answers anyone who can reach it, and the API
+        // log already names the file for whoever has to go and fix it.
+        warnings.Add(
+            "Matches are stored in memory and will be lost on API restart: the configured database could not be "
+            + "opened, so the server fell back. The file has been left as it is; see the API log to recover it.");
     }
 
     // An in-progress engine being switched on is worth saying out loud, because the reason to

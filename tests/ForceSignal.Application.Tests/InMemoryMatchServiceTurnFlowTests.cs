@@ -321,6 +321,52 @@ public sealed class InMemoryMatchServiceTurnFlowTests
         Assert.False(table.Service.IsMatchParticipant(Guid.NewGuid(), table.OwnerToken));
     }
 
+    [Fact]
+    public void AnEarlyTapOfFinishedPlotting_CanBeTakenBackWhileTheOtherAdmiralIsStillPlotting()
+    {
+        var table = TestMatch.Create();
+        table.MarkBothReady();
+
+        // Tapped before writing a single order, which is what a fat finger on a tablet at the table
+        // does. This used to stand until the turn had been played out, and the ship drifted for it.
+        var declared = table.Service.DeclareOrdersComplete(
+            table.MatchId, new DeclareOrdersCompleteRequest(table.OwnerToken));
+        Assert.True(declared.Participants.Single(p => p.DisplayName == "Blue Admiral").OrdersComplete);
+        Assert.Equal("OrderEntry", declared.Phase);
+
+        var withdrawn = table.Service.DeclareOrdersComplete(
+            table.MatchId, new DeclareOrdersCompleteRequest(table.OwnerToken, Complete: false));
+
+        Assert.False(withdrawn.Participants.Single(p => p.DisplayName == "Blue Admiral").OrdersComplete);
+        Assert.Equal("OrderEntry", withdrawn.Phase);
+        Assert.Contains(withdrawn.MatchLog, entry => entry.Message.Contains("Blue Admiral is plotting again", StringComparison.Ordinal));
+
+        // And the order that should have been written the first time still lands.
+        var ordered = table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(
+            table.OwnerToken, table.BlueLead.Id, new MovementOrder(2, 0, TurnDirection.None), "blue-salt"));
+        Assert.True(ordered.OrderStatuses.Single(status => status.ShipId == table.BlueLead.Id).IsCommitted);
+    }
+
+    [Fact]
+    public void OncePlottingIsClosedForEveryone_ItIsNoLongerOneAdmiralsToReopen()
+    {
+        var table = TestMatch.Create();
+        table.MarkBothReady();
+        table.Service.CommitOrder(table.MatchId, new CommitOrderRequest(
+            table.OwnerToken, table.BlueLead.Id, new MovementOrder(1, 0, TurnDirection.None), "blue-salt"));
+
+        table.Service.DeclareOrdersComplete(table.MatchId, new DeclareOrdersCompleteRequest(table.OwnerToken));
+        var closed = table.Service.DeclareOrdersComplete(table.MatchId, new DeclareOrdersCompleteRequest(table.OpponentToken));
+        Assert.Equal("OrdersLocked", closed.Phase);
+
+        // The last declaration seals the turn. Taking one back now would re-open orders the other
+        // side has already committed to, so it is the table's business and not one player's.
+        var refused = Assert.Throws<InvalidOperationException>(() => table.Service.DeclareOrdersComplete(
+            table.MatchId, new DeclareOrdersCompleteRequest(table.OwnerToken, Complete: false)));
+
+        Assert.Contains("sealed", refused.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static MovementOrder Drift => new(0, 0, TurnDirection.None);
 
     private sealed record TestMatch(

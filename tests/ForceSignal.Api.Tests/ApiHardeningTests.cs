@@ -324,11 +324,27 @@ public sealed class ApiHardeningTests
             Assert.NotNull(created);
 
             // And the game is playable, just not durable - which is exactly the mode a server with no
-            // path configured has always run in, and which readiness already warns about.
+            // path configured has always run in.
             using var read = new HttpRequestMessage(HttpMethod.Get, $"/api/matches/{created.MatchId}/snapshot");
             read.Headers.TryAddWithoutValidation("X-Participant-Token", created.ParticipantToken);
             using var snapshot = await client.SendAsync(read);
             snapshot.EnsureSuccessStatusCode();
+
+            // And readiness says so. Reporting the configured intent instead said "sqlite" for a
+            // server running on memory, so the operator believed their games survived a restart and
+            // the container healthcheck agreed with them - right up until the restart that ended
+            // every game on the machine.
+            var ready = await client.GetFromJsonAsync<JsonElement>("/ready");
+            Assert.Equal("in-memory", ready.GetProperty("persistence").GetString());
+            var warnings = ready.GetProperty("warnings").EnumerateArray()
+                .Select(warning => warning.GetString() ?? string.Empty)
+                .ToArray();
+            Assert.Contains(warnings, warning => warning.Contains("stored in memory", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(warnings, warning => warning.Contains("could not be", StringComparison.OrdinalIgnoreCase));
+
+            // The path is not in the warning: this route answers anyone who can reach it, and the
+            // API log already names the file for whoever has to go and recover it.
+            Assert.DoesNotContain(warnings, warning => warning.Contains(databasePath, StringComparison.Ordinal));
 
             // The bad file is left where it is, so whoever has to recover it still can.
             Assert.Equal("this is not a database, it is a text file", await File.ReadAllTextAsync(databasePath));
@@ -364,6 +380,46 @@ public sealed class ApiHardeningTests
         // first few go through; the budget cuts in well before fifteen.
         Assert.Contains(HttpStatusCode.OK, statuses);
         Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
+    }
+
+    [Fact]
+    public async Task GroundGameCreation_SharesTheBudgetThatGuardsOpeningAMatch()
+    {
+        using var factory = CreateFactory(new Dictionary<string, string?>
+        {
+            ["Features:StarGrunt"] = "true",
+            ["Features:Dirtside"] = "true",
+        });
+        using var client = factory.CreateClient();
+
+        // Same threat model as POST /api/matches, and for a while the only routes beside it that a
+        // stranger could loop on with no credentials at all. One budget covers all three, so
+        // alternating between the engines does not buy three times the allowance.
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 0; attempt < 15; attempt++)
+        {
+            var path = attempt % 2 == 0 ? "/api/dirtside/games" : "/api/stargrunt/games";
+            using var response = await client.PostAsJsonAsync(path, new { name = $"Flood {attempt}" });
+            statuses.Add(response.StatusCode);
+        }
+
+        Assert.Contains(HttpStatusCode.OK, statuses);
+        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
+    }
+
+    [Fact]
+    public async Task ATableOpeningOneGroundGame_IsNotTurnedAway()
+    {
+        using var factory = CreateFactory(new Dictionary<string, string?>
+        {
+            ["Features:Dirtside"] = "true",
+        });
+        using var client = factory.CreateClient();
+
+        // The budget exists to stop a loop, not a table. Opening a game has to still just work.
+        using var response = await client.PostAsJsonAsync("/api/dirtside/games", new { name = "Ridge 9" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

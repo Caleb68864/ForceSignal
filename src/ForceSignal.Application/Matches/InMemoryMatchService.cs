@@ -86,7 +86,10 @@ public interface IMatchService
     /// <summary>Flies a fighter group up to its move allowance in any direction.</summary>
     MatchSnapshotDto MoveFighterGroup(Guid matchId, MoveFighterGroupRequest request);
 
-    /// <summary>Declares a participant has finished plotting, leaving unordered ships to hold course.</summary>
+    /// <summary>
+    /// Declares a participant has finished plotting, leaving unordered ships to hold course, or
+    /// takes that declaration back while order entry is still open.
+    /// </summary>
     MatchSnapshotDto DeclareOrdersComplete(Guid matchId, DeclareOrdersCompleteRequest request);
 
     /// <summary>
@@ -192,6 +195,13 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     private const int MaxWeaponsPerShip = 40;
     private const int MaxOrdnanceMarkersPerMatch = 400;
     private const int MaxFiringResultsPerMatch = 5000;
+
+    /// <summary>
+    /// Dice one shot may have rolled. The list is the table's audit trail for a volley, so it is
+    /// kept and replayed into every snapshot - which is exactly why a restored one needs a ceiling.
+    /// No mount on any profile rolls anywhere near this many.
+    /// </summary>
+    private const int MaxDiceRollsPerFiringResult = 200;
 
     /// <summary>
     /// How many battle log entries a match keeps. The log is replayed in full inside every
@@ -1296,6 +1306,29 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
             if (match.Phase is not (MatchPhase.OrderEntry or MatchPhase.OrdersLocked))
             {
                 throw new InvalidOperationException("Plotting can only be closed out during order entry.");
+            }
+
+            // Saying you are done is a declaration about your own fleet, and until the last player
+            // makes theirs nothing has happened yet. It was one-way: a tap meant for something else
+            // handed the turn over with unordered ships holding course, and the only way back was to
+            // play the turn out. So it can be taken back for exactly as long as it means nothing -
+            // while order entry is still open. Once the last declaration lands the phase moves on,
+            // orders are sealed, and re-opening the turn is no longer one player's to do.
+            if (!request.Complete)
+            {
+                if (match.Phase != MatchPhase.OrderEntry)
+                {
+                    throw new InvalidOperationException(
+                        "Everyone has finished plotting and the orders are sealed, so this cannot be taken back now.");
+                }
+
+                participant.OrdersComplete = false;
+                match.AddLog(
+                    "Orders",
+                    match.Phase.ToString(),
+                    $"{participant.DisplayName} is plotting again.");
+                match.Touch("OrdersDeclarationWithdrawn");
+                return ToSnapshot(match);
             }
 
             participant.OrdersComplete = true;

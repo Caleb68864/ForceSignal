@@ -513,6 +513,7 @@ public static class MatchEndpoints
             .WithName("DeclareOrdersComplete")
             .WithTags("Orders")
             .WithSummary("Declares a participant has finished plotting; unordered ships hold course and speed.")
+            .WithDescription("Send complete=false to take the declaration back, which is allowed while order entry is still open.")
             .Produces<MatchSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);

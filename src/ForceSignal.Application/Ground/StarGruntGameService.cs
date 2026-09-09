@@ -578,9 +578,10 @@ public sealed class StarGruntGameService : IStarGruntGameService
             [.. game.Sides.Select(side => side.Value)],
             game.Session.ActiveSide?.Value,
             game.Session.CurrentFrame?.Unit.Value,
-            // Asked only once both sides exist. A game still being built has an empty session, and
-            // the guard reads the two sides to compare their strengths.
-            game.Session.Sides.Length == 2 ? SequenceGuards.FirstActivationChooser(game.Session)?.Value : null,
+            // A game still being built has an empty session and so nobody entitled to the choice.
+            // That is now the guard's own answer rather than a second copy of it here, so the read
+            // and the write paths cannot drift apart on what an unbuilt game means.
+            SequenceGuards.FirstActivationChooser(game.Session)?.Value,
             [.. game.Units.Values.Select(unit => ToUnitDto(game, unit, legality[unit.Id], activated.Contains(unit.Id)))],
             [.. game.Log],
             held.Version);

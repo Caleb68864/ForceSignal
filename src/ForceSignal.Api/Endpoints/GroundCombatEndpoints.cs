@@ -18,7 +18,9 @@ namespace ForceSignal.Api.Endpoints;
 /// <para>
 /// Every route that names a game requires that game's token, through <see cref="GameTokenFilter{TService}"/>.
 /// Only the status routes and the create routes are open: one says the engine is here, the other
-/// is where the token comes from.
+/// is where the token comes from. Being open with no credentials to ask for is what makes a create
+/// route the one a stranger loops on, so both share the budget that already guards opening a Full
+/// Thrust match.
 /// </para>
 /// </remarks>
 public static class GroundCombatEndpoints
@@ -41,6 +43,7 @@ public static class GroundCombatEndpoints
             .WithTags("StarGrunt")
             .WithSummary("Starts a game and issues its token.")
             .WithDescription("The token comes back here and nowhere else. Every other route for the game requires it in the X-Game-Token header.")
+            .RequireRateLimiting(RateLimitPolicies.MatchCreate)
             .Produces<StarGruntGameCreatedResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -304,6 +307,7 @@ public static class GroundCombatEndpoints
             .WithTags("Dirtside")
             .WithSummary("Starts a game and issues its token.")
             .WithDescription("The token comes back here and nowhere else. Every other route for the game requires it in the X-Game-Token header.")
+            .RequireRateLimiting(RateLimitPolicies.MatchCreate)
             .Produces<DirtsideGameCreatedResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest);
 

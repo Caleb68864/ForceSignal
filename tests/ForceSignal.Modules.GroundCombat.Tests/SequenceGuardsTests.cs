@@ -63,6 +63,39 @@ public class SequenceGuardsTests
         Assert.Null(SequenceGuards.FirstActivationChooser(session));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void AGameThatIsNotTwoSidedNamesNobodyRatherThanFaulting(int sideCount)
+    {
+        // A session with any other number of sides has no "side with fewer units" for the rule to
+        // name. Reading the two sides directly made the first turn of such a game a server fault -
+        // and a save file edited by hand is all it takes to produce one.
+        var session = SequenceFixtures.Game(3, 7) with
+        {
+            Sides =
+            [
+                .. Enumerable.Range(0, sideCount)
+                    .Select(index => SideState.Of(new SideId($"side-{index}"), SequenceFixtures.Units($"side-{index}", index + 1))),
+            ],
+        };
+
+        Assert.Null(SequenceGuards.FirstActivationChooser(session));
+    }
+
+    [Fact]
+    public void ATurnCanBegunOnAGameThatIsNotTwoSidedWithoutFaulting()
+    {
+        // BeginTurn walks straight into the guard through CanChooseFirstActivator, which is the
+        // path a lopsided save takes on the very first thing anyone asks of it.
+        var session = SequenceFixtures.Game(3, 7) with { Sides = [] };
+
+        var begun = GroundCombatSequence.BeginTurn(session);
+
+        Assert.True(GroundCombatSequence.CanChooseFirstActivator(begun, SequenceFixtures.Blue).IsAllowed);
+    }
+
     [Fact]
     public void TheChoiceIsCountedFreshEachTurnSoLossesCanMoveIt()
     {
