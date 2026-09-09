@@ -58,6 +58,11 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 //
 // Read from the built configuration rather than the builder's, so settings a host layers in during
 // startup - a container, or an integration test - are seen rather than missed.
+//
+// Every store is opened through OpenMatchStore, and OpenMatchStore records what it got into
+// MatchStoreReport, so readiness answers for all of them rather than for whichever one happens to
+// be injectable. See MatchStoreReport for what reading one store's reality as the machine's cost.
+builder.Services.AddSingleton<MatchStoreReport>();
 builder.Services.AddSingleton<IMatchStore>(sp => OpenMatchStore(sp, "Full Thrust", "matches"));
 builder.Services.AddSingleton<IMatchService>(sp =>
     new InMemoryMatchService(null, sp.GetRequiredService<IMatchStore>(), loadPersisted: true));
@@ -240,20 +245,33 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "ForceSign
 // one case and it is the case that matters: a database file that will not open leaves the server
 // running on memory, deliberately, so one bad file does not end every game on the machine. Reading
 // the configured path alone said "sqlite" anyway - so the operator believed their games survived a
-// restart when they did not, and the container's own healthcheck called that stack healthy. The
-// store the match service was actually handed is the only honest answer to the question.
-app.MapGet("/ready", (IMatchStore matchStore) =>
+// restart when they did not, and the container's own healthcheck called that stack healthy.
+//
+// And it reports every store, not one. This server keeps a table per engine, and answering from the
+// single injectable IMatchStore answered for Full Thrust and called that the state of the machine:
+// a file whose matches table was healthy and whose dirtside_games table was not reported "sqlite"
+// with no warning while every Dirtside game went to memory. Each store records what it turned out
+// to be as it is opened, so the answer here covers all of them and cannot miss a fourth.
+app.MapGet("/ready", (IMatchStore matchStore, MatchStoreReport storeReport) =>
 {
-    var durable = matchStore is not NoMatchStore;
+    // Injected rather than resolved lazily so that the Full Thrust store is open - and therefore
+    // recorded - however this endpoint is reached.
+    _ = matchStore;
+    var stores = storeReport.Stores;
     return Results.Ok(new
     {
         status = "ready",
         service = "ForceSignal.Api",
         environment = app.Environment.EnvironmentName,
         cors = allowedOrigins.AllowAnyOrigin ? "development-private-network" : "configured",
-        persistence = durable ? "sqlite" : "in-memory",
+        // "mixed" is not a configuration anyone asks for: it is one engine's table having failed
+        // while another's opened, which is precisely the state that used to be reported as "sqlite".
+        persistence = stores.Count > 0 && stores.All(store => store.Durable) ? "sqlite"
+            : stores.Any(store => store.Durable) ? "mixed"
+            : "in-memory",
+        stores = stores.Select(store => new { engine = store.Engine, persistence = store.Durable ? "sqlite" : "in-memory" }),
         features = features.ToDto(),
-        warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath, durable)
+        warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath, stores)
     });
 })
     .WithName("GetReadiness")
@@ -385,15 +403,19 @@ static string? ReadMatchDatabasePath(IConfiguration configuration) =>
 // reading the error should still be able to recover what is in it.
 static IMatchStore OpenMatchStore(IServiceProvider services, string engine, string tableName)
 {
+    var report = services.GetRequiredService<MatchStoreReport>();
     var path = ReadMatchDatabasePath(services.GetRequiredService<IConfiguration>());
     if (string.IsNullOrWhiteSpace(path))
     {
+        report.Record(engine, durable: false);
         return NoMatchStore.Instance;
     }
 
     try
     {
-        return new SqliteMatchStore(path, tableName);
+        var store = new SqliteMatchStore(path, tableName);
+        report.Record(engine, durable: true);
+        return store;
     }
     catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or ArgumentException)
     {
@@ -402,6 +424,7 @@ static IMatchStore OpenMatchStore(IServiceProvider services, string engine, stri
             error,
             engine,
             path);
+        report.Record(engine, durable: false);
         return NoMatchStore.Instance;
     }
 }
@@ -431,9 +454,10 @@ static string[] ReadDeploymentWarnings(
     CorsOriginSettings allowedOrigins,
     FeatureFlags features,
     string? matchDatabasePath,
-    bool durable)
+    IReadOnlyList<MatchStoreState> stores)
 {
     var warnings = new List<string>();
+    var fellBack = stores.Where(store => !store.Durable).Select(store => store.Engine).ToArray();
 
     // Reported in every environment, because the reason to read readiness before a game is to find
     // out what will happen if the machine hiccups.
@@ -441,7 +465,7 @@ static string[] ReadDeploymentWarnings(
     {
         warnings.Add("Matches are stored in memory and will be lost on API restart. Set Persistence:MatchDatabasePath to keep them.");
     }
-    else if (!durable)
+    else if (stores.Count > 0 && fellBack.Length == stores.Count)
     {
         // Storage was asked for and could not be had. Silence here is worse than the fallback it
         // describes: the games play, so nothing looks wrong until the restart that ends all of them.
@@ -450,6 +474,16 @@ static string[] ReadDeploymentWarnings(
         warnings.Add(
             "Matches are stored in memory and will be lost on API restart: the configured database could not be "
             + "opened, so the server fell back. The file has been left as it is; see the API log to recover it.");
+    }
+    else if (fellBack.Length > 0)
+    {
+        // One engine's table failed while another's opened. This is the state that used to be
+        // reported as a healthy "sqlite", because readiness read one store and spoke for three: the
+        // engines named here are playable and are not being written down.
+        warnings.Add(
+            $"{string.Join(" and ", fellBack)} games are stored in memory and will be lost on API restart: their "
+            + "table in the configured database could not be opened, so those engines fell back while the rest "
+            + "are on disk. The file has been left as it is; see the API log to recover it.");
     }
 
     // An in-progress engine being switched on is worth saying out loud, because the reason to

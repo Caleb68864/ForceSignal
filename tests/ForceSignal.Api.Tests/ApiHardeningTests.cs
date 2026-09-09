@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ForceSignal.Application.Matches;
+using ForceSignal.Contracts.Features;
 using ForceSignal.Contracts.Matches;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -348,6 +349,103 @@ public sealed class ApiHardeningTests
 
             // The bad file is left where it is, so whoever has to recover it still can.
             Assert.Equal("this is not a database, it is a text file", await File.ReadAllTextAsync(databasePath));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A stray temp directory is untidy, not a failing test.
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ReadinessReportsEveryStoreThisServerOpened()
+    {
+        // Readiness used to answer from the single injectable IMatchStore, which is Full Thrust's.
+        // The two ground engines open stores of their own, as constructor arguments, reachable from
+        // nowhere - so "persistence: sqlite" was a statement about one table out of three, and a
+        // machine whose Dirtside table had failed reported itself healthy while every Dirtside game
+        // on it went to memory. One entry per store, collected as each is opened.
+        var directory = Path.Combine(Path.GetTempPath(), $"forcesignal-stores-{Guid.NewGuid():n}");
+        try
+        {
+            using var factory = CreateFactory(new Dictionary<string, string?>
+            {
+                ["Persistence:MatchDatabasePath"] = Path.Combine(directory, "matches.db"),
+                ["Features:StarGrunt"] = "true",
+                ["Features:Dirtside"] = "true",
+            });
+            using var client = factory.CreateClient();
+
+            var ready = await client.GetFromJsonAsync<JsonElement>("/ready");
+
+            var stores = ready.GetProperty("stores").EnumerateArray()
+                .ToDictionary(
+                    store => store.GetProperty("engine").GetString() ?? string.Empty,
+                    store => store.GetProperty("persistence").GetString() ?? string.Empty,
+                    StringComparer.Ordinal);
+
+            Assert.Equal(
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["Full Thrust"] = "sqlite",
+                    ["StarGrunt"] = "sqlite",
+                    ["Dirtside"] = "sqlite",
+                },
+                stores);
+            Assert.Equal("sqlite", ready.GetProperty("persistence").GetString());
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A stray temp directory is untidy, not a failing test.
+            }
+        }
+    }
+
+    [Fact]
+    public async Task EveryEngineThisServerOffers_ReportsAStoreOfItsOwn()
+    {
+        // The drift guard, and the reason this was fixed with a report rather than with two more
+        // special cases: a fifth engine arrives as a feature flag, and if its store is not opened
+        // the way the other three are it never reaches readiness and nobody finds out until the
+        // restart. Read off the flags themselves rather than from a list kept here, so adding one
+        // fails this test until its store is reported too.
+        var directory = Path.Combine(Path.GetTempPath(), $"forcesignal-engines-{Guid.NewGuid():n}");
+        try
+        {
+            var everyEngineOn = typeof(FeatureFlagsDto)
+                .GetProperties()
+                .ToDictionary(flag => $"Features:{flag.Name}", _ => (string?)"true", StringComparer.Ordinal);
+            everyEngineOn["Persistence:MatchDatabasePath"] = Path.Combine(directory, "matches.db");
+
+            using var factory = CreateFactory(everyEngineOn);
+            using var client = factory.CreateClient();
+
+            var ready = await client.GetFromJsonAsync<JsonElement>("/ready");
+            var reported = ready.GetProperty("stores").EnumerateArray()
+                .Select(store => store.GetProperty("engine").GetString() ?? string.Empty)
+                .ToArray();
+
+            // Full Thrust has no flag: it is the game this server exists for and is always on.
+            Assert.Contains("Full Thrust", reported);
+            foreach (var flag in typeof(FeatureFlagsDto).GetProperties())
+            {
+                Assert.True(
+                    ready.GetProperty("features").GetProperty(JsonNamingPolicy.CamelCase.ConvertName(flag.Name)).GetBoolean(),
+                    $"{flag.Name} was switched on for this test and readiness says it is off.");
+                Assert.Contains(flag.Name, reported);
+            }
         }
         finally
         {
