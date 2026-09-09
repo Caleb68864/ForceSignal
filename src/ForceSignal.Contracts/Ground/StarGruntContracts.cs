@@ -220,8 +220,14 @@ public sealed record StarGruntWeaponLegalityDto(string Name, bool CanFire, strin
 /// <param name="QualityDie">Its quality die, as a face count.</param>
 /// <param name="LeadershipValue">Its Leadership Value, 1 to 3, where 1 is best.</param>
 /// <param name="Fatigue">How worn it is, which caps its confidence.</param>
+/// <param name="Figures">
+/// The roster the player entered, at full strength, each figure with the armour die they chose.
+/// Carried because it is the player's own data and nothing else on this snapshot holds it: a client
+/// writing a force out to a file had nowhere to read an armour die from and wrote a number of its
+/// own instead.
+/// </param>
 /// <param name="FiguresAlive">Figures still standing.</param>
-/// <param name="FullStrength">Figures it started with.</param>
+/// <param name="FullStrength">Figures it started with, which is <paramref name="Figures"/>' count.</param>
 /// <param name="FiguresWounded">Casualties the squad is carrying, out of the fight.</param>
 /// <param name="IsLeaderDown">True once the squad leader has been hit.</param>
 /// <param name="SuppressionMarkers">Suppression on it, from none to three.</param>
@@ -243,6 +249,7 @@ public sealed record StarGruntUnitDto(
     int QualityDie,
     int LeadershipValue,
     string Fatigue,
+    IReadOnlyList<StarGruntFigureDto> Figures,
     int FiguresAlive,
     int FullStrength,
     int FiguresWounded,

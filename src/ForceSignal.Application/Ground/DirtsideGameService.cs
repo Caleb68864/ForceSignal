@@ -157,10 +157,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 // falls back exactly as a create request that names no pot does. That fallback is
                 // the whole reason the default survives this release: without it every stored
                 // Dirtside game on the machine would have been retired by this change.
-                var stored = ReadSettings(row.Settings);
-                var (composition, isDefault) = stored?.ChitPot is { } potCounts
-                    ? (DirtsideChitPotMapping.FromDto(potCounts), potCounts.IsBuiltInDefaultGuess)
-                    : (ChitPotComposition.Default, true);
+                var (composition, isDefault) = ReadStoredPot(row.Settings);
 
                 _games[saved.MatchId] = new Held(
                     DirtsideGameSerialization.Restore(row.Game),
@@ -465,6 +462,45 @@ public sealed class DirtsideGameService : IDirtsideGameService
     /// <summary>Reads the settings back, or nothing when the row carried none.</summary>
     private static StoredSettings? ReadSettings(string? settings) =>
         string.IsNullOrWhiteSpace(settings) ? null : JsonSerializer.Deserialize<StoredSettings>(settings, SettingsJson);
+
+    /// <summary>
+    /// Reads a stored row's chit pot, falling back the way a row that carries no settings does.
+    /// </summary>
+    /// <param name="settings">The row's settings blob, or null when it carries none.</param>
+    /// <returns>The composition, and whether it is the built-in guess rather than the players'.</returns>
+    /// <remarks>
+    /// The settings blob is what this service knows about a game beyond the module's document; it
+    /// is not the game. So a blob that cannot be read costs the settings and nothing else.
+    /// <para>
+    /// This used to be read inside the per-row try whose catch is <c>catch (Exception)</c>, which
+    /// meant a settings field that was present and not this version's shape - <c>{"chitPot":[]}</c>,
+    /// drift rather than garbage - retired the whole game: document, token, turn and all, on a row
+    /// that was perfectly readable. The optional-field design was chosen precisely so a settings
+    /// mismatch would not do that, and it survived the field being *absent* and not the field being
+    /// *present and different*, which is what the next change to this blob produces.
+    /// </para>
+    /// <para>
+    /// Falling back is not silent: the pot comes back flagged as the built-in guess, which readiness
+    /// warns about and the screen prints in red beside the turn number, so a table is told the
+    /// counts are not theirs before the first shot.
+    /// </para>
+    /// </remarks>
+    private static (ChitPotComposition Composition, bool IsBuiltInDefault) ReadStoredPot(string? settings)
+    {
+        try
+        {
+            var stored = ReadSettings(settings);
+            return stored?.ChitPot is { } counts
+                ? (DirtsideChitPotMapping.FromDto(counts), counts.IsBuiltInDefaultGuess)
+                : (ChitPotComposition.Default, true);
+        }
+        // JsonException is a blob of another shape; InvalidOperationException is a blob whose counts
+        // no longer describe a pot this version can build - a colour that has been renamed, say.
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return (ChitPotComposition.Default, true);
+        }
+    }
 
     /// <summary>
     /// Drops the oldest log lines once the game passes its ceiling. Done here rather than in the

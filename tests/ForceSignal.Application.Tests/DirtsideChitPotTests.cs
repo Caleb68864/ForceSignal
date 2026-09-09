@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
@@ -90,8 +91,30 @@ public sealed class DirtsideChitPotTests
             });
 
         service.CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        var fallback = Assert.Single(built);
 
-        Assert.Equal(ChitPotComposition.Default.Count, Assert.Single(built).Count);
+        // Held to the composition itself rather than to its total. This read
+        // `Assert.Equal(ChitPotComposition.Default.Count, ...Count)`, and the pot the fallback path
+        // returns *is* Default - so it compared Default's total to Default's total, and it compared
+        // a total rather than contents. Replacing the fallback with a hundred and eighteen Boom
+        // chits - every hit a kill whatever the armour, the most destructive change this engine
+        // admits - left all 1350 tests green. This is the guard that was missing: the fallback is
+        // the documented guess, and not a bag of the same size.
+        Assert.Same(ChitPotComposition.Default, fallback);
+
+        // And what that reference is worth, so the assertion above cannot be satisfied by a
+        // different composition that happens to be assigned to Default one day: a hundred numbered
+        // chits, half red and the rest split, with the specials the minority the counter sheet
+        // describes. The special counts themselves are a documented guess and are deliberately not
+        // pinned here - ChitPotCompositionTests owns the composition's own coherence, and says why.
+        Assert.Equal(100, fallback.Chits.Count(chit => !chit.IsSpecial));
+        Assert.Equal(50, fallback.Chits.Count(chit => chit.Colour == ChitColour.Red));
+        Assert.Equal(25, fallback.Chits.Count(chit => chit.Colour == ChitColour.Yellow));
+        Assert.Equal(25, fallback.Chits.Count(chit => chit.Colour == ChitColour.Green));
+        Assert.True(
+            fallback.CountOf(DamageChit.Of(ChitSpecial.Boom))
+            < fallback.CountOf(DamageChit.Numerical(ChitColour.Red, 0)),
+            "A table on the fallback must not draw Boom more often than it draws a numbered chit.");
     }
 
     [Fact]
@@ -167,6 +190,36 @@ public sealed class DirtsideChitPotTests
         Assert.Equal("Ridge 9", snapshot.Name);
 
         // And it falls back the same way a create request carrying no pot does, admitting as much.
+        Assert.True(snapshot.ChitPot!.IsBuiltInDefaultGuess);
+    }
+
+    [Fact]
+    public void AGameWhoseSettingsCannotBeReadKeepsTheGameAndLosesOnlyTheSettings()
+    {
+        // The other half of the optional-settings promise. The design survives a settings field
+        // that is *absent* - the test above proves it - and it did not survive one that is present
+        // and a different shape, which is what the next change to this blob produces. ReadSettings
+        // sat inside the per-row try whose catch is `catch (Exception)`, so shape drift in a field
+        // that carries no part of the game retired the whole game: the document, the token, the
+        // turn, all of it, on a row that was perfectly readable.
+        var store = new MemoryStore();
+        var first = new DirtsideGameService(new ScriptedQualityDice(1, 8), store);
+        var game = Activated(first, AllZeroes);
+
+        // Drift rather than garbage: the field is there and holds JSON, it is simply not the shape
+        // this version reads. The game document is left exactly as it was written.
+        var row = JsonNode.Parse(store.LoadAll().Single(saved => saved.MatchId == game).State)!;
+        row["settings"] = JsonNode.Parse("""{"chitPot":[]}""");
+        store.Save(game, row.ToJsonString());
+
+        var restarted = new DirtsideGameService(new ScriptedQualityDice(1, 8), store);
+
+        Assert.Empty(restarted.SkippedSaves);
+        var snapshot = restarted.GetSnapshot(game);
+        Assert.Equal("Ridge 9", snapshot.Name);
+
+        // The settings are what was lost, and losing them is not silent: the pot falls back the way
+        // an absent one does, and says out loud that its counts are ours rather than the players'.
         Assert.True(snapshot.ChitPot!.IsBuiltInDefaultGuess);
     }
 

@@ -111,7 +111,7 @@ Dirtside plays direct fire, close assault and systems-down recovery over the wir
 
 The damage chit pot is the players' too. `POST /api/dirtside/games` takes an optional `chitPot` - how many chits of each colour and number, and how many of each special, counted off your own counter sheet - and that pot is carried with the game for its whole life, through restarts. It is optional for one release only: a game created without it falls back to a built-in composition whose special-chit counts are a *guess* rather than a published distribution, readiness says so, and every snapshot carries `chitPot.isBuiltInDefaultGuess` so the screen can say so too. The fallback is removed next release.
 
-Readiness reports `persistence` as `sqlite` or `in-memory`, and warns when matches would be lost on a restart. The warning is the only thing telling an operator their game is not being written down, so it is reported in every environment.
+Readiness reports `persistence` as `sqlite`, `in-memory`, or `mixed` when some engines opened their table and others fell back, and lists every store it opened under `stores` - one per engine, because this server keeps a table per engine and any of them can fail on its own. It warns when matches would be lost on a restart, naming the engines affected. The warning is the only thing telling an operator their game is not being written down, so it is reported in every environment.
 
 Smoke test a running stack:
 

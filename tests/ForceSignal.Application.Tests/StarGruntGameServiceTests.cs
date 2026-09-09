@@ -122,6 +122,27 @@ public sealed class StarGruntGameServiceTests
     }
 
     [Fact]
+    public void ASnapshotCarriesTheArmourDiceThePlayerEntered()
+    {
+        // The roster is the player's own data and the snapshot is the only way back to it. Leaving
+        // it off meant a client writing the force out to a file had nowhere to read an armour die
+        // from, so it wrote a number of its own - a D12 squad came back on D6 in the player's file.
+        var service = new StarGruntGameService();
+        var created = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue") with
+        {
+            Figures = [new StarGruntFigureDto(12), new StarGruntFigureDto(4), new StarGruntFigureDto(12)],
+        });
+
+        var alpha = service.GetSnapshot(created.GameId).Units.Single(unit => unit.Id == "alpha");
+
+        // Mixed on purpose: a squad may mix armour, which is why figures are listed rather than
+        // counted, so one die per unit would not carry the card either.
+        Assert.Equal([12, 4, 12], alpha.Figures.Select(figure => figure.ArmourDie));
+        Assert.Equal(alpha.FullStrength, alpha.Figures.Count);
+    }
+
+    [Fact]
     public void ARefusedCommandComesBackAsAnError()
     {
         var service = new StarGruntGameService();

@@ -51,8 +51,14 @@ export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForc
         qualityDie: unit.qualityDie,
         leadershipValue: unit.leadershipValue,
         fatigue: unit.fatigue,
-        // Full strength rather than what is left: a force file is a roster, not a casualty return.
-        figures: Array.from({ length: unit.fullStrength }, () => ({ armourDie: 6 })),
+        // The roster the player entered, each figure with the armour die they chose. Full strength
+        // rather than what is left, because a force file is a roster and not a casualty return -
+        // which is what the unit's figure list already is, casualties being counted beside it.
+        //
+        // This used to write a literal 6 per figure, which threw away the player's own numbers on
+        // the way into the player's own file and put a rules number this app does not own into it
+        // instead. The round trip could not see it: import read back whatever export had written.
+        figures: unit.figures.map((figure) => ({ armourDie: figure.armourDie })),
         weapons: unit.weapons.map((weapon) => ({
           name: weapon.name,
           impactDie: weapon.impactDie,
