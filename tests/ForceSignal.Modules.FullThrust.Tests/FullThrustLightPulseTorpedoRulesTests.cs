@@ -136,6 +136,6 @@ public sealed class FullThrustLightPulseTorpedoRulesTests
     private static FullThrustLightPulseTorpedoRules Dice(params int[] faces)
     {
         var index = 0;
-        return new FullThrustLightPulseTorpedoRules(() => faces[index++ % faces.Length]);
+        return new FullThrustLightPulseTorpedoRules(_ => faces[index++ % faces.Length]);
     }
 }

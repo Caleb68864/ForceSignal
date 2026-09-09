@@ -70,7 +70,7 @@ public sealed class InMemoryMatchServiceFireControlTests
         // Two mounts of three top faces each is twelve damage, tearing through two rows of a
         // 15-box hull. The rules make that one check against the deeper row, one point worse for the
         // extra row - not the two separate first- and second-row checks a per-shot resolution gives.
-        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 8, targetHull: 15);
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: _ => 8, targetHull: 15);
 
         table.Fire(table.FirstMount, table.PrimaryTargetId);
         table.Fire(table.SecondMount, table.PrimaryTargetId);
@@ -86,7 +86,7 @@ public sealed class InMemoryMatchServiceFireControlTests
     [Fact]
     public void FireWeapon_LeavesTheVolleyOpenUntilItIsClosed()
     {
-        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 8, targetHull: 15);
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: _ => 8, targetHull: 15);
 
         var afterShot = table.Fire(table.FirstMount, table.PrimaryTargetId);
 
@@ -103,7 +103,7 @@ public sealed class InMemoryMatchServiceFireControlTests
     public void FireWeapon_FromASecondShipIsRefusedWhileTheFirstIsStillFiring()
     {
         // A player fires one ship at a time: the guns cannot swap mid-volley.
-        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 8, targetHull: 15, secondAttacker: true);
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: _ => 8, targetHull: 15, secondAttacker: true);
         table.Fire(table.FirstMount, table.PrimaryTargetId);
 
         var error = Assert.Throws<InvalidOperationException>(table.FireFromSecondShip);
@@ -115,7 +115,7 @@ public sealed class InMemoryMatchServiceFireControlTests
     [Fact]
     public void CeaseFire_HandsTheNextTurnToTheOtherPlayer()
     {
-        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 8, targetHull: 15);
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: _ => 8, targetHull: 15);
         var opening = table.Service.GetSnapshot(table.MatchId);
         Assert.NotNull(opening.FiringParticipantId);
 
@@ -132,7 +132,7 @@ public sealed class InMemoryMatchServiceFireControlTests
     [Fact]
     public void CeaseFire_TwiceForTheSameShipIsRefused()
     {
-        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 8, targetHull: 15);
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: _ => 8, targetHull: 15);
         table.Fire(table.FirstMount, table.PrimaryTargetId);
         table.CeaseFire();
 
@@ -144,7 +144,7 @@ public sealed class InMemoryMatchServiceFireControlTests
     [Fact]
     public void AdvanceTurn_ClosesAVolleyLeftOpenAtTheEndOfTheFiringPhase()
     {
-        var table = FireControlTable.Build(fireControlMax: 1, rollDie: () => 8, targetHull: 15);
+        var table = FireControlTable.Build(fireControlMax: 1, rollDie: _ => 8, targetHull: 15);
         table.Fire(table.FirstMount, table.PrimaryTargetId);
 
         var result = table.AdvanceTurn();
@@ -180,9 +180,9 @@ public sealed class InMemoryMatchServiceFireControlTests
         Guid SecondaryTargetId,
         Guid ThirdTargetId)
     {
-        public static FireControlTable Build(int fireControlMax, Func<int>? rollDie = null, int targetHull = 40, bool secondAttacker = false)
+        public static FireControlTable Build(int fireControlMax, Func<int, int>? rollDie = null, int targetHull = 40, bool secondAttacker = false)
         {
-            var service = new InMemoryMatchService(rollDie ?? (() => 4));
+            var service = new InMemoryMatchService(rollDie ?? (_ => 4));
             var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Fire Control Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))

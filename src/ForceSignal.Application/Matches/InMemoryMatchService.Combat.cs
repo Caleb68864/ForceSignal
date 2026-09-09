@@ -118,7 +118,7 @@ public sealed partial class InMemoryMatchService
                 weapon.Name,
                 match.TurnNumber,
                 request.Range,
-                RangeBand(request.Range, weapon.MaxRange),
+                RangeBand(request.Range, weapon.Kind, match.Rules),
                 targetArc,
                 result.RawDice,
                 result.RangePenalty,
@@ -644,10 +644,14 @@ public sealed partial class InMemoryMatchService
 
         // Re-roll ties a few times. The bound is a safety net against a die source that always
         // returns the same face, not a rules limit.
+        // The die-off is rolled on the table's own die like everything else. This was the one roll
+        // in the app with a face count written into it, so a table playing d10s settled who shoots
+        // first on a d6 and never knew.
+        var faces = Math.Max(1, match.Rules.DieFaces);
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var rolls = contenders
-                .Select(p => (Participant: p, Roll: Math.Clamp(_rollDie(), 1, 6)))
+                .Select(p => (Participant: p, Roll: Math.Clamp(_rollDie(faces), 1, faces)))
                 .ToArray();
             var best = rolls.Max(entry => entry.Roll);
             var leaders = rolls.Where(entry => entry.Roll == best).ToArray();
@@ -728,26 +732,26 @@ public sealed partial class InMemoryMatchService
         match.PendingThresholds.Clear();
         match.FiringShipId = null;
     }
-    /// <summary>Names the 12mu dice band a shot falls in, matching the beam falloff.</summary>
-    private static string RangeBand(int range, int maxRange)
-    {
-        if (range <= 12)
+    /// <summary>
+    /// Names the dice band a shot falls in, counted off the player's own band width.
+    /// </summary>
+    /// <remarks>
+    /// The band width is a number the table entered, and the falloff is already counted off it -
+    /// this label had 12, 24 and 36 written into it instead, so a table playing a profile banded
+    /// every 10 read "close" on a shot that had already lost a die and "medium" on one that had lost
+    /// two. The log is what a table checks a disputed volley against, so a label that disagrees with
+    /// the dice beside it is worse than no label. It is the same arithmetic the rules use, so the
+    /// two cannot disagree again, and the weapon's own kind picks the width because a pulse torpedo
+    /// bands differently from a beam.
+    /// </remarks>
+    private static string RangeBand(int range, WeaponKind kind, RulesProfile rules) =>
+        ((range - 1) / RangeBandWidth(kind, rules)) switch
         {
-            return "close";
-        }
-
-        if (range <= 24)
-        {
-            return "medium";
-        }
-
-        if (range <= Math.Max(36, maxRange))
-        {
-            return "long";
-        }
-
-        return "extreme";
-    }
+            <= 0 => "close",
+            1 => "medium",
+            2 => "long",
+            _ => "extreme",
+        };
     /// <summary>
     /// Dice a mount actually rolls. A group rolls one die per surviving fighter rather than a fixed
     /// count, so it weakens as it is shot up.

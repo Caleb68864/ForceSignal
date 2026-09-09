@@ -14,10 +14,16 @@ namespace ForceSignal.Modules.FullThrust.Combat;
 /// taking the system and the kill roll does both. That point ignores armour as well as screens.
 /// Which rolls those are, and how far the weapon reaches, are the player's.
 /// </remarks>
-/// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
-public sealed class FullThrustNeedleBeamRules(Func<int>? rollDie = null) : IFiringResolver
+/// <param name="rollDie">
+/// Die source. Takes the number of faces and returns a face, so the die the table actually
+/// plays with is the die that gets rolled - this used to be a nullary source that always
+/// produced 1-6, with the profile's face count applied afterwards as a clamp, which cannot
+/// produce a face above six and piles every face above the profile's onto its top one.
+/// Injectable so tests and replays can be deterministic.
+/// </param>
+public sealed class FullThrustNeedleBeamRules(Func<int, int>? rollDie = null) : IFiringResolver
 {
-    private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
+    private readonly Func<int, int> _rollDie = rollDie ?? (faces => Random.Shared.Next(1, faces + 1));
 
     /// <summary>
     /// How far a needle reaches: the mount's own range, or the profile's reach when the mount does
@@ -73,7 +79,7 @@ public sealed class FullThrustNeedleBeamRules(Func<int>? rollDie = null) : IFiri
             throw new InvalidOperationException(string.Join(" ", validation.Errors));
         }
 
-        var roll = Math.Clamp(_rollDie(), 1, Math.Max(1, rules.DieFaces));
+        var roll = Math.Clamp(_rollDie(Faces(rules)), 1, Faces(rules));
 
         // A plain needle either takes the system or does nothing at all. An enhanced one adds a
         // single point of hull damage from its own roll upward, so that roll draws blood without
@@ -88,4 +94,7 @@ public sealed class FullThrustNeedleBeamRules(Func<int>? rollDie = null) : IFiri
         var kills = rules.NeedleSystemKillRoll > 0 && roll >= rules.NeedleSystemKillRoll;
         return new FiringResult(1, 0, 0, 0, hullDamage, [roll], rules.NeedleSystemKillRoll, kills);
     }
+
+    /// <summary>Faces on the die this table plays with. Never below one, so a blank profile still rolls.</summary>
+    private static int Faces(RulesProfile rules) => Math.Max(1, rules.DieFaces);
 }

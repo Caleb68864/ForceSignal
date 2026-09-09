@@ -16,6 +16,15 @@ internal sealed class ScriptedDice
     /// <summary>Replaces the script with these faces, in order.</summary>
     public void Script(params int[] faces) => _faces = new Queue<int>(faces);
 
-    /// <summary>The next face.</summary>
-    public int Next() => _faces.Count > 0 ? _faces.Dequeue() : Fallback;
+    /// <summary>
+    /// The next face. The face count is ignored on purpose: a test that scripts its rolls is saying
+    /// what it wants rolled, not what size die rolled it, and clamping the script to the profile
+    /// would quietly rewrite the very numbers the test was pinning.
+    /// </summary>
+    /// <param name="faces">Faces the caller asked for. Not consulted.</param>
+    public int Next(int faces)
+    {
+        _ = faces;
+        return _faces.Count > 0 ? _faces.Dequeue() : Fallback;
+    }
 }

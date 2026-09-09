@@ -119,6 +119,6 @@ public sealed class FullThrustNeedleBeamRulesTests
     private static FullThrustNeedleBeamRules Dice(params int[] faces)
     {
         var index = 0;
-        return new FullThrustNeedleBeamRules(() => faces[index++ % faces.Length]);
+        return new FullThrustNeedleBeamRules(_ => faces[index++ % faces.Length]);
     }
 }

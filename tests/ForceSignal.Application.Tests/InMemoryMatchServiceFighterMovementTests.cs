@@ -149,7 +149,7 @@ public sealed class InMemoryMatchServiceFighterMovementTests
     {
         public static FighterMoveTable Build()
         {
-            var service = new InMemoryMatchService(() => 4);
+            var service = new InMemoryMatchService(_ => 4);
             var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Fighter Move Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))

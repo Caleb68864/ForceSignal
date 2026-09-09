@@ -133,7 +133,7 @@ public sealed class InMemoryMatchServiceArcTests
     {
         public static ArcTable Build(int attackerCourse, decimal targetX, decimal targetY, IReadOnlyList<FiringArc> mountArcs)
         {
-            var service = new InMemoryMatchService(() => 6);
+            var service = new InMemoryMatchService(_ => 6);
             var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Arc Table", Rules: TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))

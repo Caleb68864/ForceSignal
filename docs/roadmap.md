@@ -282,6 +282,68 @@ the roadmap lists only what a table can reach.
       keeps the match across a restart — so what remains is real-world testing rather than a
       missing piece.
 
+## Closed 2026-09-09 (audit follow-up, second pass)
+
+- [x] **The game is rolled on the die the players said they were playing on.** Every one of the eight
+      Full Thrust resolvers took a `Func<int>` that produced 1-6, and applied `RulesProfile.DieFaces`
+      *afterwards* as a clamp on the result. That is not a die. A table playing d10s could never roll
+      above a 6, so the rows they had entered for 7 through 10 were dead and a needle set to kill on
+      8+ never killed anything; a table playing d4s got the mirror image, with 4, 5 and 6 all folding
+      onto the 4 so their top result came up **50%** of the time instead of 25% (measured, not
+      estimated -- see `DieFacesTests`). The die source is now `Func<int, int>`: face count in, face
+      out, which is the shape `QualityDiceRoller` has had all along and which was never carried to
+      its siblings. The clamp stays as a guard against a misbehaving injected source, exactly as
+      `QualityDiceRoller` does, but it is no longer how the die gets its size.
+      **The engine does not rescale anything, deliberately.** Every threshold in a profile --
+      `NeedleSystemKillRoll`, `RepairRollWithOneParty`, `TorpedoBestToHit`, `PointDefenseChainOnFace`,
+      the beam damage rows, the turnaround rows -- is a number the player read off their own card in
+      their own die's terms, and `RulesProfile.Validate` already refuses a row naming a face the die
+      does not have. So the numbers were never wrong; only the die was. Rolling it correctly makes
+      each of them mean what the player meant, where rescaling would reinterpret them.
+      The service's own firing-initiative die-off was a ninth site and the worst of them -- it
+      clamped to a literal `6` rather than to the profile at all -- so a d10 table settled who shoots
+      first on a d6 and was never told.
+- [x] **The range-band label is counted off the player's own band width.** It had 12, 24 and 36
+      written into it, so a table banded every 10 read "close" on a shot that had already lost a die.
+      It now uses the same arithmetic the firing rules use, and the weapon's kind picks the width,
+      because a pulse torpedo bands differently from a beam. The log is what a table checks a
+      disputed volley against, so a label that disagrees with the dice beside it is worse than none.
+- [ ] **The Dirtside chit pot is still baked into a static initialiser.** Verified and *not* changed
+      this pass -- closing it needs a product decision rather than having one right answer. See
+      "Chit pot: the decision to make" below.
+
+## Chit pot: the decision to make
+
+`ChitPotComposition`'s own doc says the composition "belongs where a player can look at it and
+replace it rather than buried in a static initialiser they have to read the source to find", and
+then puts 50/25/25 numericals and 6/6/3/3 specials in exactly a static initialiser
+(`ChitPotComposition.cs:55`, `:128-141`). The doc also concedes the special counts are *a documented
+guess* -- the sheet says only that there are fewer of the firer's Systems Down than the target's.
+
+The module is not actually the problem: `Of`, `FromCounts`, `WithSpecials` and `ChitPot(composition)`
+are all already there. The problem is that **nothing above the module exposes them**.
+`DirtsideGameService.cs:120` hard-wires `new ChitPot()` into a process-wide singleton,
+`CreateDirtsideGameRequest` is `(string Name)`, and the composition appears nowhere in
+`DirtsideGameSerialization`'s saved record. Dirtside has no analogue of `RulesProfile` at all.
+
+Three questions that are calls to make, not facts to look up:
+
+1. **Does the default survive?** Full Thrust's stated policy is that there is no default and "a match
+   carries a profile its players filled in, or it cannot be played". Applying that here is the
+   consistent answer and is the one the guessed special counts argue for -- but it makes every
+   existing Dirtside game unplayable and every new one require numbers up front.
+2. **Per game or per server?** The pot is one process-wide singleton today. A per-game composition
+   means building the pot per command, which collides with the `IChitPot` seam the tests inject
+   through (`ScriptedChitPot`); that seam would have to become something like
+   `Func<ChitPotComposition, IChitPot>`.
+3. **What happens to saved games?** `GroundGameRecord.FormatVersion` is 1 and a mismatched row is
+   **skipped, not migrated**. Adding a required field silently retires every stored Dirtside game
+   unless `Restore` defaults it -- which is question 1 again, wearing a different hat.
+
+Recommendation if a tiebreak is wanted: make the composition optional on the create request and
+carry it per game, keep `Default` for one release with readiness warning that it is a guess, then
+remove it. That gets the numbers in front of the player without retiring anyone's saved game.
+
 ## Closed 2026-09-08 (audit follow-up)
 
 - [x] **A locked order cannot be moved out from under itself.** `UpdateShipProfile` wrote position,

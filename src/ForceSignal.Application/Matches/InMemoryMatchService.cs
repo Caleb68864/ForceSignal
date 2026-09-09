@@ -124,12 +124,18 @@ public interface IMatchService
 }
 
 /// <summary>In-memory implementation of match orchestration for local and early self-hosted play.</summary>
-/// <param name="rollDie">Die source for firing resolution, injectable so tests are deterministic.</param>
+/// <param name="rollDie">
+/// Die source. Takes the number of faces and returns a face, so the die the table actually
+/// plays with is the die that gets rolled - this used to be a nullary source that always
+/// produced 1-6, with the profile's face count applied afterwards as a clamp, which cannot
+/// produce a face above six and piles every face above the profile's onto its top one.
+/// Injectable so tests and replays can be deterministic.
+/// </param>
 /// <param name="store">
 /// Where matches are written so they survive a restart. Defaults to keeping nothing, which is what
 /// the tests and a throwaway session want.
 /// </param>
-public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMatchStore? store = null) : IMatchService
+public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null, IMatchStore? store = null) : IMatchService
 {
     private readonly IMatchStore _store = store ?? NoMatchStore.Instance;
     private readonly FullThrustLightCinematicRules _rules = new();
@@ -142,7 +148,7 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     private readonly FullThrustSalvoMissileRules _salvoRules = new(rollDie);
     private readonly FullThrustCarrierOperationRules _carrierRules = new(rollDie);
     // The firing initiative die-off is the service's own roll rather than any rules module's.
-    private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
+    private readonly Func<int, int> _rollDie = rollDie ?? (faces => Random.Shared.Next(1, faces + 1));
     private readonly Sha256CommitmentService _commitments = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, MatchState> _matches = [];
@@ -165,13 +171,19 @@ public sealed partial class InMemoryMatchService(Func<int>? rollDie = null, IMat
     /// before the first request can arrive, since the service is a singleton built during startup,
     /// and it takes the lock anyway so a store that is slow cannot race the first player in.
     /// </remarks>
-    /// <param name="rollDie">Die source for firing resolution.</param>
+    /// <param name="rollDie">
+/// Die source. Takes the number of faces and returns a face, so the die the table actually
+/// plays with is the die that gets rolled - this used to be a nullary source that always
+/// produced 1-6, with the profile's face count applied afterwards as a clamp, which cannot
+/// produce a face above six and piles every face above the profile's onto its top one.
+/// Injectable so tests and replays can be deterministic.
+/// </param>
     /// <param name="store">Where matches are written.</param>
     /// <param name="loadPersisted">
     /// False to start empty and ignore what is stored. Only a test that wants a clean service over
     /// a populated store has any use for this.
     /// </param>
-    public InMemoryMatchService(Func<int>? rollDie, IMatchStore? store, bool loadPersisted)
+    public InMemoryMatchService(Func<int, int>? rollDie, IMatchStore? store, bool loadPersisted)
         : this(rollDie, store)
     {
         if (!loadPersisted)

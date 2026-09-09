@@ -56,7 +56,7 @@ public sealed class FullThrustDamageControlRulesTests
     {
         // Two parties do not roll two dice: they make one roll on a better number.
         var rolls = 0;
-        var rules = new FullThrustDamageControlRules(() => { rolls++; return 6; });
+        var rules = new FullThrustDamageControlRules(_ => { rolls++; return 6; });
 
         var attempt = rules.Resolve(new RepairJob(ShipSystemKind.Drive, null, 2), Rules);
 
@@ -67,6 +67,6 @@ public sealed class FullThrustDamageControlRulesTests
     private static FullThrustDamageControlRules Dice(params int[] faces)
     {
         var index = 0;
-        return new FullThrustDamageControlRules(() => faces[index++ % faces.Length]);
+        return new FullThrustDamageControlRules(_ => faces[index++ % faces.Length]);
     }
 }

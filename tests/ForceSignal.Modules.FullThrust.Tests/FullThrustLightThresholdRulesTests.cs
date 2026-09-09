@@ -154,6 +154,6 @@ public sealed class FullThrustLightThresholdRulesTests
     private static FullThrustLightThresholdRules Dice(params int[] faces)
     {
         var index = 0;
-        return new FullThrustLightThresholdRules(() => faces[index++ % faces.Length]);
+        return new FullThrustLightThresholdRules(_ => faces[index++ % faces.Length]);
     }
 }

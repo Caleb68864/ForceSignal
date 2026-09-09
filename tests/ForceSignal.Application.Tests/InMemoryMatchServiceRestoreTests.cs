@@ -58,7 +58,7 @@ public sealed class InMemoryMatchServiceRestoreTests
     [Fact]
     public void RestoreMatch_FromFiringExport_KeepsPhaseSpentWeaponsAndTrails()
     {
-        var source = new InMemoryMatchService(() => 6);
+        var source = new InMemoryMatchService(_ => 6);
         var owner = source.CreateMatch(new CreateMatchRequest("Blue", "Firing Source", Rules: TestRules.Invented));
         var opponent = source.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
         var blueFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

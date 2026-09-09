@@ -30,7 +30,7 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     [Fact]
     public void AMatchOpensAgainstTheProfileItWasGiven()
     {
-        var service = new InMemoryMatchService(() => 4);
+        var service = new InMemoryMatchService(_ => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Profiles", Rules: TestRules.Invented));
 
         Assert.Equal(TestRules.Invented.Name, service.GetSnapshot(owner.MatchId).Rules.Name);
@@ -39,7 +39,7 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     [Fact]
     public void AMatchOpenedWithNoProfileHasNothingToPlayAgainstYet()
     {
-        var service = new InMemoryMatchService(() => 4);
+        var service = new InMemoryMatchService(_ => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Profiles"));
 
         // Blank rather than a helpful default: this app ships nobody's numbers.
@@ -49,7 +49,7 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     [Fact]
     public void NobodyCanDeclareReadyUntilTheMatchHasAProfileToPlayAgainst()
     {
-        var service = new InMemoryMatchService(() => 4);
+        var service = new InMemoryMatchService(_ => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue", "No Rules Yet"));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, new CreateShipRequest(
@@ -67,7 +67,7 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     [Fact]
     public void ReadinessOpensOrderEntryOnceTheProfileIsFilledIn()
     {
-        var service = new InMemoryMatchService(() => 4);
+        var service = new InMemoryMatchService(_ => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Rules Then Ready"));
         var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
         service.CreateShip(fleet.Id, new CreateShipRequest(
@@ -83,7 +83,7 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     [Fact]
     public void StandingDownIsAlwaysAllowedEvenWithNoProfile()
     {
-        var service = new InMemoryMatchService(() => 4);
+        var service = new InMemoryMatchService(_ => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Stand Down"));
 
         // Clearing readiness is how a player gets out of a state, so it can never be the thing that
@@ -296,7 +296,7 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     {
         public static ProfileTable Build(RulesProfile rules)
         {
-            var service = new InMemoryMatchService(() => 4);
+            var service = new InMemoryMatchService(_ => 4);
             var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Profiles", Rules: rules));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))

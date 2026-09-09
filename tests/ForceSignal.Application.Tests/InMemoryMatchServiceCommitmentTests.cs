@@ -23,7 +23,7 @@ public sealed class InMemoryMatchServiceCommitmentTests
     /// <summary>Two crews, one ship each, ready and into order entry.</summary>
     private static Table Ready()
     {
-        var service = new InMemoryMatchService(() => 6);
+        var service = new InMemoryMatchService(_ => 6);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue Admiral", "Commitment Test", 72, 48, Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red Admiral"));
         var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Squadron", "Test"))

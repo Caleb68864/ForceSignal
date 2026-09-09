@@ -12,10 +12,16 @@ namespace ForceSignal.Modules.FullThrust.Combat;
 /// damaged mount, then every remaining die read twice - once through the screens and once as if
 /// there were none - so the report can say what the screens were worth.
 /// </remarks>
-/// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
-public sealed class FullThrustLightFiringRules(Func<int>? rollDie = null) : IFiringResolver
+/// <param name="rollDie">
+/// Die source. Takes the number of faces and returns a face, so the die the table actually
+/// plays with is the die that gets rolled - this used to be a nullary source that always
+/// produced 1-6, with the profile's face count applied afterwards as a clamp, which cannot
+/// produce a face above six and piles every face above the profile's onto its top one.
+/// Injectable so tests and replays can be deterministic.
+/// </param>
+public sealed class FullThrustLightFiringRules(Func<int, int>? rollDie = null) : IFiringResolver
 {
-    private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
+    private readonly Func<int, int> _rollDie = rollDie ?? (faces => Random.Shared.Next(1, faces + 1));
 
     /// <inheritdoc />
     public FiringValidationResult Validate(FiringSolution solution, RulesProfile rules)
@@ -84,7 +90,7 @@ public sealed class FullThrustLightFiringRules(Func<int>? rollDie = null) : IFir
         var unscreened = 0;
         for (var index = 0; index < diceToRoll; index++)
         {
-            var die = Math.Clamp(_rollDie(), 1, faces);
+            var die = Math.Clamp(_rollDie(faces), 1, faces);
             rolls[index] = die;
             damage += rules.BeamDamageFor(die, screenLevel);
             unscreened += rules.BeamDamageFor(die, 0);
