@@ -1,0 +1,27 @@
+{
+  "project_name": "ForceSignal",
+  "repo": "https://github.com/Caleb68864/ForceSignal",
+  "default_branch": "master",
+  "project_vault": "docs",
+  "tech_stack": [
+    ".NET 10",
+    "C#",
+    "ASP.NET Core",
+    "SignalR",
+    "React 19",
+    "Vite",
+    "SQLite"
+  ],
+  "build_command": "dotnet build ForceSignal.slnx --nologo",
+  "test_command": "dotnet test ForceSignal.slnx --nologo",
+  "frontend_test": "npm test --prefix src/ForceSignal.Web",
+  "e2e_command": "python scripts/two-player-smoke.py",
+  "start_command": "docker compose up --build",
+  "notes": [
+    "There was no forge-project.json here at all until 2026-09-09; the other three projects had one and this did not.",
+    "The web app needs Node >= 22.4 (see src/ForceSignal.Web/package.json engines) because vitest.config.ts passes --no-experimental-webstorage.",
+    "Warnings-as-errors is on. A build with warnings is a failed build.",
+    "scripts/verify.ps1 and scripts/docker-smoke.ps1 are PowerShell and need pwsh, which is not on every machine here.",
+    "CONTENT POLICY: the engine owns procedures, the player owns every number those procedures read. Ship no rules numbers, default profiles or stat blocks - server or client."
+  ]
+}
