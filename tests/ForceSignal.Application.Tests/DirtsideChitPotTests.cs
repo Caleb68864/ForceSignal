@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
@@ -167,6 +168,36 @@ public sealed class DirtsideChitPotTests
         Assert.Equal("Ridge 9", snapshot.Name);
 
         // And it falls back the same way a create request carrying no pot does, admitting as much.
+        Assert.True(snapshot.ChitPot!.IsBuiltInDefaultGuess);
+    }
+
+    [Fact]
+    public void AGameWhoseSettingsCannotBeReadKeepsTheGameAndLosesOnlyTheSettings()
+    {
+        // The other half of the optional-settings promise. The design survives a settings field
+        // that is *absent* - the test above proves it - and it did not survive one that is present
+        // and a different shape, which is what the next change to this blob produces. ReadSettings
+        // sat inside the per-row try whose catch is `catch (Exception)`, so shape drift in a field
+        // that carries no part of the game retired the whole game: the document, the token, the
+        // turn, all of it, on a row that was perfectly readable.
+        var store = new MemoryStore();
+        var first = new DirtsideGameService(new ScriptedQualityDice(1, 8), store);
+        var game = Activated(first, AllZeroes);
+
+        // Drift rather than garbage: the field is there and holds JSON, it is simply not the shape
+        // this version reads. The game document is left exactly as it was written.
+        var row = JsonNode.Parse(store.LoadAll().Single(saved => saved.MatchId == game).State)!;
+        row["settings"] = JsonNode.Parse("""{"chitPot":[]}""");
+        store.Save(game, row.ToJsonString());
+
+        var restarted = new DirtsideGameService(new ScriptedQualityDice(1, 8), store);
+
+        Assert.Empty(restarted.SkippedSaves);
+        var snapshot = restarted.GetSnapshot(game);
+        Assert.Equal("Ridge 9", snapshot.Name);
+
+        // The settings are what was lost, and losing them is not silent: the pot falls back the way
+        // an absent one does, and says out loud that its counts are ours rather than the players'.
         Assert.True(snapshot.ChitPot!.IsBuiltInDefaultGuess);
     }
 
