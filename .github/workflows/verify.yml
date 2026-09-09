@@ -14,6 +14,11 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # A bound, because the first run of this job with -IncludeDocker hung for thirty-nine minutes
+    # and would have run for six hours: compose came up attached and sat streaming container logs.
+    # The cause is fixed in verify.ps1, but a gate that can hang indefinitely is its own defect -
+    # the point of a gate is to answer, and "still running" is not an answer.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -45,6 +50,7 @@ jobs:
   # unit test, so it is worth being able to see which one went red without reading a log.
   two-player:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6

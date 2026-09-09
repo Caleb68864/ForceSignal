@@ -139,6 +139,30 @@ def check_every_nginx_location_carries_the_headers() -> None:
             )
 
 
+def check_no_short_flags_through_the_powershell_wrapper() -> None:
+    """A single-dash flag handed to Invoke-Native is bound by PowerShell, not passed to the tool.
+
+    Invoke-Native declares [Parameter()] attributes, which makes it an advanced function, which
+    gives it PowerShell's common parameters. "-d" is an unambiguous prefix of "-Debug", so
+    `Invoke-Native docker compose up -d` bound the -d to the wrapper and started the stack
+    attached: compose sat streaming container logs and the step hung until it was killed. Nothing
+    caught it for as long as that branch never ran, and nothing about the line looks wrong.
+
+    Double-dash flags are safe - PowerShell does not treat them as parameter names - so this looks
+    only for the single-dash short form, which has no business going through the wrapper at all.
+    """
+    for script in sorted((ROOT / "scripts").glob("*.ps1")):
+        for number, line in enumerate(read(f"scripts/{script.name}").splitlines(), start=1):
+            if "Invoke-Native" not in line or line.lstrip().startswith("#"):
+                continue
+            for flag in re.findall(r"(?<![\w-])-([A-Za-z])(?![\w-])", line):
+                fail(
+                    f"{script.name}:{number} passes -{flag} through Invoke-Native. PowerShell binds "
+                    f"a single-dash flag to the wrapper's own parameters - -{flag} may well match a "
+                    "common parameter - so the tool never receives it. Call the tool with & instead."
+                )
+
+
 def check_development_overlay_overlays_something() -> None:
     overlay = ROOT / "src/ForceSignal.Api/appsettings.Development.json"
     if not overlay.exists():
@@ -165,6 +189,7 @@ for check in (
     check_ports_agree,
     check_dev_api_url_matches_the_dev_server,
     check_every_nginx_location_carries_the_headers,
+    check_no_short_flags_through_the_powershell_wrapper,
     check_development_overlay_overlays_something,
 ):
     check()

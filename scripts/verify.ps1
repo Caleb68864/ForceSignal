@@ -137,15 +137,36 @@ try {
         }
 
         Invoke-Step "Smoke test Docker stack" {
-            Invoke-Native docker compose up -d
+            # Called directly rather than through Invoke-Native, and this is not a style choice.
+            # Invoke-Native declares [Parameter()] attributes, which makes it an advanced function,
+            # which gives it the common parameters - and "-d" is an unambiguous prefix of "-Debug".
+            # So PowerShell bound the -d to Invoke-Native itself and docker never saw it: the stack
+            # came up attached, compose sat streaming container logs, and the step hung until
+            # something killed it. Nothing noticed for as long as this branch never ran.
+            #
+            # --wait makes compose block until the healthchecks pass rather than until the
+            # containers merely exist, so a smoke test that follows cannot race the API's startup,
+            # and --wait-timeout means a stack that never becomes healthy fails here, with
+            # compose's own reason, instead of failing as a confusing refusal further down.
+            & docker compose up --detach --wait --wait-timeout 180
+            if ($LASTEXITCODE -ne 0) {
+                & docker compose logs --no-color --tail 200
+                throw "docker compose up failed with code $LASTEXITCODE."
+            }
+
             try {
                 & (Join-Path $PSScriptRoot "docker-smoke.ps1")
                 if ($LASTEXITCODE -ne 0) {
                     throw "docker-smoke.ps1 exited with code $LASTEXITCODE."
                 }
             }
+            catch {
+                # The container logs are the only place the reason lives once the stack is down.
+                & docker compose logs --no-color --tail 200
+                throw
+            }
             finally {
-                Invoke-Native docker compose down
+                & docker compose down --volumes
             }
         }
     }
