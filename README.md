@@ -127,7 +127,15 @@ The API fails fast outside Development unless `Cors:AllowedOrigins` is configure
 
 Pass `-IncludeDocker` when Docker is running to build the images, start the compose stack, and run `scripts/docker-smoke.ps1`. CI passes it, because the smoke test holds the only assertions that read a running stack rather than a config file: that the configured database actually opened, so a restart resumes the game, and that nginx assembled the security headers onto every response including `/health`.
 
-`scripts/check-deployment-config.py` runs first and needs no Docker. It holds `.env.example`, `docker-compose.yml`, `vite.config.ts`, `launchSettings.json` and `nginx.conf` to each other, which is where the disagreements that still build and still test green live.
+`scripts/check-deployment-config.py` runs first and needs no Docker. It holds `.env.example`, `docker-compose.yml`, `vite.config.ts`, `launchSettings.json` and `nginx.conf` to each other, which is where the disagreements that still build and still test green live. `scripts/check-ground-vocabulary.py` runs next and holds the web client's copy of the ground-combat vocabularies to the contracts assembly's.
+
+`scripts/two-player-smoke.py` plays a whole turn through two browsers on two seats - the only check that hidden orders lock and reveal independently on separate devices, and that a phase turning over on one reaches the other without a reload. CI runs it as its own job. To run it yourself, start the API on 8080 and the web dev server against it, then run the script with Playwright installed:
+
+```powershell
+$env:ASPNETCORE_URLS = "http://localhost:8080"; dotnet run --project src/ForceSignal.Api --no-launch-profile
+$env:VITE_API_BASE_URL = "http://localhost:8080"; npm run dev --prefix src/ForceSignal.Web
+python scripts/two-player-smoke.py
+```
 
 ## API Documentation
 

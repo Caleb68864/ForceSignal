@@ -33,3 +33,76 @@ jobs:
       - name: Verify
         shell: pwsh
         run: ./scripts/verify.ps1 -IncludeDocker
+
+  # Two browsers, two seats, two devices. Everything else in this repository is checked in
+  # isolation: the .NET suites drive the services, the vitest suites drive the components, and
+  # neither can tell you that hidden orders lock and reveal independently on separate devices, or
+  # that a phase turning over on one reaches the other without a reload. scripts/two-player-smoke.py
+  # is the only check that does, and until now nothing ran it - it was a script somebody remembered.
+  #
+  # Its own job rather than a step inside verify.ps1: it needs a running API and a running dev
+  # server rather than a built artifact, and a failure here means something different from a failed
+  # unit test, so it is worth being able to see which one went red without reading a log.
+  two-player:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/ForceSignal.Web/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install web dependencies
+        working-directory: src/ForceSignal.Web
+        run: npm ci
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      # Development, so CORS allows the dev server without the origin having to be configured; on
+      # 8080, because that is the address the web app is built against below and the one the script
+      # documents. --no-launch-profile keeps launchSettings.json from putting it back on 5225.
+      - name: Start the API
+        run: |
+          ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:8080 \
+            dotnet run --project src/ForceSignal.Api --no-launch-profile > /tmp/api.log 2>&1 &
+
+      - name: Start the web dev server
+        working-directory: src/ForceSignal.Web
+        run: VITE_API_BASE_URL=http://localhost:8080 npm run dev > /tmp/web.log 2>&1 &
+
+      # Polled rather than slept: a fixed wait is either too short on a slow runner or wasted on a
+      # fast one, and the failure it produces reads as a broken app rather than a race.
+      - name: Wait for both to answer
+        run: |
+          for attempt in $(seq 1 60); do
+            api=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || true)
+            web=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:6297 || true)
+            if [ "$api" = "200" ] && [ "$web" = "200" ]; then
+              echo "API and web dev server are up after ${attempt}s."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API returned '$api' and the web dev server returned '$web'."
+          echo "--- API log ---"; cat /tmp/api.log || true
+          echo "--- web log ---"; cat /tmp/web.log || true
+          exit 1
+
+      - name: Play a turn on two devices
+        run: python scripts/two-player-smoke.py
+
+      - name: Server logs
+        if: failure()
+        run: |
+          echo "--- API log ---"; cat /tmp/api.log || true
+          echo "--- web log ---"; cat /tmp/web.log || true
