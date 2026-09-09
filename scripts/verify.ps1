@@ -34,6 +34,13 @@ function Invoke-Step {
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
 try {
+    # First, because it is the cheapest step and the one whose failures are invisible to every other
+    # step: a deployment file that disagrees with another one still builds, still tests green, and
+    # is only found by whoever deploys it.
+    Invoke-Step "Check deployment configuration" {
+        Invoke-Native python3 (Join-Path $PSScriptRoot "check-deployment-config.py")
+    }
+
     Invoke-Step "Restore .NET dependencies" {
         Invoke-Native dotnet restore ForceSignal.slnx
     }

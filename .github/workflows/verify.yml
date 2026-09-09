@@ -24,6 +24,12 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: src/ForceSignal.Web/package-lock.json
+      # -IncludeDocker builds the images, brings the compose stack up and runs docker-smoke.ps1
+      # against it. Without it the gate never once asserted that the volume and the configured
+      # database path actually take effect - readiness reporting "sqlite" rather than falling back
+      # to memory - which is the difference between a restart resuming the game and ending it. It
+      # is also the only place the assembled nginx response headers are read rather than inferred.
+      # The Ubuntu runner ships Docker and Compose, so there is no reason it was ever skipped.
       - name: Verify
         shell: pwsh
-        run: ./scripts/verify.ps1
+        run: ./scripts/verify.ps1 -IncludeDocker

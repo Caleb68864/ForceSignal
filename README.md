@@ -83,6 +83,11 @@ Copy `.env.example` to `.env` and set production-facing values before deploying:
 
 - `FORCESIGNAL_WEB_ORIGIN`: public web origin allowed to call the API.
 - `VITE_API_BASE_URL`: public API origin baked into the static web build.
+- `FORCESIGNAL_MATCH_DB`: where matches are written. Defaults to a path on the named volume, which is what makes a restart resume the game; change it only to somewhere else you have mounted.
+- `FORCESIGNAL_TRUST_FORWARDED_HEADERS`: see the note on reverse proxies below.
+- `FORCESIGNAL_FEATURES_STARGRUNT`, `FORCESIGNAL_FEATURES_DIRTSIDE`: the ground-combat engines, off by default.
+
+Every one of those is a name `docker-compose.yml` interpolates, which is the only way a value in `.env` reaches a container - Compose substitutes `.env` into the compose file and does not otherwise pass it through. `scripts/check-deployment-config.py` fails the build if the two files stop naming the same variables, so a knob cannot end up documented here and wired to nothing.
 
 Run the stack:
 
@@ -98,9 +103,9 @@ Health surfaces:
 
 The production containers run without root privileges and drop Linux capabilities. API and web responses include baseline browser security headers.
 
-Behind a reverse proxy or ingress, set `Proxy__TrustForwardedHeaders=true` on the API so the per-client rate limits read the caller's address from `X-Forwarded-For` instead of seeing every request as the proxy's. Leave it unset when the API is reached directly, because the header is a claim any caller can make and is only safe to believe when something you control is writing it.
+Behind a reverse proxy or ingress, set `FORCESIGNAL_TRUST_FORWARDED_HEADERS=true` in `.env` - or `Proxy__TrustForwardedHeaders=true` directly on an API you run yourself - so the per-client rate limits read the caller's address from `X-Forwarded-For` instead of seeing every request as the proxy's. Leave it unset when the API is reached directly, because the header is a claim any caller can make and is only safe to believe when something you control is writing it.
 
-The ground-combat engines (`Features__StarGrunt`, `Features__Dirtside`) hand back a `token` when a game is created; every other route for that game requires it in the `X-Game-Token` header.
+The ground-combat engines (`FORCESIGNAL_FEATURES_STARGRUNT` and `FORCESIGNAL_FEATURES_DIRTSIDE` in `.env`, or `Features__StarGrunt` and `Features__Dirtside` on an API you run yourself) hand back a `token` when a game is created; every other route for that game requires it in the `X-Game-Token` header.
 
 Dirtside plays direct fire, close assault and systems-down recovery over the wire. An assault is five routes under `/api/dirtside/games/{gameId}/assaults/` - `launch`, `stand`, `round`, `aftermath`, `follow-through` - taken in the order the rules give, and `/activations/current/recover-systems` is the crew's attempt to get a Systems Down marker off. Every threat level, chit validity, chit count and kill threshold those routes read is the player's, off their own record card; the API refuses a platoon whose card does not say rather than filling a number in.
 
@@ -120,7 +125,9 @@ The API fails fast outside Development unless `Cors:AllowedOrigins` is configure
 .\scripts\verify.ps1
 ```
 
-Pass `-IncludeDocker` when Docker is running to build the images, start the compose stack, and run `scripts/docker-smoke.ps1`.
+Pass `-IncludeDocker` when Docker is running to build the images, start the compose stack, and run `scripts/docker-smoke.ps1`. CI passes it, because the smoke test holds the only assertions that read a running stack rather than a config file: that the configured database actually opened, so a restart resumes the game, and that nginx assembled the security headers onto every response including `/health`.
+
+`scripts/check-deployment-config.py` runs first and needs no Docker. It holds `.env.example`, `docker-compose.yml`, `vite.config.ts`, `launchSettings.json` and `nginx.conf` to each other, which is where the disagreements that still build and still test green live.
 
 ## API Documentation
 
