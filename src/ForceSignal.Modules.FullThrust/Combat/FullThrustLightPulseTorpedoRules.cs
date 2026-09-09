@@ -12,10 +12,16 @@ namespace ForceSignal.Modules.FullThrust.Combat;
 /// lives here is the ladder itself - the to-hit number worsening by one per band, band edges
 /// belonging to the nearer band, and the damage die read at face value with nothing deducted.
 /// </remarks>
-/// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
-public sealed class FullThrustLightPulseTorpedoRules(Func<int>? rollDie = null) : IFiringResolver
+/// <param name="rollDie">
+/// Die source. Takes the number of faces and returns a face, so the die the table actually
+/// plays with is the die that gets rolled - this used to be a nullary source that always
+/// produced 1-6, with the profile's face count applied afterwards as a clamp, which cannot
+/// produce a face above six and piles every face above the profile's onto its top one.
+/// Injectable so tests and replays can be deterministic.
+/// </param>
+public sealed class FullThrustLightPulseTorpedoRules(Func<int, int>? rollDie = null) : IFiringResolver
 {
-    private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
+    private readonly Func<int, int> _rollDie = rollDie ?? (faces => Random.Shared.Next(1, faces + 1));
 
     /// <summary>
     /// The die roll a torpedo needs at this range: the profile's best number in the closest band,
@@ -94,7 +100,7 @@ public sealed class FullThrustLightPulseTorpedoRules(Func<int>? rollDie = null) 
 
         var faces = Math.Max(1, rules.DieFaces);
         var toHit = ToHitNumber(solution.Range, rules);
-        var toHitRoll = Math.Clamp(_rollDie(), 1, faces);
+        var toHitRoll = Math.Clamp(_rollDie(faces), 1, faces);
         if (toHitRoll < toHit)
         {
             return new FiringResult(1, 0, 0, 0, 0, [toHitRoll], toHit, false);
@@ -102,7 +108,7 @@ public sealed class FullThrustLightPulseTorpedoRules(Func<int>? rollDie = null) 
 
         // A hit rolls one die and takes its face as damage. Screens do not degrade a torpedo, so
         // there is nothing to deduct.
-        var damageRoll = Math.Clamp(_rollDie(), 1, faces);
+        var damageRoll = Math.Clamp(_rollDie(faces), 1, faces);
         return new FiringResult(1, 0, 0, 0, damageRoll, [toHitRoll, damageRoll], toHit, true);
     }
 }

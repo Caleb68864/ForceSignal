@@ -10,7 +10,7 @@ public sealed class InMemoryMatchServiceCombatTests
     public void MatchFlow_WithTwoPlayersMultiTurnOrdersFiringAndDamage_WritesCompleteBattleRecord()
     {
         // Every die a 6 so the damage assertions are exact rather than lucky.
-        var service = new InMemoryMatchService(() => 6);
+        var service = new InMemoryMatchService(_ => 6);
         var owner = service.CreateMatch(new CreateMatchRequest("Blue Admiral", "Self Play Test", 72, 48, Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red Admiral"));
         var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue Squadron", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -88,7 +88,7 @@ public sealed class InMemoryMatchServiceCombatTests
     {
         // Every die the top face: a Class-3 beam rolls 3 dice, each flattened to a single point by
         // one level of screening under this profile.
-        var service = new InMemoryMatchService(() => 8);
+        var service = new InMemoryMatchService(_ => 8);
         var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Combat Test", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -156,10 +156,51 @@ public sealed class InMemoryMatchServiceCombatTests
     }
 
     [Fact]
+    public void FireWeapon_LabelsTheRangeBandOffThePlayersOwnBandWidth()
+    {
+        // This profile bands every 10, not every 12. At range 11 the beam has already dropped a die,
+        // so the log said "close" beside two dice where the mount rolls three - and the log is what
+        // a table checks a disputed volley against.
+        var service = new InMemoryMatchService(_ => 8);
+        var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Band Label", Rules: TestRules.Invented));
+        var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
+        var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
+        var opponentFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", "Test")).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
+        var weaponId = Guid.NewGuid();
+
+        var attacker = service.CreateShip(ownerFleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Attacker", "Cruiser", 4, InitialVelocity: 0, InitialCourse: 12, 12, 0,
+            StartX: 20, StartY: 30,
+            Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, [FiringArc.Fore])])).Ships.Single(s => s.Name == "Attacker");
+        var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
+            opponent.ParticipantToken, "Target", "Frigate", 4, InitialVelocity: 0, InitialCourse: 6, 8, 1,
+            StartX: 20, StartY: 19)).Ships.Single(s => s.Name == "Target");
+
+        service.SetReady(owner.MatchId, owner.ParticipantToken, true);
+        service.SetReady(owner.MatchId, opponent.ParticipantToken, true);
+        var hold = new MovementOrder(0, 0, TurnDirection.None);
+        service.CommitOrder(owner.MatchId, new CommitOrderRequest(owner.ParticipantToken, attacker.Id, hold, "owner-salt"));
+        service.CommitOrder(owner.MatchId, new CommitOrderRequest(opponent.ParticipantToken, target.Id, hold, "opponent-salt"));
+        service.RevealOrder(owner.MatchId, new RevealOrderRequest(owner.ParticipantToken, attacker.Id, hold, "owner-salt"));
+        service.RevealOrder(owner.MatchId, new RevealOrderRequest(opponent.ParticipantToken, target.Id, hold, "opponent-salt"));
+        service.AdvanceTurn(owner.MatchId, owner.ParticipantToken);
+
+        var result = service.FireWeapon(owner.MatchId, new FireWeaponRequest(
+            owner.ParticipantToken, attacker.Id, target.Id, weaponId, Range: 11, Arc: FiringArc.Fore));
+
+        var shot = result.FiringResults.Single(firing => firing.WeaponId == weaponId);
+        // Second band, and the label has to agree with the dice sitting beside it: one band out is
+        // one die fewer, which is the whole reason the band is named in the log at all.
+        Assert.Equal("medium", shot.RangeBand);
+        Assert.Equal(1, shot.RangePenalty);
+        Assert.Equal(2, shot.DiceRolls.Count);
+    }
+
+    [Fact]
     public void FireWeapon_RejectsSameMountTwiceInOneTurn()
     {
         // A constant die ties the firing initiative, which falls to the owner by seating order.
-        var service = new InMemoryMatchService(() => 4);
+        var service = new InMemoryMatchService(_ => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Duplicate Fire Test", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);
@@ -210,7 +251,7 @@ public sealed class InMemoryMatchServiceCombatTests
     public void FireWeapon_WithLimitedAmmo_TracksAmmoAndRejectsEmptyMountAcrossTurns()
     {
         // A constant die ties the firing initiative, which falls to the owner by seating order.
-        var service = new InMemoryMatchService(() => 4);
+        var service = new InMemoryMatchService(_ => 4);
         var owner = service.CreateMatch(new CreateMatchRequest("Owner", "Ammo Test", Rules: TestRules.Invented));
         var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Opponent"));
         var ownerFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", "Test")).Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

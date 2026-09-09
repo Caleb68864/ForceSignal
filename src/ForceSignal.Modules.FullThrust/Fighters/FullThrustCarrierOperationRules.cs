@@ -13,10 +13,16 @@ namespace ForceSignal.Modules.FullThrust.Fighters;
 /// bay out and half the bays back in, with launches and recoveries counted separately. Which shape,
 /// and every number in it, are the player's.
 /// </remarks>
-/// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
-public sealed class FullThrustCarrierOperationRules(Func<int>? rollDie = null)
+/// <param name="rollDie">
+/// Die source. Takes the number of faces and returns a face, so the die the table actually
+/// plays with is the die that gets rolled - this used to be a nullary source that always
+/// produced 1-6, with the profile's face count applied afterwards as a clamp, which cannot
+/// produce a face above six and piles every face above the profile's onto its top one.
+/// Injectable so tests and replays can be deterministic.
+/// </param>
+public sealed class FullThrustCarrierOperationRules(Func<int, int>? rollDie = null)
 {
-    private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
+    private readonly Func<int, int> _rollDie = rollDie ?? (faces => Random.Shared.Next(1, faces + 1));
 
     /// <summary>
     /// What a ship may do with its bays this turn.
@@ -57,8 +63,11 @@ public sealed class FullThrustCarrierOperationRules(Func<int>? rollDie = null)
     {
         ArgumentNullException.ThrowIfNull(rules);
 
-        var roll = Math.Clamp(_rollDie(), 1, Math.Max(1, rules.DieFaces));
+        var roll = Math.Clamp(_rollDie(Faces(rules)), 1, Faces(rules));
         var outcome = rules.TurnaroundFor(roll);
         return new CarrierTurnaround(roll, outcome.IsGroundedForGame, outcome.TurnsBeforeRelaunch);
     }
+
+    /// <summary>Faces on the die this table plays with. Never below one, so a blank profile still rolls.</summary>
+    private static int Faces(RulesProfile rules) => Math.Max(1, rules.DieFaces);
 }

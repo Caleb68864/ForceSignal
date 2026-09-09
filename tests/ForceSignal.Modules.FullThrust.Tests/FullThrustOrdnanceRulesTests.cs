@@ -86,7 +86,7 @@ public sealed class FullThrustPointDefenseRulesTests
     private static FullThrustPointDefenseRules Dice(int[] faces)
     {
         var index = 0;
-        return new FullThrustPointDefenseRules(() => faces[index++ % faces.Length]);
+        return new FullThrustPointDefenseRules(_ => faces[index++ % faces.Length]);
     }
 }
 
@@ -167,7 +167,7 @@ public sealed class FullThrustSalvoMissileRulesTests
     private static FullThrustSalvoMissileRules Dice(int[] faces)
     {
         var index = 0;
-        var die = () => faces[index++ % faces.Length];
+        var die = (int _) => faces[index++ % faces.Length];
         return new FullThrustSalvoMissileRules(die, new FullThrustPointDefenseRules(die));
     }
 
@@ -178,7 +178,7 @@ public sealed class FullThrustSalvoMissileRulesTests
         // stuck on that face therefore never returned - and it spun inside the match service's lock,
         // which is process-wide, so one such request froze every match on the server. A source like
         // this is not hypothetical: scripted test dice cycle, and fallbacks are settable.
-        var rules = new FullThrustPointDefenseRules(() => 8);
+        var rules = new FullThrustPointDefenseRules(_ => 8);
 
         var result = rules.Resolve(systems: 3, incoming: 100, Rules);
 
@@ -189,7 +189,7 @@ public sealed class FullThrustSalvoMissileRulesTests
     [Fact]
     public void PointDefenceIgnoresAnAbsurdNumberOfSystems()
     {
-        var rules = new FullThrustPointDefenseRules(() => 1);
+        var rules = new FullThrustPointDefenseRules(_ => 1);
 
         var result = rules.Resolve(systems: int.MaxValue, incoming: 1, Rules);
 

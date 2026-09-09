@@ -218,6 +218,6 @@ public sealed class FullThrustLightFiringRulesTests
     private static FullThrustLightFiringRules Dice(params int[] faces)
     {
         var index = 0;
-        return new FullThrustLightFiringRules(() => faces[index++ % faces.Length]);
+        return new FullThrustLightFiringRules(_ => faces[index++ % faces.Length]);
     }
 }

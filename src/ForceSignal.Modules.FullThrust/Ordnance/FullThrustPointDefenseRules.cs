@@ -12,10 +12,16 @@ namespace ForceSignal.Modules.FullThrust.Ordnance;
 /// What each face shoots down, which face chains, and how far the turrets reach are the player's.
 /// What lives here is the chain and the waste.
 /// </remarks>
-/// <param name="rollDie">Die source, injectable so tests and replays can be deterministic.</param>
-public sealed class FullThrustPointDefenseRules(Func<int>? rollDie = null) : IPointDefenseResolver
+/// <param name="rollDie">
+/// Die source. Takes the number of faces and returns a face, so the die the table actually
+/// plays with is the die that gets rolled - this used to be a nullary source that always
+/// produced 1-6, with the profile's face count applied afterwards as a clamp, which cannot
+/// produce a face above six and piles every face above the profile's onto its top one.
+/// Injectable so tests and replays can be deterministic.
+/// </param>
+public sealed class FullThrustPointDefenseRules(Func<int, int>? rollDie = null) : IPointDefenseResolver
 {
-    private readonly Func<int> _rollDie = rollDie ?? (() => Random.Shared.Next(1, 7));
+    private readonly Func<int, int> _rollDie = rollDie ?? (faces => Random.Shared.Next(1, faces + 1));
 
     /// <summary>
     /// Longest chain one system may roll before the chain is cut.
@@ -53,7 +59,7 @@ public sealed class FullThrustPointDefenseRules(Func<int>? rollDie = null) : IPo
             var rolling = true;
             for (var chain = 0; rolling && chain < MaxChainLength; chain++)
             {
-                var die = Math.Clamp(_rollDie(), 1, faces);
+                var die = Math.Clamp(_rollDie(faces), 1, faces);
                 rolls.Add(die);
                 scored += rules.PointDefenseKillsFor(die);
 

@@ -62,7 +62,7 @@ public sealed class FullThrustCarrierOperationRulesTests
     [InlineData(4, false, 1)]
     public void TheTurnaroundRollIsReadOffTheProfile(int face, bool expectedGrounded, int expectedTurns)
     {
-        var turnaround = new FullThrustCarrierOperationRules(() => face).RollTurnaround(Rules);
+        var turnaround = new FullThrustCarrierOperationRules(_ => face).RollTurnaround(Rules);
 
         Assert.Equal(face, turnaround.Roll);
         Assert.Equal(expectedGrounded, turnaround.IsGroundedForGame);
@@ -81,7 +81,7 @@ public sealed class FullThrustCarrierOperationRulesTests
             ],
         };
 
-        var turnaround = new FullThrustCarrierOperationRules(() => 2).RollTurnaround(harsh);
+        var turnaround = new FullThrustCarrierOperationRules(_ => 2).RollTurnaround(harsh);
 
         Assert.Equal(4, turnaround.TurnsBeforeRelaunch);
     }
