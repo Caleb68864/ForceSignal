@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { blankRulesProfile, type RulesProfile } from '../types.ts';
 import { wholeNumberFrom } from '../lib/format.ts';
-import { deleteProfile, exportProfile, gapsIn, readProfile, sameProfile, savedProfiles, saveProfile } from '../lib/rulesProfile.ts';
+import { deleteProfile, exportProfile, gapsIn, looksLikeProfile, readProfile, sameProfile, savedProfiles, saveProfile } from '../lib/rulesProfile.ts';
 
 type Props = {
   /** The profile the match is currently played against. */
@@ -23,6 +23,7 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
   const [draft, setDraft] = useState<RulesProfile>(value);
   const [saved, setSaved] = useState<RulesProfile[]>(savedProfiles);
   const [open, setOpen] = useState(false);
+  const [importProblem, setImportProblem] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // The form is on screen before the first snapshot lands, so the profile it was seeded with was
@@ -43,10 +44,26 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
   const gaps = gapsIn(draft);
   const patch = (change: Partial<RulesProfile>) => setDraft((current) => ({ ...current, ...change }));
 
+  // A file that cannot be read is a file that cannot be read. It used to be treated as "you meant
+  // to start again": the catch replaced the whole draft with zeros, with no message, no
+  // confirmation and no undo, behind a panel that is collapsed by default - so thirty fields the
+  // player typed off their own rulebook could go without them seeing it happen. The numbers on
+  // screen are theirs, so nothing here writes over them except a profile that was actually read.
   function importFile(file: File) {
     file.text()
-      .then((text) => setDraft(readProfile(JSON.parse(text) as unknown)))
-      .catch(() => setDraft(blankRulesProfile));
+      .then((text) => {
+        const payload: unknown = JSON.parse(text);
+        if (!looksLikeProfile(payload)) {
+          throw new Error('That file is not a rules profile.');
+        }
+
+        setDraft(readProfile(payload));
+        setImportProblem(null);
+      })
+      .catch(() => setImportProblem(
+        'That file could not be read as a rules profile, so the numbers on screen have been left as '
+        + 'they are. Pick the file you exported from here, or type the numbers in.',
+      ));
   }
 
   return (
@@ -99,6 +116,10 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
           }}
         />
       </div>
+
+      {importProblem ? (
+        <p className="constraint-line editor-drift" role="alert">{importProblem}</p>
+      ) : null}
 
       {open ? (
         <div className="rules-profile-fields">

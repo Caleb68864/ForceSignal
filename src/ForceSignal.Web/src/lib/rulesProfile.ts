@@ -139,6 +139,24 @@ export function readProfile(value: unknown): RulesProfile {
   };
 }
 
+/**
+ * Whether a parsed file is a rules profile at all, rather than some other JSON.
+ *
+ * `readProfile` coerces - it has to, because a profile written by an older version is still a
+ * profile - and a coercer asked to read a fleet export answers with a profile full of zeros. So the
+ * question "is this one of ours?" is asked before it, and the answer is read off the file's own
+ * field names: two or more of them means a profile someone wrote, and nothing else in this app
+ * writes a file that clears that bar.
+ */
+export function looksLikeProfile(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const fields = new Set(Object.keys(blankRulesProfile));
+  return Object.keys(value).filter((key) => fields.has(key)).length >= 2;
+}
+
 /** The profile as a file a player can keep or pass to the rest of the table. */
 export function exportProfile(profile: RulesProfile): void {
   const blob = new Blob([JSON.stringify(profile, null, 2)], { type: 'application/json' });
