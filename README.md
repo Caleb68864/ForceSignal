@@ -119,7 +119,7 @@ Smoke test a running stack:
 .\scripts\docker-smoke.ps1
 ```
 
-The API fails fast outside Development unless `Cors:AllowedOrigins` is configured. The compose file wires this from `FORCESIGNAL_WEB_ORIGIN`.
+The API fails fast outside Development unless `Cors:AllowedOrigins` is configured. The compose file wires this from `FORCESIGNAL_WEB_ORIGIN`, and the API reads that name directly too, so running it without compose honours the same variable.
 
 ## Verification
 

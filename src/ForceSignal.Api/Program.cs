@@ -317,8 +317,24 @@ static CorsOriginSettings ReadAllowedOrigins(IConfiguration configuration, IHost
     // match it either, because a scalar does not bind to string[]. So setting the obvious variable
     // configured no origins at all, and the API refused to start with a message about a setting the
     // operator had in fact set.
-    var configured = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-        ?? SplitOrigins(configuration["FORCESIGNAL_CORS_ALLOWED_ORIGINS"])
+    // The middle read is the variable the operator is actually told to set. Every other
+    // FORCESIGNAL_ name in .env.example is honoured directly by the code as well as through
+    // compose's interpolation - FORCESIGNAL_MATCH_DB by ReadMatchDatabasePath, the two
+    // FORCESIGNAL_FEATURES_ names by FeatureFlags - so an API run without compose reads the same
+    // names the documentation gives. CORS was the exception: it read FORCESIGNAL_CORS_ALLOWED_ORIGINS,
+    // a name that appears in no README, no .env.example, no compose file and no test, so an operator
+    // who set the documented FORCESIGNAL_WEB_ORIGIN and started the API directly was refused startup
+    // over a setting they had supplied - the same failure the literal "Cors__AllowedOrigins" read
+    // above used to produce.
+    // Each read falls through only when it found nothing, which has to mean "no origins" rather than
+    // "no key": the binder hands back a non-null empty array for a section that exists and is empty,
+    // and appsettings.json carries exactly that - "Cors": { "AllowedOrigins": [] }, which names the
+    // key for whoever opens the file and configures nothing. Without the guard the first read was
+    // therefore never null, the ?? never fell through, and the two reads below could not fire at all
+    // unless something had already put a value on that same key: a declaration that configured
+    // nothing was silently disabling the fallbacks underneath it.
+    var configured = NonEmpty(configuration.GetSection("Cors:AllowedOrigins").Get<string[]>())
+        ?? SplitOrigins(configuration["FORCESIGNAL_WEB_ORIGIN"])
         ?? SplitOrigins(configuration["Cors:AllowedOrigins"]);
 
     if (configured is { Length: > 0 })
@@ -341,6 +357,9 @@ static CorsOriginSettings ReadAllowedOrigins(IConfiguration configuration, IHost
 
     throw new InvalidOperationException("Cors:AllowedOrigins must be configured outside Development.");
 }
+
+// An empty list of origins is not a configured list of origins, so it must not stop the next read.
+static string[]? NonEmpty(string[]? origins) => origins is { Length: > 0 } ? origins : null;
 
 static string[]? SplitOrigins(string? value) =>
     string.IsNullOrWhiteSpace(value)
