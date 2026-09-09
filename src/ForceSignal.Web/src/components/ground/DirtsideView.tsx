@@ -278,6 +278,10 @@ export function DirtsideView() {
                 {element.isImmobilised ? ' · immobilised' : ''}
                 {element.movedOverHalf ? ' · moved far' : ''}
                 {element.areaDefenceSensorsLive ? ' · sensors live' : ''}
+                {/* What the tape may measure out to now. A DMG marker halves it, and the server has
+                    already done the halving, so a damaged vehicle stops showing the movement it had
+                    when it was whole - which is the number the player would otherwise work from. */}
+                {element.isImmobilised ? '' : ` · move ${element.movement}`}
               </span>
               <button
                 type="button"

@@ -30,6 +30,7 @@ function element(id: string, name: string, extra: Partial<DirtsideElementState> 
     isSystemsDown: false,
     movedOverHalf: false,
     areaDefenceSensorsLive: false,
+    movement: 12,
     hasChosen: false,
     hasMoved: false,
     hasTakenCombatAction: false,

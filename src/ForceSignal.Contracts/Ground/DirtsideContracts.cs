@@ -250,6 +250,11 @@ public sealed record DirtsideAssaultDto(
 /// <param name="IsImmobilised">True when it will never move again, though it may still fire.</param>
 /// <param name="MovedOverHalf">True when it has moved, or has declared it will move, more than half its movement this turn.</param>
 /// <param name="AreaDefenceSensorsLive">True when it may intercept for the rest of the turn.</param>
+/// <param name="Movement">
+/// How far it may go now, in the player's own units: the movement off its record card, halved while
+/// it carries a DMG marker. The halving is the engine's rule; the number being halved is the
+/// player's.
+/// </param>
 /// <param name="HasChosen">True when it has said what it is doing in the open activation.</param>
 /// <param name="HasMoved">True when it has spent its move this activation.</param>
 /// <param name="HasTakenCombatAction">True when it has spent its one combat action.</param>
@@ -275,6 +280,7 @@ public sealed record DirtsideElementStateDto(
     bool IsImmobilised,
     bool MovedOverHalf,
     bool AreaDefenceSensorsLive,
+    int Movement,
     bool HasChosen,
     bool HasMoved,
     bool HasTakenCombatAction,

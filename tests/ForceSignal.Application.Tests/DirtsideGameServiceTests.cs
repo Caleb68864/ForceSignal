@@ -79,6 +79,33 @@ public sealed class DirtsideGameServiceTests
     }
 
     [Fact]
+    public void ADamagedElementReportsTheMovementItActuallyHasLeft()
+    {
+        // DamagedEffects.Movement was written, tested and applied to nothing: the card's number went
+        // into the roster and came back out of the snapshot unchanged, so a screen beside a damaged
+        // vehicle showed the movement it had when it was whole. The halving is the engine's; the 12
+        // being halved is the fixture's, which is to say the player's.
+        // Scripted end to end so the vehicle really is damaged rather than damaged on a good day.
+        // The target rolls first and the barrel second, so 1 against 8 is a solid hit; the fixture's
+        // armour is 3 and its main gun draws three chits, so three red ones worth 1 total exactly 3,
+        // which is the value that marks DMG rather than knocking the vehicle out.
+        var service = new DirtsideGameService(
+            new ScriptedQualityDice(1, 8),
+            null,
+            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 1)));
+        var game = Activated(service);
+
+        Assert.Equal(12, Element(service.GetSnapshot(game), "bravo", "bravo-1").Movement);
+
+        var damaged = service.Fire(game, new DirtsideFireRequest(
+            "alpha-1", "Main Gun", "bravo", "bravo-1", "Close", WillMoveOverHalf: false));
+        var target = Element(damaged, "bravo", "bravo-1");
+
+        Assert.True(target.IsDamaged);
+        Assert.Equal(6, target.Movement);
+    }
+
+    [Fact]
     public void ARefusedCommandComesBackAsAnError()
     {
         var service = new DirtsideGameService();

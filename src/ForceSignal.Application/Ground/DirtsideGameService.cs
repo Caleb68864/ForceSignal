@@ -645,6 +645,13 @@ public sealed class DirtsideGameService : IDirtsideGameService
         // "nothing is activated", which is true and not what a screen wants beside every vehicle.
         var recovery = frame is null ? "Nothing is activated." : game.WhyRecoverSystemsIsRefused(element.Id);
 
+        // What the tape may measure out to now, rather than what the record card says. A DMG marker
+        // halves an element's movement, and the engine had that rule written and tested and applied
+        // to nothing: the card's number went into the roster and came back out unchanged, so a
+        // damaged vehicle reported the same movement it had when it was whole and the player was
+        // left to remember. It is a halving of the player's own number, not a number of ours.
+        var movement = state.IsDamaged ? DamagedEffects.Movement(element.Movement) : element.Movement;
+
         return new DirtsideElementStateDto(
             element.Id.Value,
             element.Name,
@@ -654,6 +661,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
             state.IsImmobilised,
             state.MovedOverHalf,
             state.AreaDefenceSensorsLive,
+            movement,
             chosen.Contains(element.Id),
             hasMoved,
             hasActed,

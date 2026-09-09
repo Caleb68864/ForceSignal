@@ -531,6 +531,10 @@ export type DirtsideElementState = {
   isImmobilised?: boolean;
   movedOverHalf: boolean;
   areaDefenceSensorsLive: boolean;
+  // How far it may go now, in the player's own units: the number off its record card, halved by the
+  // server while it carries a DMG marker. Rendered rather than recomputed - the halving is a rule,
+  // and rules live on the server.
+  movement: number;
   // True when it has said what it is doing in the open activation. The activation cannot close
   // until every element still on the table has, because sitting out gives up the whole turn.
   hasChosen: boolean;

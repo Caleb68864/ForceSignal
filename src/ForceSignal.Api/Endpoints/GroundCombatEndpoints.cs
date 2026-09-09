@@ -394,7 +394,7 @@ public static class GroundCombatEndpoints
             .WithName("SetDirtsideAreaDefenceSensors")
             .WithTags("Dirtside")
             .WithSummary("Switches an element's area-defence sensors on or off.")
-            .WithDescription("Spends the element's one combat action, which is the price of a standing reaction: live sensors intercept on anybody's activation for the rest of the turn.")
+            .WithDescription("Spends the element's one combat action, which is the price of a standing reaction: live sensors let it intercept on anybody's activation for the rest of the turn, and the engine refuses an interception from an element that has not paid for one. Resolving an interception is not yet reachable from this API - readiness says so - so for now this records the capability rather than exercising it.")
             .Produces<DirtsideSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .RequireGameToken<IDirtsideGameService>();
