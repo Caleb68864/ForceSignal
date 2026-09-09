@@ -1,15 +1,48 @@
-"""Two devices, one match, played through a whole turn including a shot fired.
+"""Two devices, one match, played through a whole turn.
 
 This is the thing the docs say has never been done since the turn structure changed: two browsers,
-two seats, hidden orders locked and revealed independently, and a real volley resolved. Everything
-else is verified in isolation; this is the only check that the pieces fit together the way a table
-uses them.
+two seats, hidden orders locked and revealed independently on separate devices, and the phase
+turning over live on both. Everything else is verified in isolation; this is the only check that the
+pieces fit together the way a table uses them.
+
+Run it against a dev pair - the API on 8080 and the web dev server on 6297 - with playwright
+installed. It exits non-zero on the first thing that did not happen.
 """
+import json
 import sys
+import tempfile
+from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
 WEB = "http://localhost:6297"
 problems: list[str] = []
+
+# ForceSignal ships no rules numbers - not in the client, not on the server - so a match arrives
+# with an empty profile and readiness refuses to start until somebody fills one in. That is the
+# point of the design and it means this script has to bring its own. These numbers are invented for
+# the smoke test and correspond to no published game; all the profile needs to be playable is a
+# name, a die, one beam result, a range band and a damage track.
+SMOKE_PROFILE = {
+    "name": "Smoke Test Layer (invented)",
+    "dieFaces": 6,
+    "beamDamage": [
+        {"dieFace": 6, "screenLevel": 0, "damage": 2},
+        {"dieFace": 5, "screenLevel": 0, "damage": 1},
+    ],
+    "beamRangeBandWidth": 12,
+    "maxScreenLevel": 0,
+    "thresholdRows": "FixedRows",
+    "thresholdRowCount": 4,
+}
+
+
+def set_rules_profile(page, path):
+    """Loads the profile through the editor's own Import JSON control, then plays against it."""
+    page.set_input_files("div[aria-label='Rules profile'] input[type=file]", str(path))
+    page.wait_for_timeout(400)
+    page.click("div[aria-label='Rules profile'] >> button:has-text('Save & Play Against This')")
+    page.wait_for_timeout(700)
 
 
 def watch(page, who):
@@ -26,6 +59,9 @@ def add_ship(page, name, x, y, course):
     page.wait_for_timeout(700)
 
 
+profile_file = Path(tempfile.gettempdir()) / "forcesignal-smoke-profile.json"
+profile_file.write_text(json.dumps(SMOKE_PROFILE), encoding="utf-8")
+
 with sync_playwright() as pw:
     browser = pw.chromium.launch()
     # Separate contexts: separate localStorage, which is where the order keys live.
@@ -40,6 +76,10 @@ with sync_playwright() as pw:
     blue.wait_for_selector("button:has-text('Add Ship')", timeout=15000)
     code = blue.inner_text("aside >> css=h2 >> nth=0").strip()
     print(f"room: {code}")
+
+    # Settled by the owner, during fleet setup, before anybody declares ready.
+    set_rules_profile(blue, profile_file)
+    print("rules profile set")
 
     red.goto(WEB, wait_until="networkidle")
     red.get_by_role("textbox", name="Display name").fill("Red")
@@ -59,6 +99,22 @@ with sync_playwright() as pw:
     print(f"both ready: {phase}")
     if "ORDER ENTRY" not in phase.upper():
         problems.append(f"expected order entry, got {phase!r}")
+
+    # An early tap, taken back. Locking a fleet declares the plotting closed in the same breath, so
+    # a tap that came before the orders did used to hand the turn over with ships holding course and
+    # no way back but to play it out. Blue does exactly that, then reopens - which is only offered
+    # while the other admiral is still plotting and the declaration therefore means nothing.
+    blue.click("button:has-text('Lock Fleet Orders')")
+    blue.wait_for_timeout(800)
+    resume = blue.locator("button:has-text('Resume Plotting')")
+    if resume.count() == 0:
+        problems.append("blue declared plotting done and was offered no way to take it back")
+    else:
+        resume.click()
+        blue.wait_for_timeout(800)
+        if blue.locator("button:has-text('Resume Plotting')").count() != 0:
+            problems.append("blue took the declaration back and the screen still says it stands")
+        print("blue reopened plotting")
 
     # Each side locks and reveals its own orders, from its own device and its own keys.
     for page, who in ((blue, "blue"), (red, "red")):

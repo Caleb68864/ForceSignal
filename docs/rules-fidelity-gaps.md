@@ -744,5 +744,12 @@ on. See gap 22 above for the full reasoning, what the icon-key class inference g
 seam that is already in place for an FT2 layer.
 
 And one thing worth doing before anything else: play a full game. Everything above is verified by
-tests and by driving the API and the browser, but no two-device match has been played end to end
-since the turn structure changed.
+tests and by driving the API and the browser.
+
+*Updated 2026-09-09.* A two-device match has now been played end to end, by
+`scripts/two-player-smoke.py` against a real dev pair: two browser contexts with separate storage,
+create and join, a rules profile the script brings itself, both sides ready, orders locked and
+revealed independently from their own devices and their own keys, and the phase turning over live on
+both. Zero problems and no console errors. What it does *not* yet drive is a volley - the ships it
+puts on the table carry no mounts, so nothing is fired. Arming them and resolving a real shot is the
+next thing this script should learn to do.

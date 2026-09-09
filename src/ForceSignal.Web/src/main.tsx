@@ -742,6 +742,27 @@ function App() {
       : `${lockedNote}. Plotting closed; ${holding} ship${holding === 1 ? ' holds' : 's hold'} course and speed.`);
   }
 
+  /**
+   * Takes back "that is my plotting done", so the ships still holding course can be given an order.
+   *
+   * Locking a fleet declares the plotting closed in the same tap, which is right nearly always and
+   * wrong exactly once: when the tap came before the orders did. The orders already committed stay
+   * committed - a lock is a promise - but the turn stops waiting to be advanced, and anything that
+   * was going to drift can still be plotted.
+   */
+  async function resumePlotting() {
+    if (!session) {
+      return;
+    }
+
+    const reopened = await post<MatchSnapshot>(`/api/matches/${session.matchId}/turns/current/orders/complete`, {
+      participantToken: session.participantToken,
+      complete: false,
+    });
+    applySnapshot(reopened);
+    setMessage('Plotting reopened. Orders already locked stay locked.');
+  }
+
   async function revealOwnedOrders() {
     if (!session || !snapshot) {
       return;
@@ -1395,6 +1416,11 @@ function App() {
               <span className="label">Match commands</span>
               <button onClick={() => run(markReady)} disabled={busy}>Ready</button>
               <button className="ghost" onClick={() => run(lockOwnedOrders)} disabled={busy}>Lock Fleet Orders</button>
+              {/* Only while the declaration still means nothing - once everyone has closed out,
+                  the phase has turned over and reopening the turn is not one player's to do. */}
+              {me?.ordersComplete && snapshot?.phase === 'OrderEntry' ? (
+                <button className="ghost" onClick={() => run(resumePlotting)} disabled={busy}>Resume Plotting</button>
+              ) : null}
               <button className="ghost" onClick={() => run(revealOwnedOrders)} disabled={busy}>Reveal Fleet Orders</button>
               <button onClick={() => run(advanceTurn)} disabled={busy}>Advance Turn</button>
               <button className={publicMode ? 'ghost active' : 'ghost'} onClick={() => {

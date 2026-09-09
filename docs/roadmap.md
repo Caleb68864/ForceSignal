@@ -308,6 +308,63 @@ the roadmap lists only what a table can reach.
       doubly wrong to hold here: they are published numbers, *and* they were already the player's --
       `torpedoMaximumRange` and `needleBeamRange` are fields on the rules profile, so the constants
       were a second copy nobody had entered and nobody could edit. See the README's Content Policy.
+- [x] **Readiness reports the persistence it has, not the one it asked for.** A database file that
+      will not open leaves the server running on memory -- deliberately, so one bad file does not
+      end every game on the machine -- but `/ready` read the configured path and said "sqlite"
+      anyway. So the operator believed their games survived a restart, and the container's own
+      healthcheck agreed with them, right up until the restart that ended all of them. It now asks
+      the store the match service was actually handed, and warns when the two disagree. The path
+      stays out of the warning: that route answers anyone who can reach it, and the API log already
+      names the file for whoever has to recover it.
+- [x] **`docker-smoke.ps1` passes on a healthy stack.** It asserted `persistence == "in-memory"` and
+      demanded at least one warning, from a stack whose compose file mounts a volume and configures
+      sqlite and therefore has nothing to warn about -- so it failed on exactly the deployment it
+      exists to check. Both assertions were inverted rather than dropped: sqlite, and *no* storage
+      warning, which is precisely the fallback above. Fixing the script alone would have left the
+      readiness report untrustworthy; fixing readiness alone would have left the script wrong.
+- [x] **A restored shot's dice have a ceiling.** Every other collection on the untrusted restore
+      path was capped and this one was not, which left one shot holding however many dice the file's
+      author felt like -- kept for the after-action review and re-serialised into every snapshot
+      thereafter. Refused by name beside the others rather than truncated, so the file is rejected
+      instead of silently altered.
+- [x] **"Finished plotting" can be taken back.** It was reset only by `AdvanceTurn`, so a tap meant
+      for something else handed the turn over with unordered ships holding course and the only way
+      back was to play the turn out. It can now be withdrawn for as long as it means nothing -- while
+      order entry is still open. Once the last admiral declares, the orders are sealed and re-opening
+      the turn is the table's business rather than one player's. The flag rides on the existing
+      request and defaults to true, so a client that only ever says "I am done" is unchanged. The
+      client half matters as much: "Lock Fleet Orders" declares the plotting closed in the same tap,
+      so **Resume Plotting** now appears beside it while -- and only while -- the declaration still
+      means nothing. Orders already locked stay locked; a lock is a promise.
+- [x] **`scripts/two-player-smoke.py` runs, and passes.** `docs/rules-fidelity-gaps.md` recorded that
+      no two-device match had been played end to end since the turn structure changed, and the script
+      that would have checked it was referenced from nowhere and no longer worked: a match now
+      arrives with an empty rules profile and readiness refuses to start without one, which is
+      exactly the guard added earlier in this pass. The script brings its own profile -- invented,
+      loaded through the editor's own Import JSON -- and now drives two browser contexts through
+      create, join, ready, the early-tap take-back above, independent lock and reveal, and two phase
+      turnovers seen live on both devices. Zero problems, zero console errors.
+- [x] **Opening a ground game is budgeted.** The two ground creates take no credentials and allocate
+      state kept for a day, exactly like `POST /api/matches`, which has been rate-limited for that
+      reason since it was written. They join that same budget rather than getting one each: the
+      machine does not care which engine filled it up, and three allowances would just mean three
+      times as much of it.
+- [x] **A game with other than two sides no longer 500s on its first turn.** `FirstActivationChooser`
+      read `Sides[0]` and `Sides[1]` directly. The rule's own sentence -- "the side with fewer units"
+      -- presumes two sides, so any other number is now answered the way a level count is: the rule
+      is silent and the table settles it. The read path had been guarding this with its own copy of
+      the check; the guard moved into the rule and the copy came out, so the two cannot drift.
+- [x] **The rules-profile editor follows the table.** It seeded its draft from the snapshot on mount,
+      and the snapshot has not arrived when it mounts, so it was seeded blank and stayed blank for
+      the session -- a match that already had a profile showed zeros, and Save wrote those zeros over
+      the real numbers. It now resyncs when the table's profile changes, compared by *content*: a
+      snapshot lands on every mutation carrying a freshly parsed profile object, so watching for a
+      new object would wipe a half-typed form every time the opponent moved a ship.
+- [x] **Eleven more handlers cannot be double-submitted.** Create Fleet made two fleets, Duplicate
+      two ships, Bring two copies of a library fleet, and Repair rolled the damage-control dice
+      twice -- the one of those that nothing can undo. They now go through the `busy`/`run()` wrapper
+      the rest of the screen already used, rather than a second mechanism beside it. The audit
+      counted twelve; eleven mutating handlers were actually unguarded.
 
 ## Current Constraint
 
