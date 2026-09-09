@@ -454,6 +454,20 @@ static string[] ReadDeploymentWarnings(
             "Dirtside ground combat is enabled. Direct fire, close assault, systems-down recovery and the "
             + "activation sequence are playable; opportunity fire, area-defence interception and indirect "
             + "fire are not yet reachable from this API.");
+
+        // Said out loud because it is the one number in this engine the server invents. Every other
+        // number a Dirtside game runs on came off a record card the player filled in; the fallback
+        // pot did not, and its special counts are not even a published distribution - the sheet says
+        // only that there are fewer of the firer's Systems Down than the target's, and 6/6/3/3
+        // honours that ordering and nothing else. A table that plays on it is playing on our guess
+        // about the most sensitive input in the damage model, and has a right to know before the
+        // first shot rather than after an argument about one.
+        warnings.Add(
+            "Dirtside games created without a chit pot fall back to a built-in default composition, and "
+            + "its special-chit counts (Mobility, Systems Down and Boom) are a guess, not a published "
+            + "distribution - every damage probability in such a game rests on numbers nobody counted. "
+            + "Send chitPot when creating a game to play on your own counter sheet. The fallback is kept "
+            + "for one release so that games stored before it existed still open, and is then removed.");
     }
 
     if (environment.IsDevelopment())

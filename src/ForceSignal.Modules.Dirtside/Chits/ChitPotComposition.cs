@@ -37,9 +37,17 @@ public sealed class ChitPotComposition
     }
 
     /// <summary>
-    /// A documented starting point, not an authority.
+    /// A documented starting point, not an authority, and on its way out.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>Kept for one release only.</b> The composition is now the players': it arrives on the
+    /// create request, is carried with the game and survives a restart. This exists so that a game
+    /// stored before that change still opens, and so that a table part-way through one is not thrown
+    /// off it. Everything above the module that falls back to it says out loud that it has - the
+    /// readiness warning names the guess, and every snapshot carries the flag - because a guess that
+    /// is not labelled is indistinguishable from an answer. It is removed next release.
+    /// </para>
     /// <para>
     /// One hundred numerical chits, half of them red and the other half split between yellow and
     /// green, each colour carrying values zero to three spread as evenly as its count permits. That

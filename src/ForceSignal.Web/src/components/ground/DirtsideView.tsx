@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { dirtsideGameKey } from '../../constants.ts';
 import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import * as api from '../../lib/dirtsideApi.ts';
+import type { ChitPotDraft } from '../../lib/chitPot.ts';
+import { chitPotSummary, emptyChitPotDraft, toChitPotInput } from '../../lib/chitPot.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 // The words the API accepts, not this screen's idea of them. See groundVocabulary.ts.
-import { bands, fireControls, qualityDice } from '../../lib/groundVocabulary.ts';
+import { bands, chitColours, chitSpecials, fireControls, qualityDice } from '../../lib/groundVocabulary.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
-import { chitColours, DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
+import { chitColourSets, DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
 function optionalWholeNumber(text: string, min: number, max: number) {
@@ -72,6 +74,11 @@ export function DirtsideView() {
     willMoveOverHalf: false,
   });
 
+  // What is in the bag, counted off the user's own sheet. Starts empty and stays empty unless they
+  // count something in: a client that pre-filled it would be shipping the very numbers the server
+  // admits it is guessing at.
+  const [pot, setPot] = useState<ChitPotDraft>(emptyChitPotDraft);
+
   function say(text: string) {
     setMessage(text);
     setMessageIsError(false);
@@ -110,7 +117,7 @@ export function DirtsideView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      const created = await api.createGame(gameName);
+      const created = await api.createGame(gameName, toChitPotInput(pot));
       const handle = { gameId: created.gameId, token: created.token };
       writeStorage(dirtsideGameKey, handle);
       setGame(handle);
@@ -122,6 +129,31 @@ export function DirtsideView() {
       busyRef.current = false;
       setBusy(false);
     }
+  }
+
+  function addNumericalRow() {
+    setPot((current) => ({
+      ...current,
+      numericals: [...current.numericals, { colour: chitColours[0], value: '', count: '' }],
+    }));
+  }
+
+  function setNumericalRow(index: number, change: Partial<ChitPotDraft['numericals'][number]>) {
+    setPot((current) => ({
+      ...current,
+      numericals: current.numericals.map((row, at) => (at === index ? { ...row, ...change } : row)),
+    }));
+  }
+
+  function removeNumericalRow(index: number) {
+    setPot((current) => ({
+      ...current,
+      numericals: current.numericals.filter((_, at) => at !== index),
+    }));
+  }
+
+  function setSpecialCount(special: string, count: string) {
+    setPot((current) => ({ ...current, specials: { ...current.specials, [special]: count } }));
   }
 
   function leave() {
@@ -180,6 +212,59 @@ export function DirtsideView() {
           Game name
           <input value={gameName} onChange={(event) => setGameName(event.target.value)} />
         </label>
+
+        <fieldset>
+          <legend>Chit pot</legend>
+          <p className="privacy">
+            Count your own counter sheet in. Leave it empty and the server falls back to a built-in
+            composition whose special-chit counts are a guess - every damage probability in the game
+            rests on this, so it is worth the minute. It can only be set when the game is started.
+          </p>
+          {pot.numericals.map((row, index) => (
+            <div className="row" key={`chit-row-${index}`}>
+              <label>
+                Colour
+                <select
+                  value={row.colour}
+                  onChange={(event) => setNumericalRow(index, { colour: event.target.value })}
+                >
+                  {chitColours.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
+                </select>
+              </label>
+              <label>
+                Number on the chit
+                <input
+                  inputMode="numeric"
+                  value={row.value}
+                  onChange={(event) => setNumericalRow(index, { value: event.target.value })}
+                />
+              </label>
+              <label>
+                How many
+                <input
+                  inputMode="numeric"
+                  value={row.count}
+                  onChange={(event) => setNumericalRow(index, { count: event.target.value })}
+                />
+              </label>
+              <button className="ghost" type="button" onClick={() => removeNumericalRow(index)}>
+                Remove
+              </button>
+            </div>
+          ))}
+          <button className="ghost" type="button" onClick={addNumericalRow}>Add Numbered Chits</button>
+          {chitSpecials.map((special) => (
+            <label key={special}>
+              {special}
+              <input
+                inputMode="numeric"
+                value={pot.specials[special] ?? ''}
+                onChange={(event) => setSpecialCount(special, event.target.value)}
+              />
+            </label>
+          ))}
+        </fieldset>
+
         <button type="button" disabled={busy || Boolean(game)} onClick={() => void start()}>
           {game ? 'Reopening last game...' : 'Start Game'}
         </button>
@@ -206,6 +291,14 @@ export function DirtsideView() {
       <p className="constraint-line">
         Turn {snapshot.turnNumber} · {snapshot.phase}
         {snapshot.activeSide ? ` · ${snapshot.activeSide} to go` : ''}
+      </p>
+      {/*
+        On every screen rather than only at the start: the composition moves every probability in
+        the damage model, so a table settling an argument about a draw should be able to read what is
+        in the bag without going back to whoever pressed Start Game.
+      */}
+      <p className={snapshot.chitPot?.isBuiltInDefaultGuess ? 'constraint-line warning' : 'constraint-line'}>
+        Chit pot: {chitPotSummary(snapshot.chitPot)}
       </p>
       <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
 
@@ -492,7 +585,7 @@ export function DirtsideView() {
           <label title="Which chit colours this weapon's hits may count, off your own card.">
             Chit colours
             <select value={platoonForm.colours} onChange={(e) => setPlatoonForm({ ...platoonForm, colours: e.target.value })}>
-              {chitColours.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
+              {chitColourSets.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
             </select>
           </label>
         </div>

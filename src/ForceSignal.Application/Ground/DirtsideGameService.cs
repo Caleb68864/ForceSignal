@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.Dirtside.Chits;
@@ -95,11 +96,18 @@ public interface IDirtsideGameService : IGroundGameService
 public sealed class DirtsideGameService : IDirtsideGameService
 {
     private readonly IQualityDiceRoller _dice;
-    private readonly IChitPot _pot;
+    private readonly Func<ChitPotComposition, IChitPot> _pot;
     private readonly IMatchStore _store;
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, Held> _games = [];
     private readonly List<SkippedSave> _skippedSaves = [];
+
+    /// <summary>
+    /// How the settings blob is written into the stored row. Web defaults so the field names match
+    /// the ones the same DTO carries on the wire - a row and a snapshot describing the same pot in
+    /// two spellings is the kind of drift this codebase has already paid for once.
+    /// </summary>
+    private static readonly JsonSerializerOptions SettingsJson = new(JsonSerializerDefaults.Web);
 
     /// <summary>
     /// Builds the service and brings back whatever the store was holding, so a restart resumes the
@@ -108,16 +116,19 @@ public sealed class DirtsideGameService : IDirtsideGameService
     /// <param name="rollDie">Die source, injectable so tests can script a firefight.</param>
     /// <param name="store">Where games are written so they survive a restart.</param>
     /// <param name="pot">
-    /// The chit pot every hit draws from, injectable so a test can put a known chit on the table.
-    /// Defaults to a pot of the standard composition, shuffled properly.
+    /// How a pot is made from a composition, injectable so a test can put a known chit on the table.
+    /// A factory rather than a pot, because the composition is the players' and belongs to one game:
+    /// a single injected pot was a process-wide singleton, which meant every table on the server drew
+    /// from the same bag of chits and none of them could say what was in it. Production builds a
+    /// properly shuffled <see cref="ChitPot"/> around whatever that game's players counted.
     /// </param>
     public DirtsideGameService(
         IQualityDiceRoller? rollDie = null,
         IMatchStore? store = null,
-        IChitPot? pot = null)
+        Func<ChitPotComposition, IChitPot>? pot = null)
     {
         _dice = rollDie ?? new QualityDiceRoller();
-        _pot = pot ?? new ChitPot();
+        _pot = pot ?? (composition => new ChitPot(composition));
         _store = store ?? NoMatchStore.Instance;
         RestoreAll();
     }
@@ -141,7 +152,24 @@ public sealed class DirtsideGameService : IDirtsideGameService
             try
             {
                 var row = GroundGameRecord.Unwrap(saved.State);
-                _games[saved.MatchId] = new Held(DirtsideGameSerialization.Restore(row.Game), 1, row.Token, row.LastActivity);
+
+                // A row stored before the pot became the players' carries no settings at all, and
+                // falls back exactly as a create request that names no pot does. That fallback is
+                // the whole reason the default survives this release: without it every stored
+                // Dirtside game on the machine would have been retired by this change.
+                var stored = ReadSettings(row.Settings);
+                var (composition, isDefault) = stored?.ChitPot is { } potCounts
+                    ? (DirtsideChitPotMapping.FromDto(potCounts), potCounts.IsBuiltInDefaultGuess)
+                    : (ChitPotComposition.Default, true);
+
+                _games[saved.MatchId] = new Held(
+                    DirtsideGameSerialization.Restore(row.Game),
+                    1,
+                    row.Token,
+                    row.LastActivity,
+                    composition,
+                    isDefault,
+                    _pot(composition));
             }
 #pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
             catch (Exception ex)
@@ -158,11 +186,22 @@ public sealed class DirtsideGameService : IDirtsideGameService
         ArgumentNullException.ThrowIfNull(request);
         var name = string.IsNullOrWhiteSpace(request.Name) ? "Dirtside" : GroundGameGuards.Truncate(request.Name);
 
+        // Read before the lock is taken: a pot that does not describe a bag is a refusal, and there
+        // is no reason to hold every other table up while it is worked out.
+        var (composition, isDefault) = DirtsideChitPotMapping.FromRequest(request.ChitPot);
+
         lock (_gate)
         {
             EvictIdleGames();
             var id = Guid.NewGuid();
-            var held = new Held(DirtsideGame.Create(name), 1, GroundGameGuards.NewToken(), DateTimeOffset.UtcNow);
+            var held = new Held(
+                DirtsideGame.Create(name),
+                1,
+                GroundGameGuards.NewToken(),
+                DateTimeOffset.UtcNow,
+                composition,
+                isDefault,
+                _pot(composition));
             _games[id] = held;
             Persist(id, held);
             return new DirtsideGameCreatedResponse(id, ToSnapshot(id, held), held.Token);
@@ -262,7 +301,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
 
         lock (_gate)
         {
-            var game = Find(gameId).Game;
+            var held = Find(gameId);
+            var game = held.Game;
             var firing = game.Session.CurrentFrame?.Unit
                 ?? throw new InvalidOperationException("Nothing is activated, so nothing can fire.");
 
@@ -275,7 +315,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 Band(request.MeasuredBand),
                 request.WillMoveOverHalf);
 
-            var outcome = game.Fire(command, _dice, _pot);
+            var outcome = game.Fire(command, _dice, held.Pot);
             return outcome.IsAllowed
                 ? Store(gameId, outcome.Value!)
                 : throw new InvalidOperationException(outcome.Reason);
@@ -306,7 +346,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
     }
 
     /// <inheritdoc />
-    public DirtsideSnapshotDto FightAssaultRound(Guid gameId) => Command(gameId, game => game.FightAssaultRound(_pot));
+    public DirtsideSnapshotDto FightAssaultRound(Guid gameId) =>
+        CommandWithPot(gameId, (game, pot) => game.FightAssaultRound(pot));
 
     /// <inheritdoc />
     public DirtsideSnapshotDto ResolveAssaultAftermath(Guid gameId, DirtsideAssaultAftermathRequest request)
@@ -340,6 +381,23 @@ public sealed class DirtsideGameService : IDirtsideGameService
         lock (_gate)
         {
             var outcome = command(Find(gameId).Game);
+            return outcome.IsAllowed
+                ? Store(gameId, outcome.Value!)
+                : throw new InvalidOperationException(outcome.Reason);
+        }
+    }
+
+    /// <summary>
+    /// The same, for the commands that draw chits. Separate rather than folded in because the pot is
+    /// this game's and has to be looked up with it: a command that reached for a field on the service
+    /// would be drawing from whatever bag the last table happened to leave there.
+    /// </summary>
+    private DirtsideSnapshotDto CommandWithPot(Guid gameId, Func<DirtsideGame, IChitPot, GameOutcome<DirtsideGame>> command)
+    {
+        lock (_gate)
+        {
+            var held = Find(gameId);
+            var outcome = command(held.Game, held.Pot);
             return outcome.IsAllowed
                 ? Store(gameId, outcome.Value!)
                 : throw new InvalidOperationException(outcome.Reason);
@@ -381,7 +439,32 @@ public sealed class DirtsideGameService : IDirtsideGameService
     }
 
     private void Persist(Guid gameId, Held held) =>
-        _store.Save(gameId, GroundGameRecord.Wrap(held.Token, held.LastActivity, DirtsideGameSerialization.Save(held.Game)));
+        _store.Save(
+            gameId,
+            GroundGameRecord.Wrap(
+                held.Token,
+                held.LastActivity,
+                DirtsideGameSerialization.Save(held.Game),
+                WriteSettings(held)));
+
+    /// <summary>
+    /// What this service knows about a game that the module's document does not: the chit pot its
+    /// players counted.
+    /// </summary>
+    /// <remarks>
+    /// Written into the row's optional settings field rather than into the module's document, for the
+    /// same reason the token is: the module takes a pot as an argument to the two commands that draw
+    /// from one and has no field for it, and giving it one would make the game value carry something
+    /// no rule reads.
+    /// </remarks>
+    private static string WriteSettings(Held held) =>
+        JsonSerializer.Serialize(
+            new StoredSettings(DirtsideChitPotMapping.ToDto(held.Composition, held.ChitPotIsBuiltInDefault)),
+            SettingsJson);
+
+    /// <summary>Reads the settings back, or nothing when the row carried none.</summary>
+    private static StoredSettings? ReadSettings(string? settings) =>
+        string.IsNullOrWhiteSpace(settings) ? null : JsonSerializer.Deserialize<StoredSettings>(settings, SettingsJson);
 
     /// <summary>
     /// Drops the oldest log lines once the game passes its ceiling. Done here rather than in the
@@ -579,7 +662,13 @@ public sealed class DirtsideGameService : IDirtsideGameService
             game.Assault is { } assault ? ToAssaultState(assault) : null,
             [.. game.Units.Values.Select(platoon => ToPlatoonState(game, platoon, frame))],
             [.. game.Log],
-            held.Version);
+            held.Version,
+
+            // On every snapshot rather than only on create, because the composition is the single
+            // most sensitive input in the damage model and a table settling an argument about a draw
+            // should be able to read what is in the bag without going back to whoever started the
+            // game. It carries its own honesty flag: these counts are either theirs or the guess.
+            DirtsideChitPotMapping.ToDto(held.Composition, held.ChitPotIsBuiltInDefault));
     }
 
     private static DirtsideAssaultDto ToAssaultState(DirtsideAssault assault) => new(
@@ -674,6 +763,35 @@ public sealed class DirtsideGameService : IDirtsideGameService
             recovery);
     }
 
-    /// <summary>One game, the version it is on, the token that opens it, and when it was last touched.</summary>
-    private sealed record Held(DirtsideGame Game, int Version, string Token, DateTimeOffset LastActivity);
+    /// <summary>
+    /// One game, the version it is on, the token that opens it, when it was last touched, and the
+    /// pot its players counted.
+    /// </summary>
+    /// <param name="Game">The game itself.</param>
+    /// <param name="Version">Bumped on every change.</param>
+    /// <param name="Token">What a caller has to present to touch it.</param>
+    /// <param name="LastActivity">When it was last read or changed.</param>
+    /// <param name="Composition">What is in this game's chit pot.</param>
+    /// <param name="ChitPotIsBuiltInDefault">
+    /// True when nobody counted a pot for this game and it fell back to the built-in default, whose
+    /// special counts are a guess. Carried so the table can be told, and so the fact survives a
+    /// restart rather than being re-derived by comparing counts.
+    /// </param>
+    /// <param name="Pot">
+    /// The pot built around <paramref name="Composition"/>, built once when the game is created or
+    /// restored rather than per command: a pot is cheap but it holds the shuffle's randomness, and
+    /// rebuilding it every draw would hand each resolution a brand-new source.
+    /// </param>
+    private sealed record Held(
+        DirtsideGame Game,
+        int Version,
+        string Token,
+        DateTimeOffset LastActivity,
+        ChitPotComposition Composition,
+        bool ChitPotIsBuiltInDefault,
+        IChitPot Pot);
+
+    /// <summary>What the stored row's settings field holds for this engine.</summary>
+    /// <param name="ChitPot">The pot this game draws from.</param>
+    private sealed record StoredSettings(DirtsideChitPotDto? ChitPot);
 }

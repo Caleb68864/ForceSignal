@@ -109,6 +109,8 @@ The ground-combat engines (`FORCESIGNAL_FEATURES_STARGRUNT` and `FORCESIGNAL_FEA
 
 Dirtside plays direct fire, close assault and systems-down recovery over the wire. An assault is five routes under `/api/dirtside/games/{gameId}/assaults/` - `launch`, `stand`, `round`, `aftermath`, `follow-through` - taken in the order the rules give, and `/activations/current/recover-systems` is the crew's attempt to get a Systems Down marker off. Every threat level, chit validity, chit count and kill threshold those routes read is the player's, off their own record card; the API refuses a platoon whose card does not say rather than filling a number in.
 
+The damage chit pot is the players' too. `POST /api/dirtside/games` takes an optional `chitPot` - how many chits of each colour and number, and how many of each special, counted off your own counter sheet - and that pot is carried with the game for its whole life, through restarts. It is optional for one release only: a game created without it falls back to a built-in composition whose special-chit counts are a *guess* rather than a published distribution, readiness says so, and every snapshot carries `chitPot.isBuiltInDefaultGuess` so the screen can say so too. The fallback is removed next release.
+
 Readiness reports `persistence` as `sqlite` or `in-memory`, and warns when matches would be lost on a restart. The warning is the only thing telling an operator their game is not being written down, so it is reported in every environment.
 
 Smoke test a running stack:

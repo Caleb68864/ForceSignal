@@ -172,6 +172,29 @@ public sealed class ApiDocumentationAndReadinessTests
     }
 
     [Fact]
+    public async Task DirtsideReadiness_SaysTheFallbackChitPotIsAGuess()
+    {
+        // The one number this engine invents. Every other number a Dirtside game runs on came off a
+        // record card its owner filled in; the fallback pot's special counts did not, and a table
+        // playing on them is playing on our guess about the most sensitive input in the damage
+        // model. Readiness is where the operator finds out before the first shot rather than after
+        // an argument about one, so the warning has to say "guess" in as many words.
+        using var factory = CreateFactory("Development", new Dictionary<string, string?> { ["Features:Dirtside"] = "true" });
+        using var client = factory.CreateClient();
+
+        using var ready = await client.GetAsync("/ready");
+        ready.EnsureSuccessStatusCode();
+        var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
+        var warning = Assert.Single(
+            readyBody.GetProperty("warnings").EnumerateArray().Select(entry => entry.GetString() ?? string.Empty),
+            entry => entry.Contains("chit pot", StringComparison.Ordinal));
+
+        Assert.Contains("are a guess, not a published distribution", warning, StringComparison.Ordinal);
+        Assert.Contains("chitPot", warning, StringComparison.Ordinal);
+        Assert.Contains("kept for one release", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreateMatch_ReturnsJoinDetailsForHost()
     {
         using var factory = CreateFactory("Development");

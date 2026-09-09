@@ -45,11 +45,60 @@ public static class DirtsideWire
 
     /// <summary>Where an assault can stand, as the snapshot reports it.</summary>
     public static readonly string[] AssaultStages = ["AwaitingDefender", "AwaitingRound", "AwaitingAftermath", "AwaitingFollowThrough"];
+
+    /// <summary>Colours a numerical chit can be printed in.</summary>
+    public static readonly string[] ChitColours = ["Red", "Yellow", "Green"];
+
+    /// <summary>The non-numerical chits, by the name each one goes by.</summary>
+    public static readonly string[] ChitSpecials = ["Mobility", "SystemsDownTarget", "SystemsDownFirer", "Boom"];
 }
+
+/// <summary>How many chits of one colour and number the pot holds.</summary>
+/// <param name="Colour">The colour printed on them: Red, Yellow or Green.</param>
+/// <param name="Value">The number printed on them. Zero is a real chit, not an absence.</param>
+/// <param name="Count">How many of that exact chit are in the bag.</param>
+public sealed record DirtsideNumericalChitsDto(string Colour, int Value, int Count);
+
+/// <summary>How many of one special chit the pot holds.</summary>
+/// <param name="Special">Which special: Mobility, SystemsDownTarget, SystemsDownFirer or Boom.</param>
+/// <param name="Count">How many of them are in the bag.</param>
+public sealed record DirtsideSpecialChitsDto(string Special, int Count);
+
+/// <summary>
+/// Everything in the chit pot, counted off the player's own counter sheet.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This is the single most sensitive input in the whole damage model - every probability in the game
+/// moves when it moves - so it is the player's, counted from the counters in front of them, and this
+/// assembly ships none of it. It is supplied once, when the game is created, and carried with that
+/// game for the rest of its life.
+/// </para>
+/// <para>
+/// Counted rather than listed: a hundred and eighteen individual chits on the wire would be the same
+/// information spelled out at length, and nobody counting a sheet counts it that way.
+/// </para>
+/// </remarks>
+/// <param name="Numericals">The numbered chits, by colour and number.</param>
+/// <param name="Specials">The special chits, by kind.</param>
+/// <param name="IsBuiltInDefaultGuess">
+/// Reported by the server, ignored on the way in. True when these counts are the built-in default
+/// rather than the player's own - which matters, because the default's special counts are a guess.
+/// See the readiness warning.
+/// </param>
+public sealed record DirtsideChitPotDto(
+    IReadOnlyList<DirtsideNumericalChitsDto> Numericals,
+    IReadOnlyList<DirtsideSpecialChitsDto> Specials,
+    bool IsBuiltInDefaultGuess = false);
 
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>
-public sealed record CreateDirtsideGameRequest(string Name);
+/// <param name="ChitPot">
+/// What is in the pot this game draws damage from, off the player's own counter sheet. Optional for
+/// one release only: a game created without it falls back to a built-in default whose special counts
+/// are a documented guess, and readiness says so out loud.
+/// </param>
+public sealed record CreateDirtsideGameRequest(string Name, DirtsideChitPotDto? ChitPot = null);
 
 /// <summary>
 /// What one weapon system's chits may count, at one range band, off the record card.
@@ -346,6 +395,11 @@ public sealed record DirtsidePlatoonStateDto(
 /// <param name="Units">Everyone on the table.</param>
 /// <param name="Log">What has happened, in the order it happened.</param>
 /// <param name="Version">Bumped whenever anything changes, so a client can tell.</param>
+/// <param name="ChitPot">
+/// What this game's pot holds, so the table can read back the counts it is playing on - including
+/// whether they are the player's or the built-in guess. Null only on a snapshot from a server that
+/// predates the pot being carried per game.
+/// </param>
 public sealed record DirtsideSnapshotDto(
     Guid GameId,
     string Name,
@@ -360,7 +414,8 @@ public sealed record DirtsideSnapshotDto(
     DirtsideAssaultDto? Assault,
     IReadOnlyList<DirtsidePlatoonStateDto> Units,
     IReadOnlyList<string> Log,
-    int Version);
+    int Version,
+    DirtsideChitPotDto? ChitPot = null);
 
 /// <summary>A game that has just been started.</summary>
 /// <param name="GameId">Which game.</param>

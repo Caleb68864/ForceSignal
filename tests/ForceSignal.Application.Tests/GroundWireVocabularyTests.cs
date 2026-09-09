@@ -1,4 +1,5 @@
 using ForceSignal.Contracts.Ground;
+using ForceSignal.Modules.Dirtside.Chits;
 using ForceSignal.Modules.Dirtside.Combat;
 using ForceSignal.Modules.Dirtside.Game;
 using ForceSignal.Modules.GroundCombat.Dice;
@@ -41,6 +42,14 @@ public sealed class GroundWireVocabularyTests
     [Fact]
     public void AssaultStages_AreExactlyTheStagesAnAssaultCanStandAt() =>
         AssertSameWords(Enum.GetNames<AssaultStage>(), DirtsideWire.AssaultStages);
+
+    [Fact]
+    public void ChitColours_AreExactlyTheColoursAChitCanBePrintedIn() =>
+        AssertSameWords(Enum.GetNames<ChitColour>(), DirtsideWire.ChitColours);
+
+    [Fact]
+    public void ChitSpecials_AreExactlyTheSpecialsThePotCanHold() =>
+        AssertSameWords(Enum.GetNames<ChitSpecial>(), DirtsideWire.ChitSpecials);
 
     [Fact]
     public void Ladder_IsTheFaceCountsOfTheSameQualityDice()
