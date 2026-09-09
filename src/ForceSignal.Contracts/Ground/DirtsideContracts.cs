@@ -72,7 +72,12 @@ public sealed record DirtsideValidityDto(
 /// <param name="Close">What its chits may count at close range.</param>
 /// <param name="Medium">What its chits may count at medium range.</param>
 /// <param name="Long">What its chits may count at long range.</param>
-/// <param name="IsInterceptable">True when an area-defence gun could shoot down what it throws.</param>
+/// <param name="IsInterceptable">
+/// True when an area-defence gun could shoot down what it throws. Recorded off the card and not yet
+/// consulted: it is the other half of the interception this API cannot resolve, the half that says
+/// which shots may be answered. Kept rather than dropped because it is the player's own reading of
+/// their card, and the engine already knows which elements could do the answering.
+/// </param>
 // "Long" is the range band's name on the card and the JSON key the client already sends; the
 // analyzer objects because it is also a type name, which is not what it means here.
 #pragma warning disable CA1720
