@@ -30,6 +30,27 @@ export function describeArcs(arcs: FiringArc[]) {
 // actually allowed. Keeping a copy here meant keeping an incomplete one - it knew nothing about
 // ammunition, spent mounts, fighter endurance or the fire control a needle beam claims - so the
 // console offered shots the server then refused.
+/**
+ * Why a fighter group may not fly to a spot, or null when it may.
+ *
+ * How far a group flies is the player's number - `RulesProfile.fighterMoveAllowance`, typed into the
+ * profile editor and enforced by the server. The screen used to hold a constant 12 and refuse
+ * against that, so a table playing 18 was refused at 12 by a figure that appears nowhere in their
+ * profile, and a table playing 6 was let past 6 here and then refused by the server quoting a
+ * different one.
+ *
+ * An allowance of zero means the table has not entered one - the profile has not landed yet, or the
+ * field is blank - and the honest answer to "how far may it fly?" is then nothing at all. Inventing
+ * a limit is the defect; the server is the authority and will say.
+ */
+export function fighterFlightRefusal(allowance: number | undefined, distance: number): string | null {
+  if (!allowance || allowance <= 0 || distance <= allowance) {
+    return null;
+  }
+
+  return `${Number(distance.toFixed(1))} away, past the ${allowance} a group can fly in a turn`;
+}
+
 export function isFighterGroup(ship: Pick<Ship, 'iconKey' | 'className'>) {
   return normalizeShipIconKey(ship.iconKey, ship.className) === 'fighter-group'
     || (ship.className ?? '').toLowerCase().includes('fighter');

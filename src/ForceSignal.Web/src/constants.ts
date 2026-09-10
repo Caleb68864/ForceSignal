@@ -75,10 +75,13 @@ export const shipIconOptions: { key: ShipIconKey; label: string }[] = [
   { key: 'station', label: 'Station' },
 ];
 export const fighterStatuses: FighterStatus[] = ['Docked', 'Airborne', 'Recovering'];
+// How far a fighter group flies in a turn used to live here, as 12. That is a rules number and it
+// is the player's: `RulesProfile.fighterMoveAllowance`, typed into the profile editor, carried on
+// every snapshot and enforced by the server. The map now reads it off the table - see
+// `fighterFlightRefusal` - so a table playing 18 is no longer refused at 12 by a figure that
+// appears nowhere in their profile. That a group moves freely inside a radius rather than on a
+// plotted course is the procedure, and stays the engine's; how far is theirs.
 // Six sixty-degree arcs, clockwise from dead ahead.
-/// How far a fighter group flies in a turn. It moves in any direction inside this radius rather than
-/// being plotted on a course, which is why it needs no written order.
-export const fighterMoveAllowance = 12;
 export const firingArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'Aft', 'AftPort', 'ForePort'];
 // Every weapon has the aft arc blacked out, so only these five can ever be fired through.
 export const firableArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'AftPort', 'ForePort'];

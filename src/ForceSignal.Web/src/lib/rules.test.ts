@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPreTurnChecklist, captureDamageState, describeArcs, firingDraftFor, firingTargetOptions, focusedFirstShips, isFighterGroup } from './rules.ts';
+import { buildPreTurnChecklist, captureDamageState, describeArcs, fighterFlightRefusal, firingDraftFor, firingTargetOptions, focusedFirstShips, isFighterGroup } from './rules.ts';
 import type { MatchSnapshot, Ship, WeaponMount } from '../types.ts';
 
 /**
@@ -235,5 +235,29 @@ describe('buildPreTurnChecklist', () => {
     const board = snapshot({ ships: [ship({ positionX: 80 })] });
 
     expect(find(buildPreTurnChecklist(board, new Set()), 'positions')?.text).toBe('1 live ship outside table bounds');
+  });
+});
+
+describe('how far a fighter group may fly', () => {
+  // The screen used to hold 12 as a constant and refuse against it. The distance a group flies is
+  // the player's - RulesProfile.FighterMoveAllowance, entered in the profile editor and enforced by
+  // the server - so a table playing 18 was refused at 12 by a number from nowhere, and a table
+  // playing 6 was let past 6 and refused by the server with a different number.
+  it('refuses only past the allowance the table entered', () => {
+    expect(fighterFlightRefusal(20, 18)).toBeNull();
+    expect(fighterFlightRefusal(20, 18.4)).toBeNull();
+    expect(fighterFlightRefusal(6, 6)).toBeNull();
+  });
+
+  it('names the number the table entered when it refuses', () => {
+    expect(fighterFlightRefusal(6, 11)).toBe('11 away, past the 6 a group can fly in a turn');
+    expect(fighterFlightRefusal(18, 20.25)).toBe('20.3 away, past the 18 a group can fly in a turn');
+  });
+
+  it('says nothing at all when the table has not entered one', () => {
+    // A profile that has not arrived, or a field left blank. Inventing a limit here is the whole
+    // defect; the server is the authority and will answer.
+    expect(fighterFlightRefusal(0, 500)).toBeNull();
+    expect(fighterFlightRefusal(undefined, 500)).toBeNull();
   });
 });
