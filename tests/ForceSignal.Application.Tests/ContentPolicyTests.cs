@@ -91,4 +91,143 @@ public sealed class ContentPolicyTests
         Assert.Equal("Valiant", ship.Name);
         Assert.Empty(ship.Weapons);
     }
+
+    [Fact]
+    public void AFighterGroupThatEnteredNoNumbersComesBackWithNone()
+    {
+        // Exactly what the client's "Fighters" preset sends: a class and an icon, and every number
+        // at the form's zero. This came back with six turns of endurance and a reach of twenty-four,
+        // and nothing on screen said where either had come from. The endurance was then spent by
+        // SpendFighterEndurance and the reach was drawn on the map as a range ring, so both were
+        // live rules numbers rather than decoration.
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Table", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Home Watch", null)).Fleets.Single();
+
+        var ship = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken,
+            "Gold Flight",
+            "Fighter Group",
+            ThrustRating: 0,
+            InitialVelocity: 0,
+            InitialCourse: 1,
+            HullMax: 0,
+            ArmorMax: 0,
+            IconKey: "fighter-group",
+            FighterEnduranceMax: 0,
+            FighterMaxRange: 0)).Ships.Single();
+
+        // Reached-the-subject: it really is a fighter group, so the fighter fields are live for it.
+        Assert.Equal("fighter-group", ship.IconKey);
+
+        Assert.Equal(0, ship.FighterEnduranceMax);
+        Assert.Equal(0, ship.FighterMaxRange);
+    }
+
+    [Fact]
+    public void AFighterGroupKeepsTheNumbersItDidEnter()
+    {
+        // The control. A normalizer that zeroed everything would satisfy the test above and be
+        // useless, so the same two fields have to survive being filled in.
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Table", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Home Watch", null)).Fleets.Single();
+
+        var ship = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken,
+            "Gold Flight",
+            "Fighter Group",
+            ThrustRating: 0,
+            InitialVelocity: 0,
+            InitialCourse: 1,
+            HullMax: 0,
+            ArmorMax: 0,
+            IconKey: "fighter-group",
+            FighterEnduranceMax: 9,
+            FighterMaxRange: 33)).Ships.Single();
+
+        Assert.Equal(9, ship.FighterEnduranceMax);
+        Assert.Equal(33, ship.FighterMaxRange);
+    }
+
+    [Fact]
+    public void ASalvoIsNotRefusedAgainstAReachNobodyEntered()
+    {
+        // The sharpest instance of this habit anywhere in the codebase, because it is not a stored
+        // default a player might notice and overwrite - it is a refusal. A player who entered no
+        // reach was told their point of aim was "past the 24 this salvo can reach", quoting a number
+        // the app had written for them.
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Table", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Home Watch", null)).Fleets.Single();
+        var source = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken,
+            "Valiant",
+            "Cruiser",
+            ThrustRating: 0,
+            InitialVelocity: 0,
+            InitialCourse: 1,
+            HullMax: 0,
+            ArmorMax: 0,
+            StartX: 0,
+            StartY: 0)).Ships.Single();
+
+        // Well past any reach the app used to invent, and past nothing the player said.
+        var snapshot = service.CreateOrdnanceMarker(owner.MatchId, new CreateOrdnanceMarkerRequest(
+            owner.ParticipantToken,
+            "Valiant Salvo",
+            "Salvo",
+            SourceShipId: source.Id,
+            TargetShipId: null,
+            PositionX: 60,
+            PositionY: 0,
+            Course: 1,
+            Speed: 0,
+            EnduranceRemaining: 0,
+            AttackDice: 0,
+            MaxRange: 0));
+
+        var marker = Assert.Single(snapshot.OrdnanceMarkers);
+        Assert.Equal(60, marker.PositionX);
+        Assert.Equal(0, marker.MaxRange);
+    }
+
+    [Fact]
+    public void ASalvoIsStillRefusedAgainstTheReachThePlayerDidEnter()
+    {
+        // The control for the one above: the check is still a check, on the table's own number.
+        var service = new InMemoryMatchService();
+        var owner = service.CreateMatch(new CreateMatchRequest("Admiral", "Table", Rules: TestRules.Invented));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Home Watch", null)).Fleets.Single();
+        var source = service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken,
+            "Valiant",
+            "Cruiser",
+            ThrustRating: 0,
+            InitialVelocity: 0,
+            InitialCourse: 1,
+            HullMax: 0,
+            ArmorMax: 0,
+            StartX: 0,
+            StartY: 0)).Ships.Single();
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.CreateOrdnanceMarker(
+            owner.MatchId,
+            new CreateOrdnanceMarkerRequest(
+                owner.ParticipantToken,
+                "Valiant Salvo",
+                "Salvo",
+                SourceShipId: source.Id,
+                TargetShipId: null,
+                PositionX: 60,
+                PositionY: 0,
+                Course: 1,
+                Speed: 0,
+                EnduranceRemaining: 0,
+                AttackDice: 0,
+                MaxRange: 10)));
+
+        // The refusal quotes the reach the player entered and no other number.
+        Assert.Contains("past the 10", refusal.Message);
+    }
 }

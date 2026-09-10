@@ -783,10 +783,18 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 ? match.Ships.SingleOrDefault(s => s.Id == targetId) ?? throw new NotFoundException("Target ship was not found.")
                 : null;
 
-            // A salvo is thrown at a point of aim within the launcher's reach - 24mu for a standard
-            // salvo, 36 for extended range - so the placement is checked against the firing ship.
-            var launchReach = Math.Clamp(request.MaxRange <= 0 ? 24 : request.MaxRange, 1, 120);
-            if (source is not null && IsSalvoMarkerType(request.MarkerType))
+            // A salvo is thrown at a point of aim within the launcher's reach, so the placement is
+            // checked against the firing ship - against the reach the player entered, and only then.
+            //
+            // This read `request.MaxRange <= 0 ? 24 : request.MaxRange`, under a comment naming 24
+            // and 36 as the two loads. It was the worst instance of that habit anywhere in this
+            // codebase, because it is not a stored default that a player might notice and overwrite:
+            // it is a **refusal**. A player who entered no reach was told their point of aim was
+            // "past the 24 this salvo can reach", on the authority of a number the app had invented
+            // for them. An unentered reach is not a reach of any length, so there is nothing here to
+            // check and the placement stands.
+            var launchReach = Math.Clamp(request.MaxRange, 0, 120);
+            if (source is not null && launchReach > 0 && IsSalvoMarkerType(request.MarkerType))
             {
                 var aimRange = Math.Sqrt(
                     Math.Pow((double)(ClampPosition(request.PositionX, match.TableWidth) - source.PositionX), 2)

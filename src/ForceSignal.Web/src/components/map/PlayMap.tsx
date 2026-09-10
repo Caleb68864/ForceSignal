@@ -1037,7 +1037,10 @@ function FighterRangeOverlay({ ship, ships, tableWidth, tableDepth }: { ship: Sh
     return null;
   }
 
-  const maxRange = ship.fighterMaxRange || 24;
+  // The same 24 the server used to invent, drawn on the felt: `ship.fighterMaxRange || 24` put a
+  // ring around a group whose owner had entered no reach. A group with no reach entered gets no
+  // ring - there is nothing to draw.
+  const maxRange = ship.fighterMaxRange;
   const enduranceRange = ship.fighterReach;
   const homeCarrier = ship.homeCarrierShipId
     ? ships.find((candidate) => candidate.id === ship.homeCarrierShipId)
@@ -1050,17 +1053,19 @@ function FighterRangeOverlay({ ship, ships, tableWidth, tableDepth }: { ship: Sh
 
   return (
     <div className="fighter-range-overlay" aria-hidden="true">
-      <span
-        className="fighter-range max"
-        style={{
-          left: `${maxLeft}%`,
-          top: `${maxTop}%`,
-          width: `${rangeDiameterPercent(maxRange, tableWidth)}%`,
-          height: `${rangeDiameterPercent(maxRange, tableDepth)}%`,
-        }}
-      >
-        <em>FTR MAX {maxRange}</em>
-      </span>
+      {maxRange > 0 ? (
+        <span
+          className="fighter-range max"
+          style={{
+            left: `${maxLeft}%`,
+            top: `${maxTop}%`,
+            width: `${rangeDiameterPercent(maxRange, tableWidth)}%`,
+            height: `${rangeDiameterPercent(maxRange, tableDepth)}%`,
+          }}
+        >
+          <em>FTR MAX {maxRange}</em>
+        </span>
+      ) : null}
       <span
         className="fighter-range endurance"
         style={{

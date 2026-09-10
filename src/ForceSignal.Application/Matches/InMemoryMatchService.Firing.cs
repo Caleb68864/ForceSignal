@@ -114,8 +114,13 @@ public sealed partial class InMemoryMatchService
     {
         var remaining = Math.Max(0, ship.FighterEnduranceMax - ship.FighterEnduranceUsed);
         var velocityReach = Math.Max(1, ship.CurrentVelocity) * Math.Max(1, remaining);
-        var maxRange = ship.FighterMaxRange > 0 ? ship.FighterMaxRange : 24;
-        return Math.Max(1, Math.Min(maxRange, velocityReach));
+        // A group whose owner entered no reach is not bound by one. This read
+        // `ship.FighterMaxRange > 0 ? ship.FighterMaxRange : 24`, so a 24 nobody had typed became a
+        // ring on the map and a ceiling on how far the group could get. Applying a limit the table
+        // never set is the defect; what a layer allows is theirs to say.
+        return ship.FighterMaxRange > 0
+            ? Math.Max(1, Math.Min(ship.FighterMaxRange, velocityReach))
+            : Math.Max(1, velocityReach);
     }
 
     /// <summary>
