@@ -126,6 +126,43 @@ describe('normalizeFleetExportShip', () => {
   it('refuses a row that is not an object', () => {
     expect(() => normalizeFleetExportShip('Alpha', defaultShipForm)).toThrow();
   });
+
+  // The screen ceiling was a flat 3 here - `RulesProfile.maxScreenLevel`, the player's, written into
+  // this file as a constant. A table playing to 5 lost two levels off every ship in their own file,
+  // silently, on the way in.
+  it('reads the screen rating against the ceiling the table entered', () => {
+    const read = normalizeFleetExportShip({ name: 'Wall', screens: 5 }, defaultShipForm, 5);
+
+    // Reached-the-subject: it is the row that was passed in, so the 5 below is that row's.
+    expect(read.name).toBe('Wall');
+    expect(read.screenRating).toBe(5);
+  });
+
+  it('reads it as written when no profile has landed, and lets the server clamp', () => {
+    // No ceiling of this app's choosing. The server clamps against the profile, which is the only
+    // place that limit is actually known.
+    expect(normalizeFleetExportShip({ name: 'Wall', screens: 5 }, defaultShipForm).screenRating).toBe(5);
+  });
+
+  it('still holds the file to the ceiling the table did enter', () => {
+    // The control. A reader that never clamps would satisfy both of the above and be no reader.
+    expect(normalizeFleetExportShip({ name: 'Wall', screens: 5 }, defaultShipForm, 2).screenRating).toBe(2);
+    // And a number no screen level could be is malformed rather than generous.
+    expect(normalizeFleetExportShip({ name: 'Wall', screens: 400 }, defaultShipForm).screenRating).toBe(9);
+  });
+
+  it('carries the ceiling through every door into this file', () => {
+    // Three entry points read rows, and the ceiling has to reach all of them or one door quietly
+    // keeps the old answer.
+    const row = { name: 'Wall', screens: 5 };
+    const json = parseFleetExport(JSON.stringify({ ships: [row] }), 'fleet.json', defaultShipForm, 5);
+    const csv = parseFleetExport('name,screens\nWall,5\n', 'fleet.csv', defaultShipForm, 5);
+    const saved = normalizeSavedFleets([{ savedAt: 'x', fleet: { ships: [row] } }], defaultShipForm, 5);
+
+    expect(json.ships[0].screenRating).toBe(5);
+    expect(csv.ships[0].screenRating).toBe(5);
+    expect(saved[0].fleet.ships[0].screenRating).toBe(5);
+  });
 });
 
 describe('normalizeFleetExport', () => {

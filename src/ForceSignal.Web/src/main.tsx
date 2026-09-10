@@ -547,7 +547,10 @@ function App() {
     }
 
     const text = await file.text();
-    const exportData = parseFleetExport(text, file.name, shipForm);
+    // The table's own screen ceiling, so a file recording more levels than this app used to allow
+    // is not quietly trimmed on the way in. Zero when no profile has landed, which means no ceiling
+    // of ours: the server clamps against the profile, and it is the only place that limit is known.
+    const exportData = parseFleetExport(text, file.name, shipForm, snapshot?.rules?.maxScreenLevel ?? 0);
     await createFleetFromExport(exportData);
   }
 
