@@ -37,13 +37,37 @@ export function fatigueFrom(value: unknown, fallback = 'Fresh'): string {
   return typeof value === 'string' && fatigues.includes(value) ? value : fallback;
 }
 
-/** Everything one side has on the table, ready to write out. */
+/**
+ * Everything one side has on the table, ready to write out.
+ *
+ * @throws {Error} When a unit's roster or weapon list did not arrive on the snapshot at all.
+ */
 export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForceFile {
+  const onThisSide = units.filter((unit) => unit.side === side);
+
+  // A snapshot is whatever the server sent: `get<StarGruntSnapshot>` asserts the shape rather than
+  // checking it, so a unit from a server written before figures were on the wire, or from a backup
+  // restored from one, really does arrive without a `figures` array. Mapping over it threw, and the
+  // throw landed in a bare `onClick` - so the Export button did nothing at all, said nothing, and
+  // looked exactly like a button that had worked.
+  //
+  // Refused rather than skipped or filled in. The armour dice live nowhere else on a snapshot, so a
+  // file written without them is a roster with the player's own numbers missing, and import reads a
+  // figure with no armour die back as a die this app chose. Naming the units is what lets the
+  // player tell version skew from a game they have half set up.
+  const incomplete = onThisSide.filter((unit) => !Array.isArray(unit.figures) || !Array.isArray(unit.weapons));
+  if (incomplete.length > 0) {
+    throw new Error(
+      `This game did not send a full roster for ${incomplete.map((unit) => unit.name).join(', ')}, so a `
+      + 'file written now would be missing figures or weapons. Reopen the game against a server that '
+      + 'sends them rather than exporting an incomplete force.',
+    );
+  }
+
   return {
     formatVersion: forceFormatVersion,
     side,
-    units: units
-      .filter((unit) => unit.side === side)
+    units: onThisSide
       .map((unit) => ({
         id: unit.id,
         name: unit.name,
