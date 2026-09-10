@@ -157,6 +157,76 @@ export function looksLikeProfile(value: unknown): boolean {
   return Object.keys(value).filter((key) => fields.has(key)).length >= 2;
 }
 
+/**
+ * The profile fields a parsed file does not carry.
+ *
+ * Walked off `blankRulesProfile` rather than off a list kept here, so a field added to
+ * `RulesProfile` tomorrow is covered the day it is added.
+ */
+export function missingProfileFields(value: unknown): string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return Object.keys(blankRulesProfile);
+  }
+
+  const carried = new Set(Object.keys(value));
+  return Object.keys(blankRulesProfile).filter((field) => !carried.has(field));
+}
+
+/** What an import that could not be read at all says, wherever it failed. */
+export const unreadableProfileMessage =
+  'That file could not be read as a rules profile, so the numbers on screen have been left as they '
+  + 'are. Pick the file you exported from here, or type the numbers in.';
+
+/** Either a whole profile read off a file, or the reason the file was not applied. */
+export type ProfileImport =
+  | { readonly ok: true; readonly profile: RulesProfile }
+  | { readonly ok: false; readonly problem: string };
+
+/**
+ * Reads the bytes of a picked file, and refuses anything that would cost the player numbers.
+ *
+ * Two doors, and both used to be open. The first - a file that is not a profile at all - was closed
+ * by `looksLikeProfile`, which asks whether the file carries two or more of these field names. The
+ * second is the one that bar cannot see: **a file that is unmistakably one of ours and is missing
+ * most of it.** `{ name, dieFaces }` clears a two-field bar, and spreading it over the blank profile
+ * wrote zeros into the other twenty-eight fields the player had typed off their own rulebook - a
+ * truncated export, a half-written file, or a profile from a version that renamed the rest, and no
+ * message either way.
+ *
+ * So an incomplete file is **reported, not applied**. Not partially applied either: half a profile
+ * laid over a whole one is a set of numbers nobody entered, which is the thing this app is for not
+ * doing. The names of the missing fields go in the message, because the player has to know which
+ * numbers to go and find.
+ */
+export function readProfileFile(text: string): ProfileImport {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    return { ok: false, problem: unreadableProfileMessage };
+  }
+
+  if (!looksLikeProfile(payload)) {
+    return { ok: false, problem: unreadableProfileMessage };
+  }
+
+  const missing = missingProfileFields(payload);
+  if (missing.length > 0) {
+    const total = Object.keys(blankRulesProfile).length;
+    // Every one of them by name, however many that is. A count alone would tell the player they
+    // have lost something without telling them what, and the list is what they take back to their
+    // rulebook.
+    return {
+      ok: false,
+      problem: `That file is a rules profile with ${missing.length} of its ${total} fields missing, so the `
+        + 'numbers on screen have been left as they are rather than blanked. Fill these in, or pick '
+        + `the file you exported from here: ${missing.join(', ')}.`,
+    };
+  }
+
+  return { ok: true, profile: readProfile(payload) };
+}
+
 /** The profile as a file a player can keep or pass to the rest of the table. */
 export function exportProfile(profile: RulesProfile): void {
   const blob = new Blob([JSON.stringify(profile, null, 2)], { type: 'application/json' });

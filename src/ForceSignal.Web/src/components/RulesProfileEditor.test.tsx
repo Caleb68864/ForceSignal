@@ -105,6 +105,27 @@ describe('RulesProfileEditor', () => {
     expect((screen.getByLabelText('Range band (mu)') as HTMLInputElement).value).toBe('10');
   });
 
+  it('keeps them when the file is a profile with most of it missing', async () => {
+    // The narrower door. `{ name, dieFaces }` is unmistakably one of ours - a truncated export, a
+    // half-written file, a profile from a version that renamed the rest - so the "is this one of
+    // ours?" bar waved it through, and the twenty-eight fields it did not carry were written to the
+    // form as zeros. An incomplete file is reported, never applied.
+    const view = render(<RulesProfileEditor value={tableProfile()} editable onApply={vi.fn()} />);
+    openTheNumbers();
+
+    pickFile(view, JSON.stringify({ name: 'Half A Layer', dieFaces: 8 }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    // What the file did carry must not have been applied either: half a profile over the top of a
+    // whole one is a set of numbers nobody entered.
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Invented Layer');
+    expect((screen.getByLabelText('Range band (mu)') as HTMLInputElement).value).toBe('10');
+    expect((screen.getByLabelText('Rows in a track') as HTMLInputElement).value).toBe('3');
+    // Reached-the-subject: the complaint is about this file's gaps rather than the generic refusal
+    // an unreadable file gets, so the import really did parse it and look inside.
+    expect(screen.getByRole('alert').textContent).toMatch(/beamRangeBandWidth/);
+  });
+
   it('still loads a profile it can read, and clears the complaint', async () => {
     const view = render(<RulesProfileEditor value={tableProfile()} editable onApply={vi.fn()} />);
     openTheNumbers();
