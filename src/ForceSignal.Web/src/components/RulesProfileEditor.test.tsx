@@ -126,6 +126,32 @@ describe('RulesProfileEditor', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/beamRangeBandWidth/);
   });
 
+  it('takes a partial file onto a form with nothing on it', async () => {
+    // The other side of the check above, and the one a first version of it broke: a table that does
+    // not play torpedoes or salvos writes a profile that says nothing about them. Seven fields is
+    // all a profile needs to be playable, and refusing this file would be the app deciding which
+    // optional rules a table has to use. This is the shape `scripts/two-player-smoke.py` brings, and
+    // it is how every match in CI gets its numbers.
+    const view = render(<RulesProfileEditor value={blankRulesProfile} editable onApply={vi.fn()} />);
+    openTheNumbers();
+
+    pickFile(view, JSON.stringify({
+      name: 'Smoke Test Layer (invented)',
+      dieFaces: 6,
+      beamDamage: [{ dieFace: 6, screenLevel: 0, damage: 2 }],
+      beamRangeBandWidth: 12,
+      maxScreenLevel: 0,
+      thresholdRows: 'FixedRows',
+      thresholdRowCount: 4,
+    }));
+
+    await waitFor(() => expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Smoke Test Layer (invented)'));
+    expect((screen.getByLabelText('Rows in a track') as HTMLInputElement).value).toBe('4');
+    expect(screen.queryByRole('alert')).toBeNull();
+    // And the profile it produced is playable, which is what the Save button waits for.
+    expect((screen.getByRole('button', { name: 'Save & Play Against This' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('still loads a profile it can read, and clears the complaint', async () => {
     const view = render(<RulesProfileEditor value={tableProfile()} editable onApply={vi.fn()} />);
     openTheNumbers();

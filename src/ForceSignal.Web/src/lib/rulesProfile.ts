@@ -158,18 +158,30 @@ export function looksLikeProfile(value: unknown): boolean {
 }
 
 /**
- * The profile fields a parsed file does not carry.
+ * The fields a parsed file would blank, given what is on the form now.
+ *
+ * Not the same question as "what is the file missing?", and the difference is the whole of it. A
+ * profile does not need all thirty fields to be usable - the editor's own hints say to leave the
+ * torpedo reach and the salvo size at zero if your table does not use them - so a file that omits
+ * them is a perfectly good file, and refusing it would be this app deciding which optional rules a
+ * table has to play. What is never acceptable is the *loss*: a field the player has filled in going
+ * to zero because the file said nothing about it.
+ *
+ * So the question asked is the one that matters. A field the file does not carry costs nothing when
+ * the form has nothing in it either, and costs the player their own number when it does.
  *
  * Walked off `blankRulesProfile` rather than off a list kept here, so a field added to
  * `RulesProfile` tomorrow is covered the day it is added.
  */
-export function missingProfileFields(value: unknown): string[] {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return Object.keys(blankRulesProfile);
-  }
+export function fieldsBlankedBy(value: unknown, current: RulesProfile): string[] {
+  const carried = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? new Set(Object.keys(value))
+    : new Set<string>();
 
-  const carried = new Set(Object.keys(value));
-  return Object.keys(blankRulesProfile).filter((field) => !carried.has(field));
+  const blank = blankRulesProfile as unknown as Record<string, unknown>;
+  const filled = current as unknown as Record<string, unknown>;
+  return Object.keys(blank).filter((field) =>
+    !carried.has(field) && JSON.stringify(filled[field]) !== JSON.stringify(blank[field]));
 }
 
 /** What an import that could not be read at all says, wherever it failed. */
@@ -193,12 +205,17 @@ export type ProfileImport =
  * truncated export, a half-written file, or a profile from a version that renamed the rest, and no
  * message either way.
  *
- * So an incomplete file is **reported, not applied**. Not partially applied either: half a profile
- * laid over a whole one is a set of numbers nobody entered, which is the thing this app is for not
- * doing. The names of the missing fields go in the message, because the player has to know which
- * numbers to go and find.
+ * What is refused is the **loss**, not the incompleteness. Those are two different things and
+ * getting them confused costs a real capability: a profile does not need all thirty fields to be
+ * usable, and a file that leaves out the torpedo and salvo numbers because that table does not play
+ * them is a good file. Refusing it would be this app deciding which optional rules a table has to
+ * use, which is the same sin in a different coat. So a partial file lands on an empty form, and is
+ * turned away only when it would blank something already on the form - by name, all of them,
+ * because the player has to know which of their numbers was at stake.
+ *
+ * @param current What is on the form now, and therefore what there is to lose.
  */
-export function readProfileFile(text: string): ProfileImport {
+export function readProfileFile(text: string, current: RulesProfile = blankRulesProfile): ProfileImport {
   let payload: unknown;
   try {
     payload = JSON.parse(text);
@@ -210,17 +227,14 @@ export function readProfileFile(text: string): ProfileImport {
     return { ok: false, problem: unreadableProfileMessage };
   }
 
-  const missing = missingProfileFields(payload);
-  if (missing.length > 0) {
-    const total = Object.keys(blankRulesProfile).length;
-    // Every one of them by name, however many that is. A count alone would tell the player they
-    // have lost something without telling them what, and the list is what they take back to their
-    // rulebook.
+  const blanked = fieldsBlankedBy(payload, current);
+  if (blanked.length > 0) {
     return {
       ok: false,
-      problem: `That file is a rules profile with ${missing.length} of its ${total} fields missing, so the `
-        + 'numbers on screen have been left as they are rather than blanked. Fill these in, or pick '
-        + `the file you exported from here: ${missing.join(', ')}.`,
+      problem: `That file is a rules profile, but it says nothing about ${blanked.length} field`
+        + `${blanked.length === 1 ? '' : 's'} you have already filled in, so it would blank `
+        + `${blanked.length === 1 ? 'it' : 'them'}. Nothing on screen has been changed. Start Blank `
+        + `first if you meant to replace the lot: ${blanked.join(', ')}.`,
     };
   }
 
