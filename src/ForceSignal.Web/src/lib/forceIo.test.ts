@@ -109,6 +109,25 @@ describe('toForceFile', () => {
     expect(file.units[0].figures.map((figure) => figure.armourDie)).toEqual([12, 10, 12]);
   });
 
+  it('refuses a unit whose roster the snapshot never carried, by name', () => {
+    // Not a fabricated shape: `get<StarGruntSnapshot>` asserts the type rather than checking it, so
+    // a snapshot really is whatever the server sent. A server written before figures were on the
+    // wire - or a backup restored from one - sends a unit with no `figures` at all, and mapping
+    // over it threw. The units are parsed from JSON here rather than built in TypeScript, so this
+    // fixture cannot hold anything the wire could not.
+    const fromAnOlderServer = JSON.parse(JSON.stringify(unit())) as Record<string, unknown>;
+    delete fromAnOlderServer.figures;
+
+    // Reached-the-subject: it is still recognisably the unit, on the side being exported.
+    expect(fromAnOlderServer.name).toBe('Alpha Squad');
+    expect(fromAnOlderServer.side).toBe('blue');
+
+    expect(() => toForceFile('blue', [fromAnOlderServer as unknown as StarGruntUnit]))
+      .toThrow(/Alpha Squad/);
+    // The other side of the same snapshot is not this side's problem.
+    expect(() => toForceFile('red', [fromAnOlderServer as unknown as StarGruntUnit])).not.toThrow();
+  });
+
   it('keeps a mixed roster mixed through a whole round trip', () => {
     // A squad may mix armour - that is why figures are listed rather than counted - so the file has
     // to carry each figure's own die rather than one die for the unit.

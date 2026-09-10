@@ -25,11 +25,31 @@ import type { Fleet, FleetExport, FleetExportShip, SavedFleet, Ship, ShipForm, W
 const unentered = 0;
 
 /**
+ * The most screen levels a fleet file may record, when the table has not said otherwise.
+ *
+ * This was a flat `3`, which is `RulesProfile.MaxScreenLevel` - the player's number, entered in the
+ * profile editor and enforced by the server - written here as a constant. A table playing to 5 lost
+ * two levels off every ship in their own file, silently, on the way in.
+ *
+ * The honest ceiling when no profile is to hand is not a smaller rule but none: the file's number is
+ * read as written and the server clamps it against the profile, which is the only place that limit
+ * is actually known. What is left is a bound on the shape of the number rather than on the rule -
+ * the profile editor's own beam grid draws at most this many screen columns (`RulesProfileEditor`),
+ * so a file claiming more than this is malformed rather than merely generous.
+ */
+const screenLevelCeiling = 9;
+
+/** The ceiling to read a file's screen rating against: the table's own, or nothing of ours. */
+function screenCeiling(maxScreenLevel: number) {
+  return maxScreenLevel > 0 ? Math.min(maxScreenLevel, screenLevelCeiling) : screenLevelCeiling;
+}
+
+/**
  * The device's fleet library, read back out of storage. It was written by whichever build last ran
  * here, so it goes through the same coercion an imported file does; an entry that is not a fleet
  * at all is dropped rather than allowed to reach a render.
  */
-export function normalizeSavedFleets(value: unknown, fallback: ShipForm): SavedFleet[] {
+export function normalizeSavedFleets(value: unknown, fallback: ShipForm, maxScreenLevel = 0): SavedFleet[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -44,7 +64,7 @@ export function normalizeSavedFleets(value: unknown, fallback: ShipForm): SavedF
     try {
       entries.push({
         savedAt: stringFrom(record.savedAt, new Date(0).toISOString()),
-        fleet: normalizeFleetExport(record.fleet, fallback, ''),
+        fleet: normalizeFleetExport(record.fleet, fallback, '', maxScreenLevel),
       });
     } catch {
       // Not a fleet. The rest of the library is still worth keeping.
@@ -101,9 +121,9 @@ export function toFleetExport(fleet: Fleet, ships: Ship[]): FleetExport {
     })),
   };
 }
-export function parseFleetExport(text: string, fileName: string, fallback: ShipForm): FleetExport {
+export function parseFleetExport(text: string, fileName: string, fallback: ShipForm, maxScreenLevel = 0): FleetExport {
   if (fileName.toLowerCase().endsWith('.json')) {
-    return normalizeFleetExport(JSON.parse(text), fallback, fileName);
+    return normalizeFleetExport(JSON.parse(text), fallback, fileName, maxScreenLevel);
   }
 
   const rows = parseCsv(text).filter((row) => row.some((cell) => cell.trim().length > 0));
@@ -137,7 +157,7 @@ export function parseFleetExport(text: string, fileName: string, fallback: ShipF
       homeCarrierName: getValue('homecarriername') || getValue('homecarrier') || getValue('carrier'),
       pointsValue: getValue('pointsvalue') || getValue('points') || getValue('npv'),
       weapons: parseWeaponsCell(getValue('weapons')),
-    }, fallback);
+    }, fallback, maxScreenLevel);
   });
 
   return {
@@ -149,7 +169,7 @@ export function parseFleetExport(text: string, fileName: string, fallback: ShipF
     ships,
   };
 }
-export function normalizeFleetExport(value: unknown, fallback: ShipForm, fileName: string): FleetExport {
+export function normalizeFleetExport(value: unknown, fallback: ShipForm, fileName: string, maxScreenLevel = 0): FleetExport {
   if (!value || typeof value !== 'object') {
     throw new Error('Fleet JSON must be an object.');
   }
@@ -162,10 +182,14 @@ export function normalizeFleetExport(value: unknown, fallback: ShipForm, fileNam
     name: stringFrom(record.name, stripFileExtension(fileName) || fallback.fleetName),
     faction: stringFrom(record.faction, fallback.faction),
     fleetColor: normalizeFleetColor(record.fleetColor ?? fallback.fleetColor),
-    ships: rawShips.map((ship) => normalizeFleetExportShip(ship, fallback)),
+    ships: rawShips.map((ship) => normalizeFleetExportShip(ship, fallback, maxScreenLevel)),
   };
 }
-export function normalizeFleetExportShip(value: unknown, fallback: ShipForm): FleetExportShip {
+/**
+ * @param maxScreenLevel The table's own `RulesProfile.maxScreenLevel`, or zero when no profile has
+ * landed - in which case nothing here decides the limit and the server clamps against the profile.
+ */
+export function normalizeFleetExportShip(value: unknown, fallback: ShipForm, maxScreenLevel = 0): FleetExportShip {
   if (!value || typeof value !== 'object') {
     throw new Error('Each imported ship must be an object or CSV row.');
   }
@@ -194,7 +218,7 @@ export function normalizeFleetExportShip(value: unknown, fallback: ShipForm): Fl
     startY: numberFrom(record.startY ?? record.positionY ?? record.y, unentered, 0, 96),
     hullMax: wholeNumberFrom(record.hullMax ?? record.hullBoxes ?? record.hull, unentered, 1, 80),
     armorMax: wholeNumberFrom(record.armorMax ?? record.armorBoxes ?? record.armor, unentered, 0, 40),
-    screenRating: wholeNumberFrom(record.screenRating ?? record.screens, unentered, 0, 3),
+    screenRating: wholeNumberFrom(record.screenRating ?? record.screens, unentered, 0, screenCeiling(maxScreenLevel)),
     fireControlMax: wholeNumberFrom(record.fireControlMax ?? record.firecons, unentered, 0, 6),
     pointDefenseSystems: wholeNumberFrom(record.pointDefenseSystems ?? record.pds, unentered, 0, 12),
     fighterBays: wholeNumberFrom(record.fighterBays ?? record.bays, unentered, 0, 12),

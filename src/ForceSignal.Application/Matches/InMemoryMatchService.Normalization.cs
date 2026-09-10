@@ -91,15 +91,33 @@ public sealed partial class InMemoryMatchService
         "dreadnought" or
         "fighter-group" or
         "station";
+    /// <summary>
+    /// How many turns a group can stay up, as the player entered it.
+    /// </summary>
+    /// <remarks>
+    /// This read <c>value &lt;= 0 ? 6 : value</c>. A group created exactly as the client's Fighters
+    /// preset sends it - class and icon set, every number at the form's zero - came back with six
+    /// turns of endurance nobody had entered, and <c>SpendFighterEndurance</c> then spent them. The
+    /// engine owns procedures and the player owns every number those procedures read, so an
+    /// unentered endurance stays unentered: zero, which every reader already treats as "no
+    /// endurance model on this table" (<c>SpendFighterEndurance</c> and the out-of-endurance check
+    /// in <c>Firing</c> both guard <c>&gt; 0</c> already). The 24 is a bound on abuse, not a rule.
+    /// </remarks>
     private static int NormalizeFighterEnduranceMax(int value, string iconKey, string? className) =>
         IsFighterGroup(iconKey, className)
-            ? Math.Clamp(value <= 0 ? 6 : value, 1, 24)
+            ? Math.Clamp(value, 0, 24)
             : 0;
     private static int NormalizeFighterEnduranceUsed(int value, int max) =>
         Math.Clamp(value, 0, Math.Max(0, max));
+    /// <summary>How far a group may get from its deck, as the player entered it.</summary>
+    /// <remarks>
+    /// Same defect as the endurance above, and the same answer: this read
+    /// <c>value &lt;= 0 ? 24 : value</c>, and the 24 was then drawn on the map as a range ring
+    /// around a group whose owner had entered nothing.
+    /// </remarks>
     private static int NormalizeFighterMaxRange(int value, string iconKey, string? className) =>
         IsFighterGroup(iconKey, className)
-            ? Math.Clamp(value <= 0 ? 24 : value, 1, 120)
+            ? Math.Clamp(value, 0, 120)
             : 0;
     private static string NormalizeFighterStatus(string? value, string iconKey, string? className)
     {

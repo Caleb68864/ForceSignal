@@ -10,10 +10,10 @@ import { numberFrom, wholeNumberFrom } from '../lib/format.ts';
 import { courseAngle, courseFromPoint, distanceBetweenShips, wrapCourse } from '../lib/geometry.ts';
 import { formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, turnPatchForCourse, turnPatchFromManeuvers } from '../lib/movement.ts';
 import { normalizeShipIconKey } from '../lib/normalize.ts';
-import { arcLabel, buildPreTurnChecklist, describeArcs, firingTargetOptions, isFighterGroupForm } from '../lib/rules.ts';
+import { arcLabel, buildPreTurnChecklist, damageControlNote, describeArcs, firingTargetOptions, isFighterGroupForm, needleSystemNote, partiesPerJobCap, pointDefenceNote, repairOddsNote } from '../lib/rules.ts';
 import { useFiringSolution } from '../lib/useFiringSolution.ts';
 import { newWeaponMount, updateWeapon } from '../lib/weapons.ts';
-import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, FiringSolution, MatchSnapshot, RepairJob, Ship, ShipForm, ShipIconKey, TurnDirection, WeaponKind } from '../types.ts';
+import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, FiringSolution, MatchSnapshot, RepairJob, RulesProfile, Ship, ShipForm, ShipIconKey, TurnDirection, WeaponKind } from '../types.ts';
 
 export function ShipIcon({ iconKey }: { iconKey: ShipIconKey }) {
   return (
@@ -93,7 +93,13 @@ export function PreTurnChecklist({
     </section>
   );
 }
-export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form: ShipForm; onChange: (form: ShipForm) => void; maxScreenLevel?: number }) {
+/**
+ * @param rules The table's own profile, or undefined before the first snapshot lands. Every number
+ * this form states comes off it: a screen ceiling of 3 and two tooltips full of published rolls were
+ * this app telling the table what their rulebook says.
+ */
+export function ShipProfileFields({ form, onChange, rules }: { form: ShipForm; onChange: (form: ShipForm) => void; rules?: RulesProfile }) {
+  const maxScreenLevel = rules?.maxScreenLevel ?? 0;
   return (
     <div className="profile-fields">
       <div className="preset-strip">
@@ -165,7 +171,7 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
         Firecons
         <input type="number" min="0" max="6" value={form.fireControlMax} onChange={(event) => onChange({ ...form, fireControlMax: wholeNumberFrom(event.target.value, 0, 0, 6) })} />
       </label>
-      <label title="Point defence turrets: each rolls a die at fighters and missiles inside 6mu, and they carry their own fire control.">
+      <label title={pointDefenceNote(rules)}>
         Point defence
         <input type="number" min="0" max="12" value={form.pointDefenseSystems} onChange={(event) => onChange({ ...form, pointDefenseSystems: wholeNumberFrom(event.target.value, 0, 0, 12) })} />
       </label>
@@ -173,7 +179,7 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
         Fighter bays
         <input type="number" min="0" max="12" value={form.fighterBays} onChange={(event) => onChange({ ...form, fighterBays: wholeNumberFrom(event.target.value, 0, 0, 12) })} />
       </label>
-      <label title="Damage control parties. Between turns they roll to bring back systems lost to a threshold check: one repairs on a 6, and up to three on the same job need only 4 or better.">
+      <label title={damageControlNote(rules)}>
         Damage control
         <input type="number" min="0" max="12" value={form.damageControlParties} onChange={(event) => onChange({ ...form, damageControlParties: wholeNumberFrom(event.target.value, 0, 0, 12) })} />
       </label>
@@ -301,7 +307,7 @@ export function ShipProfileFields({ form, onChange, maxScreenLevel = 3 }: { form
     </div>
   );
 }
-export function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (form: ShipForm) => void; onCancel: () => void }) {
+export function ShipEditor({ ship, rules, onSave, onCancel }: { ship: Ship; rules?: RulesProfile; onSave: (form: ShipForm) => void; onCancel: () => void }) {
   const [form, setForm] = useState<ShipForm>({
     fleetName: '',
     faction: '',
@@ -347,7 +353,7 @@ export function ShipEditor({ ship, onSave, onCancel }: { ship: Ship; onSave: (fo
           <h3>{ship.name}</h3>
         </div>
       </div>
-      <ShipProfileFields form={form} onChange={setForm} />
+      <ShipProfileFields form={form} onChange={setForm} rules={rules} />
       {drifted ? (
         <p className="editor-drift" role="alert">
           {ship.name} changed while this was open - most likely damage resolving. Saving now writes
@@ -396,6 +402,7 @@ export function FiringConsole({
   ownedShipIds,
   draft,
   phase,
+  rules,
   firingResults,
   onChange,
   onFire,
@@ -410,6 +417,7 @@ export function FiringConsole({
   ownedShipIds: Set<string>;
   draft: FiringDraft;
   phase: string;
+  rules?: RulesProfile;
   firingResults: FiringResult[];
   onChange: (patch: Partial<FiringDraft>) => void;
   onFire: () => void;
@@ -484,7 +492,7 @@ export function FiringConsole({
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
         <small>{solution ? `${solution.workingFireControl} firecon${solution.workingFireControl === 1 ? '' : 's'}` : ''}</small>
         {solution?.toHitNumber ? <small>needs {solution.toHitNumber}+ to hit</small> : null}
-        {weapon?.kind === 'NeedleBeam' ? <small>takes a system on a 6</small> : null}
+        {weapon?.kind === 'NeedleBeam' && needleSystemNote(rules) ? <small>{needleSystemNote(rules)}</small> : null}
       </div>
       {weapon?.kind === 'NeedleBeam' ? (
         <label>
@@ -651,9 +659,10 @@ export function CourseCompass({
     </div>
   );
 }
-/// Damage control between turns: put parties on jobs, then run them. One party repairs on a 6 and each
-/// extra on the same job lowers the number needed, so three on one job is the best odds available.
-export function DamageControlPanel({ ship, onRepair }: { ship: Ship; onRepair: (jobs: RepairJob[]) => void }) {
+/// Damage control between turns: put parties on jobs, then run them. What one party repairs on, how
+/// far each extra lowers it, and how many may pile onto one job are all the table's own numbers off
+/// their profile - this panel reads them and states none of its own.
+export function DamageControlPanel({ ship, rules, onRepair }: { ship: Ship; rules?: RulesProfile; onRepair: (jobs: RepairJob[]) => void }) {
   const [assignments, setAssignments] = useState<Record<string, number>>({});
   const parties = ship.damageControlParties ?? 0;
   const jobs = ship.repairableSystems;
@@ -681,8 +690,11 @@ export function DamageControlPanel({ ship, onRepair }: { ship: Ship; onRepair: (
     );
   }
 
+  // The cap was a hardcoded 3 - `MaxPartiesPerJob`, and the player's. A table whose profile allows
+  // four was stopped at three by a number that appears nowhere in it.
+  const perJobCap = partiesPerJobCap(rules, parties);
   const step = (key: string, delta: number) => setAssignments((current) => {
-    const next = Math.max(0, Math.min(3, (current[key] ?? 0) + delta));
+    const next = Math.max(0, Math.min(perJobCap, (current[key] ?? 0) + delta));
     const others = Object.entries(current).reduce((total, [id, count]) => id === key ? total : total + count, 0);
     return others + next > parties ? current : { ...current, [key]: next };
   });
@@ -690,7 +702,7 @@ export function DamageControlPanel({ ship, onRepair }: { ship: Ship; onRepair: (
   return (
     <div className="damage-grid card-module" aria-label={`${ship.name} damage control`}>
       <span className="label module-title">Damage control parties</span>
-      <p className="privacy">{spent} of {parties} assigned. One party repairs on a 6; three on one job need 4 or better.</p>
+      <p className="privacy">{spent} of {parties} assigned.{repairOddsNote(rules) ? ` ${repairOddsNote(rules)}` : ''}</p>
       {jobs.map((job) => (
         <div className="repair-row" key={job.key}>
           <span>{job.label}</span>

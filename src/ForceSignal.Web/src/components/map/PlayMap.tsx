@@ -10,17 +10,17 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { CommittedNumber } from '../../components/CommittedNumber.tsx';
 import { ShipIcon } from '../../components/ShipCard.tsx';
-import { fighterStatuses, firableArcs } from '../../constants.ts';
+import { fighterStatuses, firableArcs, newOrdnanceDraft } from '../../constants.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 import { courseAngle, distanceBetweenShips, mapPercent, rangeDiameterPercent, weaponArcAngle } from '../../lib/geometry.ts';
 import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance, tablePointFromClient, trailPointsForResult, viewportZoomedAt } from '../../lib/mapGeometry.ts';
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
 import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
-import { describeArcs, fighterFlightRefusal, firingDraftFor, firingTargetOptions, isFighterGroup } from '../../lib/rules.ts';
+import { describeArcs, fighterFlightRefusal, firingDraftFor, firingTargetOptions, isFighterGroup, needleSystemNote, salvoStrikeNote } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
 import { OrderPreviewNotice } from '../OrderPreviewNotice.tsx';
-import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, Ship, TablePoint, FiringSolution } from '../../types.ts';
+import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, RulesProfile, Ship, TablePoint, FiringSolution } from '../../types.ts';
 
 export function PlayMap({
   snapshot,
@@ -861,6 +861,7 @@ export function PlayMap({
                 ownedShipIds={ownedShipIds}
                 draft={selectedFiringDraft ?? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds)}
                 phase={phase}
+                rules={snapshot.rules}
                 firingResults={snapshot.firingResults}
                 onChange={(patch) => updateMapFiringDraft(selectedShip, patch)}
                 busy={busy}
@@ -878,6 +879,7 @@ export function PlayMap({
                 ship={selectedShip}
                 targets={snapshot.ships.filter((ship) => ship.id !== selectedShip.id && !ship.isDestroyed)}
                 busy={busy}
+                rules={snapshot.rules}
                 onLaunch={(patch) => onCreateOrdnance(selectedShip, patch)}
               />
             ) : null}
@@ -1035,7 +1037,10 @@ function FighterRangeOverlay({ ship, ships, tableWidth, tableDepth }: { ship: Sh
     return null;
   }
 
-  const maxRange = ship.fighterMaxRange || 24;
+  // The same 24 the server used to invent, drawn on the felt: `ship.fighterMaxRange || 24` put a
+  // ring around a group whose owner had entered no reach. A group with no reach entered gets no
+  // ring - there is nothing to draw.
+  const maxRange = ship.fighterMaxRange;
   const enduranceRange = ship.fighterReach;
   const homeCarrier = ship.homeCarrierShipId
     ? ships.find((candidate) => candidate.id === ship.homeCarrierShipId)
@@ -1048,17 +1053,19 @@ function FighterRangeOverlay({ ship, ships, tableWidth, tableDepth }: { ship: Sh
 
   return (
     <div className="fighter-range-overlay" aria-hidden="true">
-      <span
-        className="fighter-range max"
-        style={{
-          left: `${maxLeft}%`,
-          top: `${maxTop}%`,
-          width: `${rangeDiameterPercent(maxRange, tableWidth)}%`,
-          height: `${rangeDiameterPercent(maxRange, tableDepth)}%`,
-        }}
-      >
-        <em>FTR MAX {maxRange}</em>
-      </span>
+      {maxRange > 0 ? (
+        <span
+          className="fighter-range max"
+          style={{
+            left: `${maxLeft}%`,
+            top: `${maxTop}%`,
+            width: `${rangeDiameterPercent(maxRange, tableWidth)}%`,
+            height: `${rangeDiameterPercent(maxRange, tableDepth)}%`,
+          }}
+        >
+          <em>FTR MAX {maxRange}</em>
+        </span>
+      ) : null}
       <span
         className="fighter-range endurance"
         style={{
@@ -1197,26 +1204,20 @@ function CarrierOpsPanel({ carrier, fighters }: { carrier: Ship; fighters: Ship[
  * Keyed on the ship by its owner, so a new selection starts a fresh draft; a target that has
  * since been destroyed is replaced at render time rather than by resynchronising state.
  */
-function OrdnanceLaunchPanel({
+export function OrdnanceLaunchPanel({
   ship,
   targets,
   busy,
+  rules,
   onLaunch,
 }: {
   ship: Ship;
   targets: Ship[];
   busy: boolean;
+  rules?: RulesProfile;
   onLaunch: (patch: Partial<OrdnanceMarker>) => void;
 }) {
-  const [draft, setDraft] = useState({
-    name: `${ship.name} Salvo`,
-    markerType: 'Missile',
-    targetShipId: targets[0]?.id ?? '',
-    speed: Math.max(6, ship.currentVelocity),
-    enduranceRemaining: 1,
-    attackDice: 2,
-    maxRange: 24,
-  });
+  const [draft, setDraft] = useState({ ...newOrdnanceDraft(ship), targetShipId: targets[0]?.id ?? '' });
   const targetShipId = targets.some((target) => target.id === draft.targetShipId) ? draft.targetShipId : targets[0]?.id ?? '';
 
   return (
@@ -1250,13 +1251,19 @@ function OrdnanceLaunchPanel({
         Endurance
         <input type="number" min="0" max="24" value={draft.enduranceRemaining} onChange={(event) => setDraft({ ...draft, enduranceRemaining: wholeNumberFrom(event.target.value, 0, 0, 24) })} />
       </label>
-      <label title="How far this launcher can throw a salvo: 24 for a standard load, 36 for extended range.">
+      {/*
+        This tooltip read "24 for a standard load, 36 for extended range" - two readings off a
+        published card, and `constants.ts` says in as many words that 36 is one of the numbers this
+        app stopped shipping. There is no profile field for a launcher's reach, so the honest answer
+        is not a smaller number but none: it comes off the record card in the player's hand.
+      */}
+      <label title="How far this launcher can throw a salvo, off your own record card.">
         Reach
-        <input type="number" min="1" max="120" value={draft.maxRange} onChange={(event) => setDraft({ ...draft, maxRange: wholeNumberFrom(event.target.value, 1, 1, 120) })} />
+        <input type="number" min="0" max="120" value={draft.maxRange} onChange={(event) => setDraft({ ...draft, maxRange: wholeNumberFrom(event.target.value, 0, 0, 120) })} />
       </label>
       <p className="privacy">
         A salvo is aimed at a point, not a ship. It launches on the firing ship and can be dragged to its
-        point of aim within that reach; after movement it strikes the closest enemy within 6.
+        point of aim within that reach; {salvoStrikeNote(rules)}
       </p>
       <button type="button" disabled={busy} onClick={() => onLaunch({
         ...draft,
@@ -1403,12 +1410,13 @@ function MeasureOverlay({ line, tableWidth, tableDepth }: { line: { start: Table
     </svg>
   );
 }
-function MapFiringAssistant({
+export function MapFiringAssistant({
   ship,
   ships,
   ownedShipIds,
   draft,
   phase,
+  rules,
   firingResults,
   onChange,
   busy,
@@ -1424,6 +1432,7 @@ function MapFiringAssistant({
   ownedShipIds: Set<string>;
   draft: FiringDraft;
   phase: string;
+  rules?: RulesProfile;
   firingResults: FiringResult[];
   onChange: (patch: Partial<FiringDraft>) => void;
   busy: boolean;
@@ -1484,7 +1493,7 @@ function MapFiringAssistant({
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
         <small>{solution ? `${solution.workingFireControl} firecon${solution.workingFireControl === 1 ? '' : 's'}` : ''}</small>
         {solution?.toHitNumber ? <small>needs {solution.toHitNumber}+ to hit</small> : null}
-        {weapon?.kind === 'NeedleBeam' ? <small>takes a system on a 6</small> : null}
+        {weapon?.kind === 'NeedleBeam' && needleSystemNote(rules) ? <small>{needleSystemNote(rules)}</small> : null}
       </div>
       {weapon?.kind === 'NeedleBeam' ? (
         <label>

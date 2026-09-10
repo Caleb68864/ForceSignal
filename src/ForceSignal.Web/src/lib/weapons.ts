@@ -3,7 +3,7 @@
  */
 
 import { newId } from './api.ts';
-import type { FiringArc, ShipForm, WeaponKind, WeaponMount } from '../types.ts';
+import type { ShipForm, WeaponMount } from '../types.ts';
 
 /**
  * A mount with nothing filled in.
@@ -28,19 +28,10 @@ export function newWeaponMount(): WeaponMount {
     reloadTurns: 0,
   };
 }
-export function weaponPreset(name: string, attackDice: number, maxRange: number, arcs: FiringArc[], ammoMax = 0, kind: WeaponKind = 'Beam'): WeaponMount {
-  return {
-    id: newId(),
-    name,
-    attackDice,
-    maxRange,
-    arcs,
-    kind,
-    ammoMax,
-    ammoUsed: 0,
-    reloadTurns: 0,
-  };
-}
+// `weaponPreset` was here: a builder taking a name, a damage rating, a reach and an ammunition
+// count. It was left behind when the invented weapon presets were scrubbed, exported and called
+// from nowhere - a ready-made way to write a stat block back into this file, kept alive by nothing
+// but its own export keyword.
 export function updateWeapon(form: ShipForm, weaponId: string, patch: Partial<WeaponMount>): ShipForm {
   return {
     ...form,

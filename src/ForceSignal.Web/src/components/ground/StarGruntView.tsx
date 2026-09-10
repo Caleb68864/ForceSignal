@@ -658,12 +658,25 @@ export function StarGruntView() {
               key={`export-${side}`}
               className="ghost"
               type="button"
+              // Export is the one control here that does not go through `run()`, because it writes
+              // a file rather than asking the server anything - and it was the one control with no
+              // error handling at all. A snapshot whose units carry no figure roster made
+              // `toForceFile` throw out of a bare event handler: nothing downloaded, `say` never
+              // ran, no message appeared, and the button looked like it had worked. Import, three
+              // elements below, has caught its own failures since it was written.
               onClick={() => {
-                downloadText(
-                  `${side}-force.json`,
-                  'application/json',
-                  JSON.stringify(toForceFile(side, snapshot.units), null, 2),
-                );
+                try {
+                  downloadText(
+                    `${side}-force.json`,
+                    'application/json',
+                    JSON.stringify(toForceFile(side, snapshot.units), null, 2),
+                  );
+                } catch (error) {
+                  setMessage(error instanceof Error ? error.message : 'That force could not be written to a file.');
+                  setMessageIsError(true);
+                  return;
+                }
+
                 say(`Exported ${side}.`);
               }}
             >
