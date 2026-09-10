@@ -32,18 +32,28 @@ export const defaultShipForm: ShipForm = {
   name: 'Valiant',
   className: 'Cruiser',
   iconKey: 'cruiser',
-  thrustRating: 4,
-  currentVelocity: 8,
+  // Every number the engine reads opens unentered. These carried thrust 4, velocity 8, hull 12,
+  // armour 4, firecons 2, point defence 1, damage control 2 and a screen - a whole stat block, in
+  // the file whose own header says a starting point the player is "expected to replace" is still a
+  // number this app shipped. Zero is this app's spelling of "not entered": the server's clamps
+  // floor each of these exactly as they floor a mount nobody filled in, so an unfilled ship is
+  // visibly unfilled rather than quietly somebody else's.
+  //
+  // A course and a place on the table are not among them - a heading has no zero on a 12-point
+  // clock, and where the model sits on the felt is settled with a tape measure. contentPolicy.test.ts
+  // holds this list, and makes any new number here declare which of the two it is.
+  thrustRating: 0,
+  currentVelocity: 0,
   currentCourse: 1,
   positionX: 12,
   positionY: 24,
-  hullMax: 12,
-  armorMax: 4,
-  fireControlMax: 2,
-  pointDefenseSystems: 1,
+  hullMax: 0,
+  armorMax: 0,
+  fireControlMax: 0,
+  pointDefenseSystems: 0,
   fighterBays: 0,
-  damageControlParties: 2,
-  screenRating: 1,
+  damageControlParties: 0,
+  screenRating: 0,
   // Built by newWeaponMount rather than written out again: this was the third copy of the same
   // invented "Class-2 Beam", and a mount with no numbers on it has no reason to exist twice.
   weapons: [newWeaponMount()],
