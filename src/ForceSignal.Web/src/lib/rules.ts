@@ -10,7 +10,7 @@
 import { arcAbbreviations, arcLabels, firableArcs } from '../constants.ts';
 import { distanceBetweenShips } from './geometry.ts';
 import { normalizeOrdnanceStatus, normalizeShipIconKey } from './normalize.ts';
-import type { DamageState, FiringArc, FiringDraft, MatchSnapshot, Ship, ShipForm } from '../types.ts';
+import type { DamageState, FiringArc, FiringDraft, MatchSnapshot, RulesProfile, Ship, ShipForm } from '../types.ts';
 
 export function arcLabel(arc: FiringArc) {
   return arcLabels[arc] ?? arc;
@@ -49,6 +49,72 @@ export function fighterFlightRefusal(allowance: number | undefined, distance: nu
   }
 
   return `${Number(distance.toFixed(1))} away, past the ${allowance} a group can fly in a turn`;
+}
+
+/**
+ * The four sentences these screens used to state as fact.
+ *
+ * *"each rolls a die at fighters and missiles inside 6mu"*, *"one repairs on a 6, and up to three on
+ * the same job need only 4 or better"*, *"takes a system on a 6"*, *"strikes the closest enemy
+ * within 6"* - readings off somebody's published card, written into a tooltip and a caption where
+ * the player cannot overwrite them, and flatly contradicting a profile that says otherwise. They are
+ * worse than a default: a default is a number offered, and these were the app telling the table what
+ * their rules say.
+ *
+ * The right pattern was already one line above the wrong one - `needs {toHitNumber}+ to hit` comes
+ * off the wire - and `fighterFlightRefusal` above settles what to do when the profile is silent. A
+ * number the profile does not carry is one nobody has entered, so each of these says the thing
+ * without the number rather than filling one in. None of them decides anything: the server does.
+ */
+export function pointDefenceNote(rules?: RulesProfile): string {
+  const reach = rules?.pointDefenseRange ?? 0;
+  return 'Point defence turrets: each rolls a die at fighters and missiles '
+    + (reach > 0 ? `inside ${reach}mu` : 'inside the reach your profile gives them')
+    + ', and they carry their own fire control.';
+}
+
+/** How the odds on a repair job read, or null while the profile does not say. */
+export function repairOddsNote(rules?: RulesProfile): string | null {
+  const withOneParty = rules?.repairRollWithOneParty ?? 0;
+  const perJob = rules?.maxPartiesPerJob ?? 0;
+  const best = rules?.repairBestRoll ?? 0;
+  if (withOneParty <= 0 || perJob <= 0 || best <= 0) {
+    return null;
+  }
+
+  return `One party repairs on a ${withOneParty}; ${perJob} on one job need ${best} or better.`;
+}
+
+export function damageControlNote(rules?: RulesProfile): string {
+  const odds = repairOddsNote(rules);
+  const opening = 'Damage control parties. Between turns they roll to bring back systems lost to a threshold check';
+  return odds ? `${opening}: ${odds.charAt(0).toLowerCase()}${odds.slice(1)}` : `${opening}, on the numbers in your profile.`;
+}
+
+/** What a needle beam does to the system it is aimed at, or null while the profile does not say. */
+export function needleSystemNote(rules?: RulesProfile): string | null {
+  const roll = rules?.needleSystemKillRoll ?? 0;
+  return roll > 0 ? `takes a system on a ${roll}` : null;
+}
+
+/** How close a salvo has to land, said only when the table has entered it. */
+export function salvoStrikeNote(rules?: RulesProfile): string {
+  const radius = rules?.salvoAttackRadius ?? 0;
+  return radius > 0
+    ? `after movement it strikes the closest enemy within ${radius}.`
+    : 'after movement it strikes the closest enemy inside the attack radius on your profile.';
+}
+
+/**
+ * How many parties may pile onto one repair job.
+ *
+ * Zero means the profile has not said, and the honest cap is then the ship's own party count: the
+ * server holds the real limit and refuses past it. A hardcoded 3 was a rule this app does not own,
+ * quietly stopping a table whose profile allows four.
+ */
+export function partiesPerJobCap(rules: RulesProfile | undefined, partiesAboard: number): number {
+  const perJob = rules?.maxPartiesPerJob ?? 0;
+  return perJob > 0 ? Math.min(perJob, partiesAboard) : partiesAboard;
 }
 
 export function isFighterGroup(ship: Pick<Ship, 'iconKey' | 'className'>) {

@@ -9,7 +9,7 @@
  */
 
 import { newWeaponMount } from './lib/weapons.ts';
-import type { FighterStatus, FiringArc, ShipForm, ShipIconKey, WeaponKind } from './types.ts';
+import type { FighterStatus, FiringArc, Ship, ShipForm, ShipIconKey, WeaponKind } from './types.ts';
 
 export const officialRulesUrl = 'https://shop.groundzerogames.co.uk/rules.html';
 export const sessionKey = 'forcesignal.session';
@@ -64,6 +64,30 @@ export const defaultShipForm: ShipForm = {
   homeCarrierShipId: '',
   pointsValue: 0,
 };
+/**
+ * What the ordnance launch panel opens on.
+ *
+ * It opened on speed 6, endurance 1, two attack dice and a reach of 24 - a whole salvo nobody had
+ * entered, sitting under a tooltip that named 24 and 36 as the two loads. The 24 was the worse of
+ * them because the server invented the same number independently and then refused a point of aim
+ * against it, so the figure the player never typed was being quoted back at them as a rule.
+ *
+ * Same bargain as the new-ship form: the ship's own state and its name carry over, every rules
+ * number opens unentered, and the server clamps each of them from zero the way it clamps a mount
+ * nobody filled in. `contentPolicy.test.ts` walks this and fails on any new number here.
+ */
+export function newOrdnanceDraft(ship: Pick<Ship, 'name' | 'currentVelocity'>) {
+  return {
+    name: `${ship.name} Salvo`,
+    markerType: 'Missile',
+    // Not a rule: a salvo leaves the rail carrying the launching ship's own speed. Where a ship is
+    // and how fast it is going are facts about the table, like its position on the felt.
+    speed: ship.currentVelocity,
+    enduranceRemaining: 0,
+    attackDice: 0,
+    maxRange: 0,
+  };
+}
 export const shipIconOptions: { key: ShipIconKey; label: string }[] = [
   { key: 'escort', label: 'Escort' },
   { key: 'frigate', label: 'Frigate' },

@@ -1533,7 +1533,7 @@ function App() {
                     <ShipProfileFields
                       form={shipForm}
                       onChange={setShipForm}
-                      maxScreenLevel={snapshot?.rules?.maxScreenLevel ?? 0}
+                      rules={snapshot?.rules}
                     />
                     <button onClick={() => run(createShipFromForm)} disabled={busy}>Add Ship</button>
                   </div>
@@ -1692,6 +1692,7 @@ function App() {
                     {canEdit && isEditing ? (
                       <ShipEditor
                         ship={ship}
+                        rules={snapshot.rules}
                         onSave={(form) => run(() => updateProfile(ship, form))}
                         onCancel={() => setEditingShipId(null)}
                       />
@@ -1851,6 +1852,7 @@ function App() {
                           ownedShipIds={ownedShipIds}
                           draft={firingDraft}
                           phase={snapshot.phase}
+                          rules={snapshot.rules}
                           firingResults={snapshot.firingResults}
                           onChange={(patch) => updateFiringDraft(ship.id, { ...firingDraft, ...patch })}
                           onFire={() => run(() => fireWeapon(ship, firingDraft))}
@@ -1931,6 +1933,7 @@ function App() {
                         {snapshot.phase === 'OrderEntry' || snapshot.phase === 'OrdersLocked' ? (
                           <DamageControlPanel
                             ship={ship}
+                            rules={snapshot.rules}
                             onRepair={(jobs) => run(() => attemptRepairs(ship, jobs))}
                           />
                         ) : null}

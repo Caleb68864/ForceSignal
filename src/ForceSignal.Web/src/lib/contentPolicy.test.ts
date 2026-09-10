@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defaultShipForm } from '../constants.ts';
+import { defaultShipForm, newOrdnanceDraft } from '../constants.ts';
 import { normalizeFleetExportShip } from './fleetIo.ts';
 import { newWeaponMount } from './weapons.ts';
 import { normalizeWeaponMount } from './normalize.ts';
@@ -33,6 +33,13 @@ const notARulesNumber: Record<string, string> = {
   // drags it. Bounded by the table rather than by any rule.
   positionX: 'a place on the table, not a number a rule reads',
   positionY: 'a place on the table, not a number a rule reads',
+};
+
+/** The same list for the ordnance launch form, which is a different form with a different field. */
+const notARulesNumberOnASalvo: Record<string, string> = {
+  // A salvo leaves the rail at the launching ship's speed. That is where the ship is and how fast
+  // it is going - a fact about the table, like the model's place on the felt.
+  speed: "the launching ship's own velocity, carried across rather than chosen",
 };
 
 function numericFields(form: Record<string, unknown>): [string, number][] {
@@ -58,6 +65,37 @@ describe('the new-ship form ships no rules numbers', () => {
       expect(Object.hasOwn(defaultShipForm, field)).toBe(true);
       expect(typeof (defaultShipForm as unknown as Record<string, unknown>)[field]).toBe('number');
     }
+  });
+});
+
+describe('the ordnance launch form ships no rules numbers either', () => {
+  it('opens every number the engine reads at zero, bar the ship\'s own speed', () => {
+    // It opened on speed 6, endurance 1, two attack dice and a reach of 24 - a whole salvo nobody
+    // had entered - and the 24 was the sharp one, because the server invented the same number
+    // independently and then refused a point of aim on the strength of it.
+    const draft = newOrdnanceDraft({ name: 'Valiant', currentVelocity: 9 });
+
+    // Reached-the-subject: it really is that ship's draft, and there are numbers on it to check.
+    expect(draft.name).toBe('Valiant Salvo');
+    expect(numericFields(draft).length).toBeGreaterThan(3);
+
+    const shipped = numericFields(draft)
+      .filter(([field, value]) => value !== 0 && !(field in notARulesNumberOnASalvo))
+      .map(([field, value]) => `${field} = ${value}`);
+
+    expect(shipped).toEqual([]);
+  });
+
+  it('carries the launching ship\'s own speed across, which is not a rule', () => {
+    // The other half: blanking the seed must not blank the one number that is a fact about the
+    // table rather than about anybody's rulebook - and the exemption has to name a real field.
+    const draft = newOrdnanceDraft({ name: 'Valiant', currentVelocity: 9 });
+
+    for (const field of Object.keys(notARulesNumberOnASalvo)) {
+      expect(Object.hasOwn(draft, field)).toBe(true);
+    }
+
+    expect(draft.speed).toBe(9);
   });
 });
 

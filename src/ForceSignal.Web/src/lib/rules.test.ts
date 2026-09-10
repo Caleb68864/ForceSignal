@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildPreTurnChecklist, captureDamageState, describeArcs, fighterFlightRefusal, firingDraftFor, firingTargetOptions, focusedFirstShips, isFighterGroup } from './rules.ts';
-import type { MatchSnapshot, Ship, WeaponMount } from '../types.ts';
+import { buildPreTurnChecklist, captureDamageState, describeArcs, fighterFlightRefusal, firingDraftFor, firingTargetOptions, focusedFirstShips, isFighterGroup, partiesPerJobCap } from './rules.ts';
+import { blankRulesProfile, type MatchSnapshot, type RulesProfile, type Ship, type WeaponMount } from '../types.ts';
 
 /**
  * The server re-checks all of this. What these guard is the screen's own reading of the board:
@@ -259,5 +259,26 @@ describe('how far a fighter group may fly', () => {
     // defect; the server is the authority and will answer.
     expect(fighterFlightRefusal(0, 500)).toBeNull();
     expect(fighterFlightRefusal(undefined, 500)).toBeNull();
+  });
+});
+
+describe('how many damage control parties one job may hold', () => {
+  // The panel capped this at a hardcoded 3 - `RulesProfile.maxPartiesPerJob`, and the player's - so
+  // a table whose profile allows four was stopped at three by a number that appears nowhere in it.
+  // The same shape as the fighter allowance above, and settled the same way.
+  const rules = (maxPartiesPerJob: number): RulesProfile => ({ ...blankRulesProfile, maxPartiesPerJob });
+
+  it('caps at the number the table entered', () => {
+    expect(partiesPerJobCap(rules(4), 8)).toBe(4);
+    expect(partiesPerJobCap(rules(2), 8)).toBe(2);
+  });
+
+  it('never offers more parties than the ship has aboard', () => {
+    expect(partiesPerJobCap(rules(4), 1)).toBe(1);
+  });
+
+  it('caps at nothing but the ship itself when the table has not entered one', () => {
+    expect(partiesPerJobCap(rules(0), 8)).toBe(8);
+    expect(partiesPerJobCap(undefined, 8)).toBe(8);
   });
 });
