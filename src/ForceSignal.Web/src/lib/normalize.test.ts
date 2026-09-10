@@ -128,15 +128,11 @@ describe('a mount nobody filled in', () => {
   // still a number it shipped. A blank mount used to arrive as a "Class-2 Beam" firing two dice
   // out to twenty-four: a class name, a damage rating and a reach, in three separate copies plus
   // an invisible fourth on the server.
-  const published = ['Class-2 Beam'];
-
-  it('carries no class name from any of the copies', () => {
-    for (const name of published) {
-      expect(newWeaponMount().name).not.toBe(name);
-      expect(defaultShipForm.weapons[0].name).not.toBe(name);
-      expect(normalizeWeaponMount({}).name).not.toBe(name);
-    }
-  });
+  // The class-name half of this used to live here as `const published = ['Class-2 Beam']` and a
+  // `not.toBe` against it - a blacklist of one string, which renaming the mount to 'Class-3 Beam'
+  // walked straight past with the whole suite green. It now lives in `contentPolicy.test.ts`, which
+  // asks whether the label carries a digit at all rather than whether it is one known-bad value.
+  // Kept in one place on purpose: two files claiming the same rule is how the last one drifted.
 
   it('carries no damage rating or reach anybody could mistake for a reading', () => {
     // The floors the server's own clamps impose, which mean "not entered".

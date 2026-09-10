@@ -10,14 +10,14 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { CommittedNumber } from '../../components/CommittedNumber.tsx';
 import { ShipIcon } from '../../components/ShipCard.tsx';
-import { fighterMoveAllowance, fighterStatuses, firableArcs } from '../../constants.ts';
+import { fighterStatuses, firableArcs } from '../../constants.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 import { courseAngle, distanceBetweenShips, mapPercent, rangeDiameterPercent, weaponArcAngle } from '../../lib/geometry.ts';
 import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance, tablePointFromClient, trailPointsForResult, viewportZoomedAt } from '../../lib/mapGeometry.ts';
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
 import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
-import { describeArcs, firingDraftFor, firingTargetOptions, isFighterGroup } from '../../lib/rules.ts';
+import { describeArcs, fighterFlightRefusal, firingDraftFor, firingTargetOptions, isFighterGroup } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
 import { OrderPreviewNotice } from '../OrderPreviewNotice.tsx';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, Ship, TablePoint, FiringSolution } from '../../types.ts';
@@ -320,8 +320,10 @@ export function PlayMap({
     // A fighter group takes no orders: it simply flies to the spot, up to its allowance.
     if (isFighterGroup(shipToPlot)) {
       const reach = Math.hypot(point.x - shipToPlot.positionX, point.y - shipToPlot.positionY);
-      if (reach > fighterMoveAllowance) {
-        setMapNotice(`${shipToPlot.name} can fly ${fighterMoveAllowance}; that spot is ${reach.toFixed(1)} away`);
+      // The table's own allowance, not a number this app holds. See fighterFlightRefusal.
+      const refusal = fighterFlightRefusal(snapshot.rules?.fighterMoveAllowance, reach);
+      if (refusal) {
+        setMapNotice(`${shipToPlot.name} cannot go there: ${refusal}.`);
         return false;
       }
 

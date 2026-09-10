@@ -3,13 +3,26 @@
  *
  * Import is the untrusted path: the file was picked by hand and may have been written by an older
  * version, edited in a spreadsheet, or not be a fleet at all. Every value is coerced into range,
- * and a row that cannot be read falls back to the form's defaults rather than failing the import.
+ * and a row that cannot be read costs that value rather than failing the whole import.
+ *
+ * What it does *not* do is fill a gap in with a number. Text still falls back - a ship with no name
+ * is easier to find as "Valiant" than as an empty cell - but a missing hull, armour, thrust or
+ * screen column reads back unentered, because the file is the only place those could have come
+ * from and this app does not own them. See the README's Content Policy, and `contentPolicy.test.ts`,
+ * which fails if any of them acquires a value again.
  */
 
 import { csvEscape, normalizeHeader, numberFrom, stringFrom, stripFileExtension, wholeNumberFrom } from './format.ts';
 import { normalizeFighterStatus, normalizeFleetColor, normalizeShipIconKey, normalizeWeaponMount } from './normalize.ts';
 import { newWeaponMount } from './weapons.ts';
 import type { Fleet, FleetExport, FleetExportShip, SavedFleet, Ship, ShipForm, WeaponMount } from '../types.ts';
+
+/**
+ * What a number the file did not carry reads back as. Zero rather than a plausible value: the
+ * server's clamps floor each of these the same way they floor a mount nobody filled in, so an
+ * unentered field is visibly unentered instead of quietly being somebody's published stat.
+ */
+const unentered = 0;
 
 /**
  * The device's fleet library, read back out of storage. It was written by whichever build last ran
@@ -162,22 +175,34 @@ export function normalizeFleetExportShip(value: unknown, fallback: ShipForm): Fl
     name: stringFrom(record.name, fallback.name),
     className: stringFrom(record.className ?? record.class, fallback.className),
     iconKey: normalizeShipIconKey(record.iconKey ?? record.icon, stringFrom(record.className ?? record.class, fallback.className)),
-    thrustRating: wholeNumberFrom(record.thrustRating ?? record.thrust, fallback.thrustRating, 0, 20),
-    initialVelocity: wholeNumberFrom(record.initialVelocity ?? record.currentVelocity ?? record.velocity, fallback.currentVelocity, 0, 999),
-    initialCourse: wholeNumberFrom(record.initialCourse ?? record.currentCourse ?? record.course, fallback.currentCourse, 1, 12),
-    startX: numberFrom(record.startX ?? record.positionX ?? record.x, fallback.positionX, 0, 144),
-    startY: numberFrom(record.startY ?? record.positionY ?? record.y, fallback.positionY, 0, 96),
-    hullMax: wholeNumberFrom(record.hullMax ?? record.hullBoxes ?? record.hull, fallback.hullMax, 1, 80),
-    armorMax: wholeNumberFrom(record.armorMax ?? record.armorBoxes ?? record.armor, fallback.armorMax, 0, 40),
-    screenRating: wholeNumberFrom(record.screenRating ?? record.screens, fallback.screenRating, 0, 3),
-    fireControlMax: wholeNumberFrom(record.fireControlMax ?? record.firecons, fallback.fireControlMax, 0, 6),
-    pointDefenseSystems: wholeNumberFrom(record.pointDefenseSystems ?? record.pds, fallback.pointDefenseSystems, 0, 12),
-    fighterBays: wholeNumberFrom(record.fighterBays ?? record.bays, fallback.fighterBays, 0, 12),
-    damageControlParties: wholeNumberFrom(record.damageControlParties ?? record.dcp, fallback.damageControlParties, 0, 12),
+    // A column the file did not carry is a number the player did not enter, and `unentered` is what
+    // this app writes for that: zero, which the server's own clamps floor exactly as they floor a
+    // mount nobody filled in. These used to fall back to the new-ship form's seed, so a CSV naming
+    // only a ship came back with thrust 4, hull 12, armour 4, screens 1, firecons 2, point defence 1
+    // and damage control 2 - a whole stat block, with no form anywhere for the player to see it had
+    // been written for them, and by this project's own rule not ours to write.
+    //
+    // Read from a constant rather than from `fallback` on purpose: the import's answer to a missing
+    // column and the form's opening state are two different questions, and tying them together is
+    // what let one of them be decided by the other.
+    thrustRating: wholeNumberFrom(record.thrustRating ?? record.thrust, unentered, 0, 20),
+    initialVelocity: wholeNumberFrom(record.initialVelocity ?? record.currentVelocity ?? record.velocity, unentered, 0, 999),
+    // A heading rather than a quantity: the clock runs 1 to 12 and has no zero, so a file that names
+    // no course gets the one the form opens on.
+    initialCourse: wholeNumberFrom(record.initialCourse ?? record.currentCourse ?? record.course, 1, 1, 12),
+    startX: numberFrom(record.startX ?? record.positionX ?? record.x, unentered, 0, 144),
+    startY: numberFrom(record.startY ?? record.positionY ?? record.y, unentered, 0, 96),
+    hullMax: wholeNumberFrom(record.hullMax ?? record.hullBoxes ?? record.hull, unentered, 1, 80),
+    armorMax: wholeNumberFrom(record.armorMax ?? record.armorBoxes ?? record.armor, unentered, 0, 40),
+    screenRating: wholeNumberFrom(record.screenRating ?? record.screens, unentered, 0, 3),
+    fireControlMax: wholeNumberFrom(record.fireControlMax ?? record.firecons, unentered, 0, 6),
+    pointDefenseSystems: wholeNumberFrom(record.pointDefenseSystems ?? record.pds, unentered, 0, 12),
+    fighterBays: wholeNumberFrom(record.fighterBays ?? record.bays, unentered, 0, 12),
+    damageControlParties: wholeNumberFrom(record.damageControlParties ?? record.dcp, unentered, 0, 12),
     weapons: Array.isArray(record.weapons) ? record.weapons.map(normalizeWeaponMount) : [newWeaponMount()],
-    fighterEnduranceMax: wholeNumberFrom(record.fighterEnduranceMax ?? record.fighterEndurance, fallback.fighterEnduranceMax, 0, 24),
-    fighterEnduranceUsed: wholeNumberFrom(record.fighterEnduranceUsed ?? record.fighterUsed, fallback.fighterEnduranceUsed, 0, 24),
-    fighterMaxRange: wholeNumberFrom(record.fighterMaxRange ?? record.fighterRange, fallback.fighterMaxRange, 0, 120),
+    fighterEnduranceMax: wholeNumberFrom(record.fighterEnduranceMax ?? record.fighterEndurance, unentered, 0, 24),
+    fighterEnduranceUsed: wholeNumberFrom(record.fighterEnduranceUsed ?? record.fighterUsed, unentered, 0, 24),
+    fighterMaxRange: wholeNumberFrom(record.fighterMaxRange ?? record.fighterRange, unentered, 0, 120),
     fighterStatus: normalizeFighterStatus(record.fighterStatus, fallback.fighterStatus),
     homeCarrierShipId: typeof record.homeCarrierShipId === 'string' ? record.homeCarrierShipId : null,
     homeCarrierName: typeof record.homeCarrierName === 'string' && record.homeCarrierName.trim() ? record.homeCarrierName.trim() : null,

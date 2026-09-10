@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dieFrom, forceFormatVersion, fromForceFile, toForceFile } from './forceIo.ts';
+import { dieFrom, fromForceFile, toForceFile } from './forceIo.ts';
 import type { StarGruntUnit } from '../types.ts';
 
 /**
@@ -38,7 +38,52 @@ function unit(overrides: Partial<StarGruntUnit> = {}): StarGruntUnit {
 
 describe('toForceFile', () => {
   it('stamps the format version so a file written today can be read later', () => {
-    expect(toForceFile('blue', [unit()]).formatVersion).toBe(forceFormatVersion);
+    // Against the literal, not against `forceFormatVersion`. This read
+    // `toBe(forceFormatVersion)`, and toForceFile stamps the field *from that same constant*, so
+    // both sides moved together: bumping the constant to 2 - which is exactly the change that would
+    // strand every file already written - left the whole suite green. A version assertion that the
+    // version can satisfy by changing is not an assertion.
+    expect(toForceFile('blue', [unit()]).formatVersion).toBe(1);
+  });
+
+  it('still opens a file written by the version that shipped', () => {
+    // Literal bytes, kept by hand rather than produced by toForceFile, because "a file written
+    // today has to still open next year" cannot be checked by writing one today and reading it
+    // back: that only proves the two halves agree with each other. This is what a v1 file is.
+    const onDisk = `{
+      "formatVersion": 1,
+      "side": "blue",
+      "units": [{
+        "id": "alpha",
+        "name": "Alpha Squad",
+        "level": "Squad",
+        "qualityDie": 10,
+        "leadershipValue": 1,
+        "fatigue": "Fresh",
+        "figures": [{ "armourDie": 12 }, { "armourDie": 4 }],
+        "weapons": [{
+          "name": "Gauss Rifles",
+          "impactDie": 10,
+          "isSupport": false,
+          "isCloseRange": false,
+          "supportFirepowerDie": 6,
+          "neverJoinsSquadFire": false
+        }]
+      }]
+    }`;
+
+    const read = fromForceFile(JSON.parse(onDisk));
+    const squad = read.units[0];
+
+    // Reached-the-subject: the fixture really did produce a unit rather than being dropped.
+    expect(read.units).toHaveLength(1);
+    expect(squad.name).toBe('Alpha Squad');
+
+    expect(squad.qualityDie).toBe(10);
+    expect(squad.leadershipValue).toBe(1);
+    expect(squad.figures.map((figure) => figure.armourDie)).toEqual([12, 4]);
+    expect(squad.weapons[0].name).toBe('Gauss Rifles');
+    expect(squad.weapons[0].impactDie).toBe(10);
   });
 
   it('takes only the side asked for', () => {

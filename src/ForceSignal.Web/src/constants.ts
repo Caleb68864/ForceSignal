@@ -32,18 +32,28 @@ export const defaultShipForm: ShipForm = {
   name: 'Valiant',
   className: 'Cruiser',
   iconKey: 'cruiser',
-  thrustRating: 4,
-  currentVelocity: 8,
+  // Every number the engine reads opens unentered. These carried thrust 4, velocity 8, hull 12,
+  // armour 4, firecons 2, point defence 1, damage control 2 and a screen - a whole stat block, in
+  // the file whose own header says a starting point the player is "expected to replace" is still a
+  // number this app shipped. Zero is this app's spelling of "not entered": the server's clamps
+  // floor each of these exactly as they floor a mount nobody filled in, so an unfilled ship is
+  // visibly unfilled rather than quietly somebody else's.
+  //
+  // A course and a place on the table are not among them - a heading has no zero on a 12-point
+  // clock, and where the model sits on the felt is settled with a tape measure. contentPolicy.test.ts
+  // holds this list, and makes any new number here declare which of the two it is.
+  thrustRating: 0,
+  currentVelocity: 0,
   currentCourse: 1,
   positionX: 12,
   positionY: 24,
-  hullMax: 12,
-  armorMax: 4,
-  fireControlMax: 2,
-  pointDefenseSystems: 1,
+  hullMax: 0,
+  armorMax: 0,
+  fireControlMax: 0,
+  pointDefenseSystems: 0,
   fighterBays: 0,
-  damageControlParties: 2,
-  screenRating: 1,
+  damageControlParties: 0,
+  screenRating: 0,
   // Built by newWeaponMount rather than written out again: this was the third copy of the same
   // invented "Class-2 Beam", and a mount with no numbers on it has no reason to exist twice.
   weapons: [newWeaponMount()],
@@ -65,10 +75,13 @@ export const shipIconOptions: { key: ShipIconKey; label: string }[] = [
   { key: 'station', label: 'Station' },
 ];
 export const fighterStatuses: FighterStatus[] = ['Docked', 'Airborne', 'Recovering'];
+// How far a fighter group flies in a turn used to live here, as 12. That is a rules number and it
+// is the player's: `RulesProfile.fighterMoveAllowance`, typed into the profile editor, carried on
+// every snapshot and enforced by the server. The map now reads it off the table - see
+// `fighterFlightRefusal` - so a table playing 18 is no longer refused at 12 by a figure that
+// appears nowhere in their profile. That a group moves freely inside a radius rather than on a
+// plotted course is the procedure, and stays the engine's; how far is theirs.
 // Six sixty-degree arcs, clockwise from dead ahead.
-/// How far a fighter group flies in a turn. It moves in any direction inside this radius rather than
-/// being plotted on a course, which is why it needs no written order.
-export const fighterMoveAllowance = 12;
 export const firingArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'Aft', 'AftPort', 'ForePort'];
 // Every weapon has the aft arc blacked out, so only these five can ever be fired through.
 export const firableArcs: FiringArc[] = ['Fore', 'ForeStarboard', 'AftStarboard', 'AftPort', 'ForePort'];
