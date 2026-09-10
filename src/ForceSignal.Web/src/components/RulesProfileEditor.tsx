@@ -49,15 +49,16 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
   // confirmation and no undo, behind a panel that is collapsed by default - so thirty fields the
   // player typed off their own rulebook could go without them seeing it happen. The numbers on
   // screen are theirs, so nothing here writes over them except a profile that was actually read -
-  // and a profile that arrives with gaps is reported rather than applied, because a file missing
-  // twenty-eight of its thirty fields costs the player exactly what an unreadable one did.
+  // and a profile that would blank fields already on the form is reported rather than applied,
+  // because a file missing twenty-eight of the thirty costs the player exactly what an unreadable
+  // one did. What is on the form is passed in, because it is the thing there is to lose.
   //
   // The decision lives in `readProfileFile` so it can be exercised without a browser; the only job
   // left here is which of the two things to do with the answer.
   function importFile(file: File) {
     file.text()
       .then((text) => {
-        const result = readProfileFile(text);
+        const result = readProfileFile(text, draft);
         if (!result.ok) {
           setImportProblem(result.problem);
           return;
