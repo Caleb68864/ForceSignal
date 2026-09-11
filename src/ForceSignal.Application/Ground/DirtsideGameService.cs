@@ -316,6 +316,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 new UnitId(request.TargetUnitId),
                 new ElementId(request.TargetElementId),
                 Band(request.MeasuredBand),
+                Posture(request.TargetPosture),
                 request.WillMoveOverHalf);
 
             var outcome = game.Fire(command, _dice, held.Pot, held.Profile);
@@ -707,6 +708,25 @@ public sealed class DirtsideGameService : IDirtsideGameService
 
         return new ChitValidity(colours, scale, row.SpecialsCount);
     }
+
+    /// <summary>
+    /// Reads what the firer says the target is doing, or nothing when it is out in the open.
+    /// </summary>
+    /// <remarks>
+    /// Absent and the word <c>None</c> both mean a target doing nothing about being shot at, because
+    /// a client that has a dropdown will send the word and one that has not will send nothing, and
+    /// refusing either would be this app being particular about a distinction with no meaning. Any
+    /// other word is refused by name, with the list it would have taken - the same shape as the band
+    /// refusal below it.
+    /// </remarks>
+    private static DefensivePosture Posture(string? posture) =>
+        string.IsNullOrWhiteSpace(posture)
+        || string.Equals(posture, nameof(DefensivePosture.None), StringComparison.OrdinalIgnoreCase)
+            ? DefensivePosture.None
+            : Enum.TryParse<DefensivePosture>(posture, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+                ? parsed
+                : throw new InvalidOperationException(
+                    $"'{posture}' is not a defensive posture ({string.Join(", ", DirtsideWire.Postures)}, or None).");
 
     private static WeaponRangeBand Band(string? band) =>
         Enum.TryParse<WeaponRangeBand>(band, ignoreCase: true, out var parsed)

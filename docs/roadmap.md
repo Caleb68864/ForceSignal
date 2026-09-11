@@ -390,6 +390,75 @@ fallback, and it is now impossible to play on it without being told.
 
 Still open: **the on-screen validity-card editor** (gap 16). The pot half of gap 15 shipped.
 
+## Closed 2026-09-11 (posture, the waiting list, and where interception stops)
+
+*Branch `fix/posture-and-waiting-list`, taken after the die tables landed.*
+
+- [x] **A defensive posture can be declared, and the die-shift mechanic runs.**
+      `HitResolution.PostureDie` had been wired into `DirtsideGame.Fire` since
+      Dirtside had a screen, and nothing in production ever moved a target off
+      `None` — there was no field on any contract to carry one — so **every
+      target in every game was in the open** and the whole mechanic was inert.
+      It is declared **per shot**, on `FireCommand` beside the measured band,
+      which is the shape `docs/dirtside-fidelity-gaps.md` had already argued
+      for: whether a vehicle is hull down is a statement about *this* firer's
+      line of sight rather than a property of the vehicle, and two people settle
+      it by looking across a table, exactly as they settle the range.
+      `ElementStatus.Posture` is **gone** — with the declaration on the command
+      it had no reader either, and a stored field would have had to answer when
+      a posture clears, which nothing on the table knows. Wired to the
+      player-supplied ladder rather than to literals, so a posture whose row
+      nobody entered refuses the shot by name and costs the element nothing.
+      `TurretDown` has a row of its own now instead of falling through a `_`.
+- [x] **`ElementsStillToChoose` is rendered.** Computed on every snapshot since
+      the screen existed and read by nothing in either language, so a table
+      learned who was holding the activation up by asking each other or by
+      hovering a disabled button. It names them — the wire carries ids and
+      nobody at a table calls a vehicle `alpha-2` — and falls back to the id on
+      version skew, because an unfamiliar name beats a blank line. `hasChosen`
+      renders beside the two flags it is built from rather than instead of them.
+- [x] **`IsInterceptable` stops being write-only**, as far as it honestly can. A
+      checkbox on the add-platoon form, through `DirtsideWeaponInput`, to the
+      roster. The field had existed on the server since Dirtside had an API with
+      no client able to send it, so it arrived `false` for every weapon in every
+      game.
+
+### Interception: finished up to the rules, and stopped there
+
+**The resolution rules do not exist in this engine.** Checked directly rather
+than inferred: `src/ForceSignal.Modules.Dirtside/Combat/` has no interception
+resolver of any kind, and `DirtsideGame.Turn.cs:196` `InterceptWithAreaDefence`
+pushes a reaction frame onto the sequence and rolls **nothing** — no dice, no
+effect on the incoming shot, no outcome. What exists is sequencing and gating:
+the window constant, the reaction frame, and a sensor check that refuses an
+element whose area-defence sensors were never switched on.
+
+So finishing it means deciding what interception *does*, which is inventing
+rules — the same class of defect as the invented `Class-2 Beam`. **Stopped, with
+exactly what is missing:**
+
+1. **When the window opens.** `DirtsideGame.InterceptionOpening` returns null on
+   purpose and says why: an open window refuses every step until answered, and
+   with no route to answer *or decline* it would deadlock the game. So the
+   routes come first — and a decline route alone would produce windows that can
+   only be declined, which is the shape already rejected here.
+2. **Who may answer.** Presumably an element with live sensors within some
+   reach of the incoming round's path. **That reach is a number nobody has
+   entered**, and there is no field for it on any contract.
+3. **What is rolled.** Nothing in the engine says. A quality die against a
+   target number? An opposed roll against the firer? A chit draw? All three are
+   procedures this app would be making up.
+4. **What a success does.** The shot is stopped entirely, or degraded, or the
+   chit count reduced. Nothing says.
+5. **What it costs.** The sensor check comments say interception itself costs
+   nothing because the capability was bought earlier — that part *is* decided.
+   Whether a second interception in the same turn is free is not.
+
+**Four sentences from the owner would close it:** when a defender may declare,
+what the interceptor rolls and against what, what a success does to the shot,
+and whether one element may do it more than once a turn. The reach in (2) is a
+number and belongs on the rules profile beside the die tables, not in the code.
+
 ## Closed 2026-09-11 (the Dirtside die tables, and the icon attribution)
 
 *Two owner decisions, answered and acted on. Branch `fix/dirtside-die-tables`.*

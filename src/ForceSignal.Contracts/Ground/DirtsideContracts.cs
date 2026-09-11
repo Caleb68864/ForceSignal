@@ -303,6 +303,16 @@ public sealed record DirtsideSensorsRequest(string ElementId, bool Live);
 /// <param name="TargetUnitId">The platoon being shot at.</param>
 /// <param name="TargetElementId">The element designated, before any dice.</param>
 /// <param name="MeasuredBand">The band the tape says the shot falls in: Close, Medium or Long.</param>
+/// <param name="TargetPosture">
+/// What the target is doing about being shot at, as this firer sees it: SoftCover, Evading, HullDown
+/// or TurretDown. Left out, or None, for a target out in the open.
+/// <para>
+/// Declared per shot beside the measured band, because whether a vehicle is hull down is a statement
+/// about one line of sight rather than a property of the vehicle - the same kind of judgement as the
+/// range, and settled the same way. What each posture is worth is a row on the game's rules profile
+/// and is the players'; this only says which row to read.
+/// </para>
+/// </param>
 /// <param name="WillMoveOverHalf">
 /// True when the element is firing first and means to move more than half its movement afterwards.
 /// The shot is penalised as if it had already moved, and the element may not then move over half
@@ -314,6 +324,7 @@ public sealed record DirtsideFireRequest(
     string TargetUnitId,
     string TargetElementId,
     string MeasuredBand,
+    string? TargetPosture = null,
     bool WillMoveOverHalf = false);
 
 /// <summary>Declines to activate anything.</summary>

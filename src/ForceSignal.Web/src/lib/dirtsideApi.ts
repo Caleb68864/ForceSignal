@@ -81,6 +81,16 @@ export type DirtsideWeaponInput = {
   chitCount: number;
   barrels: number;
   isFixedMount: boolean;
+  /**
+   * True when an area-defence gun could shoot down what this weapon throws.
+   *
+   * The player's own reading of their card, and recorded rather than acted on: this engine has no
+   * interception resolution - no roll, no outcome, and no route to answer or decline a window - so
+   * the flag reaches the roster and stops there. It is sent anyway because it is theirs, and because
+   * the field existed on the server with nothing able to fill it in, which made it a write-only
+   * chain that nobody could tell was empty.
+   */
+  isInterceptable?: boolean;
   close: { colours: string };
   medium: { colours: string };
   long: { colours: string };
@@ -165,6 +175,9 @@ export function fire(game: GameHandle, shot: {
   targetUnitId: string;
   targetElementId: string;
   measuredBand: string;
+  // What the target is doing about being shot at, as this firer sees it. Left out for a target in
+  // the open; the server takes an absent value and the word None as the same thing.
+  targetPosture?: string;
   willMoveOverHalf: boolean;
 }) {
   return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/fire`, shot, undefined, gameAuth(game));

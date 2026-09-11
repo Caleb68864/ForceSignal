@@ -13,7 +13,6 @@ namespace ForceSignal.Modules.Dirtside.Game;
 /// <param name="IsDamaged">True when it carries a DMG marker.</param>
 /// <param name="IsSystemsDown">True when its systems are down and it is doing nothing until they are back.</param>
 /// <param name="MovedOverHalf">True when it has moved, or will move, more than half its movement.</param>
-/// <param name="Posture">What it is doing about being shot at.</param>
 /// <param name="AreaDefenceSensorsLive">True when its sensors are on and it may intercept all turn.</param>
 /// <param name="IsImmobilised">True when it will never move again, though it may still fight from the spot.</param>
 /// <param name="SystemsDownOnActivation">
@@ -21,12 +20,21 @@ namespace ForceSignal.Modules.Dirtside.Game;
 /// cannot be tried on that activation, and the marker is the only thing that remembers which one it
 /// was.
 /// </param>
+/// <remarks>
+/// <b>A defensive posture is not here, and used to be.</b> It sat on this record as a reader with no
+/// writer: <c>HitResolution</c> asked for it, nothing in production ever moved it off
+/// <c>None</c>, and the whole die-shift mechanic was inert. It is declared per shot now, on
+/// <see cref="FireCommand"/> beside the measured band - which is the shape the fidelity notes
+/// already argued for, because whether a target is hull down is a judgement about <em>this</em>
+/// firer's line of sight and is settled by two people looking across a table, exactly like the
+/// range. A field on the target would have had to answer "when does it clear?", and nothing on the
+/// table knows.
+/// </remarks>
 public sealed record ElementStatus(
     bool IsDestroyed = false,
     bool IsDamaged = false,
     bool IsSystemsDown = false,
     bool MovedOverHalf = false,
-    DefensivePosture Posture = DefensivePosture.None,
     bool AreaDefenceSensorsLive = false,
     int? SystemsDownOnActivation = null,
     bool IsImmobilised = false)

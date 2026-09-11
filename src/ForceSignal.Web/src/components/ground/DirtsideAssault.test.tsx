@@ -295,7 +295,10 @@ describe('Dirtside fire-and-move declaration', () => {
     const stuck = element('alpha-1', 'Tank 1', { isImmobilised: true });
     await open(snapshotWith({ units: [{ ...alpha, elements: [stuck, alpha.elements[1]] }, bravo] }));
 
-    expect(screen.getByText('Tank 1 · immobilised')).toBeTruthy();
+    // The element has not said what it is doing yet, so it carries that marker too - which is the
+    // point of rendering `hasChosen` at all. Matched as a substring rather than as the whole row,
+    // so this test stays about immobilisation rather than about the shape of the marker chain.
+    expect(screen.getByText(/Tank 1 .*· immobilised/)).toBeTruthy();
     const moves = screen.getAllByRole('button', { name: 'Move' }) as HTMLButtonElement[];
     expect(moves[0].disabled).toBe(true);
     expect(moves[1].disabled).toBe(false);
