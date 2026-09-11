@@ -1,6 +1,7 @@
 using ForceSignal.Application.Ground;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.Dirtside.Chits;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -204,7 +205,7 @@ public sealed class DirtsideGameServiceTests
     public void AKindThatIsNotOnTheConfidenceTableIsRefused()
     {
         var service = new DirtsideGameService();
-        var created = service.CreateGame(new CreateDirtsideGameRequest("Ridge"));
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge"));
 
         Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(created.GameId,
             Platoon("alpha", "Alpha Troop", "blue") with { Kind = "Cavalry" }));
@@ -238,7 +239,7 @@ public sealed class DirtsideGameServiceTests
 
     internal static Guid Table(DirtsideGameService service)
     {
-        var created = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
         service.AddPlatoon(created.GameId, Platoon("alpha", "Alpha Troop", "blue"));
         service.AddPlatoon(created.GameId, Platoon("bravo", "Bravo Troop", "red"));
         return created.GameId;

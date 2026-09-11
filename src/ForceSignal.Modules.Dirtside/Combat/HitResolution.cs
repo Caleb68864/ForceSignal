@@ -61,17 +61,47 @@ public enum DefensivePosture
 }
 
 /// <summary>The dice a shot will be settled with, or the reason there is no shot.</summary>
-/// <param name="CanFire">False when the firer's die has dropped off the bottom of the ladder.</param>
+/// <param name="CanFire">
+/// False when the firer's die has dropped off the bottom of the ladder, or when the profile does
+/// not say which die one of the three sides of this shot rolls.
+/// </param>
 /// <param name="FirerDie">The die the firer rolls.</param>
 /// <param name="TargetPrimaryDie">The die the target rolls for its signature.</param>
 /// <param name="TargetSecondaryDie">The die the target rolls for its posture, if it has one.</param>
 /// <param name="Reason">Why there is no shot, or null when there is one.</param>
+/// <param name="IsMissingFromProfile">
+/// True when the reason is a row the players have not entered rather than a rule about the shot.
+/// The two are told apart here because a table reading a refusal needs to know whether to measure
+/// again or to go and fill in their profile.
+/// </param>
 public readonly record struct ShotSolution(
     bool CanFire,
     QualityDie FirerDie,
     QualityDie TargetPrimaryDie,
     QualityDie? TargetSecondaryDie,
-    string? Reason);
+    string? Reason,
+    bool IsMissingFromProfile = false)
+{
+    /// <summary>
+    /// A shot the rules will not allow, carrying no dice at all.
+    /// </summary>
+    /// <param name="reason">Why there is no shot.</param>
+    /// <returns>The refusal.</returns>
+    /// <remarks>
+    /// The dice are left at <c>default</c> rather than filled in with something plausible. A refusal
+    /// used to hand back a D4 as the target's die - a rung of the ladder, in the one code path where
+    /// no die is being thrown - and a value that is never read is exactly the sort of number this
+    /// module has just finished taking out of its own source. Nothing reads these: a refused shot
+    /// produces no attempts, so there is nothing to render them from.
+    /// </remarks>
+    public static ShotSolution NoShot(string reason) => new(false, default, default, null, reason);
+
+    /// <summary>A shot that cannot be worked out because the profile does not carry a row it needs.</summary>
+    /// <param name="reason">Which row, in the words a table can act on.</param>
+    /// <returns>The refusal.</returns>
+    public static ShotSolution NotOnTheProfile(string reason) =>
+        new(false, default, default, null, reason, IsMissingFromProfile: true);
+}
 
 /// <summary>The settled result of stage one.</summary>
 /// <param name="Solution">The dice the shot was taken with.</param>
@@ -110,6 +140,7 @@ public static class HitResolution
     /// <summary>
     /// Works out the dice a shot will be settled with.
     /// </summary>
+    /// <param name="profile">The dice this game's players entered off their own rulebook.</param>
     /// <param name="fireControl">The firing element's gunnery.</param>
     /// <param name="band">Which range band the shot falls in.</param>
     /// <param name="targetSignature">
@@ -121,55 +152,76 @@ public static class HitResolution
     /// True when the firer has moved, or will move, more than half its movement this activation.
     /// </param>
     /// <returns>The dice, or the reason there is no shot worth taking.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="profile"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The signature is outside one to five.</exception>
+    /// <remarks>
+    /// <para>
+    /// Three dice are looked up and not one of them is this app's. A row the profile does not carry
+    /// is a refusal that names the row, never a substitution: a game played on a die nobody entered
+    /// is a game played on somebody else's rules, which is the whole reason these tables left this
+    /// file.
+    /// </para>
+    /// <para>
+    /// Only the rows this particular shot reads are required. A table whose vehicles are all
+    /// basic-gunnery is never asked what a superior sight rolls, and a target out in the open is
+    /// never asked what hull down is worth.
+    /// </para>
+    /// </remarks>
     public static ShotSolution Solve(
+        DirtsideRulesProfile profile,
         FireControlLevel fireControl,
         WeaponRangeBand band,
         int targetSignature,
         DefensivePosture posture = DefensivePosture.None,
         bool firerMovedOverHalf = false)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentOutOfRangeException.ThrowIfLessThan(targetSignature, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(targetSignature, 5);
 
-        // The sight sets the die at medium range; the band and shooting on the move move it.
-        var baseDie = fireControl switch
+        // The sight sets the die at medium range; the band and shooting on the move move it. Which
+        // die that is belongs to the player's rulebook, so it is read rather than known.
+        if (profile.FireControlDie(fireControl) is not { } baseDie)
         {
-            FireControlLevel.Basic => QualityDie.D6,
-            FireControlLevel.Enhanced => QualityDie.D8,
-            _ => QualityDie.D10,
-        };
+            return ShotSolution.NotOnTheProfile(Missing($"the die a {fireControl} fire control rolls"));
+        }
+
+        if (profile.SignatureDie(targetSignature) is not { } primary)
+        {
+            return ShotSolution.NotOnTheProfile(Missing($"the die a signature {targetSignature} target rolls"));
+        }
+
+        if (!profile.HasPostureDie(posture))
+        {
+            return ShotSolution.NotOnTheProfile(Missing($"the die a {posture} target rolls"));
+        }
 
         var steps = (int)band + (firerMovedOverHalf ? -1 : 0);
         var shifted = QualityDice.Shift(baseDie, steps);
         if (shifted.Overflow < 0)
         {
             // Unlike a shift that runs off the top, running off the bottom is not capped: there is
-            // no die left to roll. A basic sight cannot take a long shot on the move at all.
-            return new ShotSolution(false, baseDie, QualityDie.D4, null,
+            // no die left to roll. The smallest sight cannot take a long shot on the move at all.
+            return ShotSolution.NoShot(
                 "There is no die left to roll: that sight cannot take that shot on the move.");
         }
 
-        var primary = SignatureDie(targetSignature);
-        return new ShotSolution(true, shifted.Die, primary, PostureDie(posture), null);
+        return new ShotSolution(true, shifted.Die, primary, profile.PostureDie(posture), null);
     }
 
-    /// <summary>The die a target of a given signature rolls. Bigger and louder means a better die.</summary>
-    /// <param name="signature">Signature from 1 (largest) to 5 (smallest).</param>
-    /// <returns>The primary defensive die.</returns>
-    public static QualityDie SignatureDie(int signature) => QualityDice.Ladder[5 - signature];
-
-    /// <summary>The extra die a posture is worth, or null when the target is doing nothing.</summary>
-    /// <param name="posture">What the target is doing.</param>
-    /// <returns>The secondary defensive die, or null.</returns>
-    public static QualityDie? PostureDie(DefensivePosture posture) => posture switch
-    {
-        DefensivePosture.None => null,
-        DefensivePosture.SoftCover => QualityDie.D6,
-        DefensivePosture.Evading => QualityDie.D8,
-        DefensivePosture.HullDown => QualityDie.D10,
-        _ => QualityDie.D12,
-    };
+    /// <summary>
+    /// The refusal a missing row produces, in the words a table needs to fix it.
+    /// </summary>
+    /// <param name="row">What is not on the profile, phrased as the thing being looked up.</param>
+    /// <returns>The sentence to refuse with.</returns>
+    /// <remarks>
+    /// It names the row rather than saying the profile is incomplete, for the same reason the salvo
+    /// refusal one engine over names the reach the player entered: a refusal a player cannot act on
+    /// is only a slower way of stopping.
+    /// </remarks>
+    private static string Missing(string row) =>
+        $"This game has no die table entry for {row}. Enter it in the game's rules profile - "
+        + "this app ships no dice of its own.";
 
     /// <summary>Rolls stage one.</summary>
     /// <param name="solution">The dice the shot is settled with.</param>

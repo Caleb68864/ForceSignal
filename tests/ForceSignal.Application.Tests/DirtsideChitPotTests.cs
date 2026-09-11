@@ -4,6 +4,7 @@ using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.Dirtside.Chits;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -90,7 +91,7 @@ public sealed class DirtsideChitPotTests
                 return new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 0));
             });
 
-        service.CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
         var fallback = Assert.Single(built);
 
         // Held to the composition itself rather than to its total. This read
@@ -142,7 +143,7 @@ public sealed class DirtsideChitPotTests
         // The default survives one release, and the price of that is that it never passes itself off
         // as the players'. A screen reading this flag can say where the numbers came from.
         var service = new DirtsideGameService();
-        var created = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
 
         Assert.NotNull(created.Snapshot.ChitPot);
         Assert.True(created.Snapshot.ChitPot.IsBuiltInDefaultGuess);
@@ -230,7 +231,7 @@ public sealed class DirtsideChitPotTests
         // counts were the players' would launder the guess into an answer on the first restart.
         var store = new MemoryStore();
         var first = new DirtsideGameService(null, store);
-        var game = first.CreateGame(new CreateDirtsideGameRequest("Ridge 9")).GameId;
+        var game = first.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9")).GameId;
 
         var second = new DirtsideGameService(null, store);
         second.GetSnapshot(game);
@@ -312,7 +313,8 @@ public sealed class DirtsideChitPotTests
 
     private static Guid Activated(DirtsideGameService service, DirtsideChitPotDto pot)
     {
-        var created = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9", pot));
+        var created = service.CreateGame(
+            new CreateDirtsideGameRequest("Ridge 9", pot, DirtsideTestProfile.Invented));
         service.AddPlatoon(created.GameId, DirtsideGameServiceTests.Platoon("alpha", "Alpha Troop", "blue"));
         service.AddPlatoon(created.GameId, DirtsideGameServiceTests.Platoon("bravo", "Bravo Troop", "red"));
         service.BeginTurn(created.GameId);

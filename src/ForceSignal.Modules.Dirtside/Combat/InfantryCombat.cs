@@ -372,12 +372,24 @@ public static class InfantryCombat
     /// <param name="outcome">What the hit did to the transport.</param>
     /// <param name="riderStands">How many stands were aboard.</param>
     /// <param name="roller">Die source.</param>
+    /// <param name="riderSurvivalDie">The die each stand throws, off the players' own rulebook.</param>
+    /// <param name="lostOnDamaged">The roll that loses a stand off a merely damaged transport.</param>
+    /// <param name="lostOnKnockedOut">The roll that loses a stand off a knocked-out one.</param>
     /// <param name="transportCrashed">True when an aircraft came down rather than merely stopping.</param>
     /// <returns>The rolls made and the stands lost.</returns>
     /// <remarks>
+    /// <para>
     /// The ladder is: a shot that never happened or a transport merely immobilised or blinded costs
     /// the passengers nothing; a damaged one shakes a few of them out; a knocked-out one is far
-    /// worse; and a catastrophic kill or a crash takes everybody, with no roll at all.
+    /// worse; and a catastrophic kill or a crash takes everybody, with no roll at all. Which of
+    /// those rungs costs what is the engine's; the die and the two numbers on it are the players'.
+    /// </para>
+    /// <para>
+    /// Those three arrived as a die literal and two constants written into this file - a D6, a 6 and
+    /// a 3 - and are parameters for the same reason the three tables in <c>HitResolution</c> became
+    /// a profile. This method has no production caller yet; it is the mounted-infantry half of the
+    /// module, and taking its numbers as arguments is what stops it shipping any.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The stand count is negative.</exception>
@@ -385,6 +397,9 @@ public static class InfantryCombat
         DamageOutcome outcome,
         int riderStands,
         IQualityDiceRoller roller,
+        QualityDie riderSurvivalDie,
+        int lostOnDamaged,
+        int lostOnKnockedOut,
         bool transportCrashed = false)
     {
         ArgumentNullException.ThrowIfNull(outcome);
@@ -404,8 +419,8 @@ public static class InfantryCombat
 
         var lostOn = outcome.Numerical switch
         {
-            NumericalDamage.KnockedOut => RidersLostOnKnockedOut,
-            NumericalDamage.Damaged => RidersLostOnDamaged,
+            NumericalDamage.KnockedOut => lostOnKnockedOut,
+            NumericalDamage.Damaged => lostOnDamaged,
 
             // Immobilised or blinded, but intact: the passengers simply get out.
             _ => 0,
@@ -420,7 +435,7 @@ public static class InfantryCombat
         var lost = 0;
         for (var stand = 0; stand < riderStands; stand++)
         {
-            var roll = roller.Roll(QualityDie.D6);
+            var roll = roller.Roll(riderSurvivalDie);
             rolls.Add(roll);
             if (roll >= lostOn)
             {
@@ -432,9 +447,5 @@ public static class InfantryCombat
             new ReadOnlyCollection<int>(rolls), lostOn, lost, lost == riderStands && riderStands > 0);
     }
 
-    /// <summary>A rider on a merely damaged transport is lost on this or better.</summary>
-    public const int RidersLostOnDamaged = 6;
 
-    /// <summary>A rider on a knocked-out transport is lost on this or better.</summary>
-    public const int RidersLostOnKnockedOut = 3;
 }

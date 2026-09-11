@@ -102,12 +102,12 @@ public sealed class DirtsideGameTests
         var table = WithHullGun();
         var afterMoving = table
             .MoveElement(GameFixtures.AlphaOne, overHalfItsMovement: false).Value!
-            .Fire(Shot("Hull Gun"), new ScriptedDice(8, 1), Pot());
+            .Fire(Shot("Hull Gun"), new ScriptedDice(8, 1), Pot(), TestDieTables.Invented);
 
         Assert.False(afterMoving.IsAllowed);
         Assert.Contains("never after", afterMoving.Reason!, StringComparison.OrdinalIgnoreCase);
 
-        Assert.True(table.Fire(Shot("Hull Gun"), new ScriptedDice(8, 1), Pot()).IsAllowed);
+        Assert.True(table.Fire(Shot("Hull Gun"), new ScriptedDice(8, 1), Pot(), TestDieTables.Invented).IsAllowed);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class DirtsideGameTests
         // The target rolls first and the barrel second, so this is a 1 against an 8: a solid hit.
         // Three chits of eight against three points of armour is far past what the vehicle can take.
         var after = GameFixtures.Activated()
-            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Numerical(ChitColour.Red, 8))).Value!;
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented).Value!;
 
         var target = after.Status(GameFixtures.Bravo).Element(GameFixtures.BravoOne);
         Assert.True(target.IsDestroyed);
@@ -128,12 +128,12 @@ public sealed class DirtsideGameTests
     {
         // An 8 for the target against a 1 for the barrel: nothing lands.
         var after = GameFixtures.Activated()
-            .Fire(Shot(), new ScriptedDice(8, 1), Pot(DamageChit.Numerical(ChitColour.Red, 8))).Value!;
+            .Fire(Shot(), new ScriptedDice(8, 1), Pot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented).Value!;
 
         Assert.False(after.Status(GameFixtures.Bravo).Element(GameFixtures.BravoOne).IsDestroyed);
         Assert.Contains(after.Log, entry => entry.Contains("Nothing landed", StringComparison.Ordinal));
         // The combat action is gone all the same.
-        Assert.False(after.Fire(Shot(), new ScriptedDice(1, 8), Pot()).IsAllowed);
+        Assert.False(after.Fire(Shot(), new ScriptedDice(1, 8), Pot(), TestDieTables.Invented).IsAllowed);
     }
 
     [Fact]
@@ -142,12 +142,12 @@ public sealed class DirtsideGameTests
         // The cost of information the player did not have when they declared. An engine that let the
         // second shot look around for a fresh target would be playing a more forgiving game.
         var afterFirst = GameFixtures.Activated()
-            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Numerical(ChitColour.Red, 8))).Value!;
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented).Value!;
 
         var second = afterFirst.Fire(
             Shot(element: GameFixtures.AlphaTwo),
             new ScriptedDice(1, 8),
-            Pot(DamageChit.Numerical(ChitColour.Red, 8)));
+            Pot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented);
 
         Assert.False(second.IsAllowed);
         Assert.Contains("already destroyed", second.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -161,7 +161,7 @@ public sealed class DirtsideGameTests
                 GameFixtures.Alpha, GameFixtures.AlphaOne, "Main Gun",
                 GameFixtures.Alpha, GameFixtures.AlphaTwo, WeaponRangeBand.Close),
             new ScriptedDice(8, 1),
-            Pot());
+            Pot(), TestDieTables.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("own side", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -170,7 +170,7 @@ public sealed class DirtsideGameTests
     [Fact]
     public void AWeaponTheElementIsNotCarryingIsRefused()
     {
-        var refused = GameFixtures.Activated().Fire(Shot("Railgun"), new ScriptedDice(8, 1), Pot());
+        var refused = GameFixtures.Activated().Fire(Shot("Railgun"), new ScriptedDice(8, 1), Pot(), TestDieTables.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("not carrying", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -184,7 +184,7 @@ public sealed class DirtsideGameTests
         var game = GameFixtures.Activated();
         var shot = Shot("Railgun");
 
-        Assert.Equal(game.WhyFireIsRefused(shot), game.Fire(shot, new ScriptedDice(8, 1), Pot()).Reason);
+        Assert.Equal(game.WhyFireIsRefused(shot, TestDieTables.Invented), game.Fire(shot, new ScriptedDice(8, 1), Pot(), TestDieTables.Invented).Reason);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class DirtsideGameTests
         // is marked as having moved over half before a die is thrown, which is what the resolver
         // reads to drop the firer's die a step.
         var shot = Shot() with { WillMoveOverHalf = true };
-        var after = GameFixtures.Activated().Fire(shot, new ScriptedDice(8, 1), Pot()).Value!;
+        var after = GameFixtures.Activated().Fire(shot, new ScriptedDice(8, 1), Pot(), TestDieTables.Invented).Value!;
 
         Assert.True(after.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne).MovedOverHalf);
         Assert.Contains(after.Log, entry => entry.Contains("on the move", StringComparison.Ordinal));
@@ -216,7 +216,7 @@ public sealed class DirtsideGameTests
     [Fact]
     public void AnElementThatFiredWithoutDeclaringMayNotThenMoveOverHalf()
     {
-        var after = GameFixtures.Activated().Fire(Shot(), new ScriptedDice(8, 1), Pot()).Value!;
+        var after = GameFixtures.Activated().Fire(Shot(), new ScriptedDice(8, 1), Pot(), TestDieTables.Invented).Value!;
 
         var refused = after.MoveElement(GameFixtures.AlphaOne, overHalfItsMovement: true);
 
@@ -233,7 +233,7 @@ public sealed class DirtsideGameTests
         // The mobility chit used to be said in the log and written nowhere, so the vehicle drove
         // off next activation. Now it is on the element, and the move is refused by name.
         var hit = GameFixtures.Activated()
-            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.Mobility))).Value!;
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.Mobility)), TestDieTables.Invented).Value!;
         Assert.True(hit.Status(GameFixtures.Bravo).Element(GameFixtures.BravoOne).IsImmobilised);
 
         var red = hit.StandDown(GameFixtures.AlphaTwo).Value!
@@ -246,7 +246,7 @@ public sealed class DirtsideGameTests
         Assert.True(red.Fire(
             new FireCommand(GameFixtures.Bravo, GameFixtures.BravoOne, "Main Gun", GameFixtures.Alpha, GameFixtures.AlphaOne, WeaponRangeBand.Close),
             new ScriptedDice(8, 1),
-            Pot()).IsAllowed);
+            Pot(), TestDieTables.Invented).IsAllowed);
     }
 
     [Fact]
@@ -284,7 +284,7 @@ public sealed class DirtsideGameTests
             .SetAreaDefenceSensors(GameFixtures.AlphaOne, live: true).Value!;
 
         Assert.True(game.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne).AreaDefenceSensorsLive);
-        Assert.False(game.Fire(Shot(), new ScriptedDice(8, 1), Pot()).IsAllowed);
+        Assert.False(game.Fire(Shot(), new ScriptedDice(8, 1), Pot(), TestDieTables.Invented).IsAllowed);
     }
 
     [Fact]
@@ -329,7 +329,7 @@ public sealed class DirtsideGameTests
         // roster showed the vehicle in perfect order, because the whole entry was skipped before the
         // firer was considered. Found by playing a turn through the API rather than by reading it.
         var after = GameFixtures.Activated()
-            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.SystemsDownFirer))).Value!;
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.SystemsDownFirer)), TestDieTables.Invented).Value!;
 
         Assert.True(after.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne).IsSystemsDown);
         Assert.False(after.Status(GameFixtures.Bravo).Element(GameFixtures.BravoOne).IsDestroyed);
@@ -341,7 +341,7 @@ public sealed class DirtsideGameTests
     public void AnElementWithItsSystemsDownCannotFireAgain()
     {
         var after = GameFixtures.Activated()
-            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.SystemsDownFirer))).Value!
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Of(ChitSpecial.SystemsDownFirer)), TestDieTables.Invented).Value!
             .EndActivation();
 
         // It cannot fire again this activation anyway - it has spent its combat action - so the
@@ -351,7 +351,7 @@ public sealed class DirtsideGameTests
             GameFixtures.Activated()
                 .WithStatus(GameFixtures.Alpha, status => status.WithElement(
                     GameFixtures.AlphaOne, element => element with { IsSystemsDown = true }))
-                .WhyFireIsRefused(Shot())!,
+                .WhyFireIsRefused(Shot(), TestDieTables.Invented)!,
             StringComparison.OrdinalIgnoreCase);
         Assert.False(after.IsAllowed);
     }

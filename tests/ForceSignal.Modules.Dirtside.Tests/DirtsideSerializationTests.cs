@@ -50,7 +50,7 @@ public sealed class DirtsideSerializationTests
                     GameFixtures.Alpha, GameFixtures.AlphaOne, "Main Gun",
                     GameFixtures.Bravo, GameFixtures.BravoOne, WeaponRangeBand.Close),
                 new ScriptedDice(1, 8),
-                new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 8))).Value!;
+                new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented).Value!;
 
         var restored = DirtsideGameSerialization.Restore(DirtsideGameSerialization.Save(game));
 

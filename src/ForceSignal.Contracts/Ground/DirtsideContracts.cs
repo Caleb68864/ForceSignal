@@ -61,6 +61,14 @@ public static class DirtsideWire
     /// </remarks>
     public static readonly string[] ValueScales = ["Doubled", "FaceValue", "Halved"];
 
+    /// <summary>Postures a target can be in, as a die table names them.</summary>
+    /// <remarks>
+    /// <c>None</c> is not here. A target doing nothing about being shot at throws no second die, so
+    /// there is no row for it on anybody's card and offering one would invite a player to enter a
+    /// die that nothing would ever roll.
+    /// </remarks>
+    public static readonly string[] Postures = ["SoftCover", "Evading", "HullDown", "TurretDown"];
+
     /// <summary>The colour sets a validity row may name.</summary>
     /// <remarks>
     /// Not the same list as <see cref="ChitColours"/>, which is the colours a chit is printed in.
@@ -112,6 +120,48 @@ public sealed record DirtsideChitPotDto(
     IReadOnlyList<DirtsideSpecialChitsDto> Specials,
     bool IsBuiltInDefaultGuess = false);
 
+/// <summary>One row of a die table: a key off the record card, and the die it rolls.</summary>
+/// <remarks>
+/// Rows rather than a fixed set of fields, for the same reason the chit pot is counted rather than
+/// listed: a table enters the rows their rulebook has, and a row nobody entered stays a row nobody
+/// entered rather than becoming a zero.
+/// </remarks>
+/// <param name="Key">
+/// What the row is about: a fire control level, a posture, or a signature written as a number.
+/// </param>
+/// <param name="Die">The die that row rolls: D4, D6, D8, D10 or D12.</param>
+public sealed record DirtsideDieRowDto(string Key, string Die);
+
+/// <summary>
+/// Every die and number a Dirtside game is settled with, off the players' own rulebook.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This app ships none of these. The engine owns the procedures - which die is thrown against
+/// which, that a longer shot moves the firer down the ladder, that the target keeps the better of
+/// its two dice - and the players own every die those procedures read.
+/// </para>
+/// <para>
+/// Nothing here is required. A game created with no profile can be set up, moved around and talked
+/// about; its first shot is refused with the name of the row it is missing, rather than settled on a
+/// die nobody entered. Only the rows a given shot reads have to be there, because a complete profile
+/// is not something this app can define.
+/// </para>
+/// </remarks>
+/// <param name="FireControl">What each gunnery level rolls: Basic, Enhanced or Superior.</param>
+/// <param name="Posture">What each posture is worth: SoftCover, Evading, HullDown or TurretDown.</param>
+/// <param name="Signature">What each signature rolls, keyed by the number on the card, 1 to 5.</param>
+/// <param name="SystemsDownRecoveryDie">The die a crew throws to get a Systems Down marker off.</param>
+/// <param name="SystemsDownRecoveryRoll">The number that throw has to reach without backup systems.</param>
+/// <param name="SystemsDownRecoveryRollWithBackup">The number it has to reach with them.</param>
+public sealed record DirtsideRulesProfileDto(
+    IReadOnlyList<DirtsideDieRowDto>? FireControl = null,
+    IReadOnlyList<DirtsideDieRowDto>? Posture = null,
+    IReadOnlyList<DirtsideDieRowDto>? Signature = null,
+    string? SystemsDownRecoveryDie = null,
+    int SystemsDownRecoveryRoll = 0,
+    int SystemsDownRecoveryRollWithBackup = 0);
+
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>
 /// <param name="ChitPot">
@@ -119,7 +169,17 @@ public sealed record DirtsideChitPotDto(
 /// one release only: a game created without it falls back to a built-in default whose special counts
 /// are a documented guess, and readiness says so out loud.
 /// </param>
-public sealed record CreateDirtsideGameRequest(string Name, DirtsideChitPotDto? ChitPot = null);
+/// <param name="Profile">
+/// The dice this game is settled with, off the players' own rulebook. Optional, and unlike the chit
+/// pot it is optional permanently and with no fallback: a game without it plays until somebody fires,
+/// and then refuses the shot naming the row it needs. Optional rather than required because a
+/// mismatched stored row is skipped and not migrated, so making this a required field would retire
+/// every Dirtside game already on the machine.
+/// </param>
+public sealed record CreateDirtsideGameRequest(
+    string Name,
+    DirtsideChitPotDto? ChitPot = null,
+    DirtsideRulesProfileDto? Profile = null);
 
 /// <summary>
 /// What one weapon system's chits may count, at one range band, off the record card.
@@ -421,6 +481,12 @@ public sealed record DirtsidePlatoonStateDto(
 /// whether they are the player's or the built-in guess. Null only on a snapshot from a server that
 /// predates the pot being carried per game.
 /// </param>
+/// <param name="Profile">
+/// The dice this game is settled with, as the players entered them. Reported on every snapshot for
+/// the same reason the pot is: a table settling an argument about a roll should be able to read the
+/// row without going back to whoever started the game, and a table whose shots are being refused
+/// should be able to see that the rows are simply not there.
+/// </param>
 public sealed record DirtsideSnapshotDto(
     Guid GameId,
     string Name,
@@ -436,7 +502,8 @@ public sealed record DirtsideSnapshotDto(
     IReadOnlyList<DirtsidePlatoonStateDto> Units,
     IReadOnlyList<string> Log,
     int Version,
-    DirtsideChitPotDto? ChitPot = null);
+    DirtsideChitPotDto? ChitPot = null,
+    DirtsideRulesProfileDto? Profile = null);
 
 /// <summary>A game that has just been started.</summary>
 /// <param name="GameId">Which game.</param>

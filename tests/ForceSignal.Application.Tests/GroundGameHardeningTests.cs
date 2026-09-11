@@ -6,6 +6,7 @@ using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.Dirtside.Chits;
 using ForceSignal.Modules.Dirtside.Game;
 using ForceSignal.Modules.StarGrunt.Game;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -32,7 +33,7 @@ public sealed partial class GroundGameHardeningTests
         var starGrunt = new StarGruntGameService();
         var dirtside = new DirtsideGameService();
         var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
-        var armour = dirtside.CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        var armour = dirtside.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
 
         // The same shape as a Full Thrust participant token: 256 bits, hex, minted once.
         Assert.Matches(HexToken(), infantry.Token);
@@ -84,7 +85,7 @@ public sealed partial class GroundGameHardeningTests
     public void ARowThatParsesButHoldsNoGameIsSkippedRatherThanTakingTheServiceDown()
     {
         var store = new MemoryStore();
-        var good = new DirtsideGameService(null, store).CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        var good = new DirtsideGameService(null, store).CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
 
         // Right format, right token shape, and a game with no roster. This got past the parser and
         // then failed being rebuilt - and the old catch did not reach that far, so every Dirtside
@@ -124,14 +125,14 @@ public sealed partial class GroundGameHardeningTests
     public void AtTheCeilingANewGameIsRefusedRatherThanRetiringALiveOne()
     {
         var service = new DirtsideGameService();
-        var first = service.CreateGame(new CreateDirtsideGameRequest("First"));
+        var first = service.CreateGame(DirtsideTestProfile.CreateGame("First"));
         for (var i = 1; i < 200; i++)
         {
-            service.CreateGame(new CreateDirtsideGameRequest($"Game {i}"));
+            service.CreateGame(DirtsideTestProfile.CreateGame($"Game {i}"));
         }
 
         var refused = Assert.Throws<InvalidOperationException>(() =>
-            service.CreateGame(new CreateDirtsideGameRequest("One Too Many")));
+            service.CreateGame(DirtsideTestProfile.CreateGame("One Too Many")));
 
         Assert.Contains("as many as it holds", refused.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("First", service.GetSnapshot(first.GameId).Name);
@@ -152,7 +153,7 @@ public sealed partial class GroundGameHardeningTests
         Assert.Contains("as many as it tracks", refused.Message, StringComparison.OrdinalIgnoreCase);
 
         var dirtside = new DirtsideGameService();
-        var armour = dirtside.CreateGame(new CreateDirtsideGameRequest("Ridge 9")).GameId;
+        var armour = dirtside.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9")).GameId;
         for (var i = 0; i < 200; i++)
         {
             dirtside.AddPlatoon(armour, DirtsideGameServiceTests.Platoon($"platoon-{i}", "Troop", i % 2 == 0 ? "blue" : "red"));
@@ -180,7 +181,7 @@ public sealed partial class GroundGameHardeningTests
         Assert.Contains("weapons", arsenal.Message, StringComparison.OrdinalIgnoreCase);
 
         var dirtside = new DirtsideGameService();
-        var armour = dirtside.CreateGame(new CreateDirtsideGameRequest("Ridge 9")).GameId;
+        var armour = dirtside.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9")).GameId;
 
         var column = Assert.Throws<InvalidOperationException>(() =>
             dirtside.AddPlatoon(armour, DirtsideGameServiceTests.Platoon("column", "Column", "blue") with
@@ -212,7 +213,7 @@ public sealed partial class GroundGameHardeningTests
             new ScriptedQualityDice(1, 8),
             null,
             ScriptedChitPot.Handing(DamageChit.Numerical(ChitColour.Red, 8)));
-        var game = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9")).GameId;
+        var game = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9")).GameId;
 
         // A mount claiming every barrel an int can hold. The number arrives off the wire and used to
         // be floored at one and left alone above, where it became the trip count of the dice loop in
@@ -286,7 +287,7 @@ public sealed partial class GroundGameHardeningTests
         Assert.All(unit.Weapons, weapon => Assert.True(weapon.Name.Length <= 120));
 
         var dirtside = new DirtsideGameService();
-        var armour = dirtside.CreateGame(new CreateDirtsideGameRequest(tooLong));
+        var armour = dirtside.CreateGame(DirtsideTestProfile.CreateGame(tooLong));
         var platoon = dirtside.AddPlatoon(armour.GameId, DirtsideGameServiceTests.Platoon("alpha", tooLong, "blue") with
         {
             Elements = [DirtsideGameServiceTests.Vehicle(tooLong, tooLong) with { Weapons = [DirtsideGameServiceTests.MainGun with { Name = tooLong }] }],

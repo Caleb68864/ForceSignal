@@ -169,7 +169,7 @@ public sealed class DirtsideGameAssaultTests
         Assert.False(refused.Fire(
             new FireCommand(GameFixtures.Alpha, GameFixtures.AlphaOne, "Main Gun", GameFixtures.Bravo, GameFixtures.BravoOne, WeaponRangeBand.Close),
             new ScriptedDice(1, 8),
-            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 1))).IsAllowed);
+            new ScriptedChitPot(DamageChit.Numerical(ChitColour.Red, 1)), TestDieTables.Invented).IsAllowed);
     }
 
     [Fact]

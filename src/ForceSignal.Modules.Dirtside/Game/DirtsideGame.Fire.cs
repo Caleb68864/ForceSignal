@@ -43,6 +43,7 @@ public sealed partial record DirtsideGame
     /// <param name="command">What is being fired at what.</param>
     /// <param name="dice">Where the die results come from.</param>
     /// <param name="pot">The chit pot every hit draws from.</param>
+    /// <param name="profile">The dice this game's players entered off their own rulebook.</param>
     /// <returns>The game with the shot resolved, or why it could not be taken.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <remarks>
@@ -58,15 +59,30 @@ public sealed partial record DirtsideGame
     /// player did not have when they declared.
     /// </para>
     /// </remarks>
-    public GameOutcome<DirtsideGame> Fire(FireCommand command, IQualityDiceRoller dice, IChitPot pot)
+    public GameOutcome<DirtsideGame> Fire(
+        FireCommand command,
+        IQualityDiceRoller dice,
+        IChitPot pot,
+        DirtsideRulesProfile profile)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(dice);
         ArgumentNullException.ThrowIfNull(pot);
+        ArgumentNullException.ThrowIfNull(profile);
 
         if (Prepare(command) is not { } shot)
         {
             return GameOutcome.Refused<DirtsideGame>(DescribeBlocker(command));
+        }
+
+        // A row the profile does not carry is refused here rather than inside the resolution, so the
+        // shot is not spent on a question the game cannot answer. Every other refusal below this
+        // line costs the element its combat action, because every other refusal is something the
+        // player could have known; this one is a gap in what they typed, and taking their shot for
+        // it would be punishing them for this app's own policy.
+        if (WhyTheProfileCannotSettleThisShot(shot, profile) is { } missing)
+        {
+            return GameOutcome.Refused<DirtsideGame>(missing);
         }
 
         // The step first, so a shot that is not legal costs nothing and rolls nothing.
@@ -76,23 +92,58 @@ public sealed partial record DirtsideGame
             return fired;
         }
 
-        var result = DirectFire.Resolve(shot, dice, pot);
+        var result = DirectFire.Resolve(profile, shot, dice, pot);
         return GameOutcome.Allowed(fired.Value!.Apply(command, result));
+    }
+
+    /// <summary>
+    /// Which die table row this shot needs and the profile does not carry, or null when it can be
+    /// settled.
+    /// </summary>
+    /// <remarks>
+    /// Asked of the band the shot will <em>resolve</em> at, not the band it was measured at, because
+    /// that is the band the resolution reads - a damaged firer's long shot is settled at medium, and
+    /// answering about the wrong one would refuse a shot the game could take or take one it could
+    /// not. The dice are worked out and thrown away; nothing is rolled.
+    /// </remarks>
+    private static string? WhyTheProfileCannotSettleThisShot(FireDeclaration shot, DirtsideRulesProfile profile)
+    {
+        var band = EffectiveRangeBand.For(shot.MeasuredBand, shot.Firer.IsDamaged);
+        if (!band.CanFire)
+        {
+            return null;
+        }
+
+        var solution = HitResolution.Solve(
+            profile,
+            shot.Firer.FireControl,
+            band.Band,
+            shot.Target.Signature,
+            shot.Target.Posture,
+            shot.Firer.MovedOverHalf);
+
+        return solution.IsMissingFromProfile ? solution.Reason : null;
     }
 
     /// <summary>
     /// Whether this element could fire this weapon at this target, and why not.
     /// </summary>
     /// <param name="command">The shot being considered.</param>
+    /// <param name="profile">The dice this game's players entered off their own rulebook.</param>
     /// <returns>The refusal in words, or null when the shot may be taken.</returns>
     /// <remarks>
     /// Shared with <see cref="Fire"/> rather than written twice, so that a screen showing why a
-    /// button is disabled uses the same words the command would refuse with.
+    /// button is disabled uses the same words the command would refuse with - the missing-row
+    /// refusal included, which is the one a table can act on before clicking anything.
     /// </remarks>
-    public string? WhyFireIsRefused(FireCommand command)
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    public string? WhyFireIsRefused(FireCommand command, DirtsideRulesProfile profile)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return Prepare(command) is null ? DescribeBlocker(command) : null;
+        ArgumentNullException.ThrowIfNull(profile);
+        return Prepare(command) is not { } shot
+            ? DescribeBlocker(command)
+            : WhyTheProfileCannotSettleThisShot(shot, profile);
     }
 
     /// <summary>Builds the engine's declaration from the roster, or null when it cannot be built.</summary>

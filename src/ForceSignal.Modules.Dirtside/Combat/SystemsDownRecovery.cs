@@ -40,17 +40,23 @@ public readonly record struct RecoveryAttempt(
 /// </remarks>
 public static class SystemsDownRecovery
 {
-    /// <summary>The number a vehicle without backup systems must reach on a D6.</summary>
-    public const int RequiredWithoutBackup = 6;
-
-    /// <summary>The number a vehicle with backup systems must reach on a D6.</summary>
-    public const int RequiredWithBackup = 3;
-
-    /// <summary>The number that has to come up.</summary>
+    /// <summary>
+    /// The number that has to come up, or null when the profile does not say.
+    /// </summary>
+    /// <param name="profile">The numbers this game's players entered off their own rulebook.</param>
     /// <param name="hasBackupSystems">Whether backup systems were bought at design time.</param>
-    /// <returns>The number to reach or beat.</returns>
-    public static int Required(bool hasBackupSystems) =>
-        hasBackupSystems ? RequiredWithBackup : RequiredWithoutBackup;
+    /// <returns>The number to reach or beat, or null when nobody has entered it.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="profile"/> is null.</exception>
+    /// <remarks>
+    /// This used to be a pair of constants - reach a 6, or a 3 with backup systems - written into
+    /// this file. They are two more readings off somebody's rulebook, so they left with the three
+    /// die tables in <c>HitResolution</c> and for the same reason.
+    /// </remarks>
+    public static int? Required(DirtsideRulesProfile profile, bool hasBackupSystems)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return profile.SystemsDownRecoveryTarget(hasBackupSystems);
+    }
 
     /// <summary>
     /// Whether the crew may try at all this activation.
@@ -67,23 +73,38 @@ public static class SystemsDownRecovery
         crewAboard && currentActivation > damagedOnActivation;
 
     /// <summary>Makes one attempt.</summary>
+    /// <param name="profile">The die and number this game's players entered off their own rulebook.</param>
     /// <param name="damagedOnActivation">The activation the marker was placed on.</param>
     /// <param name="currentActivation">The activation now being taken.</param>
     /// <param name="roller">Die source.</param>
     /// <param name="hasBackupSystems">Whether backup systems were bought at design time.</param>
     /// <param name="crewAboard">False once the crew have bailed out.</param>
     /// <returns>What the attempt produced, including the roll, for the log.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="roller"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <remarks>
+    /// A profile that does not carry this roll refuses the attempt and says which row is missing,
+    /// rather than substituting a die and a number. It costs the crew nothing: the marker stays on
+    /// and the combat action is not spent, so a table can fill the row in and try again.
+    /// </remarks>
     public static RecoveryAttempt Attempt(
+        DirtsideRulesProfile profile,
         int damagedOnActivation,
         int currentActivation,
         IQualityDiceRoller roller,
         bool hasBackupSystems = false,
         bool crewAboard = true)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(roller);
 
-        var required = Required(hasBackupSystems);
+        if (profile.SystemsDownRecoveryDie is not { } die || Required(profile, hasBackupSystems) is not { } required)
+        {
+            return new RecoveryAttempt(false, 0, 0, false,
+                "This game has no die table entry for getting a Systems Down marker off. Enter the "
+                + "die and the number it has to reach in the game's rules profile - this app ships "
+                + "no dice of its own.");
+        }
+
         if (!CanAttempt(damagedOnActivation, currentActivation, crewAboard))
         {
             // Refused rather than rolled and failed, because the difference matters to the log and
@@ -93,7 +114,7 @@ public static class SystemsDownRecovery
                 : "The crew have bailed out; there is nobody aboard to repair anything.");
         }
 
-        var roll = roller.Roll(QualityDie.D6);
+        var roll = roller.Roll(die);
 
         // Reach it, not beat it. This is one of the few rolls in the family that is not the
         // exceed-don't-match comparison, so it is written as a separate rule rather than borrowed

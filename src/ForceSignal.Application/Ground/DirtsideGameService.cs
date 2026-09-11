@@ -159,6 +159,9 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 // Dirtside game on the machine would have been retired by this change.
                 var (composition, isDefault) = ReadStoredPot(row.Settings);
 
+                // The profile falls back to blank rather than to anything, which is not the same
+                // kind of fallback as the pot's: a blank profile is not a guess this app is making,
+                // it is the absence of one, and the first shot says so by name.
                 _games[saved.MatchId] = new Held(
                     DirtsideGameSerialization.Restore(row.Game),
                     1,
@@ -166,7 +169,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
                     row.LastActivity,
                     composition,
                     isDefault,
-                    _pot(composition));
+                    _pot(composition),
+                    ReadStoredProfile(row.Settings));
             }
 #pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
             catch (Exception ex)
@@ -186,6 +190,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
         // Read before the lock is taken: a pot that does not describe a bag is a refusal, and there
         // is no reason to hold every other table up while it is worked out.
         var (composition, isDefault) = DirtsideChitPotMapping.FromRequest(request.ChitPot);
+        var profile = DirtsideRulesProfileMapping.FromRequest(request.Profile);
 
         lock (_gate)
         {
@@ -198,7 +203,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 DateTimeOffset.UtcNow,
                 composition,
                 isDefault,
-                _pot(composition));
+                _pot(composition),
+                profile);
             _games[id] = held;
             Persist(id, held);
             return new DirtsideGameCreatedResponse(id, ToSnapshot(id, held), held.Token);
@@ -312,7 +318,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 Band(request.MeasuredBand),
                 request.WillMoveOverHalf);
 
-            var outcome = game.Fire(command, _dice, held.Pot);
+            var outcome = game.Fire(command, _dice, held.Pot, held.Profile);
             return outcome.IsAllowed
                 ? Store(gameId, outcome.Value!)
                 : throw new InvalidOperationException(outcome.Reason);
@@ -323,7 +329,9 @@ public sealed class DirtsideGameService : IDirtsideGameService
     public DirtsideSnapshotDto RecoverSystems(Guid gameId, DirtsideRecoverSystemsRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Command(gameId, game => game.RecoverSystems(new ElementId(request.ElementId), _dice));
+        return CommandWithHeld(
+            gameId,
+            (game, held) => game.RecoverSystems(new ElementId(request.ElementId), _dice, held.Profile));
     }
 
     /// <inheritdoc />
@@ -391,10 +399,20 @@ public sealed class DirtsideGameService : IDirtsideGameService
     /// </summary>
     private DirtsideSnapshotDto CommandWithPot(Guid gameId, Func<DirtsideGame, IChitPot, GameOutcome<DirtsideGame>> command)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        return CommandWithHeld(gameId, (game, held) => command(game, held.Pot));
+    }
+
+    /// <summary>
+    /// The same again, for the commands that need something else this service holds about the game -
+    /// today the rules profile, which is the players' and belongs to one game exactly as the pot does.
+    /// </summary>
+    private DirtsideSnapshotDto CommandWithHeld(Guid gameId, Func<DirtsideGame, Held, GameOutcome<DirtsideGame>> command)
+    {
         lock (_gate)
         {
             var held = Find(gameId);
-            var outcome = command(held.Game, held.Pot);
+            var outcome = command(held.Game, held);
             return outcome.IsAllowed
                 ? Store(gameId, outcome.Value!)
                 : throw new InvalidOperationException(outcome.Reason);
@@ -456,7 +474,9 @@ public sealed class DirtsideGameService : IDirtsideGameService
     /// </remarks>
     private static string WriteSettings(Held held) =>
         JsonSerializer.Serialize(
-            new StoredSettings(DirtsideChitPotMapping.ToDto(held.Composition, held.ChitPotIsBuiltInDefault)),
+            new StoredSettings(
+                DirtsideChitPotMapping.ToDto(held.Composition, held.ChitPotIsBuiltInDefault),
+                held.Profile.IsBlank ? null : DirtsideRulesProfileMapping.ToDto(held.Profile)),
             SettingsJson);
 
     /// <summary>Reads the settings back, or nothing when the row carried none.</summary>
@@ -499,6 +519,38 @@ public sealed class DirtsideGameService : IDirtsideGameService
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return (ChitPotComposition.Default, true);
+        }
+    }
+
+    /// <summary>
+    /// Reads a stored row's rules profile, or answers a blank one.
+    /// </summary>
+    /// <param name="settings">The row's settings blob, or null when it carries none.</param>
+    /// <returns>The profile the players entered, or a blank one.</returns>
+    /// <remarks>
+    /// Read in its own try, separately from the pot beside it, for the reason the pot's own remarks
+    /// spell out at length: a settings blob that is present and of another shape must cost the
+    /// settings and not the game. Reading the two together would mean a profile this version cannot
+    /// parse also losing the pot, which is a strictly worse outcome than losing one of them.
+    /// <para>
+    /// Falling back here is not the silent kind. A blank profile is reported on every snapshot and
+    /// refuses the first shot by name, so a table whose profile failed to load finds out at the same
+    /// moment a table who never entered one does.
+    /// </para>
+    /// </remarks>
+    private static DirtsideRulesProfile ReadStoredProfile(string? settings)
+    {
+        try
+        {
+            return ReadSettings(settings)?.Profile is { } stored
+                ? DirtsideRulesProfileMapping.FromDto(stored)
+                : DirtsideRulesProfile.Empty;
+        }
+        // JsonException is a blob of another shape; InvalidOperationException is a blob whose rows
+        // no longer describe a profile this version can build - a die that has been renamed, say.
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return DirtsideRulesProfile.Empty;
         }
     }
 
@@ -696,7 +748,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
             endOutcome.IsAllowed,
             endOutcome.Reason,
             game.Assault is { } assault ? ToAssaultState(assault) : null,
-            [.. game.Units.Values.Select(platoon => ToPlatoonState(game, platoon, frame))],
+            [.. game.Units.Values.Select(platoon => ToPlatoonState(game, platoon, frame, held.Profile))],
             [.. game.Log],
             held.Version,
 
@@ -704,7 +756,12 @@ public sealed class DirtsideGameService : IDirtsideGameService
             // most sensitive input in the damage model and a table settling an argument about a draw
             // should be able to read what is in the bag without going back to whoever started the
             // game. It carries its own honesty flag: these counts are either theirs or the guess.
-            DirtsideChitPotMapping.ToDto(held.Composition, held.ChitPotIsBuiltInDefault));
+            DirtsideChitPotMapping.ToDto(held.Composition, held.ChitPotIsBuiltInDefault),
+
+            // Reported whether or not anything was entered. A blank profile coming back as a blank
+            // profile is what lets a screen say "this game has no die tables" before the first shot
+            // is refused, rather than after.
+            DirtsideRulesProfileMapping.ToDto(held.Profile));
     }
 
     private static DirtsideAssaultDto ToAssaultState(DirtsideAssault assault) => new(
@@ -718,7 +775,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
     private static DirtsidePlatoonStateDto ToPlatoonState(
         DirtsideGame game,
         PlatoonDefinition platoon,
-        ActivationFrame? frame)
+        ActivationFrame? frame,
+        DirtsideRulesProfile profile)
     {
         var status = game.Status(platoon.Id);
         var chosen = frame is { Kind: FrameKind.Activation } && frame.Unit == platoon.Id
@@ -745,7 +803,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
             hasActivated,
             activation.IsAllowed,
             activation.Reason,
-            [.. platoon.Elements.Select(element => ToElementState(game, status, element, chosen, frameForThisUnit))],
+            [.. platoon.Elements.Select(element => ToElementState(game, status, element, chosen, frameForThisUnit, profile))],
             platoon.Quality?.ToString(),
             platoon.LeadershipValue);
     }
@@ -755,7 +813,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
         PlatoonStatus status,
         ElementDefinition element,
         ImmutableHashSet<ElementId> chosen,
-        ActivationFrame? frame)
+        ActivationFrame? frame,
+        DirtsideRulesProfile profile)
     {
         var state = status.Element(element.Id);
 
@@ -768,7 +827,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
 
         // Only asked of the platoon whose activation is open: for anybody else the answer is
         // "nothing is activated", which is true and not what a screen wants beside every vehicle.
-        var recovery = frame is null ? "Nothing is activated." : game.WhyRecoverSystemsIsRefused(element.Id);
+        var recovery = frame is null ? "Nothing is activated." : game.WhyRecoverSystemsIsRefused(element.Id, profile);
 
         // What the tape may measure out to now, rather than what the record card says. A DMG marker
         // halves an element's movement, and the engine had that rule written and tested and applied
@@ -818,6 +877,12 @@ public sealed class DirtsideGameService : IDirtsideGameService
     /// restored rather than per command: a pot is cheap but it holds the shuffle's randomness, and
     /// rebuilding it every draw would hand each resolution a brand-new source.
     /// </param>
+    /// <param name="Profile">
+    /// The dice this game's players entered off their own rulebook. Here rather than on the game
+    /// value for the same reason the pot is: the module takes it as an argument to the commands that
+    /// read it and has no field for it. Blank when nobody entered any, which is a playable state and
+    /// not an error - it is the first shot that says what is missing.
+    /// </param>
     private sealed record Held(
         DirtsideGame Game,
         int Version,
@@ -825,9 +890,17 @@ public sealed class DirtsideGameService : IDirtsideGameService
         DateTimeOffset LastActivity,
         ChitPotComposition Composition,
         bool ChitPotIsBuiltInDefault,
-        IChitPot Pot);
+        IChitPot Pot,
+        DirtsideRulesProfile Profile);
 
     /// <summary>What the stored row's settings field holds for this engine.</summary>
     /// <param name="ChitPot">The pot this game draws from.</param>
-    private sealed record StoredSettings(DirtsideChitPotDto? ChitPot);
+    /// <param name="Profile">
+    /// The dice this game is settled with, or null when nobody entered any. Optional inside an
+    /// already-optional field, and for the same reason it is optional on the create request: a
+    /// mismatched <c>GroundGameRecord.FormatVersion</c> is skipped rather than migrated, so a row
+    /// written before profiles existed has to keep loading. It does - as a game whose first shot
+    /// asks for a row.
+    /// </param>
+    private sealed record StoredSettings(DirtsideChitPotDto? ChitPot, DirtsideRulesProfileDto? Profile = null);
 }

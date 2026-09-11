@@ -2,6 +2,7 @@ using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.Dirtside.Chits;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -57,7 +58,7 @@ public sealed class DirtsidePersistenceTests
         var service = new DirtsideGameService(null, store);
 
         // Starting at all is the assertion: one unreadable save must not take the others with it.
-        Assert.NotNull(service.CreateGame(new CreateDirtsideGameRequest("Ridge 9")));
+        Assert.NotNull(service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9")));
         Assert.Single(service.SkippedSaves);
     }
 
@@ -65,7 +66,7 @@ public sealed class DirtsidePersistenceTests
     public void WithNoStoreNothingIsWrittenAndNothingIsLost()
     {
         var service = new DirtsideGameService();
-        var game = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9")).GameId;
+        var game = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9")).GameId;
 
         Assert.NotNull(service.GetSnapshot(game));
     }
