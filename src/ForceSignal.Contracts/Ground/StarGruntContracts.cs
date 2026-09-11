@@ -27,9 +27,61 @@ public static class StarGruntWire
     public static readonly int[] Ladder = [4, 6, 8, 10, 12];
 }
 
+/// <summary>One row of the band-width table: how wide a range band is for troops of one quality.</summary>
+/// <param name="QualityDie">The firing unit's quality die, as a face count.</param>
+/// <param name="Inches">How many inches one band is for those troops, off the players' own rulebook.</param>
+public sealed record StarGruntBandWidthDto(int QualityDie, int Inches);
+
+/// <summary>One row of the range-die table: what a target this many bands out rolls before cover.</summary>
+/// <param name="BandsOut">Bands between firer and target, counting the first as one.</param>
+/// <param name="Die">The die the target rolls, as a face count.</param>
+public sealed record StarGruntRangeDieDto(int BandsOut, int Die);
+
+/// <summary>
+/// The numbers a StarGrunt shot reads off the rulebook's range page, entered by the players.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This app supplies none of them. The engine used to: a band was the firer's own quality die read as
+/// inches, the target's die walked up the ladder one rung per band from the bottom, soft and hard
+/// cover were worth one and two rungs, being dug in one more, and the reach was the ladder's length.
+/// Each of those was a reading off somebody's page, and they are all here now, together.
+/// </para>
+/// <para>
+/// Every part is optional, and an unentered part is absent rather than zero - null for the numbers,
+/// a missing row for the tables. A shot that reads an entry nobody made is refused and names it; a
+/// shot that reads only what was entered is settled. Zero is a real answer for a cover shift ("this
+/// cover does nothing in our rules"), which is why the shifts are nullable rather than zero-as-blank.
+/// </para>
+/// </remarks>
+/// <param name="BandWidths">How wide a band is, per quality of firing troops.</param>
+/// <param name="RangeDice">The die a target rolls at each band out, before cover.</param>
+/// <param name="EffectiveBands">
+/// How many bands out small arms still have an effective shot at a target in the open, or null when
+/// not entered.
+/// </param>
+/// <param name="SoftCoverShift">Rungs soft cover moves a die up, or null when not entered.</param>
+/// <param name="HardCoverShift">Rungs hard cover moves a die up, or null when not entered.</param>
+/// <param name="InPositionShift">
+/// Rungs a target settled into its position moves a die up, on top of cover, or null when not entered.
+/// </param>
+public sealed record StarGruntRulesProfileDto(
+    IReadOnlyList<StarGruntBandWidthDto>? BandWidths = null,
+    IReadOnlyList<StarGruntRangeDieDto>? RangeDice = null,
+    int? EffectiveBands = null,
+    int? SoftCoverShift = null,
+    int? HardCoverShift = null,
+    int? InPositionShift = null);
+
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>
-public sealed record CreateStarGruntGameRequest(string Name);
+/// <param name="Profile">
+/// The range table this game is played on, off the players' own rulebook. Optional, and with no
+/// fallback: a game without it plays until somebody fires, and then refuses the shot naming the entry
+/// it needs. Optional rather than required because a mismatched stored row is skipped and not
+/// migrated, and because a table can enter it partly - only the entries a shot reads are needed.
+/// </param>
+public sealed record CreateStarGruntGameRequest(string Name, StarGruntRulesProfileDto? Profile = null);
 
 /// <summary>One figure on a record card.</summary>
 /// <param name="ArmourDie">Its personal armour die, as a face count.</param>
@@ -303,6 +355,11 @@ public sealed record StarGruntUnitDto(
 /// <param name="Units">Everyone on the table.</param>
 /// <param name="Log">What has happened, oldest first.</param>
 /// <param name="Version">Bumped on every change, so a client can drop a stale answer.</param>
+/// <param name="Profile">
+/// The range table this game is played on, as the players entered it. On every snapshot, blank or
+/// not, so a screen can say "this game has no range table" before the first shot is refused rather
+/// than after.
+/// </param>
 public sealed record StarGruntSnapshotDto(
     Guid GameId,
     string Name,
@@ -314,7 +371,8 @@ public sealed record StarGruntSnapshotDto(
     string? FirstActivationChooser,
     IReadOnlyList<StarGruntUnitDto> Units,
     IReadOnlyList<string> Log,
-    long Version);
+    long Version,
+    StarGruntRulesProfileDto? Profile = null);
 
 /// <summary>What creating a game hands back.</summary>
 /// <param name="GameId">The new game's id.</param>

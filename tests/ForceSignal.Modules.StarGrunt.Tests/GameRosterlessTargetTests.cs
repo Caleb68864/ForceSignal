@@ -67,7 +67,7 @@ public sealed class GameRosterlessTargetTests
             .ChooseFirstActivator(GameFixtures.Blue, takeIt: true).Value!
             .BeginActivation(GameFixtures.Blue, GameFixtures.Alpha).Value!;
 
-        var outcome = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
+        var outcome = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
         Assert.False(outcome.IsAllowed);
         Assert.Contains("Bravo Squad", outcome.Reason, StringComparison.Ordinal);
@@ -84,7 +84,7 @@ public sealed class GameRosterlessTargetTests
             .ChooseFirstActivator(GameFixtures.Blue, takeIt: true).Value!
             .BeginActivation(GameFixtures.Blue, GameFixtures.Alpha).Value!;
 
-        var outcome = game.Fire(GameFixtures.Volley(), new ScriptedDice(), GameFixtures.HitsARifleman());
+        var outcome = game.Fire(GameFixtures.Volley(), new ScriptedDice(), TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
         Assert.False(outcome.IsAllowed);
         Assert.Null(outcome.Value);
@@ -132,7 +132,7 @@ public sealed class GameRosterlessTargetTests
         // The control that must be accepted. A refusal that refused every volley would pass every
         // check above and make the game unplayable, which is the same policy violation in a coat.
         var outcome = GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
         Assert.True(outcome.IsAllowed);
         Assert.Equal(7, outcome.Value!.Status(GameFixtures.Bravo).FiguresAlive);
@@ -160,7 +160,7 @@ public sealed class GameRosterlessTargetTests
                 .BeginTurn().Value!
                 .ChooseFirstActivator(GameFixtures.Blue, takeIt: true).Value!
                 .BeginActivation(GameFixtures.Blue, GameFixtures.Alpha).Value!
-                .Fire(GameFixtures.Volley(), roller, GameFixtures.HitsARifleman());
+                .Fire(GameFixtures.Volley(), roller, TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
             return roller.Thrown;
         }

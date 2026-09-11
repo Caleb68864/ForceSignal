@@ -34,6 +34,8 @@
     <!-- One copy of the invented Dirtside die tables, shared with the other ground test project
          rather than typed out twice. -->
     <Compile Include="..\TestSupport\DirtsideTestProfile.cs" Link="TestSupport\DirtsideTestProfile.cs" />
+    <!-- And the invented StarGrunt range table, on the same terms. -->
+    <Compile Include="..\TestSupport\StarGruntTestProfile.cs" Link="TestSupport\StarGruntTestProfile.cs" />
   </ItemGroup>
 
 </Project>

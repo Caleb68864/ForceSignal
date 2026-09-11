@@ -3,6 +3,11 @@ using ForceSignal.Modules.GroundCombat.Dice;
 namespace ForceSignal.Modules.StarGrunt.Combat;
 
 /// <summary>How much the ground is protecting a target.</summary>
+/// <remarks>
+/// The values are identities and nothing else. They used to be the rungs each level was worth -
+/// <c>(int)Cover</c> was the shift - which put a rules number in an enum where no guard looked. What
+/// each level is worth is on <see cref="StarGruntRulesProfile"/> now.
+/// </remarks>
 public enum CoverLevel
 {
     /// <summary>Out in the open with nothing to hide behind.</summary>
@@ -23,19 +28,19 @@ public enum CoverLevel
 /// <param name="InPosition">
 /// True when the target has had time to settle into its ground rather than merely being near it.
 /// </param>
-public readonly record struct TargetPosture(CoverLevel Cover, bool InPosition = false)
-{
-    /// <summary>
-    /// Rungs this posture shifts a die up. It applies to the range die and the armour die alike -
-    /// cover makes a target both harder to hit and harder to hurt.
-    /// </summary>
-    public int Shifts => (int)Cover + (InPosition ? 1 : 0);
-}
+/// <remarks>
+/// What it is worth is not here. This carried a <c>Shifts</c> property that added the cover enum's
+/// value to one for being dug in, which was the rulebook's posture table in one line of arithmetic.
+/// </remarks>
+public readonly record struct TargetPosture(CoverLevel Cover, bool InPosition = false);
 
 /// <summary>
 /// The range die the target will roll, or the reason there is no shot worth taking.
 /// </summary>
-/// <param name="CanFireEffectively">False when the shot is beyond effective range.</param>
+/// <param name="CanFireEffectively">
+/// False when the shot is beyond effective range, or when the profile does not carry an entry the
+/// shot reads - which <paramref name="IsMissingFromProfile"/> tells apart.
+/// </param>
 /// <param name="RangeDie">
 /// The die the target rolls, or null when the shot is impossible and there is no die.
 /// <para>
@@ -46,88 +51,162 @@ public readonly record struct TargetPosture(CoverLevel Cover, bool InPosition = 
 /// what is true: past effective range there is no die to throw.
 /// </para>
 /// </param>
-/// <param name="BandsOut">How many range bands separate the two, rounded up.</param>
+/// <param name="BandsOut">How many range bands separate the two, rounded up, or zero when unknown.</param>
 /// <param name="Reason">Why the shot is impossible, or null when it is not.</param>
+/// <param name="PostureShift">
+/// The rungs the target's cover and posture came to, off the profile. Carried because the same rungs
+/// make the target's armour harder to get through, and reading them twice is how the two would come
+/// to disagree.
+/// </param>
+/// <param name="IsMissingFromProfile">
+/// True when the reason is an entry the players have not made rather than a rule about the shot.
+/// Told apart because a table reading a refusal needs to know whether to measure again or to go and
+/// fill in their profile - and because a shot that is merely out of range is taken and wasted, while
+/// one the game cannot settle must not cost the unit anything.
+/// </param>
 public readonly record struct RangeSolution(
     bool CanFireEffectively,
     QualityDie? RangeDie,
     int BandsOut,
-    string? Reason);
+    string? Reason,
+    int PostureShift = 0,
+    bool IsMissingFromProfile = false)
+{
+    /// <summary>A shot the rules allow and that achieves nothing, carrying no die.</summary>
+    /// <param name="bandsOut">How far out the target was.</param>
+    /// <param name="reason">Why there is no effective shot.</param>
+    /// <returns>The solution.</returns>
+    public static RangeSolution NoEffectiveShot(int bandsOut, string reason) =>
+        new(false, null, bandsOut, reason);
+
+    /// <summary>A shot that cannot be worked out because the profile lacks an entry it reads.</summary>
+    /// <param name="bandsOut">How far out the target was, or zero when that is what is missing.</param>
+    /// <param name="entry">The entry, phrased as the thing being looked up.</param>
+    /// <returns>The refusal.</returns>
+    public static RangeSolution NotOnTheProfile(int bandsOut, string entry) =>
+        new(false, null, bandsOut, Missing(entry), IsMissingFromProfile: true);
+
+    /// <summary>The refusal a missing entry produces, in the words a table needs to fix it.</summary>
+    /// <remarks>
+    /// It names the entry rather than saying the profile is incomplete, for the reason Dirtside's
+    /// refusal does: a refusal a player cannot act on is only a slower way of stopping.
+    /// </remarks>
+    private static string Missing(string entry) =>
+        $"This game's range table has no entry for {entry}. Enter it in the game's rules profile - "
+        + "this app ships none of its own.";
+}
 
 /// <summary>
 /// Turns a distance on the table into the single die the target rolls.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Range in StarGrunt is not a to-hit penalty; it inflates the die the target throws, so a distant
 /// target is harder to hit and - because the same die type divides the fire total - soaks up far
-/// fewer hits from the volley that does connect. A unit's band is its own quality die measured in
-/// inches, so better troops reach further as well as shooting better.
+/// fewer hits from the volley that does connect.
+/// </para>
+/// <para>
+/// Every number that reads off the rulebook comes from <see cref="StarGruntRulesProfile"/>: how wide
+/// a band is for the firer's troops, which die a target that many bands out rolls, how far small arms
+/// reach, and what cover and posture are worth. What stays here is the procedure: count the bands,
+/// look up the die, move it up by the cover, and treat a die pushed off the top of the ladder as no
+/// effective shot - which is also where the shorter reach into cover comes from, because it falls
+/// out of the shift rather than being a rule of its own.
+/// </para>
 /// </remarks>
 public static class RangeBands
 {
     /// <summary>
-    /// How wide one range band is, in inches, for small arms and infantry support weapons fired by
-    /// troops of the given quality.
-    /// </summary>
-    /// <param name="firerQuality">The firing unit's quality die.</param>
-    /// <returns>The band width in inches.</returns>
-    public static int BandInches(QualityDie firerQuality) => QualityDice.Faces(firerQuality);
-
-    /// <summary>
     /// Works out the target's range die from the distance between the two.
     /// </summary>
+    /// <param name="profile">The range table this game's players entered off their own rulebook.</param>
     /// <param name="distanceInches">Distance between firer and target, in inches.</param>
-    /// <param name="firerQuality">The firing unit's quality die, which sets the band width.</param>
+    /// <param name="firerQuality">The firing unit's quality die, whose band width the profile gives.</param>
     /// <param name="posture">The target's cover and posture.</param>
     /// <param name="isCloseRangeWeapon">
     /// True for a weapon effective only inside one band, such as a shotgun. Cover still shifts its
     /// range die; what changes is that it simply does not reach past the first band.
     /// </param>
     /// <returns>The range die, or the reason there is no effective shot.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="profile"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The distance is negative.</exception>
+    /// <remarks>
+    /// Only what this shot reads is asked for, in the order the shot reads it, so a table that has
+    /// entered one band width, the rows it shoots at and the cover it fights in is never refused for
+    /// the rest. A shot that is already out of reach does not go on to ask what its target's cover is
+    /// worth.
+    /// </remarks>
     public static RangeSolution Resolve(
+        StarGruntRulesProfile profile,
         decimal distanceInches,
         QualityDie firerQuality,
         TargetPosture posture,
         bool isCloseRangeWeapon = false)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentOutOfRangeException.ThrowIfNegative(distanceInches);
 
-        var band = BandInches(firerQuality);
-        // Anything inside the first full band is one band out, including a target at arm's length.
-        var bandsOut = Math.Max(1, (int)Math.Ceiling(distanceInches / band));
+        if (profile.BandWidth(firerQuality) is not { } band)
+        {
+            return RangeSolution.NotOnTheProfile(0, $"how many inches a range band is for {firerQuality} troops");
+        }
+
+        // Anything inside the first full band is one band out, including a target at arm's length,
+        // and a band's far edge belongs to it rather than to the next.
+        var bands = Math.Ceiling(distanceInches / band);
+        var bandsOut = bands >= int.MaxValue ? int.MaxValue : Math.Max(1, (int)bands);
 
         if (isCloseRangeWeapon && bandsOut > 1)
         {
-            return new RangeSolution(false, null, bandsOut,
-                $"That weapon is only effective inside {band} inches.");
+            return RangeSolution.NoEffectiveShot(bandsOut, $"That weapon is only effective inside {band} inches.");
         }
 
-        // Each band out is one rung up the ladder from D4. Cover and posture stack on top.
-        var rung = bandsOut - 1 + posture.Shifts;
-        if (rung >= QualityDice.Ladder.Count)
+        if (profile.EffectiveBands is { } reach && bandsOut > reach)
         {
-            // The die would have to be better than the ladder goes, and unlike an ordinary shift
-            // that is not capped - it means there is no effective fire to be had. This is also
-            // where the reduced reach into cover comes from: it falls out of the shift rather than
-            // being a separate rule.
-            return new RangeSolution(false, null, bandsOut,
-                $"That is past effective range against a target in {Describe(posture)}.");
+            return RangeSolution.NoEffectiveShot(
+                bandsOut,
+                $"That is past effective range: {bandsOut} bands out, and this game's range table gives small arms {reach}.");
         }
 
-        return new RangeSolution(true, QualityDice.Ladder[rung], bandsOut, null);
-    }
+        if (profile.RangeDie(bandsOut) is not { } rangeDie)
+        {
+            // Said in full, because there are two honest answers and the refusal cannot tell which
+            // one the table's rulebook gives: a die for that band, or a reach that stops short of it.
+            return RangeSolution.NotOnTheProfile(
+                bandsOut,
+                $"the range die a target {bandsOut} band{(bandsOut == 1 ? string.Empty : "s")} out rolls"
+                + (profile.EffectiveBands is null ? " (or, if your rules give no effective fire that far, how many bands small arms reach)" : string.Empty));
+        }
 
-    /// <summary>
-    /// The furthest a unit of this quality can fire effectively at a target in this posture.
-    /// </summary>
-    /// <param name="firerQuality">The firing unit's quality die.</param>
-    /// <param name="posture">The target's cover and posture.</param>
-    /// <returns>Maximum effective range in inches, or zero when there is none at all.</returns>
-    public static int MaxEffectiveRangeInches(QualityDie firerQuality, TargetPosture posture)
-    {
-        var bands = QualityDice.Ladder.Count - posture.Shifts;
-        return bands <= 0 ? 0 : bands * BandInches(firerQuality);
+        if (profile.CoverShift(posture.Cover) is not { } coverShift)
+        {
+            return RangeSolution.NotOnTheProfile(
+                bandsOut, $"how many rungs {(posture.Cover == CoverLevel.Hard ? "hard" : "soft")} cover moves a die");
+        }
+
+        var postureShift = coverShift;
+        if (posture.InPosition)
+        {
+            if (profile.InPositionShift is not { } dugIn)
+            {
+                return RangeSolution.NotOnTheProfile(bandsOut, "how many rungs a target settled into its position moves a die");
+            }
+
+            postureShift += dugIn;
+        }
+
+        var shifted = QualityDice.Shift(rangeDie, postureShift);
+        if (shifted.Overflow > 0)
+        {
+            // The die would have to be better than the ladder goes, and unlike an ordinary shift that
+            // is not capped - it means there is no effective fire to be had. This is also where the
+            // reduced reach into cover comes from: it falls out of the shift rather than being a
+            // separate rule.
+            return RangeSolution.NoEffectiveShot(
+                bandsOut, $"That is past effective range against a target in {Describe(posture)}.");
+        }
+
+        return new RangeSolution(true, shifted.Die, bandsOut, null, postureShift);
     }
 
     private static string Describe(TargetPosture posture) => (posture.Cover, posture.InPosition) switch
