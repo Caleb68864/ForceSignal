@@ -96,7 +96,7 @@ public sealed class InMemoryMatchServiceTorpedoTests
             var attacker = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Lancer", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: 12, HullMax: 20, ArmorMax: 0,
-                StartX: 20, StartY: 40,
+                StartX: 20, StartY: 40, FireControlMax: 1,
                 Weapons:
                 [
                     new WeaponMountDto(torpedoId, "Torpedo Tube", 1, 30, [FiringArc.Fore], Kind: WeaponKind.PulseTorpedo),

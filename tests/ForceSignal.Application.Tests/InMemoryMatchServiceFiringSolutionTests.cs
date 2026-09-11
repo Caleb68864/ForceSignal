@@ -166,6 +166,7 @@ public sealed class InMemoryMatchServiceFiringSolutionTests
                 ArmorMax: 0,
                 StartX: 18,
                 StartY: 24,
+                FireControlMax: 1,
                 Weapons:
                 [
                     new WeaponMountDto(beamId, "Class-3 Beam", 3, 24, [.. FiringArcs.Firable]),
@@ -184,6 +185,7 @@ public sealed class InMemoryMatchServiceFiringSolutionTests
                 ArmorMax: 0,
                 StartX: 22,
                 StartY: 24,
+                FireControlMax: 1,
                 Weapons: [new WeaponMountDto(Guid.NewGuid(), "Class-1 Beam", 1, 12, [.. FiringArcs.Firable])])).Ships.Single(s => s.Name == "Red Lead");
 
             service.SetReady(owner.MatchId, owner.ParticipantToken, true);

@@ -145,7 +145,7 @@ public sealed class InMemoryMatchServiceArcTests
             var attacker = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Gunner", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: attackerCourse, HullMax: 12, ArmorMax: 0,
-                StartX: 20, StartY: 30,
+                StartX: 20, StartY: 30, FireControlMax: 1,
                 Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 36, mountArcs)])).Ships.Single(s => s.Name == "Gunner");
             var target = service.CreateShip(redFleet.Id, new CreateShipRequest(
                 opponent.ParticipantToken, "Mark", "Frigate", 4,
