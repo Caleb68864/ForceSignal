@@ -17,7 +17,7 @@ import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance,
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
 import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
-import { describeArcs, fighterFlightRefusal, firingDraftFor, firingTargetOptions, isFighterGroup, needleSystemNote, salvoStrikeNote } from '../../lib/rules.ts';
+import { describeArcs, fighterFlightRefusal, firingDraftFor, firingReadoutNotes, firingTargetOptions, isFighterGroup, needleSystemNote, salvoStrikeNote } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
 import { OrderPreviewNotice } from '../OrderPreviewNotice.tsx';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, RulesProfile, Ship, TablePoint, FiringSolution } from '../../types.ts';
@@ -1496,7 +1496,7 @@ export function MapFiringAssistant({
         <span className="label">Bearing</span>
         <strong>{solution?.targetArc ?? 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
-        <small>{solution ? `${solution.workingFireControl} firecon${solution.workingFireControl === 1 ? '' : 's'}` : ''}</small>
+        {firingReadoutNotes(solution).map((note) => <small key={note}>{note}</small>)}
         {solution?.toHitNumber ? <small>needs {solution.toHitNumber}+ to hit</small> : null}
         {weapon?.kind === 'NeedleBeam' && needleSystemNote(rules) ? <small>{needleSystemNote(rules)}</small> : null}
       </div>
