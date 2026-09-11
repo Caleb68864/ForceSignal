@@ -13,6 +13,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      So the API's own tests can reach the two host-internal pieces readiness is built out of -
+      MatchStoreReport and the store wrapper that keeps it current. The alternative was making both
+      public, which would say they are part of an API surface when this assembly is an executable
+      that nothing but its tests references.
+    -->
+    <InternalsVisibleTo Include="ForceSignal.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ForceSignal.Application\ForceSignal.Application.csproj" />
     <ProjectReference Include="..\ForceSignal.Infrastructure\ForceSignal.Infrastructure.csproj" />
     <ProjectReference Include="..\ForceSignal.Contracts\ForceSignal.Contracts.csproj" />
