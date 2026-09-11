@@ -43,7 +43,8 @@ internal static class StarGruntTestProfile
         EffectiveBands: 4,
         SoftCoverShift: 2,
         HardCoverShift: 4,
-        InPositionShift: 3);
+        InPositionShift: 3,
+        MeleeCoverShift: 2);
 
     /// <summary>A create request carrying the invented table and nothing else.</summary>
     /// <param name="name">What to call the game.</param>

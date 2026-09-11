@@ -18,8 +18,7 @@ namespace ForceSignal.Modules.StarGrunt.Tests;
 /// <para>
 /// So nothing here is a walk. Band widths are odd numbers that are no die's face count; the range
 /// table repeats its bottom row and skips a rung, which no one-rung-per-band walk could produce; the
-/// reach is four bands; and every cover shift is a different size from the others and from anything
-/// printed.
+/// reach is four bands; and no cover shift, the melee one included, is the size of anything printed.
 /// </para>
 /// <para>
 /// Chosen for shape where it matters: a D8 squad's band is seven inches, so nine inches is the second
@@ -50,7 +49,8 @@ internal static class TestRangeTable
         EffectiveBands: 4,
         SoftCoverShift: 2,
         HardCoverShift: 4,
-        InPositionShift: 3);
+        InPositionShift: 3,
+        MeleeCoverShift: 2);
 
     /// <summary>
     /// A table with nothing in it, for what a game does before anybody has entered their range page.

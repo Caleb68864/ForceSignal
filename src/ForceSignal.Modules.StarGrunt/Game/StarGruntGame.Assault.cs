@@ -3,6 +3,7 @@ using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Morale;
 using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Assault;
+using ForceSignal.Modules.StarGrunt.Combat;
 using ForceSignal.Modules.StarGrunt.Morale;
 using ForceSignal.Modules.StarGrunt.Sequence;
 
@@ -166,8 +167,12 @@ public sealed partial record StarGruntGame
     /// <param name="pairings">Who is fighting whom, as paired off over the table.</param>
     /// <param name="defendersInCover">True in the first round only, while the cover still counts.</param>
     /// <param name="dice">Where the die results come from.</param>
+    /// <param name="profile">
+    /// The players' rules profile, for what cover is worth to the defenders. Only read when they are
+    /// in cover; a round fought in the open never asks.
+    /// </param>
     /// <returns>The game with the round fought, or why it could not be.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="pairings"/> or <paramref name="dice"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <remarks>
     /// The pairing comes in rather than being worked out, because the rule that produces it is a
     /// choice between two people: the attacker pairs one figure per defender and the defender
@@ -181,10 +186,12 @@ public sealed partial record StarGruntGame
         UnitId defender,
         IReadOnlyList<MeleePairing> pairings,
         bool defendersInCover,
-        IQualityDiceRoller dice)
+        IQualityDiceRoller dice,
+        StarGruntRulesProfile profile)
     {
         ArgumentNullException.ThrowIfNull(pairings);
         ArgumentNullException.ThrowIfNull(dice);
+        ArgumentNullException.ThrowIfNull(profile);
 
         if (!HasUnit(attacker) || !HasUnit(defender))
         {
@@ -194,6 +201,22 @@ public sealed partial record StarGruntGame
         if (pairings.Count == 0)
         {
             return GameOutcome.Refused<StarGruntGame>("Nobody has been paired off to fight.");
+        }
+
+        // Read only when it is used, and refused before a die is thrown when it is not there. It was
+        // `CoverShift = 1` in this module; a round in the open still settles on a blank profile.
+        var coverShift = 0;
+        if (defendersInCover)
+        {
+            if (profile.MeleeCoverShift is not { } rungs)
+            {
+                return GameOutcome.Refused<StarGruntGame>(
+                    "This game's rules profile has no entry for how many rungs cover is worth to a defender in "
+                    + "the first round of a melee. Enter it in the game's rules profile - this app ships none "
+                    + "of its own - or fight the round with the defenders out of cover.");
+            }
+
+            coverShift = rungs;
         }
 
         var charging = Unit(attacker);
@@ -206,7 +229,7 @@ public sealed partial record StarGruntGame
         {
             var exchange = CloseAssault.Fight(
                 new Combatant(charging.QualityDie, pairing.AttackerShift, pairing.AttackerPowerArmour),
-                new Combatant(receiving.QualityDie, pairing.DefenderShift, pairing.DefenderPowerArmour, defendersInCover),
+                new Combatant(receiving.QualityDie, pairing.DefenderShift, pairing.DefenderPowerArmour, coverShift),
                 dice);
 
             attackerDown += exchange.AttackerDown ? 1 : 0;

@@ -59,7 +59,8 @@ internal static class StarGruntRulesProfileMapping
             AtLeastOne(dto.EffectiveBands, "number of bands small arms reach"),
             Shift(dto.SoftCoverShift, "soft cover"),
             Shift(dto.HardCoverShift, "hard cover"),
-            Shift(dto.InPositionShift, "a settled position"));
+            Shift(dto.InPositionShift, "a settled position"),
+            Shift(dto.MeleeCoverShift, "cover in a melee"));
     }
 
     /// <summary>Reports a profile back the way it was entered.</summary>
@@ -81,7 +82,8 @@ internal static class StarGruntRulesProfileMapping
             profile.EffectiveBands,
             profile.SoftCoverShift,
             profile.HardCoverShift,
-            profile.InPositionShift);
+            profile.InPositionShift,
+            profile.MeleeCoverShift);
     }
 
     /// <summary>

@@ -38,7 +38,8 @@ public sealed record StarGruntBandWidthDto(int QualityDie, int Inches);
 public sealed record StarGruntRangeDieDto(int BandsOut, int Die);
 
 /// <summary>
-/// The numbers a StarGrunt shot reads off the rulebook's range page, entered by the players.
+/// The numbers a StarGrunt shot reads off the rulebook's range page, and the cover shift a melee
+/// reads, entered by the players.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -65,13 +66,19 @@ public sealed record StarGruntRangeDieDto(int BandsOut, int Die);
 /// <param name="InPositionShift">
 /// Rungs a target settled into its position moves a die up, on top of cover, or null when not entered.
 /// </param>
+/// <param name="MeleeCoverShift">
+/// Rungs cover is worth to a defender in the first round of a melee, or null when not entered. The
+/// engine had this as one rung of its own; a melee fought with the defenders in cover now reads it
+/// here, and one fought in the open never asks.
+/// </param>
 public sealed record StarGruntRulesProfileDto(
     IReadOnlyList<StarGruntBandWidthDto>? BandWidths = null,
     IReadOnlyList<StarGruntRangeDieDto>? RangeDice = null,
     int? EffectiveBands = null,
     int? SoftCoverShift = null,
     int? HardCoverShift = null,
-    int? InPositionShift = null);
+    int? InPositionShift = null,
+    int? MeleeCoverShift = null);
 
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>

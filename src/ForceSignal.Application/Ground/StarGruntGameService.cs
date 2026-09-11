@@ -383,12 +383,13 @@ public sealed class StarGruntGameService : IStarGruntGameService
             pairing.AttackerPowerArmour,
             pairing.DefenderPowerArmour)).ToArray();
 
-        return Command(gameId, game => game.FightMeleeRound(
+        return CommandWithHeld(gameId, (game, held) => game.FightMeleeRound(
             new UnitId(request.AttackerId),
             new UnitId(request.DefenderId),
             pairings,
             request.DefendersInCover,
-            _dice));
+            _dice,
+            held.Profile));
     }
 
     /// <inheritdoc />

@@ -157,6 +157,17 @@ public sealed partial class EngineDiceContentPolicyTests
                 (1, "impact and armour are off the record card and the rungs off the profile's cover "
                     + "shifts; the zero is 'the weapon is not shifted', and the open crossover is the "
                     + "procedure"),
+
+            // Both were in the other list until this pass moved their numbers out: the melee cover
+            // shift was `CoverShift = 1` and is on the profile now, and the communication die's cost
+            // per skipped level was one rung and is a parameter now.
+            ["StarGrunt/Assault/CloseAssault.cs:ShiftOpposed()"] =
+                (1, "both dice are the figures' own quality; weapon shifts arrive with the pairing off the "
+                    + "players' table and cover rungs off their profile; the open crossover is the procedure"),
+            ["StarGrunt/Sequence/CommandLevel.cs:ShiftClosed()"] =
+                (1, "the sender's die is off its record card and the rungs per skipped level are the "
+                    + "caller's; that skipping levels makes a message harder, and never impossible, is "
+                    + "the procedure"),
         };
 
     /// <summary>
@@ -180,25 +191,10 @@ public sealed partial class EngineDiceContentPolicyTests
         new(StringComparer.Ordinal)
         {
             // Found by the widening that moved StarGrunt's range page onto its profile, and the same
-            // shape as that page: a rule's size written as arithmetic on the ladder.
-            //
-            // Charging in cover is worth `CoverShift = 1` rung to the defender in the first round.
-            // Its own comment argued it was "the one shift in a close combat this engine owns"; it is
-            // a cover shift, the same kind of number as the three that just moved onto the profile,
-            // and the old guard could not see it, which is the only reason that argument stood.
-            ["StarGrunt/Assault/CloseAssault.cs:ShiftOpposed()"] =
-                (1, "a defender in cover is worth CoverShift = 1 rung in the first round of a melee - a "
-                    + "cover shift like the three on the range page, and still the engine's"),
-
-            // Every command level skipped costs the message one rung: `-levelsBypassed`. A walk of one
-            // rung per level, the same shape as the range walk. No production caller today.
-            ["StarGrunt/Sequence/CommandLevel.cs:ShiftClosed()"] =
-                (1, "a message loses one rung per command level it skips - a walk of one rung per step, "
-                    + "the same shape as the range walk"),
-
-            // Dirtside is out of scope for this pass (its die tables were settled the pass before),
-            // and these two are recorded rather than touched. They are the same shape the StarGrunt
-            // range walk was: the size of a shift written into the engine.
+            // shape as that page: a rule's size written as arithmetic on the ladder. The widening
+            // found four; StarGrunt's two (the melee cover shift and the communication die's rung per
+            // level) moved out in the same pass. Dirtside was out of scope for it - its die tables
+            // were settled the pass before - so these two are recorded rather than touched.
             //
             // `(int)band + (firerMovedOverHalf ? -1 : 0)`: the WeaponRangeBand enum's values ARE the
             // table - close +1, medium 0, long -1 - so the firer's die walks one rung per band, and a

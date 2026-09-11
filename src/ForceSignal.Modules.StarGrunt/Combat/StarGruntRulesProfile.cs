@@ -4,8 +4,8 @@ using ForceSignal.Modules.GroundCombat.Dice;
 namespace ForceSignal.Modules.StarGrunt.Combat;
 
 /// <summary>
-/// Every number a StarGrunt shot reads off the rulebook's range page, supplied by the players rather
-/// than shipped with this app.
+/// Every number a StarGrunt shot reads off the rulebook's range page - and the one cover shift a melee
+/// reads - supplied by the players rather than shipped with this app.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -57,13 +57,20 @@ namespace ForceSignal.Modules.StarGrunt.Combat;
 /// Rungs a target settled into its ground moves a die up, on top of any cover, or null when not
 /// entered.
 /// </param>
+/// <param name="MeleeCoverShift">
+/// Rungs cover is worth to a defender in the first round of a melee, or null when not entered. Off a
+/// different page from the rest, and here because it is the same kind of number: the engine had it
+/// as <c>CoverShift = 1</c>, argued as "the one shift in a close combat this engine owns", and no
+/// guard could see it until the one that moved the range page did.
+/// </param>
 public sealed record StarGruntRulesProfile(
     ImmutableDictionary<QualityDie, int> BandInches,
     ImmutableDictionary<int, QualityDie> RangeDice,
     int? EffectiveBands = null,
     int? SoftCoverShift = null,
     int? HardCoverShift = null,
-    int? InPositionShift = null)
+    int? InPositionShift = null,
+    int? MeleeCoverShift = null)
 {
     /// <summary>
     /// A profile with nothing entered. What a game created without one plays on, and what every
@@ -85,7 +92,8 @@ public sealed record StarGruntRulesProfile(
         && EffectiveBands is null
         && SoftCoverShift is null
         && HardCoverShift is null
-        && InPositionShift is null;
+        && InPositionShift is null
+        && MeleeCoverShift is null;
 
     /// <summary>How wide a band is for troops of this quality, or null when the profile does not say.</summary>
     /// <param name="quality">The firing unit's quality die.</param>
@@ -128,6 +136,7 @@ public sealed record StarGruntRulesProfile(
         && SoftCoverShift == other.SoftCoverShift
         && HardCoverShift == other.HardCoverShift
         && InPositionShift == other.InPositionShift
+        && MeleeCoverShift == other.MeleeCoverShift
         && Same(BandInches, other.BandInches)
         && Same(RangeDice, other.RangeDice);
 
@@ -137,6 +146,7 @@ public sealed record StarGruntRulesProfile(
         SoftCoverShift,
         HardCoverShift,
         InPositionShift,
+        MeleeCoverShift,
         BandInches.Count,
         RangeDice.Count);
 

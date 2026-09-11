@@ -107,18 +107,19 @@ public sealed class CloseAssaultTests
     [Fact]
     public void CoverHelpsADefenderOnlyWhileHeStillHasIt()
     {
-        // In the first round a defender in cover throws a bigger die; from the second round on,
-        // once the attackers are in among them, he throws his own.
+        // In the first round a defender in cover throws a bigger die, by however many rungs the
+        // players' profile says cover is worth - two here, which is invented. From the second round
+        // on, once the attackers are in among them, he throws his own.
         var sheltered = CloseAssault.Fight(
             new Combatant(QualityDie.D8),
-            new Combatant(QualityDie.D8, InCoverThisRound: true),
+            new Combatant(QualityDie.D8, CoverShift: 2),
             new ScriptedDice(6, 8));
         var exposed = CloseAssault.Fight(
             new Combatant(QualityDie.D8),
             new Combatant(QualityDie.D8),
             new ScriptedDice(6, 8));
 
-        Assert.Equal(QualityDie.D10, sheltered.DefenderDie);
+        Assert.Equal(QualityDie.D12, sheltered.DefenderDie);
         Assert.Equal(QualityDie.D8, exposed.DefenderDie);
     }
 

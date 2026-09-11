@@ -95,6 +95,29 @@ public sealed class StarGruntRulesProfileTests
     }
 
     [Fact]
+    public void AMeleeInCoverReadsWhatCoverIsWorthOffThisGamesProfile()
+    {
+        // The melee cover shift was this module's `CoverShift = 1`. Through the service it is the
+        // game's own entry: refused by name when missing, never asked in the open, read when there.
+        var blank = new StarGruntGameService(new ScriptedQualityDice(3, 9, 3, 9));
+        var game = Activated(blank, profile: null);
+        var inCover = new StarGruntMeleeRequest("alpha", "bravo", [new StarGruntMeleePairingDto()], DefendersInCover: true);
+
+        var refused = Assert.Throws<InvalidOperationException>(() => blank.FightMelee(game, inCover));
+        Assert.Contains("cover is worth to a defender", refused.Message, StringComparison.Ordinal);
+
+        // The control on the same blank table: in the open, the round is fought.
+        var open = blank.FightMelee(game, inCover with { DefendersInCover = false });
+        Assert.Contains(open.Log, entry => entry.Contains("D8 3 against D8 9", StringComparison.Ordinal));
+
+        // And with the table entered, the defender's die is moved by its two invented rungs.
+        var entered = new StarGruntGameService(new ScriptedQualityDice(3, 9));
+        var withTable = Activated(entered, StarGruntTestProfile.Invented);
+        var fought = entered.FightMelee(withTable, inCover);
+        Assert.Contains(fought.Log, entry => entry.Contains("D8 3 against D12 9", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ASnapshotReadsBackTheTableThePlayersEntered()
     {
         var service = new StarGruntGameService();
@@ -108,6 +131,7 @@ public sealed class StarGruntRulesProfileTests
         Assert.Equal(2, profile.SoftCoverShift);
         Assert.Equal(4, profile.HardCoverShift);
         Assert.Equal(3, profile.InPositionShift);
+        Assert.Equal(2, profile.MeleeCoverShift);
     }
 
     [Fact]
@@ -342,7 +366,8 @@ public sealed class StarGruntRulesProfileTests
             && x.EffectiveBands == y.EffectiveBands
             && x.SoftCoverShift == y.SoftCoverShift
             && x.HardCoverShift == y.HardCoverShift
-            && x.InPositionShift == y.InPositionShift;
+            && x.InPositionShift == y.InPositionShift
+            && x.MeleeCoverShift == y.MeleeCoverShift;
 
         public int GetHashCode(StarGruntRulesProfileDto? obj) => 0;
     }

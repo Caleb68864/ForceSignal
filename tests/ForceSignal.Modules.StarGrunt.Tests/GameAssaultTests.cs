@@ -130,7 +130,8 @@ public sealed class GameAssaultTests
             GameFixtures.Bravo,
             [new MeleePairing(), new MeleePairing()],
             defendersInCover: false,
-            new ScriptedDice(6, 2, 2, 6)).Value!;
+            new ScriptedDice(6, 2, 2, 6),
+            TestRangeTable.Invented).Value!;
 
         Assert.Equal(7, after.Status(GameFixtures.Alpha).FiguresAlive);
         Assert.Equal(7, after.Status(GameFixtures.Bravo).FiguresAlive);
@@ -144,7 +145,8 @@ public sealed class GameAssaultTests
             GameFixtures.Bravo,
             [new MeleePairing()],
             defendersInCover: false,
-            new ScriptedDice(5, 5)).Value!;
+            new ScriptedDice(5, 5),
+            TestRangeTable.Invented).Value!;
 
         Assert.Equal(8, after.Status(GameFixtures.Alpha).FiguresAlive);
         Assert.Equal(8, after.Status(GameFixtures.Bravo).FiguresAlive);
@@ -154,7 +156,7 @@ public sealed class GameAssaultTests
     public void ARoundWithNobodyPairedOffIsRefused()
     {
         var refused = Activated().FightMeleeRound(
-            GameFixtures.Alpha, GameFixtures.Bravo, [], defendersInCover: false, new ScriptedDice(6));
+            GameFixtures.Alpha, GameFixtures.Bravo, [], defendersInCover: false, new ScriptedDice(6), TestRangeTable.Invented);
 
         Assert.False(refused.IsAllowed);
     }
@@ -167,9 +169,57 @@ public sealed class GameAssaultTests
             GameFixtures.Bravo,
             [new MeleePairing(AttackerShift: 2)],
             defendersInCover: false,
-            new ScriptedDice(9, 2)).Value!;
+            new ScriptedDice(9, 2),
+            TestRangeTable.Invented).Value!;
 
         Assert.Contains(after.Log, entry => entry.Contains("D12 9 against D8 2", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DefendersInCoverThrowTheDieTheProfileMakesThem()
+    {
+        // Two rungs on the invented profile, which is not the one rung this module used to own: a
+        // D8 defender throws a D12, and the log says so.
+        var after = Activated().FightMeleeRound(
+            GameFixtures.Alpha,
+            GameFixtures.Bravo,
+            [new MeleePairing()],
+            defendersInCover: true,
+            new ScriptedDice(3, 9),
+            TestRangeTable.Invented).Value!;
+
+        Assert.Contains(after.Log, entry => entry.Contains("D8 3 against D12 9", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AMeleeInCoverOnAProfileThatDoesNotSayWhatCoverIsWorthIsRefusedByName()
+    {
+        // Refused before a die is thrown, naming the entry - not settled on a rung this app chose.
+        var dice = new ScriptedDice(3, 9);
+
+        var refused = Activated().FightMeleeRound(
+            GameFixtures.Alpha, GameFixtures.Bravo, [new MeleePairing()], defendersInCover: true, dice, TestRangeTable.Blank);
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("cover is worth to a defender", refused.Reason!, StringComparison.Ordinal);
+        Assert.Equal(2, dice.Remaining);
+    }
+
+    [Fact]
+    public void AMeleeInTheOpenNeverAsksWhatCoverIsWorth()
+    {
+        // The control that must be accepted: the same blank profile, defenders out of cover, and the
+        // round is fought - the entry is only required by the round that reads it.
+        var after = Activated().FightMeleeRound(
+            GameFixtures.Alpha,
+            GameFixtures.Bravo,
+            [new MeleePairing()],
+            defendersInCover: false,
+            new ScriptedDice(3, 9),
+            TestRangeTable.Blank);
+
+        Assert.True(after.IsAllowed, after.Reason);
+        Assert.Contains(after.Value!.Log, entry => entry.Contains("D8 3 against D8 9", StringComparison.Ordinal));
     }
 
     [Fact]

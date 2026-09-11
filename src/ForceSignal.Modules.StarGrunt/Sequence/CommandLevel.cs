@@ -78,12 +78,27 @@ public static class CommandChain
     /// </summary>
     /// <param name="senderQuality">The sending unit's quality die.</param>
     /// <param name="levelsBypassed">Levels skipped, from <see cref="LevelsBypassed"/>.</param>
+    /// <param name="rungsPerLevel">
+    /// What each skipped level costs the sender, in rungs, off the players' own rules.
+    /// </param>
     /// <returns>The die to roll.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="rungsPerLevel"/> is negative.</exception>
     /// <remarks>
+    /// <para>
     /// A shift rather than a modifier, as everywhere else in this game, and a closed one - a message
     /// that gets harder than the bottom of the ladder is simply very unlikely, not impossible in a way
     /// that would feed back onto the listener.
+    /// </para>
+    /// <para>
+    /// The cost per level is a parameter. It was one rung, written as <c>-levelsBypassed</c> - a walk
+    /// of one rung per step, the same shape as the range walk that just left this module. Nothing
+    /// outside the tests calls this yet, so the number is the caller's to pass rather than a field on
+    /// a profile no screen could fill in: the precedent Dirtside's rider check set.
+    /// </para>
     /// </remarks>
-    public static QualityDie CommunicationDie(QualityDie senderQuality, int levelsBypassed) =>
-        QualityDice.ShiftClosed(senderQuality, -Math.Max(0, levelsBypassed));
+    public static QualityDie CommunicationDie(QualityDie senderQuality, int levelsBypassed, int rungsPerLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(rungsPerLevel);
+        return QualityDice.ShiftClosed(senderQuality, -Math.Max(0, levelsBypassed) * rungsPerLevel);
+    }
 }

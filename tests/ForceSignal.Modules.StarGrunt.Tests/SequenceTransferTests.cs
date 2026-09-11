@@ -193,14 +193,25 @@ public class SequenceTransferTests
     }
 
     [Fact]
-    public void EachBypassedLevelCostsTheSenderADieType()
+    public void EachBypassedLevelCostsTheSenderWhatTheCallersRulesSay()
     {
-        Assert.Equal(QualityDie.D8, CommandChain.CommunicationDie(QualityDie.D8, 0));
-        Assert.Equal(QualityDie.D6, CommandChain.CommunicationDie(QualityDie.D8, 1));
-        Assert.Equal(QualityDie.D4, CommandChain.CommunicationDie(QualityDie.D8, 2));
+        // Two rungs a level, which is invented: what a skipped level costs is the players', and this
+        // pins only that it is read and multiplied, not what it is.
+        Assert.Equal(QualityDie.D12, CommandChain.CommunicationDie(QualityDie.D12, 0, rungsPerLevel: 2));
+        Assert.Equal(QualityDie.D8, CommandChain.CommunicationDie(QualityDie.D12, 1, rungsPerLevel: 2));
+        Assert.Equal(QualityDie.D4, CommandChain.CommunicationDie(QualityDie.D12, 2, rungsPerLevel: 2));
 
         // A message can get very unlikely but never falls off the bottom into being impossible.
-        Assert.Equal(QualityDie.D4, CommandChain.CommunicationDie(QualityDie.D8, 9));
+        Assert.Equal(QualityDie.D4, CommandChain.CommunicationDie(QualityDie.D12, 9, rungsPerLevel: 2));
+    }
+
+    [Fact]
+    public void RulesThatChargeNothingForABypassAreReadAsWritten()
+    {
+        // The control: a cost of nothing is a real answer and leaves the sender's die alone, where
+        // the old walk would have taken a rung per level regardless.
+        Assert.Equal(QualityDie.D8, CommandChain.CommunicationDie(QualityDie.D8, 3, rungsPerLevel: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CommandChain.CommunicationDie(QualityDie.D8, 1, rungsPerLevel: -1));
     }
 
     [Fact]
