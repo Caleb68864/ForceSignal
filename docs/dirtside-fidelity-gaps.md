@@ -230,6 +230,16 @@ trade with no other side.
 with the player's numbers), an opening built from the watchers the fire request names, and a
 reaction route. Until then the screen should say what the button does not yet do.
 
+**Revisited 2026-09-11, and deliberately not closed.** `IsInterceptable` now reaches the roster from
+a checkbox on the add-platoon form - it had been a write-only field with no client able to fill it
+in, so it arrived `false` for every weapon in every game - and that is the whole of what could be
+finished here without inventing rules. **The resolution does not exist and cannot be guessed:**
+nothing says when a defender may declare, who may answer and at what reach, what is rolled and
+against what, what a success does to the shot, or whether one element may do it more than once a
+turn. The reach in particular is a number and belongs on the rules profile beside the die tables,
+not in the code. Four sentences from the owner would close all of it; a plausible-looking resolver
+would be the `Class-2 Beam` defect again.
+
 ## Gap 9 - Indirect fire is not built - OPEN
 
 **Severity: known and previously recorded.** `DirtsideAction.ObserveForIndirectFire` exists
@@ -260,18 +270,25 @@ that takes the effectiveness check first. Which stands make up a partial unit's 
 player's choice (the resolver's remark at lines 203-205 says so). Mounting and dismounting, and riders
 taking casualties when the transport is hit, come with it.
 
-## Gap 11 - Defensive posture cannot be declared - OPEN
+## Gap 11 - Defensive posture cannot be declared - FIXED 2026-09-11
 
-**Severity: medium.** `HitResolution.PostureDie` (`Combat/HitResolution.cs:165`) gives a target
-behind cover, evading, hull down or turret down a second die, and the target keeps the better of
-that and its signature rather than adding (`:125-155`). `Prepare` reads it from
-`ElementStatus.Posture` (`Game/DirtsideGame.Fire.cs:136`, `Game/PlatoonStatus.cs:29`) - and nothing
-sets it. There is no field on `DirtsideFireRequest`, no route, no control. Every target is in the
-open.
+**Severity: medium.** `HitResolution.PostureDie` gave a target behind cover, evading, hull down or
+turret down a second die, and the target keeps the better of that and its signature rather than
+adding. `Prepare` read it from `ElementStatus.Posture` - and nothing set it. There was no field on
+`DirtsideFireRequest`, no route, no control. **Every target in every game was in the open.**
 
-**What should change**: declared per shot alongside the measured band, since whether the target is
-hull down from *this* firer is a table judgement, or set on the element when it moves and cleared
-when it moves again. Per shot is the simpler and matches how range is already taken.
+**What changed**: declared per shot, on `FireCommand` and `DirtsideFireRequest` beside the measured
+band, with a control beside the band's. That was this note's own recommendation and it holds up:
+whether the target is hull down from *this* firer is a table judgement of exactly the kind the range
+already is. `ElementStatus.Posture` is **removed** - with the declaration on the command it had no
+reader either, and the stored shape would have had to answer when a posture clears, which nothing
+on the table knows.
+
+Two things came with it. The die each posture is worth is a row on the game's rules profile, so a
+posture nobody entered a die for refuses the shot by name rather than guessing - and the refusal
+lands before the step is taken, so it costs the element nothing. And `TurretDown` has a row of its
+own instead of falling through a `_` arm, which is the first time that posture has been distinct
+from hull down anywhere but the log.
 
 ## Gap 12 - Immobilised is said in the log and written nowhere - FIXED 2026-08-29
 
@@ -432,8 +449,9 @@ Recorded so a later scan does not re-find them as if they were oversights.
 3. **Gaps 4, 5 and 6** - confidence tests, Under Fire, reaction tests and the declarations. The
    engines exist and the game has to call them; the same day's work StarGrunt's first three gaps
    were, and the difference between a screen that tracks a game and one that plays it.
-4. ~~**Gaps 12 and 13** - immobilised and the fire-then-move penalty.~~ **Done** 2026-08-29.
-   **Gap 11** - posture - is the same size and still to do: a field on the shot and a die.
+4. ~~**Gaps 11, 12 and 13** - posture, immobilised and the fire-then-move penalty.~~ **Done**;
+   12 and 13 on 2026-08-29, and 11 on 2026-09-11 as a field on the shot and a row on the profile,
+   exactly the size this list predicted.
 5. **Gap 10** - infantry as stands. The largest piece after the interrupts, and the one most tables
    will hit first.
 6. **Gaps 7 and 8** - opportunity fire and interception. The window machinery is built and tested
