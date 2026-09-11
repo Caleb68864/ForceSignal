@@ -11,7 +11,7 @@ import { toOrder } from './movement.ts';
 import type { DraftOrder, OrderPreview, Ship } from '../types.ts';
 
 /** How long a draft has to stop changing before it is worth asking about. */
-export const previewDebounceMs = 80;
+const previewDebounceMs = 80;
 
 /**
  * The server's answer for the current draft, or null when there is nothing to preview.

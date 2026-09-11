@@ -310,7 +310,7 @@ export function parseCsv(text: string) {
   rows.push(row);
   return rows;
 }
-export function getValueFromRows(rows: string[][], headers: string[], header: string) {
+function getValueFromRows(rows: string[][], headers: string[], header: string) {
   const index = headers.indexOf(header);
   if (index < 0) {
     return '';

@@ -13,8 +13,14 @@
 
 import type { StarGruntForceFile, StarGruntUnit } from '../types.ts';
 
-/** The version written today. Bump it only when an older file would be read wrongly. */
-export const forceFormatVersion = 1;
+/**
+ * The version written today. Bump it only when an older file would be read wrongly.
+ *
+ * Not exported. It was, and nothing imported it: the one test about the version asserts against a
+ * literal 1 on purpose, because asserting against this constant is the tautology that let a bump to
+ * 2 - the change that strands every file already written - pass a green suite.
+ */
+const forceFormatVersion = 1;
 
 const ladder = [4, 6, 8, 10, 12];
 
@@ -47,7 +53,7 @@ function supportDieFrom(value: unknown): number {
 }
 
 /** The Leadership Value a file gave, 1 to 3 where 1 is best, or null when it gave none. */
-export function leadershipFrom(value: unknown): number | null {
+function leadershipFrom(value: unknown): number | null {
   const leadership = Number(value);
   return Number.isInteger(leadership) && leadership >= 1 && leadership <= 3 ? leadership : null;
 }
@@ -55,7 +61,7 @@ export function leadershipFrom(value: unknown): number | null {
 const fatigues = ['Fresh', 'Tired', 'Exhausted'];
 
 /** Keeps a fatigue level to one the rules name, falling back to rested. */
-export function fatigueFrom(value: unknown, fallback = 'Fresh'): string {
+function fatigueFrom(value: unknown, fallback = 'Fresh'): string {
   return typeof value === 'string' && fatigues.includes(value) ? value : fallback;
 }
 

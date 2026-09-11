@@ -124,7 +124,7 @@ export function normalizeOrdnanceStatus(value: unknown) {
 
   return 'Active';
 }
-export function normalizeOrdnanceMarker(value: unknown): OrdnanceMarker | null {
+function normalizeOrdnanceMarker(value: unknown): OrdnanceMarker | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
@@ -195,7 +195,7 @@ export function normalizeWeaponMount(value: unknown): WeaponMount {
 /// Resolves the arcs a mount bears through, accepting either a modern list or the four-arc
 /// name written by older exports: each old ninety-degree side arc becomes the two sixty-degree
 /// arcs on that side, and the aft arc becomes the two quarters either side of the blind spot.
-export function normalizeWeaponKind(value: unknown): WeaponKind {
+function normalizeWeaponKind(value: unknown): WeaponKind {
   const kind = stringFrom(value, 'Beam');
   return weaponKinds.some((option) => option.key === kind) ? kind as WeaponKind : 'Beam';
 }
