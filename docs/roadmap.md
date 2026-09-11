@@ -85,12 +85,23 @@ runnable in CI at all. Coming out: 1297 .NET tests and 133 web tests, both gated
       Test: `ApiHardeningTests` (fails pre-fix with `SQLite Error 26: file is not
       a database` out of the DI factory).
 
-Still open from that audit, in its own ranking: ship position editable during
-Reveal/Movement, locked orders silently overwritten, `docker-smoke.ps1` asserting
-the wrong persistence mode, unbounded restored dice-roll arrays, unrated ground
-game creation, `SequenceGuards` unguarded on the write path, the rules-profile
-editor seeded blank, "finished plotting" being final, the hardcoded 12/24/36
-range-band label, and the twelve web handlers with no double-submit guard.
+**Nothing is still open from that audit. Corrected 2026-09-11.** This paragraph
+listed ten rows as outstanding and every one of them had already shipped, most of
+them in the follow-up section further down this same file. Checked against the
+code rather than against the other rows: ship position editable during
+Reveal/Movement (the four commitment fields are frozen per ship in
+`InMemoryMatchService.cs:596-613`), locked orders silently overwritten,
+`docker-smoke.ps1` asserting the wrong persistence mode, unbounded restored
+dice-roll arrays (`MaxDiceRollsPerFiringResult`,
+`InMemoryMatchService.Restore.cs:56`), ground game creation with no rate limit,
+`SequenceGuards` unguarded on the write path, the rules-profile editor seeded
+blank, "finished plotting" being final, the hardcoded 12/24/36 range-band label,
+and the web handlers with no double-submit guard — which was eleven handlers
+rather than the twelve the audit counted.
+
+A list of open rows that are all closed is worse than no list: it teaches the
+next reader that the open rows here are the ones still to do, when the file's
+own later sections already say otherwise.
 
 ForceSignal is currently focused on being a session-based tabletop helper for in-person games. Online play and durable persistence remain future options after real table testing.
 
@@ -237,6 +248,13 @@ the roadmap lists only what a table can reach.
 
 - [x] StarGrunt II plays end to end on one device: activation, fire, suppression, confidence, rally,
       reaction tests and close assault. See `stargrunt-fidelity-gaps.md`.
+- [x] A force goes out to a file and comes back, because a platoon is a lot of dice to type. Both
+      directions refuse rather than invent, by name: export turns away a snapshot that carries no
+      roster, and import turns away a file that leaves out a quality, armour or impact die. A file
+      is still allowed to be incomplete wherever that costs nobody a number - a unit with no weapons
+      is a command element, and a weapon with no support firepower die is most weapons.
+- [x] The close-assault settle-up asks which die the player's own table reads its bands against,
+      rather than throwing a D6 at bands written for something else (2026-09-11).
 
 ### Dirtside II
 
@@ -257,8 +275,13 @@ the roadmap lists only what a table can reach.
       (gaps 12-13, 2026-08-29).
 - [ ] Confidence tests, Under Fire markers and reaction tests, all built in the module and not yet
       called by the game outside a close assault's aftermath (gaps 4-6).
-- [ ] Opportunity fire and area-defence interception. The windows and their costs are built; the
-      board never opens one, and "Sensors On" currently buys nothing (gaps 7-8).
+- [ ] Opportunity fire and area-defence interception. The windows and their costs are built and the
+      board never opens one: `DirtsideGame.InterceptionOpening` returns null unconditionally
+      (`DirtsideGame.cs:194`), so no route can reach the feature (gaps 7-8). **Half of this row was
+      corrected on 2026-09-09:** "Sensors On buys nothing" is no longer true - the engine's own
+      interception refuses an element whose sensors are dark. What remains open is the window, not
+      the cost of it. Opening one before the rest is wired would deadlock a game rather than enrich
+      it, which is why the opening is deliberately still null.
 - [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10).
 - [ ] Defensive posture declared on the shot (gap 11).
 - [x] A configurable chit pot, entered on the create screen and carried per game (gap 15,
@@ -367,6 +390,189 @@ fallback, and it is now impossible to play on it without being told.
 
 Still open: **the on-screen validity-card editor** (gap 16). The pot half of gap 15 shipped.
 
+## Closed 2026-09-10 / 2026-09-11 (scan 2, and the content policy)
+
+*Twenty-seven commits across four rounds, on top of `f422f2f`. Measured baseline coming out, on
+2026-09-11: `dotnet build` clean with warnings-as-errors, **1391** .NET tests across 8 projects,
+**233** web tests, `tsc --noEmit` and `eslint` clean, and `scripts/two-player-smoke.py` run locally
+against a dev pair with zero problems and zero console errors. Going in it was 1357 .NET and 166
+web.*
+
+### Data loss and availability
+
+- [x] **Force export wrote a D6 over every armour die the player picked.** Both halves of a bad
+      thing at once: a rules number this app does not own, written into the player's own file, and
+      silent loss of what they had typed. The round trip could not see it, because import read back
+      whatever export had written. The client had nowhere to read an armour die *from* - the
+      snapshot did not carry one - so this was a three-layer fix rather than a discarded local
+      field: `StarGruntUnitDto` carries `Figures`, the client type matches, and export writes them.
+- [x] **An unreadable profile import blanked the profile the player had typed**, and so did a valid
+      file of the wrong kind. Both doors are gated; the valid-JSON-wrong-file door is the likelier
+      mistake and the original finding had not named it.
+- [x] **A profile file missing most of itself blanked the rest.** `looksLikeProfile` accepted any
+      object carrying two known field names, and `readProfile` then spread it over a blank, so
+      `{ name, dieFaces }` wiped the other twenty-eight numbers. What is refused is the **loss**,
+      not the incompleteness - see the withdrawn claim below.
+- [x] **The saved-profile store handed back zeros and then wrote them down.**
+- [x] **The force Export button silently did nothing on a skewed snapshot.** `toForceFile` threw out
+      of a bare `onClick` outside the `run()` wrapper, so nothing downloaded, nothing was said, and
+      the button looked exactly like a button that had worked.
+- [x] **`/ready` reported the reality of one store out of three.** A file whose matches table was
+      healthy and whose `dirtside_games` table was not said `sqlite` with no warning while every
+      Dirtside game went to memory. Each store now records what it turned out to be as it is opened,
+      and a split answers `mixed`.
+- [x] **A readable database with a wrong-shaped table stopped the host**, for Full Thrust and both
+      ground engines.
+- [x] **A mis-shaped `settings` blob retired a perfectly readable game.**
+- [x] **`/ready` reported what each store was at startup and never looked again** (2026-09-11). The
+      third time this endpoint has been fixed for reporting something other than the present truth:
+      first the configuration rather than what opened, then one store's reality as the state of
+      three, and now one instant's reality as the session's. A volume unmounted mid-session or a
+      disk that fills produces a 503 per write while readiness says `sqlite`. `ReportingMatchStore`
+      wraps each engine's store and records the change in both directions; the recovery half is the
+      control, because a report that latched on the first failure would be wrong for the rest of the
+      session.
+
+### Content policy — what closed
+
+The project's defining constraint is *the engine owns procedures, the player owns every number those
+procedures read*. This is where it stood on 2026-09-09 and where it stands now.
+
+- [x] **The new-ship form opens unentered.** Thrust 4, velocity 8, hull 12, armour 4, firecons 2,
+      point defence 1, damage control 2 and a screen are gone. Zero rather than a smaller default:
+      the server's clamps floor each of these exactly as they floor a mount nobody filled in. Course
+      and position keep their values and had to argue for it - a heading has no zero on a 12-point
+      clock, and where a model sits on the felt is settled with a tape measure.
+- [x] **The fleet import stopped reading its fallback off that form**, so a missing column reads
+      back unentered rather than as whatever the new-ship form happened to open on. Text still falls
+      back; numbers do not.
+- [x] **The fleet import stopped trimming screens to a ceiling this app invented.** The flat `3` was
+      `RulesProfile.MaxScreenLevel` - the player's number - so a table playing to 5 lost two levels
+      off every ship in their own file, silently, on the way in.
+- [x] **The invented `Class-2 Beam` mount, and the guard that could not see it renamed.** The old
+      guard was a blacklist of one string; `'Class-3 Beam'` walked past it with the whole suite
+      green. It is now a rule about shape: a weapon class in this game is named by a number, so a
+      placeholder carrying a digit is a reading off somebody's card whatever the digit is.
+- [x] **The map stopped refusing a fighter group against a number nobody entered.**
+      `constants.ts`'s `fighterMoveAllowance = 12` is deleted and the allowance comes off the
+      snapshot. A zero allowance refuses nothing, because the server is the authority and inventing
+      a limit is the defect.
+- [x] **The server's fighter endurance 6, fighter reach 24 and salvo reach 24.** The salvo one was
+      the sharp one: not a stored default but a **refusal**, telling a player their point of aim was
+      "past the 24 this salvo can reach" when nobody had entered 24.
+- [x] **The ship card and the map stated four of the player's own numbers as fact** - "inside 6mu",
+      the repair odds, "takes a system on a 6", and a "24 for a standard load, 36 for extended range"
+      that `constants.ts` said in as many words this app had stopped shipping - in tooltips and
+      captions a player cannot overwrite.
+- [x] **The fighter boxes still stated the 6 and the 24 the engine had stopped inventing**
+      (2026-09-11). `value={form.fighterEnduranceMax || 6}` and `value={ship.fighterMaxRange || 24}`,
+      on four controls across two screens. On the map it contradicted the caption a line above,
+      which reads the real zero. `min={1}` was the other half: a table that plays no endurance rule
+      and typed 0 had it clamped back up to 1 and committed to a server that accepts zero.
+- [x] **A ship posted with no fire control was given one.** `CreateShipRequest.FireControlMax = 1`
+      and its twin on the update request: a default parameter on a contract record **is** the wire
+      contract, because the JSON deserialiser fills a missing property from it.
+- [x] **Every weapon anybody entered came back carrying a D6 it had never been given.**
+      `StarGruntWeaponDto.SupportFirepowerDie = 6`, in three places at once - the DTO, the module's
+      `WeaponProfile`, and the client's add-unit panel, which hard-coded a 6 onto a weapon it also
+      hard-codes as not being a support weapon.
+- [x] **A salvo that said nothing about itself flew for one turn.**
+      `CreateOrdnanceMarkerRequest.EnduranceRemaining = 1` and its twin.
+- [x] **The force import answered a missing die with one of its own** (2026-09-11). Quality die 8,
+      impact die 8, armour die 6 - and a unit that listed no weapons at all was issued one, called
+      Rifles, with an impact die to go with it. `dieFrom` takes no fallback now; the file is turned
+      away with every gap named rather than importing a roster with numbers in it nobody entered.
+- [x] **The add-a-squad panel shipped a record card under a caption saying it did not** (2026-09-11).
+      The StarGrunt screen's own caption reads "Transcribed off your own record card. No stats are
+      supplied here", and the form opened on quality D8, Leadership 2, eight figures, armour D6 and
+      an impact die of 10. The fire panel opened on a D8 of firepower and a range of ten inches, and
+      the confidence test opened on threat level 2 beside a caption saying the threat level is the
+      one your own table gives the event.
+- [x] **The dice the StarGrunt engine chose for itself** (2026-09-11). Four, none of them on the
+      wire or on a type: the armour of a unit with no roster (`QualityDie.D6`, reachable through a
+      saved game written before figures were on the definition, and the die that decides whether
+      each hit kills); `UnitDefinition.QualityDie = QualityDie.D8`, which on a JSON restore is the
+      contract; the flat D6 the downed were settled on while the *bands* came off the player, which
+      made a D10 chart's stunned band unreachable; and two D12 placeholders filling a non-nullable
+      slot on a refusal.
+
+### Content policy — the three guards
+
+Each names no bad value. Each enumerates and demands a written classification, so a **new** number
+fails the suite until somebody argues for it.
+
+| guard | what it can see | what it found |
+|---|---|---|
+| `contentPolicy.test.ts` + `contentPolicy.render.test.tsx` (web) | the numbers the client stores, and the numbers it says - text, tooltips and now the values in its controls | the ship form, the ordnance draft, the fleet import, the mount label, the ship card and map prose, the StarGrunt screen's three forms, the fighter boxes |
+| `WireDefaultsContentPolicyTests` (API) | every numeric constructor parameter of every contract record, by reflection | five non-zero wire defaults, all real |
+| `EngineDiceContentPolicyTests` (StarGrunt module) | `QualityDie.Dn` in the module's own source, outside comments | four die literals in method bodies and property initialisers |
+
+The third exists because the first two cannot see a number chosen inside a method body: it is on no
+type, on no wire, and in no metadata, so reading the source is the only instrument that reaches it.
+It is scoped to the StarGrunt module rather than to every engine, on that module's own stated
+contract that it ships no table at all.
+
+### Claims withdrawn or corrected
+
+- **"Blanking `defaultShipForm` needs a browser."** Wrong, and it deferred the item for a round. The
+  question was what the server does with a body full of zeros, and a test that posts exactly what
+  the blanked form posts answers it: accepted, hull floored to 1, everything else genuinely zero.
+- **"Refuse a profile import that is incomplete."** An over-strict fix *is* a content-policy
+  violation. Requiring all thirty fields refused a legitimate seven-field profile and broke a CI
+  job: a table that does not play the torpedo and salvo rules writes a good file without them, and
+  refusing it is this app deciding which optional rules a table has to use. What is refused is the
+  **loss** - a file that would blank something already on the form - named field by field.
+- **"Delete the support firepower die."** Deleting it outright would have made the die function
+  refuse every rifle, because `Die()` refuses a face count off the quality ladder and zero is not on
+  it. The answer was a nullable die refused *by name* only when actually asked to join a volley.
+- **The armour-die proof was right and its evidence was not.** The original probe built a unit
+  carrying `figures: [{ armourDie: 12 }]` through a cast, at a commit where neither the DTO nor the
+  client type had such a field - so it asserted against an object the real client could never have
+  held. The finding stood; the proof was replaced.
+- **The `/ready` three-store proof was a false green by construction.** Its four assertions were all
+  true of a healthy stack too, so it could not have distinguished the two states. The conclusion was
+  right and the probe could not have shown it; rewritten to assert the fallback is real on disk
+  before claiming anything about readiness.
+- **The `Class-2 Beam` blacklist and the `forceFormatVersion` tautology were guards that could not
+  fail.** The version test asserted `toForceFile(...).formatVersion === forceFormatVersion`, and
+  `toForceFile` stamps the field from that same constant, so bumping it to 2 - exactly the change
+  that strands every file already written - left 166 tests green.
+- **Two library surfaces offered names nobody took.** Four in `rulesProfile.ts` and nine more across
+  six other modules. An export nobody imports is a decision nobody made: it offers a second way to
+  read the player's numbers, one of which coerces. Eight of the nine stopped being public;
+  `assaultStages` stays because `scripts/check-ground-vocabulary.py` reads it out of the source in
+  CI and matches on the `export` keyword, which a widened regular expression would have got wrong.
+
+### Content policy — what remains, plainly
+
+*"This app ships no rules numbers" is the kind of claim that rots quietly, so this is the list as of
+2026-09-11, not a summary of it.*
+
+- **The Dirtside die tables in `HitResolution.cs` — open, and the largest remaining item.** A fire
+  control level is worth a D6, a D8 or a D10; a defensive posture is worth a D6, a D8, a D10 or a
+  D12; and a target's signature indexes the quality ladder directly. These are readings off
+  somebody's card in exactly the sense this policy is about. They are left because that module's
+  whole combat model is built on them, so removing them is a design change rather than an edit — and
+  because an exemption list that launders a violation is worse than no list, they are recorded here
+  and in a note at the foot of `EngineDiceContentPolicyTests` rather than exempted. **The new engine
+  guard is deliberately scoped to StarGrunt and does not cover this.**
+- **The Dirtside fallback chit pot.** Unchanged: the counts are a documented guess, kept for one
+  release behind a `/ready` warning that says so in as many words and a red line on every snapshot,
+  then removed. The two invariants that are policy-safe — the firer/target ordering and the specials
+  being a minority — are guarded; the counts themselves are deliberately not pinned, because pinning
+  them would be this app asserting a number it does not own.
+- **`fleetIo.ts`'s `screenLevelCeiling = 9`.** Not the rule — the rule is the profile's
+  `MaxScreenLevel`, and the file's number is now read as written and clamped by the server against
+  it. What is left is a bound on the *shape* of the number: the profile editor's beam grid draws at
+  most that many screen columns, so a file claiming more is malformed rather than generous.
+- **The `min`/`max` bounds on numeric inputs**, and the matching clamps in the service. Deliberately
+  outside the render guard: they bound what can be typed rather than stating what was, and the
+  server's own comment calls the fighter pair "a bound on abuse, not a rule". Worth revisiting only
+  if one of them is ever found to be a rulebook number in disguise, as the screens ceiling of 3 was.
+- **The ground vocabularies** (`DirtsideWire.ChitColours`, `ChitSpecials`, `StarGruntWire.Ladder`,
+  `assaultStages`). Which chits and dice *exist* is the engine's; how many of each and which one
+  anything uses is the player's. Not a gap.
+
 ## Closed 2026-09-09 (maintainability tail)
 
 *The rows left over from `vault/maintainability-2026-09-09.md` after the two earlier passes. Every
@@ -428,11 +634,15 @@ real defect worse than reported.*
   (`"in-development"`, `"playable"`) beside `/api/features` and the `/ready` warnings, which is the
   drift this repository has paid for elsewhere. Left because removing them is a three-file test
   rewrite rather than a tail item.
-- `defaultShipForm`'s remaining stat numbers in `constants.ts` -- `thrustRating: 4`, `hullMax: 12`,
-  `armorMax: 4`, `fireControlMax: 2`, `pointDefenseSystems: 1`, `damageControlParties: 2`,
-  `screenRating: 1`. The same content-policy problem as the mount, condemned by the same file header,
-  but blanking them needs the create-ship form driven in a browser to see what a zero does, which is
-  not something this pass could check.
+- ~~`defaultShipForm`'s remaining stat numbers in `constants.ts`~~ -- **shipped 2026-09-10, and the
+  reason for leaving it was wrong.** The claim was that blanking them needs the create-ship form
+  driven in a browser to see what a zero does. It does not: the question is what the *server* does
+  with a body full of zeros, and
+  `ContentPolicyTests.AShipThatEnteredNothingComesBackWithNothingEntered` sends exactly what the
+  blanked form sends. The ship is accepted, hull floored to 1 and every other number genuinely zero.
+  No browser, no 500, no invented value. What actually needed a browser was only the *feel* of a form
+  full of zeros, which is a design question and blocked nothing. See the content-policy section
+  below.
 - Roughly 32 further engine rules with tests and no Application caller (infantry combat entire,
   opportunity fire, reaction fire, `ForfeitPriority`, `DeclineReaction`). These are the unfinished
   slices the readiness warnings already name out loud, not dead code.
