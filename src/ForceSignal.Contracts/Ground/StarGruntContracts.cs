@@ -39,7 +39,16 @@ public sealed record StarGruntFigureDto(int ArmourDie);
 /// <param name="Name">What the card calls it.</param>
 /// <param name="ImpactDie">Its impact die, as a face count.</param>
 /// <param name="IsSupport">True when it is a support weapon.</param>
-/// <param name="SupportFirepowerDie">The die it adds to a squad volley, as a face count.</param>
+/// <param name="SupportFirepowerDie">
+/// The die it adds to a squad volley, as a face count. Zero when the card does not give one, which
+/// is the ordinary case - most weapons never join a volley.
+/// <para>
+/// This defaulted to <c>6</c>, so every weapon anybody entered came back carrying a D6 it had never
+/// been given: a die rating off a record card, written by the app, over the wire. It is the same
+/// defect the exported armour die was. A weapon with no die here is refused by name if it is ever
+/// asked to join a volley.
+/// </para>
+/// </param>
 /// <param name="NeverJoinsSquadFire">True when it always needs an action of its own.</param>
 /// <param name="IsCloseRange">True when it is effective only inside one band.</param>
 public sealed record StarGruntWeaponDto(
@@ -47,7 +56,7 @@ public sealed record StarGruntWeaponDto(
     int ImpactDie,
     bool IsSupport = false,
     bool IsCloseRange = false,
-    int SupportFirepowerDie = 6,
+    int SupportFirepowerDie = 0,
     bool NeverJoinsSquadFire = false);
 
 /// <summary>Puts a unit on the table.</summary>

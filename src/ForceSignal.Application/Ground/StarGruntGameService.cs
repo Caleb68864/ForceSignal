@@ -505,7 +505,12 @@ public sealed class StarGruntGameService : IStarGruntGameService
                 ImpactDie = Die(weapon.ImpactDie, "impact"),
                 IsSupport = weapon.IsSupport,
                 IsCloseRange = weapon.IsCloseRange,
-                SupportFirepowerDie = Die(weapon.SupportFirepowerDie, "support firepower"),
+                // Zero is "the card did not give one", not a die of no faces, so it is carried
+                // across as nothing rather than run through Die() - which would refuse every
+                // weapon that has no business having one.
+                SupportFirepowerDie = weapon.SupportFirepowerDie == 0
+                    ? null
+                    : Die(weapon.SupportFirepowerDie, "support firepower"),
                 NeverJoinsSquadFire = weapon.NeverJoinsSquadFire,
             })],
         };
@@ -622,7 +627,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
                 (int)weapon.ImpactDie,
                 weapon.IsSupport,
                 weapon.IsCloseRange,
-                (int)weapon.SupportFirepowerDie,
+                weapon.SupportFirepowerDie is { } supportDie ? (int)supportDie : 0,
                 weapon.NeverJoinsSquadFire))],
             legality.CanActivate,
             legality.ActivationBlocker,

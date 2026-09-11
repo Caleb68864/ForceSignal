@@ -139,6 +139,12 @@ public sealed record UpdateFighterOperationsRequest(
     Guid? HomeCarrierShipId = null);
 
 /// <summary>Adds a launched ordnance or salvo marker to the table map.</summary>
+/// <remarks>
+/// <c>Course</c> opens at one because a heading on a twelve-point clock has no zero. Every other
+/// number opens at zero, which is this app's spelling of "not entered". <c>EnduranceRemaining</c>
+/// used to open at one - a salvo that said nothing about itself flew for a turn - and the launch
+/// form has sent zero since it was blanked, so only the wire disagreed.
+/// </remarks>
 public sealed record CreateOrdnanceMarkerRequest(
     string ParticipantToken,
     string Name,
@@ -149,7 +155,7 @@ public sealed record CreateOrdnanceMarkerRequest(
     decimal PositionY,
     int Course = 1,
     int Speed = 0,
-    int EnduranceRemaining = 1,
+    int EnduranceRemaining = 0,
     int AttackDice = 0,
     int MaxRange = 0,
     string Status = "Active");
@@ -164,7 +170,7 @@ public sealed record UpdateOrdnanceMarkerRequest(
     decimal PositionY,
     int Course = 1,
     int Speed = 0,
-    int EnduranceRemaining = 1,
+    int EnduranceRemaining = 0,
     int AttackDice = 0,
     int MaxRange = 0,
     string Status = "Active");

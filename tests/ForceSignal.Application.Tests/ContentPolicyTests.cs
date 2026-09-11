@@ -1,4 +1,6 @@
+using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
+using ForceSignal.Contracts.Ground;
 using ForceSignal.Contracts.Matches;
 
 namespace ForceSignal.Application.Tests;
@@ -148,6 +150,67 @@ public sealed class ContentPolicyTests
 
         Assert.Equal(9, ship.FighterEnduranceMax);
         Assert.Equal(33, ship.FighterMaxRange);
+    }
+
+    [Fact]
+    public void AGroundWeaponThatNamedNoSupportDieComesBackWithNone()
+    {
+        // The same habit in the other engine, and the sharpest remaining instance of it: a *die
+        // rating*, which is what a record card is mostly made of. Every weapon anybody entered came
+        // back carrying a D6 support firepower die, because the DTO and the profile both defaulted
+        // to one. Most weapons never join a squad volley at all, so this was a number written onto
+        // a weapon for a rule it will never be read by - until the day it is.
+        var service = new StarGruntGameService();
+        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+
+        var snapshot = service.AddUnit(game.GameId, new AddStarGruntUnitRequest(
+            Id: "alpha",
+            Name: "Alpha Squad",
+            Side: "Blue",
+            Level: "Squad",
+            QualityDie: 8,
+            LeadershipValue: 2,
+            Fatigue: "Fresh",
+            Figures: [new StarGruntFigureDto(6)],
+            Weapons: [new StarGruntWeaponDto("Rifles", 10)]));
+
+        // Reached-the-subject: the unit was accepted and it is the weapon that was asked for, so
+        // there is a die rating to read.
+        var weapon = snapshot.Units.Single().Weapons.Single();
+        Assert.Equal("Rifles", weapon.Name);
+
+        // The numbers the card did give, unchanged.
+        Assert.Equal(10, weapon.ImpactDie);
+
+        // The one it did not.
+        Assert.Equal(0, weapon.SupportFirepowerDie);
+    }
+
+    [Fact]
+    public void AGroundWeaponKeepsTheSupportDieItDidEnter()
+    {
+        // The control that must be accepted. A weapon whose card does give a firepower die still
+        // carries it, and it is still a different number from the impact die - the two are
+        // deliberately unrelated, and a fix that collapsed them would satisfy the test above.
+        var service = new StarGruntGameService();
+        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+
+        var snapshot = service.AddUnit(game.GameId, new AddStarGruntUnitRequest(
+            Id: "alpha",
+            Name: "Alpha Squad",
+            Side: "Blue",
+            Level: "Squad",
+            QualityDie: 8,
+            LeadershipValue: 2,
+            Fatigue: "Fresh",
+            Figures: [new StarGruntFigureDto(6)],
+            Weapons: [new StarGruntWeaponDto("Squad Support", 12, IsSupport: true, SupportFirepowerDie: 4)]));
+
+        var weapon = snapshot.Units.Single().Weapons.Single();
+        Assert.Equal("Squad Support", weapon.Name);
+        Assert.True(weapon.IsSupport);
+        Assert.Equal(12, weapon.ImpactDie);
+        Assert.Equal(4, weapon.SupportFirepowerDie);
     }
 
     [Fact]
