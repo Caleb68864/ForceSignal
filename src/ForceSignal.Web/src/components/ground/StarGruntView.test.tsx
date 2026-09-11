@@ -8,10 +8,12 @@ import { StarGruntView } from './StarGruntView.tsx';
 const readGame = vi.fn<(game: GameHandle) => Promise<StarGruntSnapshot>>();
 const addUnit = vi.fn<(game: GameHandle, unit: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
 const fightMelee = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
+const createGame = vi.fn<(name: string, profile?: Record<string, unknown>) => Promise<GameHandle & { snapshot: StarGruntSnapshot }>>();
 vi.mock('../../lib/starGruntApi.ts', () => ({
   readGame: (game: GameHandle) => readGame(game),
   addUnit: (game: GameHandle, unit: Record<string, unknown>) => addUnit(game, unit),
   fightMelee: (game: GameHandle, request: Record<string, unknown>) => fightMelee(game, request),
+  createGame: (name: string, profile?: Record<string, unknown>) => createGame(name, profile),
 }));
 
 const handle: GameHandle = { gameId: 'game-1', token: 'token-1' };
@@ -232,5 +234,79 @@ describe('StarGrunt close assault', () => {
     const sent = fightMelee.mock.calls[0][1] as { pairings: { attackerPowerArmour: boolean; defenderPowerArmour: boolean }[] };
     expect(sent.pairings[0].attackerPowerArmour).toBe(false);
     expect(sent.pairings[0].defenderPowerArmour).toBe(false);
+  });
+});
+
+/**
+ * The range table on the create screen.
+ *
+ * The engine used to carry StarGrunt's range page as arithmetic - a band the size of the firer's die,
+ * a walk up the ladder a rung a band, cover worth one or two rungs - and now refuses a shot whose
+ * entry nobody made. So the form that feeds it has to open on nothing, look like nothing, and send
+ * exactly what was typed: a select showing a die over an empty value is a form that looks filled in
+ * and is not, which is a bug this screen has already had once.
+ */
+describe('StarGrunt range table', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    createGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  function created(profile: StarGruntSnapshot['profile']) {
+    return { ...handle, snapshot: { ...snapshotFrom(wholeUnit), profile } };
+  }
+
+  it('opens with every entry showing as not entered', () => {
+    render(<StarGruntView />);
+
+    const range = screen.getByLabelText('Range die, 1 band out') as HTMLSelectElement;
+    expect(range.value).toBe('');
+    expect(range.selectedOptions[0]?.textContent).toBe('Not entered');
+
+    for (const label of ['Band for D8 troops, inches', 'Bands of effective range', 'Soft cover, rungs', 'Hard cover, rungs', 'Dug in, rungs', 'Melee cover, rungs']) {
+      const input = screen.getByLabelText(label) as HTMLInputElement;
+      expect(input.value).toBe('');
+      expect(input.placeholder).toBe('Not entered');
+    }
+  });
+
+  it('starts a game with no table at all when nothing was entered', async () => {
+    createGame.mockResolvedValue(created({ bandWidths: [], rangeDice: [] }));
+    render(<StarGruntView />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Game' }));
+
+    expect(await screen.findByText(/Started Hill 43/)).toBeTruthy();
+    expect(createGame.mock.calls[0][1]).toBeUndefined();
+    // And the game screen says so, warning-styled, before anybody fires.
+    const summary = screen.getByText(/^Range table:/);
+    expect(summary.textContent).toMatch(/first shot will be refused/);
+    expect(summary.className).toMatch(/warning/);
+  });
+
+  it('sends exactly the entries that were typed in', async () => {
+    // The control that must be accepted: a form that could not send a table would pass both tests
+    // above and leave every game refusing its first shot. Invented numbers.
+    createGame.mockResolvedValue(created({ bandWidths: [{ qualityDie: 8, inches: 7 }], rangeDice: [{ bandsOut: 2, die: 4 }] }));
+    render(<StarGruntView />);
+
+    fireEvent.change(screen.getByLabelText('Band for D8 troops, inches'), { target: { value: '7' } });
+    fireEvent.change(screen.getByLabelText('Range die, 1 band out'), { target: { value: '4' } });
+    // Filling the first row puts the second on screen.
+    fireEvent.change(screen.getByLabelText('Range die, 2 bands out'), { target: { value: '6' } });
+    fireEvent.change(screen.getByLabelText('Hard cover, rungs'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start Game' }));
+
+    expect(await screen.findByText(/Started Hill 43/)).toBeTruthy();
+    expect(createGame.mock.calls[0][1]).toEqual({
+      bandWidths: [{ qualityDie: 8, inches: 7 }],
+      rangeDice: [{ bandsOut: 1, die: 4 }, { bandsOut: 2, die: 6 }],
+      hardCoverShift: 0,
+    });
+    const summary = screen.getByText(/^Range table:/);
+    expect(summary.className).not.toMatch(/warning/);
   });
 });

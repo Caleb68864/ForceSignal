@@ -17,6 +17,7 @@ import { defaultShipForm, newOrdnanceDraft } from '../constants.ts';
 import { normalizeFleetExportShip } from './fleetIo.ts';
 import { newWeaponMount } from './weapons.ts';
 import { normalizeWeaponMount } from './normalize.ts';
+import { emptyStarGruntProfileDraft } from './starGruntProfile.ts';
 import {
   newAssaultForm,
   newShotForm,
@@ -190,6 +191,24 @@ describe('the StarGrunt screen ships no rules numbers either', () => {
     // "The threat level is the one your own table gives the event" - said on screen, beside a
     // control that opened on 2.
     expect(newThreatLevel).toBe(0);
+  });
+
+  it('opens the range table on nothing at all', () => {
+    // The page the engine used to carry as arithmetic - band widths, a range die per band, reach and
+    // cover - and the one form on this screen whose blank is not zero, because zero is an answer for
+    // a cover shift. So the walk is over every part of it rather than over its numbers: there are
+    // none, and every text field and every table has to open empty.
+    const draft = emptyStarGruntProfileDraft() as Record<string, unknown>;
+
+    // Reached-the-subject: it really is the draft, with every part the create form edits on it.
+    expect(Object.keys(draft).length).toBeGreaterThan(5);
+    expect(numericFields(draft)).toEqual([]);
+
+    const entered = Object.entries(draft)
+      .filter(([, value]) => (typeof value === 'string' ? value !== '' : Object.keys(value as object).length > 0))
+      .map(([field]) => field);
+
+    expect(entered).toEqual([]);
   });
 
   it('holds every exemption to being a real field, so the list cannot rot', () => {
