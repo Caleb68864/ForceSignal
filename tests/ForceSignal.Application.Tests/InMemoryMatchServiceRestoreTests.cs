@@ -65,7 +65,7 @@ public sealed class InMemoryMatchServiceRestoreTests
         var redFleet = source.CreateFleet(owner.MatchId, new CreateFleetRequest(opponent.ParticipantToken, "Red", null)).Fleets.Single(f => f.OwnerParticipantId == opponent.ParticipantId);
         var weaponId = Guid.NewGuid();
         var attacker = source.CreateShip(blueFleet.Id, new CreateShipRequest(
-            owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24,
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24, FireControlMax: 1,
             Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, [.. FiringArcs.Firable])])).Ships.Single(s => s.Name == "Valiant");
         var target = source.CreateShip(redFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken, "Crimson", "Destroyer", 4, 6, 9, 10, 1, StartX: 32, StartY: 24)).Ships.Single(s => s.Name == "Crimson");

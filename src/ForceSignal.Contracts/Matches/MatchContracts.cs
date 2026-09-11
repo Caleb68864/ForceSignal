@@ -59,7 +59,17 @@ public sealed record CreateFleetRequest(string ParticipantToken, string Name, st
 /// <param name="FighterStatus">Docked, Airborne, or Recovering status for fighter groups.</param>
 /// <param name="HomeCarrierShipId">Optional carrier ship that launched or owns the fighter group.</param>
 /// <param name="PointsValue">Nominal points value (NPV) recorded from the player's own design sheet.</param>
-/// <param name="FireControlMax">Fire control systems carried. Each directs fire at one target.</param>
+/// <param name="FireControlMax">
+/// Fire control systems carried. Each directs fire at one target.
+/// <para>
+/// Opens at zero because it is a number off the player's own design sheet, not a floor the engine
+/// needs. It used to open at one, and a caller who sent no <c>fireControlMax</c> got a ship that
+/// could direct fire at a target - a system nobody had entered, arriving over the wire. The two
+/// cases are worth telling apart: <see cref="HullMax"/> is floored to one by the service because a
+/// ship of no boxes is not a ship, while fire control is clamped from zero up, and a ship carrying
+/// none simply cannot direct fire, which is a state this engine plays perfectly well.
+/// </para>
+/// </param>
 /// <param name="PointDefenseSystems">Point defence systems carried, for shooting down fighters and missiles.</param>
 /// <param name="FighterBays">Fighter bays carried. Each holds one group and can launch or recover it.</param>
 /// <param name="DamageControlParties">Damage control parties aboard, for repairing systems between turns.</param>
@@ -83,12 +93,17 @@ public sealed record CreateShipRequest(
     string? FighterStatus = null,
     Guid? HomeCarrierShipId = null,
     int PointsValue = 0,
-    int FireControlMax = 1,
+    int FireControlMax = 0,
     int PointDefenseSystems = 0,
     int FighterBays = 0,
     int DamageControlParties = 0);
 
 /// <summary>Updates editable ship profile, position, and equipment fields.</summary>
+/// <remarks>
+/// Every number here opens at zero for the reason recorded on
+/// <see cref="CreateShipRequest.FireControlMax"/>: unentered is zero, and the service's clamps
+/// floor whatever genuinely needs a floor.
+/// </remarks>
 public sealed record UpdateShipProfileRequest(
     string ParticipantToken,
     string Name,
@@ -109,7 +124,7 @@ public sealed record UpdateShipProfileRequest(
     string? FighterStatus = null,
     Guid? HomeCarrierShipId = null,
     int PointsValue = 0,
-    int FireControlMax = 1,
+    int FireControlMax = 0,
     int PointDefenseSystems = 0,
     int FighterBays = 0,
     int DamageControlParties = 0);
@@ -124,6 +139,12 @@ public sealed record UpdateFighterOperationsRequest(
     Guid? HomeCarrierShipId = null);
 
 /// <summary>Adds a launched ordnance or salvo marker to the table map.</summary>
+/// <remarks>
+/// <c>Course</c> opens at one because a heading on a twelve-point clock has no zero. Every other
+/// number opens at zero, which is this app's spelling of "not entered". <c>EnduranceRemaining</c>
+/// used to open at one - a salvo that said nothing about itself flew for a turn - and the launch
+/// form has sent zero since it was blanked, so only the wire disagreed.
+/// </remarks>
 public sealed record CreateOrdnanceMarkerRequest(
     string ParticipantToken,
     string Name,
@@ -134,7 +155,7 @@ public sealed record CreateOrdnanceMarkerRequest(
     decimal PositionY,
     int Course = 1,
     int Speed = 0,
-    int EnduranceRemaining = 1,
+    int EnduranceRemaining = 0,
     int AttackDice = 0,
     int MaxRange = 0,
     string Status = "Active");
@@ -149,7 +170,7 @@ public sealed record UpdateOrdnanceMarkerRequest(
     decimal PositionY,
     int Course = 1,
     int Speed = 0,
-    int EnduranceRemaining = 1,
+    int EnduranceRemaining = 0,
     int AttackDice = 0,
     int MaxRange = 0,
     string Status = "Active");

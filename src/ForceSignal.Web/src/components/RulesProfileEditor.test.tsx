@@ -152,6 +152,38 @@ describe('RulesProfileEditor', () => {
     expect((screen.getByRole('button', { name: 'Save & Play Against This' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('saves that same partial profile to this browser and reads it back without complaint', async () => {
+    // The step `scripts/two-player-smoke.py` takes next, and the reason it is worth a unit test:
+    // the smoke imports the seven-field profile above and then presses Save & Play Against This,
+    // which writes it to this browser and reads the store back. The store reader now classifies
+    // what it finds rather than coercing it, so the ordinary case - a profile this version wrote,
+    // read straight back - has to stay completely silent.
+    const onApply = vi.fn();
+    const view = render(<RulesProfileEditor value={blankRulesProfile} editable onApply={onApply} />);
+    openTheNumbers();
+
+    pickFile(view, JSON.stringify({
+      name: 'Smoke Test Layer (invented)',
+      dieFaces: 6,
+      beamDamage: [{ dieFace: 6, screenLevel: 0, damage: 2 }],
+      beamRangeBandWidth: 12,
+      maxScreenLevel: 0,
+      thresholdRows: 'FixedRows',
+      thresholdRowCount: 4,
+    }));
+    await waitFor(() => expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Smoke Test Layer (invented)'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save & Play Against This' }));
+
+    // Reached-the-subject: the save really happened and the table really was given the profile.
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0][0].name).toBe('Smoke Test Layer (invented)');
+
+    // It is in the picker under its own name, and nothing is being reported about it.
+    expect(screen.getByRole('option', { name: 'Smoke Test Layer (invented)' })).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('still loads a profile it can read, and clears the complaint', async () => {
     const view = render(<RulesProfileEditor value={tableProfile()} editable onApply={vi.fn()} />);
     openTheNumbers();

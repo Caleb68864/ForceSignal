@@ -30,6 +30,7 @@ public sealed class InMemoryMatchServiceCombatTests
             StartX: 18,
             StartY: 30,
             ScreenRating: 1,
+            FireControlMax: 1,
             Weapons: [new WeaponMountDto(blueWeapon, "Class-3 Beam", 3, 24, [.. FiringArcs.Firable])])).Ships.Single(s => s.Name == "Blue One");
         var redShip = service.CreateShip(redFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken,
@@ -42,6 +43,7 @@ public sealed class InMemoryMatchServiceCombatTests
             1,
             StartX: 50,
             StartY: 18,
+            FireControlMax: 1,
             Weapons: [new WeaponMountDto(redWeapon, "Class-2 Beam", 2, 24, [.. FiringArcs.Firable])])).Ships.Single(s => s.Name == "Red One");
 
         service.SetReady(owner.MatchId, owner.ParticipantToken, true);
@@ -106,6 +108,7 @@ public sealed class InMemoryMatchServiceCombatTests
             0,
             StartX: 20,
             StartY: 30,
+            FireControlMax: 1,
             Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, [FiringArc.Fore])]));
         var attacker = attackerSnapshot.Ships.Single(s => s.Name == "Attacker");
         var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
@@ -170,7 +173,7 @@ public sealed class InMemoryMatchServiceCombatTests
 
         var attacker = service.CreateShip(ownerFleet.Id, new CreateShipRequest(
             owner.ParticipantToken, "Attacker", "Cruiser", 4, InitialVelocity: 0, InitialCourse: 12, 12, 0,
-            StartX: 20, StartY: 30,
+            StartX: 20, StartY: 30, FireControlMax: 1,
             Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", 3, 24, [FiringArc.Fore])])).Ships.Single(s => s.Name == "Attacker");
         var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken, "Target", "Frigate", 4, InitialVelocity: 0, InitialCourse: 6, 8, 1,
@@ -218,6 +221,7 @@ public sealed class InMemoryMatchServiceCombatTests
             0,
             StartX: 20,
             StartY: 30,
+            FireControlMax: 1,
             Weapons: [new WeaponMountDto(weaponId, "Class-2 Beam", 2, 24, [FiringArc.Fore])])).Ships.Single(s => s.Name == "Attacker");
         var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken,
@@ -269,6 +273,7 @@ public sealed class InMemoryMatchServiceCombatTests
             0,
             StartX: 20,
             StartY: 30,
+            FireControlMax: 1,
             Weapons: [new WeaponMountDto(weaponId, "Needle Missile", 2, 24, [FiringArc.Fore], AmmoMax: 1)])).Ships.Single(s => s.Name == "Missile Boat");
         var target = service.CreateShip(opponentFleet.Id, new CreateShipRequest(
             opponent.ParticipantToken,

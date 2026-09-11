@@ -131,6 +131,12 @@ public sealed partial record StarGruntGame
                 return GameOutcome.Refused<StarGruntGame>($"{joining.Name} only ever fires on its own.");
             }
 
+            if (joining.SupportFirepowerDie is null)
+            {
+                return GameOutcome.Refused<StarGruntGame>(
+                    $"{joining.Name}'s card does not say what die it adds to a volley, so it cannot join one.");
+            }
+
             support.Add(joining);
         }
 
@@ -153,7 +159,9 @@ public sealed partial record StarGruntGame
         var outcome = new FireCombat(dice).Resolve(new FireAttempt(
             FirerQuality: firer.QualityDie,
             FirepowerDie: command.FirepowerDie,
-            SupportDice: [.. support.Select(joining => joining.SupportFirepowerDie)],
+            // Every weapon in `support` was refused above unless its card gave a die, so this is a
+            // list of dice the player entered rather than a list with holes filled in.
+            SupportDice: [.. support.Select(joining => joining.SupportFirepowerDie!.Value)],
             ImpactDie: weapon.ImpactDie,
             TargetArmourDie: armour,
             DistanceInches: command.DistanceInches,

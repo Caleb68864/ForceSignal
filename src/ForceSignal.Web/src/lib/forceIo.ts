@@ -141,7 +141,11 @@ export function fromForceFile(payload: unknown): StarGruntForceFile {
               impactDie: dieFrom(entryWeapon.impactDie),
               isSupport: entryWeapon.isSupport === true,
               isCloseRange: entryWeapon.isCloseRange === true,
-              supportFirepowerDie: dieFrom(entryWeapon.supportFirepowerDie, 6),
+              // Zero, not a rung: a file that says nothing about the die a weapon adds to a volley
+              // is a file about a weapon that does not join volleys, which is most of them. The
+              // server reads zero as "the card did not give one" and refuses the weapon by name if
+              // it is ever asked to join one.
+              supportFirepowerDie: dieFrom(entryWeapon.supportFirepowerDie, 0),
               neverJoinsSquadFire: entryWeapon.neverJoinsSquadFire === true,
             };
           }),

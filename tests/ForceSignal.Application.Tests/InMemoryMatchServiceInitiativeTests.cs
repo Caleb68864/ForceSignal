@@ -165,17 +165,17 @@ public sealed class InMemoryMatchServiceInitiativeTests
             Guid blueLeadMount = Guid.NewGuid(), blueSecondMount = Guid.NewGuid(), redMount = Guid.NewGuid();
             var blueLead = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Blue Lead", "Cruiser", 4,
-                InitialVelocity: 0, InitialCourse: 12, HullMax: 40, ArmorMax: 0, StartX: 20, StartY: 40,
+                InitialVelocity: 0, InitialCourse: 12, HullMax: 40, ArmorMax: 0, FireControlMax: 1, StartX: 20, StartY: 40,
                 Weapons: [new WeaponMountDto(blueLeadMount, "Lead Battery", 2, 36, [FiringArc.Fore])]))
                 .Ships.Single(s => s.Name == "Blue Lead");
             var blueSecond = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Blue Second", "Cruiser", 4,
-                InitialVelocity: 0, InitialCourse: 12, HullMax: 40, ArmorMax: 0, StartX: 24, StartY: 40,
+                InitialVelocity: 0, InitialCourse: 12, HullMax: 40, ArmorMax: 0, FireControlMax: 1, StartX: 24, StartY: 40,
                 Weapons: [new WeaponMountDto(blueSecondMount, "Second Battery", 2, 36, [FiringArc.Fore])]))
                 .Ships.Single(s => s.Name == "Blue Second");
             var redShip = service.CreateShip(redFleet.Id, new CreateShipRequest(
                 opponent.ParticipantToken, "Red Lead", "Cruiser", 4,
-                InitialVelocity: 0, InitialCourse: 6, HullMax: 40, ArmorMax: 0, StartX: 20, StartY: 20,
+                InitialVelocity: 0, InitialCourse: 6, HullMax: 40, ArmorMax: 0, FireControlMax: 1, StartX: 20, StartY: 20,
                 Weapons: [new WeaponMountDto(redMount, "Red Battery", 2, 36, [FiringArc.Fore])]))
                 .Ships.Single(s => s.Name == "Red Lead");
 

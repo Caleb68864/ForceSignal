@@ -42,8 +42,15 @@ public sealed record WeaponProfile
     /// squad fire adds <em>weight</em>, never its own heavier impact - so it contributes this die to
     /// the roll while every hit is still resolved on the small arms. Both numbers come off the
     /// user's own record card.
+    /// <para>
+    /// Null when the card did not give one, which is the ordinary case: most weapons never join a
+    /// volley, and this used to default to a D6 for all of them - a die rating this app wrote onto
+    /// every weapon anybody entered. A weapon asked to join a volley without one is refused by
+    /// name, because inventing a die for it is the defect and quietly leaving it out of the roll
+    /// would be the same defect wearing a zero.
+    /// </para>
     /// </remarks>
-    public QualityDie SupportFirepowerDie { get; init; } = QualityDie.D6;
+    public QualityDie? SupportFirepowerDie { get; init; }
 
     /// <summary>
     /// True when this weapon always needs an action of its own and can never be folded in.

@@ -61,9 +61,6 @@ export function gapsIn(profile: RulesProfile): string[] {
   return gaps;
 }
 
-/** True when a profile has enough in it to play a match against. */
-export const isPlayable = (profile: RulesProfile) => gapsIn(profile).length === 0;
-
 /**
  * Whether two profiles hold the same numbers.
  *
@@ -92,31 +89,132 @@ function stableJson(value: unknown): string {
   });
 }
 
-/** Profiles this browser has saved, so a set of numbers is entered once and reused. */
-export function savedProfiles(): RulesProfile[] {
+/** What this browser has saved, and what it is holding that this version cannot give back. */
+export type SavedProfiles = {
+  /** The profiles, ready to load onto the form. */
+  readonly profiles: readonly RulesProfile[];
+  /** One sentence per stored entry this version cannot read whole. Empty in the ordinary case. */
+  readonly problems: readonly string[];
+};
+
+/** The store exactly as it sits, entry by entry, with nothing read into it. */
+function storedEntries(): unknown[] {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(readProfile) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    // A corrupt or unreadable store is not worth an error message: it just means no saved profiles.
+    // A store whose text will not parse at all holds nothing this app can hand back entry by entry,
+    // and there is no honest per-entry report to make about it either. The next save does overwrite
+    // it; refusing to save instead would strand the player with no way out of a state only they can
+    // see. What is preserved is the case that can be: entries inside a store that does parse.
     return [];
   }
 }
 
-/** Saves a profile under its own name, replacing any earlier one by that name. */
-export function saveProfile(profile: RulesProfile): RulesProfile[] {
-  const kept = savedProfiles().filter((saved) => saved.name !== profile.name);
-  const next = [...kept, profile].sort((left, right) => left.name.localeCompare(right.name));
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  return next;
+/** The name a stored entry was saved under, for saying which one is being talked about. */
+function storedName(entry: unknown): string | null {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+    return null;
+  }
+
+  const name = (entry as { name?: unknown }).name;
+  return typeof name === 'string' && name.trim() ? name : null;
 }
 
-/** Forgets a saved profile by name. */
-export function deleteProfile(name: string): RulesProfile[] {
-  const next = savedProfiles().filter((saved) => saved.name !== name);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  return next;
+/**
+ * Profiles this browser has saved, so a set of numbers is entered once and reused.
+ *
+ * This used to be `parsed.map(readProfile)`, and `readProfile` coerces - that is its job, because a
+ * profile written by an older version is still a profile. Asked to read something that is *not* one
+ * it answers with a profile full of zeros, so anything that ended up under this key came back
+ * looking like a saved set of numbers, offered in the picker, and blanked the form the moment it
+ * was chosen. That is the import bug through the other door, and this door had nowhere to report
+ * into, so it happened in silence.
+ *
+ * Two answers, and which one an entry gets is the whole of it:
+ *
+ * - **Not a profile at all** - it fails the same `looksLikeProfile` bar the import uses. Not
+ *   offered, and named in `problems`. It is left in the store untouched.
+ * - **A profile carrying field names this version does not have** - a profile saved by a build that
+ *   called two of its fields something else. Still offered, because it is the player's and most of
+ *   it reads, with the unreadable part named so the blanks on the form are explained rather than
+ *   discovered.
+ *
+ * What is *not* refused is incompleteness. A profile does not need all thirty fields to be usable -
+ * the editor's own hints say to leave the torpedo reach and the salvo size at zero - so a stored
+ * profile that omits them is a good profile and is handed back without comment.
+ */
+export function savedProfiles(): SavedProfiles {
+  const profiles: RulesProfile[] = [];
+  const problems: string[] = [];
+
+  for (const entry of storedEntries()) {
+    const named = storedName(entry);
+    if (!looksLikeProfile(entry)) {
+      problems.push(
+        `Something saved in this browser${named ? ` under "${named}"` : ''} could not be read as a `
+        + 'rules profile, so it is not offered above. It has been left where it is.',
+      );
+      continue;
+    }
+
+    profiles.push(readProfile(entry));
+
+    const unknown = fieldsNotReadFrom(entry);
+    if (unknown.length > 0) {
+      problems.push(
+        `"${named ?? profiles[profiles.length - 1].name}" was saved with ${unknown.length} field`
+        + `${unknown.length === 1 ? '' : 's'} this version does not read, so ${unknown.length === 1
+          ? 'it will not'
+          : 'they will not'} appear on the form: ${unknown.join(', ')}.`,
+      );
+    }
+  }
+
+  return { profiles, problems };
+}
+
+/**
+ * Field names a stored entry carries that this version of `RulesProfile` has no place for.
+ *
+ * The mirror of `fieldsBlankedBy`: that one asks what a file would cost the form, this one asks what
+ * the form cannot show of a file. A renamed field is carried through a read and a write untouched -
+ * `readProfile` spreads the source over the blank - but nothing ever displays it, so the number the
+ * player typed is on disk and off the screen, and the field that replaced it reads zero.
+ */
+function fieldsNotReadFrom(value: unknown): string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return [];
+  }
+
+  const fields = new Set(Object.keys(blankRulesProfile));
+  return Object.keys(value).filter((key) => !fields.has(key));
+}
+
+/**
+ * Saves a profile under its own name, replacing any earlier one by that name.
+ *
+ * Written back off the *stored* entries rather than off the ones that read cleanly. That is not
+ * tidiness: once the reader above stopped handing back a coerced version of an entry it cannot
+ * read, a writer built on the reader would have dropped that entry from the store on the next save,
+ * and the repair for a silent blanking would have become a silent deletion.
+ */
+export function saveProfile(profile: RulesProfile): SavedProfiles {
+  const kept = storedEntries().filter((entry) => storedName(entry) !== profile.name);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedByName([...kept, profile])));
+  return savedProfiles();
+}
+
+/** Forgets a saved profile by name, and only that one. */
+export function deleteProfile(name: string): SavedProfiles {
+  const kept = storedEntries().filter((entry) => storedName(entry) !== name);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedByName(kept)));
+  return savedProfiles();
+}
+
+function sortedByName(entries: unknown[]): unknown[] {
+  return [...entries].sort((left, right) => (storedName(left) ?? '').localeCompare(storedName(right) ?? ''));
 }
 
 /**
@@ -126,7 +224,7 @@ export function deleteProfile(name: string): RulesProfile[] {
  * app's choosing, so a half-written file comes back as a half-filled form the player can finish
  * instead of a profile that quietly plays wrong.
  */
-export function readProfile(value: unknown): RulesProfile {
+function readProfile(value: unknown): RulesProfile {
   const source = (value ?? {}) as Partial<RulesProfile>;
   return {
     ...blankRulesProfile,
@@ -148,7 +246,7 @@ export function readProfile(value: unknown): RulesProfile {
  * field names: two or more of them means a profile someone wrote, and nothing else in this app
  * writes a file that clears that bar.
  */
-export function looksLikeProfile(value: unknown): boolean {
+function looksLikeProfile(value: unknown): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
   }
@@ -173,7 +271,7 @@ export function looksLikeProfile(value: unknown): boolean {
  * Walked off `blankRulesProfile` rather than off a list kept here, so a field added to
  * `RulesProfile` tomorrow is covered the day it is added.
  */
-export function fieldsBlankedBy(value: unknown, current: RulesProfile): string[] {
+function fieldsBlankedBy(value: unknown, current: RulesProfile): string[] {
   const carried = typeof value === 'object' && value !== null && !Array.isArray(value)
     ? new Set(Object.keys(value))
     : new Set<string>();

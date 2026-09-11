@@ -143,13 +143,13 @@ public sealed class InMemoryMatchServiceThresholdTests
             var attacker = service.CreateShip(blueFleet.Id, new CreateShipRequest(
                 owner.ParticipantToken, "Gunner", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: 12, HullMax: 12, ArmorMax: 0,
-                StartX: 20, StartY: 30,
+                StartX: 20, StartY: 30, FireControlMax: 1,
                 Weapons: [new WeaponMountDto(weaponId, "Class-3 Beam", attackDice, 36, [FiringArc.Fore])]))
                 .Ships.Single(s => s.Name == "Gunner");
             var target = service.CreateShip(redFleet.Id, new CreateShipRequest(
                 opponent.ParticipantToken, "Mark", "Cruiser", 4,
                 InitialVelocity: 0, InitialCourse: 6, HullMax: targetHull, ArmorMax: 0,
-                StartX: 20, StartY: 18, ScreenRating: targetScreens,
+                StartX: 20, StartY: 18, ScreenRating: targetScreens, FireControlMax: 1,
                 Weapons: [new WeaponMountDto(Guid.NewGuid(), "Class-2 Beam", 2, 24, [FiringArc.Fore])]))
                 .Ships.Single(s => s.Name == "Mark");
 

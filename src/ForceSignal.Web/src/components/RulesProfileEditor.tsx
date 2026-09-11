@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { blankRulesProfile, type RulesProfile } from '../types.ts';
 import { wholeNumberFrom } from '../lib/format.ts';
-import { deleteProfile, exportProfile, gapsIn, readProfileFile, sameProfile, savedProfiles, saveProfile, unreadableProfileMessage } from '../lib/rulesProfile.ts';
+import { deleteProfile, exportProfile, gapsIn, readProfileFile, sameProfile, savedProfiles, saveProfile, type SavedProfiles, unreadableProfileMessage } from '../lib/rulesProfile.ts';
 
 type Props = {
   /** The profile the match is currently played against. */
@@ -21,7 +21,12 @@ type Props = {
  */
 export function RulesProfileEditor({ value, editable, onApply }: Props) {
   const [draft, setDraft] = useState<RulesProfile>(value);
-  const [saved, setSaved] = useState<RulesProfile[]>(savedProfiles);
+  // Both halves of what this browser is holding: the profiles, and anything under the same key that
+  // this version cannot read whole. The second half used to be invisible - it came back coerced,
+  // looking like a saved profile with thirty zeros in it - so there was nothing to report and
+  // nowhere to report it. There is now, and it is the same line the import reports into.
+  const [store, setStore] = useState<SavedProfiles>(savedProfiles);
+  const saved = store.profiles;
   const [open, setOpen] = useState(false);
   const [importProblem, setImportProblem] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -101,6 +106,12 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
           Playing against: <strong>{value.name || 'nothing yet'}</strong>
         </span>
       </div>
+
+      {store.problems.length > 0 ? (
+        <ul className="constraint-line editor-drift" role="alert" aria-label="Saved profiles this version cannot read">
+          {store.problems.map((problem, index) => <li key={`${index}-${problem}`}>{problem}</li>)}
+        </ul>
+      ) : null}
 
       <div className="quick-actions">
         <button type="button" className="ghost" onClick={() => setOpen((current) => !current)}>
@@ -208,7 +219,7 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
           type="button"
           disabled={gaps.length > 0}
           onClick={() => {
-            setSaved(saveProfile(draft));
+            setStore(saveProfile(draft));
             onApply(draft);
           }}
         >
@@ -218,7 +229,7 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
           type="button"
           className="ghost"
           disabled={!saved.some((profile) => profile.name === draft.name)}
-          onClick={() => setSaved(deleteProfile(draft.name))}
+          onClick={() => setStore(deleteProfile(draft.name))}
         >
           Forget Saved
         </button>

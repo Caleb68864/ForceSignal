@@ -633,7 +633,10 @@ export function StarGruntView() {
               impactDie: unitForm.impactDie,
               isSupport: false,
               isCloseRange: false,
-              supportFirepowerDie: 6,
+              // The panel above builds a weapon that is not a support weapon, so no die is added to
+              // anybody's volley. It carried a 6 regardless - a die rating off a record card
+              // nobody had opened.
+              supportFirepowerDie: 0,
               neverJoinsSquadFire: false,
             }],
             fatigue: unitForm.fatigue,
