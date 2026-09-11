@@ -1300,7 +1300,13 @@ function App() {
               been false. `unitIconCreditIsTrue` in UnitIcon.test.ts fails if either half of that
               stops being so - including on the day somebody wires the icons up and the sentence
               needs to go back to the stronger one. */}
-          <p className="icon-credit">
+          {/* The marker, not the prose, is what UnitIcon.test.ts reads. The first version of that
+              guard matched on the sentence and was vacuous: JSX reflows, "no screen draws one yet"
+              was split across two source lines, and both branches of the check passed against a
+              string that appears nowhere. An attribute cannot be line-wrapped, so this says the
+              same thing in a form a guard can actually see. Change it to "shipped-and-shown" on
+              the day a screen renders one, and rewrite the sentence below to match. */}
+          <p className="icon-credit" data-icon-status="shipped-not-shown">
             Ground unit artwork by Lorc, Delapouite, Skoll and sbed, from{' '}
             <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a>
             {' '}under{' '}
