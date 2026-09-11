@@ -78,8 +78,13 @@ public sealed class FeatureFlagTests
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
-        using var starGrunt = await client.GetAsync("/api/stargrunt/status");
-        using var dirtside = await client.GetAsync("/api/dirtside/status");
+        // Probed through the create routes. This used to ask the two `/status` routes, which were
+        // removed: each returned a compile-time literal, so the only fact either could establish was
+        // that it had been mapped - and probing a route whose whole body is a constant tells you
+        // nothing about the engine behind it. The create route is the real first door into each
+        // engine and it is the one that has to be absent.
+        using var starGrunt = await client.PostAsJsonAsync("/api/stargrunt/games", new { name = "Hill 43" });
+        using var dirtside = await client.PostAsJsonAsync("/api/dirtside/games", new { name = "Ridge 9" });
 
         // Not "disabled" - absent. A route that answers at all is a route that can go wrong.
         Assert.Equal(HttpStatusCode.NotFound, starGrunt.StatusCode);
@@ -108,7 +113,9 @@ public sealed class FeatureFlagTests
         });
         using var client = factory.CreateClient();
 
-        using var mounted = await client.GetAsync("/api/stargrunt/status");
+        // Mounted: the create route answers rather than 404ing. Asserted on the route that does
+        // something, not on a constant.
+        using var mounted = await client.PostAsJsonAsync("/api/stargrunt/games", new { name = "Hill 43" });
         mounted.EnsureSuccessStatusCode();
 
         var flags = await client.GetFromJsonAsync<FeatureFlagsDto>("/api/features");
@@ -116,7 +123,7 @@ public sealed class FeatureFlagTests
         Assert.False(flags.Dirtside);
 
         // Dirtside stayed off: one flag does not carry the other.
-        using var stillOff = await client.GetAsync("/api/dirtside/status");
+        using var stillOff = await client.PostAsJsonAsync("/api/dirtside/games", new { name = "Ridge 9" });
         Assert.Equal(HttpStatusCode.NotFound, stillOff.StatusCode);
 
         var ready = await client.GetFromJsonAsync<JsonElement>("/ready");
