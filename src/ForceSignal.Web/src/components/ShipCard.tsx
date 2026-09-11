@@ -195,17 +195,23 @@ export function ShipProfileFields({ form, onChange, rules }: { form: ShipForm; o
               {fighterStatuses.map((status) => <option key={status}>{status}</option>)}
             </select>
           </label>
+          {/* Endurance and reach are the group's own, off the player's list. These boxes read
+              `form.fighterEnduranceMax || 6` and `form.fighterMaxRange || 24`, so a group nobody
+              had rated showed six turns and a reach of 24 while its state held zero and the server
+              - which was fixed to stop inventing exactly those two numbers - was sent nothing. The
+              `min="1"` was the other half: a table that plays no endurance rule and types 0 had it
+              clamped up to 1 and written down. Zero is unentered here, and the server agrees. */}
           <label>
             Endurance used
-            <input type="number" min="0" max={form.fighterEnduranceMax || 24} value={form.fighterEnduranceUsed} onChange={(event) => onChange({ ...form, fighterEnduranceUsed: wholeNumberFrom(event.target.value, 0, 0, form.fighterEnduranceMax || 24) })} />
+            <input type="number" min="0" max={form.fighterEnduranceMax} value={form.fighterEnduranceUsed} onChange={(event) => onChange({ ...form, fighterEnduranceUsed: wholeNumberFrom(event.target.value, 0, 0, form.fighterEnduranceMax) })} />
           </label>
           <label>
             Endurance max
-            <input type="number" min="1" max="24" value={form.fighterEnduranceMax || 6} onChange={(event) => onChange({ ...form, fighterEnduranceMax: wholeNumberFrom(event.target.value, 1, 1, 24) })} />
+            <input type="number" min="0" max="24" value={form.fighterEnduranceMax} onChange={(event) => onChange({ ...form, fighterEnduranceMax: wholeNumberFrom(event.target.value, 0, 0, 24) })} />
           </label>
           <label>
             Max range
-            <input type="number" min="1" max="120" value={form.fighterMaxRange || 24} onChange={(event) => onChange({ ...form, fighterMaxRange: wholeNumberFrom(event.target.value, 1, 1, 120) })} />
+            <input type="number" min="0" max="120" value={form.fighterMaxRange} onChange={(event) => onChange({ ...form, fighterMaxRange: wholeNumberFrom(event.target.value, 0, 0, 120) })} />
           </label>
         </>
       ) : null}

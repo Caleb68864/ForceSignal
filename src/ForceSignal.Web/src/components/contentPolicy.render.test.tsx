@@ -18,9 +18,9 @@
 
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { blankRulesProfile, type FiringDraft, type RulesProfile, type Ship } from '../types.ts';
+import { blankRulesProfile, type FiringDraft, type RulesProfile, type Ship, type ShipForm } from '../types.ts';
 import { DamageControlPanel, FiringConsole, ShipProfileFields } from './ShipCard.tsx';
-import { MapFiringAssistant, OrdnanceLaunchPanel } from './map/PlayMap.tsx';
+import { FighterOpsPanel, MapFiringAssistant, OrdnanceLaunchPanel } from './map/PlayMap.tsx';
 import { defaultShipForm } from '../constants.ts';
 
 /**
@@ -35,6 +35,20 @@ const fromTheFixture: Record<string, string> = {
   '1': 'the single damage-control party the fixture puts aboard, without which that panel renders '
     + 'its "no parties left" branch and states nothing at all',
 };
+
+/**
+ * A ship form with nothing entered on it at all.
+ *
+ * `defaultShipForm` itself opens on a course of 1 and a place on the felt of 12 by 24, which the
+ * companion walk exempts with an argument - but those are the fixture's numbers, not the
+ * component's, and one of them is 24. Exempting a 24 here would have made this file blind to the
+ * fighter reach of 24 the panels were stating, which is the exact shape of accidental pass every
+ * guard in this repository has been bitten by. So the fixture enters nothing, and every digit that
+ * comes back came from the component.
+ */
+function bareForm(overrides: Partial<ShipForm> = {}): ShipForm {
+  return { ...defaultShipForm, currentCourse: 0, positionX: 0, positionY: 0, ...overrides };
+}
 
 /** A ship with nothing entered on it, and a name and mount carrying no digits of their own. */
 function bareShip(overrides: Partial<Ship> = {}): Ship {
@@ -85,10 +99,24 @@ const draft: FiringDraft = { targetShipId: '', weaponId: 'mount-one', range: 0 }
 const phase = 'Movement';
 const noSolution = () => new Promise<never>(() => undefined);
 
-/** Every digit run in what a panel actually says: its text, and the tooltips hanging off it. */
+/**
+ * Every digit run in what a panel actually says: its text, the tooltips hanging off it, and the
+ * values sitting in its controls.
+ *
+ * The controls are the half this file could not see, and the half that was still wrong. A number in
+ * a box the player is looking at is the app telling them what they entered, which is a stronger
+ * claim than a tooltip makes - and `value={form.fighterEnduranceMax || 6}` made it, on a field whose
+ * state was zero. The box said six turns of endurance; the caption beside it said none left.
+ *
+ * `min` and `max` are deliberately not read. Those bound what can be typed rather than stating what
+ * was, the server clamps to the same bounds and calls them "a bound on abuse, not a rule", and
+ * reading them would turn this guard into an argument about every numeric input on the screen.
+ */
 function digitsShown(container: HTMLElement): string[] {
   const titles = [...container.querySelectorAll('[title]')].map((node) => node.getAttribute('title') ?? '');
-  const said = [container.textContent ?? '', ...titles].join(' ');
+  const entered = [...container.querySelectorAll('input, select, textarea')]
+    .map((node) => (node as HTMLInputElement | HTMLSelectElement).value);
+  const said = [container.textContent ?? '', ...titles, ...entered].join(' ');
   return [...said.matchAll(/\d+/g)].map((match) => match[0]);
 }
 
@@ -114,7 +142,7 @@ describe('a table that has entered no profile is told no numbers', () => {
   afterEach(cleanup);
 
   it('says none on the ship profile form', () => {
-    const { container } = render(<ShipProfileFields form={defaultShipForm} onChange={() => undefined} />);
+    const { container } = render(<ShipProfileFields form={bareForm()} onChange={() => undefined} />);
 
     // Reached-the-subject: the form really rendered, tooltips and all.
     expect(container.querySelectorAll('[title]').length).toBeGreaterThan(2);
@@ -193,6 +221,80 @@ describe('a table that has entered no profile is told no numbers', () => {
   });
 });
 
+/**
+ * The fighter fields, which neither half of this guard could reach.
+ *
+ * The engine's `NormalizeFighterEnduranceMax` and `NormalizeFighterMaxRange` were fixed to stop
+ * inventing six turns of endurance and twenty-four of reach - and the client went on stating both
+ * anyway, in the boxes, as `ship.fighterEnduranceMax || 6` and `ship.fighterMaxRange || 24`. The
+ * companion walk cannot see them because they are not defaults on a form object but expressions in
+ * a `value` prop; this file could not see them because it read text and tooltips and not the
+ * controls; and neither reaches the fighter branch at all, since it renders only for a group.
+ *
+ * The boxes contradicted the caption a line above them, which read the real zero: "Docked - 0 turns
+ * left", with a Max of 6 beside it. And they were not harmless display. `min={1}` on the same
+ * controls meant a player who typed 0 - meaning "we play no endurance rule" - had it clamped back
+ * up to 1 and written to the server.
+ */
+describe('a fighter group nobody has rated is told no numbers either', () => {
+  afterEach(cleanup);
+
+  /** A group, so the fighter fields render at all. */
+  const group = { iconKey: 'fighter-group' as const, className: 'Fighters' };
+
+  it('says none on the ship profile form', () => {
+    const { container } = render(<ShipProfileFields form={bareForm(group)} onChange={() => undefined} />);
+
+    // Reached-the-subject: this really is the fighter branch, which the cruiser fixture never
+    // renders. Without this the check below passes on a form that has no fighter fields on it.
+    expect(container.textContent).toContain('Endurance max');
+    expect(container.textContent).toContain('Max range');
+
+    expect(unaccountedFor(container)).toEqual([]);
+  });
+
+  it('says none on the map fighter ops panel', () => {
+    const { container } = render(
+      <FighterOpsPanel ship={bareShip(group)} carriers={[]} busy={false} onChange={() => undefined} />,
+    );
+
+    // Reached-the-subject: the panel rendered its three boxes.
+    expect(container.querySelectorAll('input[type="number"]').length).toBe(3);
+
+    expect(unaccountedFor(container)).toEqual([]);
+  });
+
+  it('states the endurance and reach a group has been given', () => {
+    // The control that must be accepted. A panel that showed zero whatever the ship carried would
+    // pass both checks above and lose the player their own numbers.
+    const { container } = render(
+      <FighterOpsPanel
+        ship={bareShip({ ...group, fighterEnduranceMax: 9, fighterEnduranceUsed: 2, fighterMaxRange: 36 })}
+        carriers={[]}
+        busy={false}
+        onChange={() => undefined}
+      />,
+    );
+
+    const entered = [...container.querySelectorAll('input[type="number"]')].map((node) => (node as HTMLInputElement).value);
+    expect(entered).toEqual(['2', '9', '36']);
+    expect(container.textContent).toContain('7 turns left');
+  });
+
+  it('lets a group be rated at nothing, which is a table that plays no endurance rule', () => {
+    // The other half of the control, and the over-strict trap on this one: `min={1}` meant a player
+    // who typed a deliberate zero had it clamped back up to one and sent to a server that accepts
+    // zero perfectly well.
+    const { container } = render(
+      <FighterOpsPanel ship={bareShip(group)} carriers={[]} busy={false} onChange={() => undefined} />,
+    );
+
+    for (const node of container.querySelectorAll('input[type="number"]')) {
+      expect(node.getAttribute('min')).toBe('0');
+    }
+  });
+});
+
 describe('a table that has entered a profile is told its own numbers', () => {
   afterEach(cleanup);
 
@@ -200,7 +302,7 @@ describe('a table that has entered a profile is told its own numbers', () => {
   // unaccounted digits and is useless; these are the same sentences with a profile behind them.
   it('states the point defence reach and repair odds the profile carries', () => {
     const { container } = render(
-      <ShipProfileFields form={defaultShipForm} onChange={() => undefined} rules={inventedProfile} />,
+      <ShipProfileFields form={bareForm()} onChange={() => undefined} rules={inventedProfile} />,
     );
 
     const titles = [...container.querySelectorAll('[title]')].map((node) => node.getAttribute('title') ?? '');
