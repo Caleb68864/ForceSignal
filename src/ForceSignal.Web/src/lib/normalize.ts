@@ -222,7 +222,14 @@ export function normalizeArcs(arcs: unknown, legacyArc: unknown): FiringArc[] {
   return firable.length > 0 ? firable : ['Fore'];
 }
 export function expandLegacyArc(legacyArc: string): FiringArc[] {
-  switch (legacyArc.trim().toLowerCase()) {
+  // Separators come off before anything is compared, which is what the server has always done
+  // (`ExpandLegacyArc` in `InMemoryMatchService.Normalization.cs` strips both). This side stripped
+  // only spaces, and only in the fallback branch, so a weapons cell reading `Fore-Port` resolved to
+  // `ForePort` on the server and to `Fore` on screen: an imported mount silently lost its port arc,
+  // and the two disagreed about a ship they were both describing. `legacyArcCases.json` holds the
+  // two implementations to each other now.
+  const name = legacyArc.trim().replaceAll(' ', '').replaceAll('-', '').toLowerCase();
+  switch (name) {
     case 'all':
       return [...firableArcs];
     case 'port':
@@ -232,7 +239,7 @@ export function expandLegacyArc(legacyArc: string): FiringArc[] {
     case 'aft':
       return ['AftPort', 'AftStarboard'];
     default: {
-      const match = firingArcs.find((arc) => arc.toLowerCase() === legacyArc.trim().toLowerCase().replaceAll(' ', ''));
+      const match = firingArcs.find((arc) => arc.toLowerCase() === name);
       return match && match !== 'Aft' ? [match] : ['Fore'];
     }
   }
