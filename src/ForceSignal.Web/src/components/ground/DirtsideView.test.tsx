@@ -177,6 +177,52 @@ describe('DirtsideView element movement', () => {
   });
 });
 
+// Every per-element button used to read the same to a screen reader - "Move", "Move", "Move" - with
+// the element's name in a sibling span nothing attached to them. The name travels in the accessible
+// name now, and a refusal that lived only in a `title` on a disabled button is rendered as text.
+describe('DirtsideView element controls are told apart', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+  });
+
+  afterEach(cleanup);
+
+  it('names the element in every per-element button', async () => {
+    readGame.mockResolvedValue(activating([
+      element(),
+      element({ id: 'alpha-2', name: 'Alpha Two' }),
+    ]));
+
+    render(<DirtsideView />);
+
+    // The control that must be accepted: the verb a sighted player reads is unchanged.
+    expect((await screen.findAllByText('Move')).length).toBe(2);
+
+    // And the two are distinguishable by accessible name, which is what a reader hears.
+    expect(screen.getByRole('button', { name: 'Move Alpha One' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Move Alpha Two' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stand down Alpha Two' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aim Alpha One' })).toBeTruthy();
+
+    // The dullest violation: a bare "Move" with no name must not survive anywhere.
+    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull();
+  });
+
+  it('renders the recovery refusal as text rather than only as a tooltip', async () => {
+    readGame.mockResolvedValue(activating([element({
+      isSystemsDown: true,
+      canRecoverSystems: false,
+      whyItCannotRecoverSystems: 'The marker went on this activation.',
+    })]));
+
+    render(<DirtsideView />);
+
+    expect(await screen.findByText('Alpha One: The marker went on this activation.')).toBeTruthy();
+  });
+});
+
 /**
  * Who the open activation is waiting on.
  *

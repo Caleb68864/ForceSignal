@@ -128,13 +128,17 @@ export function DirtsideAssaultPanel({ game, snapshot, activating, busy, run }: 
   return (
     <div className="card-module" aria-label="Close assault">
       <span className="label module-title">Close assault</span>
-      <p className="constraint-line">
-        {`${attacker?.name ?? assault.attackerUnitId} is assaulting ${defender?.name ?? assault.defenderUnitId} · round ${assault.round}`}
-      </p>
-      <p className="constraint-line">{`${attacker?.name ?? 'Attacker'} · Still standing: ${standing(attacker, assault.attackerElementIds)}`}</p>
-      <p className="constraint-line">
-        {`${defender?.name ?? 'Defender'} · Still standing: ${assault.defenderElementIds.length === 0 && assault.stage === 'AwaitingDefender' ? 'not yet committed' : standing(defender, assault.defenderElementIds)}`}
-      </p>
+      {/* The round counter and who is still standing change after every round without the player
+          moving focus, so they are announced rather than left for a reader to rediscover. */}
+      <div role="status" aria-live="polite">
+        <p className="constraint-line">
+          {`${attacker?.name ?? assault.attackerUnitId} is assaulting ${defender?.name ?? assault.defenderUnitId} · round ${assault.round}`}
+        </p>
+        <p className="constraint-line">{`${attacker?.name ?? 'Attacker'} · Still standing: ${standing(attacker, assault.attackerElementIds)}`}</p>
+        <p className="constraint-line">
+          {`${defender?.name ?? 'Defender'} · Still standing: ${assault.defenderElementIds.length === 0 && assault.stage === 'AwaitingDefender' ? 'not yet committed' : standing(defender, assault.defenderElementIds)}`}
+        </p>
+      </div>
 
       {assault.stage === 'AwaitingDefender' ? (
         <>
