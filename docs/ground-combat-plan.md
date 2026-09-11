@@ -124,11 +124,14 @@ All of it pure, injectable-dice, and tested; none of it reachable while the flag
 - **`GroundCombat/Dice`** — the ladder, `Shift`/`ShiftClosed`/`ShiftOpposed`, the three roll shapes,
   and an injectable die source that corrects a source returning a result off the face. The worked
   example from the rules notes is a fixture.
-- **`StarGrunt/Combat`** — range bands (band = the firer's own quality die in inches), the range die
-  by band with cover and in-position shifts, and effective reach falling out of the shift running
-  off the ladder rather than being a rule of its own. The full fire sequence against dispersed
-  targets: opposed roll, potential hits by dividing the firer total by the range die *type*, the
-  remainder roll, impact against armour. Both worked examples run as fixtures.
+- **`StarGrunt/Combat`** — range bands, the range die by band with cover and in-position shifts,
+  and reach into cover falling out of the shift running off the ladder rather than being a rule of
+  its own. Every number on that page - band width per quality, the die at each band, reach, what
+  cover is worth - is read off the players' `StarGruntRulesProfile` (2026-09-11); it used to be the
+  firer's own die in inches and a walk up the ladder a rung a band, which was somebody's page. The
+  full fire sequence against dispersed targets: opposed roll, potential hits by dividing the firer
+  total by the range die *type*, the remainder roll, impact against armour. The worked firefight
+  runs as a fixture against an invented table.
 - **`StarGrunt/Morale`** — the confidence ladder, tests, fatigue as both a starting rung and a
   ceiling, suppression stacking to three and what a pinned unit may still do.
 - **`Dirtside/Combat`** — stage one: the firer's die from fire control and range band, the movement
