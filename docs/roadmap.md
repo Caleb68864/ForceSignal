@@ -464,7 +464,7 @@ number and belongs on the rules profile beside the die tables, not in the code.
 
 ## Closed 2026-09-11 (StarGrunt's range page, and a guard that can see a walk)
 
-*Branch `feat/stargrunt-profile`, four commits on top of `5414a8f`. Coming out: `dotnet build` clean
+*Branch `feat/stargrunt-profile`, six commits on top of `5414a8f`. Coming out: `dotnet build` clean
 with warnings-as-errors, **1484** .NET tests across 8 projects, **290** web tests, `tsc --noEmit` and
 `eslint` clean, both gate scripts passing, `scripts/two-player-smoke.py` run locally with zero
 problems, and the StarGrunt screen driven in a browser both ways - a game with a range table fires,
