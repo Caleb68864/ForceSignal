@@ -61,9 +61,6 @@ export function gapsIn(profile: RulesProfile): string[] {
   return gaps;
 }
 
-/** True when a profile has enough in it to play a match against. */
-export const isPlayable = (profile: RulesProfile) => gapsIn(profile).length === 0;
-
 /**
  * Whether two profiles hold the same numbers.
  *
@@ -227,7 +224,7 @@ function sortedByName(entries: unknown[]): unknown[] {
  * app's choosing, so a half-written file comes back as a half-filled form the player can finish
  * instead of a profile that quietly plays wrong.
  */
-export function readProfile(value: unknown): RulesProfile {
+function readProfile(value: unknown): RulesProfile {
   const source = (value ?? {}) as Partial<RulesProfile>;
   return {
     ...blankRulesProfile,
@@ -249,7 +246,7 @@ export function readProfile(value: unknown): RulesProfile {
  * field names: two or more of them means a profile someone wrote, and nothing else in this app
  * writes a file that clears that bar.
  */
-export function looksLikeProfile(value: unknown): boolean {
+function looksLikeProfile(value: unknown): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
   }
@@ -274,7 +271,7 @@ export function looksLikeProfile(value: unknown): boolean {
  * Walked off `blankRulesProfile` rather than off a list kept here, so a field added to
  * `RulesProfile` tomorrow is covered the day it is added.
  */
-export function fieldsBlankedBy(value: unknown, current: RulesProfile): string[] {
+function fieldsBlankedBy(value: unknown, current: RulesProfile): string[] {
   const carried = typeof value === 'object' && value !== null && !Array.isArray(value)
     ? new Set(Object.keys(value))
     : new Set<string>();
