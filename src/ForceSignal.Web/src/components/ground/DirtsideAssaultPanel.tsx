@@ -2,12 +2,10 @@ import { useState } from 'react';
 import * as api from '../../lib/dirtsideApi.ts';
 import type { DirtsideValidityInput } from '../../lib/dirtsideApi.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
+// The lists the API accepts, not this panel's idea of them. See groundVocabulary.ts.
+import { chitColourSets, valueScales } from '../../lib/groundVocabulary.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 
-/** Which set of chit colours a validity row can name. Not the same list as the colours a chit is printed in - this is what a weapon may count. */
-export const chitColourSets = ['All', 'Red', 'Yellow', 'Green'];
-/** How the numbers on the chits read. */
-export const valueScales = ['Doubled', 'FaceValue', 'Halved'];
 
 const plainValidity: DirtsideValidityInput = {
   colours: 'All',

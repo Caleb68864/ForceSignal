@@ -45,9 +45,32 @@ export const chitColours = ['Red', 'Yellow', 'Green'] as const;
  */
 export const chitSpecials = ['Mobility', 'SystemsDownTarget', 'SystemsDownFirer', 'Boom'] as const;
 
+/**
+ * How a validity row says the numbers on the chits read.
+ *
+ * Lived in `DirtsideAssaultPanel.tsx` beside its own dropdown, which is the state this module was
+ * written to end. The server parses a row against `ChitValueScale` and throws by name on anything
+ * else, so a word added to the enum and not to the screen would have been accepted by the API and
+ * offered nowhere - and the refusal could not name what it would have taken, which is what the band
+ * refusal two methods below it does do.
+ */
+export const valueScales = ['Doubled', 'FaceValue', 'Halved'] as const;
+
+/**
+ * The colour sets a validity row may name.
+ *
+ * Not `chitColours` above, which is what a chit is printed in - this is what a weapon may count, and
+ * it carries `All` as well. The engine models it as a flags enum, so pairs and the empty set exist
+ * there and are offered by nothing here; that gap is recorded and is a UI decision rather than a
+ * spelling one.
+ */
+export const chitColourSets = ['All', 'Red', 'Yellow', 'Green'] as const;
+
 export type Band = (typeof bands)[number];
 export type FireControl = (typeof fireControls)[number];
 export type QualityDieName = (typeof qualityDice)[number];
 export type AssaultStage = (typeof assaultStages)[number];
 export type ChitColourName = (typeof chitColours)[number];
 export type ChitSpecialName = (typeof chitSpecials)[number];
+export type ValueScaleName = (typeof valueScales)[number];
+export type ChitColourSetName = (typeof chitColourSets)[number];

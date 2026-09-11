@@ -68,13 +68,25 @@ compare("QualityDice", csharp_strings(dirtside, "QualityDice"), typescript_value
 compare("AssaultStages", csharp_strings(dirtside, "AssaultStages"), typescript_values(client, "assaultStages"))
 compare("ChitColours", csharp_strings(dirtside, "ChitColours"), typescript_values(client, "chitColours"))
 compare("ChitSpecials", csharp_strings(dirtside, "ChitSpecials"), typescript_values(client, "chitSpecials"))
+compare("ValueScales", csharp_strings(dirtside, "ValueScales"), typescript_values(client, "valueScales"))
+compare("ChitColourSets", csharp_strings(dirtside, "ChitColourSets"), typescript_values(client, "chitColourSets"))
 compare("Ladder", csharp_numbers(stargrunt, "Ladder"), typescript_values(client, "qualityLadder"))
 
 # A copy nothing reads is the state this was written to end, so check the client actually uses it.
+#
+# Two things this loop used to miss, and both of them let a real vocabulary through:
+#
+# - the pattern required a line to start with `const`, so an `export const` two characters longer
+#   was invisible to it. That is exactly how `chitColourSets` and `valueScales` lived in
+#   DirtsideAssaultPanel.tsx while this script reported the vocabularies as single-sourced.
+# - the name list was not the same list as the comparisons above, so a vocabulary could be added to
+#   one and not the other. It is derived from them now, and cannot fall behind.
+local_names = ("bands", "fireControls", "qualityDice", "qualityLadder", "chitColours",
+               "chitSpecials", "valueScales", "chitColourSets")
 for module in (ROOT / "src/ForceSignal.Web/src/components/ground").glob("*.tsx"):
     text = module.read_text(encoding="utf-8-sig")
-    for name in ("bands", "fireControls", "qualityDice", "qualityLadder", "chitColours", "chitSpecials"):
-        if re.search(rf"^const {name}\s*=\s*\[", text, re.MULTILINE):
+    for name in local_names:
+        if re.search(rf"^(?:export\s+)?const {name}\s*=\s*\[", text, re.MULTILINE):
             problems.append(
                 f"{module.name} declares its own '{name}' instead of importing it from "
                 "groundVocabulary.ts, which puts the vocabulary back into two places."

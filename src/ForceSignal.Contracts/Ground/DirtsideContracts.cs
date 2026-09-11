@@ -51,6 +51,27 @@ public static class DirtsideWire
 
     /// <summary>The non-numerical chits, by the name each one goes by.</summary>
     public static readonly string[] ChitSpecials = ["Mobility", "SystemsDownTarget", "SystemsDownFirer", "Boom"];
+
+    /// <summary>How a validity row says the numbers on the chits read.</summary>
+    /// <remarks>
+    /// Every word <c>ChitValueScale</c> carries, and <c>DirtsideGameService</c> parses a row against
+    /// that enum. It was the one Dirtside vocabulary with a dropdown and a server parser and no
+    /// shared list: the screen spelled it out beside the control, so the refusal message could not
+    /// name what it would have accepted the way the band refusal beside it does.
+    /// </remarks>
+    public static readonly string[] ValueScales = ["Doubled", "FaceValue", "Halved"];
+
+    /// <summary>The colour sets a validity row may name.</summary>
+    /// <remarks>
+    /// Not the same list as <see cref="ChitColours"/>, which is the colours a chit is printed in.
+    /// This is what a weapon may <em>count</em>, and the engine models it as a <c>[Flags]</c> enum -
+    /// so what the screens offer is the four single-word spellings a player picks from rather than
+    /// every value the enum can hold. The pairs (Red and Yellow but not Green) and the empty set are
+    /// reachable in the engine and offered by nothing, which is a gap recorded in the maintainability
+    /// notes and deliberately not closed here: this array is the vocabulary the screens use, and
+    /// widening it is a UI decision rather than a spelling one.
+    /// </remarks>
+    public static readonly string[] ChitColourSets = ["All", "Red", "Yellow", "Green"];
 }
 
 /// <summary>How many chits of one colour and number the pot holds.</summary>
