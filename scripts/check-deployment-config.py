@@ -163,10 +163,27 @@ def check_no_short_flags_through_the_powershell_wrapper() -> None:
                 )
 
 
-def check_development_overlay_overlays_something() -> None:
+def check_development_overlay_overlays_something() -> str | None:
+    """The overlay, when there is one.
+
+    `appsettings.Development.json` was deleted on 2026-09-09 as a file that overlaid nothing - which
+    is exactly what this check had been written to catch - so from that day this function returned on
+    its first line every run and its body never executed again. It went on being called, and the gate
+    went on printing that its checks had passed, so the output said the same thing whether the check
+    had examined a file or had examined nothing at all.
+
+    The check is kept rather than deleted: the overlay is a file somebody will add again, and the
+    reasoning that made it worth checking has not changed. What is fixed is the silence. A check that
+    has nothing to run against now says so by name, and the gate prints it, so "checks passed" stops
+    covering for a check that did not run.
+    """
     overlay = ROOT / "src/ForceSignal.Api/appsettings.Development.json"
     if not overlay.exists():
-        return
+        return (
+            "appsettings.Development.json does not exist, so the overlay check had nothing to "
+            "examine. That is the current intended state - the file was deleted for overlaying "
+            "nothing - and this line is here so that the absence is stated rather than assumed."
+        )
 
     base = json.loads(read("src/ForceSignal.Api/appsettings.json"))
     development = json.loads(read("src/ForceSignal.Api/appsettings.Development.json"))
@@ -183,16 +200,27 @@ def check_development_overlay_overlays_something() -> None:
             "nothing; delete it, or put the Development difference in it."
         )
 
+    return None
 
-for check in (
+
+# A check returns None when it ran, or a sentence saying what it had nothing to run against. The
+# second case is printed: a gate that reports "checks passed" without distinguishing the two reads
+# the same whether it examined the repository or examined nothing, which is how one of these sat
+# dead for two days with the whole gate green over it.
+CHECKS = (
     check_env_reaches_the_container,
     check_ports_agree,
     check_dev_api_url_matches_the_dev_server,
     check_every_nginx_location_carries_the_headers,
     check_no_short_flags_through_the_powershell_wrapper,
     check_development_overlay_overlays_something,
-):
-    check()
+)
+
+not_applicable: list[str] = []
+for check in CHECKS:
+    outcome = check()
+    if outcome is not None:
+        not_applicable.append(f"{check.__name__}: {outcome}")
 
 if problems:
     print("Deployment configuration disagrees with itself:\n", file=sys.stderr)
@@ -200,4 +228,7 @@ if problems:
         print(f"  - {problem}", file=sys.stderr)
     sys.exit(1)
 
-print("Deployment configuration checks passed.")
+ran = len(CHECKS) - len(not_applicable)
+print(f"Deployment configuration checks passed ({ran} of {len(CHECKS)} ran).")
+for note in not_applicable:
+    print(f"  not applicable - {note}")

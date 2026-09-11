@@ -271,7 +271,7 @@ app.MapGet("/ready", (IMatchStore matchStore, MatchStoreReport storeReport) =>
             : "in-memory",
         stores = stores.Select(store => new { engine = store.Engine, persistence = store.Durable ? "sqlite" : "in-memory" }),
         features = features.ToDto(),
-        warnings = ReadDeploymentWarnings(builder.Configuration, app.Environment, allowedOrigins, features, matchDatabasePath, stores)
+        warnings = ReadDeploymentWarnings(app.Environment, allowedOrigins, features, matchDatabasePath, stores)
     });
 })
     .WithName("GetReadiness")
@@ -450,8 +450,16 @@ static void ReportSkippedSaves(WebApplication app, string engine, IReadOnlyList<
     }
 }
 
+// Takes no IConfiguration. It used to, and never read it: the parameter was declared, the call site
+// passed `builder.Configuration`, and the identifier appeared exactly once in the whole function.
+//
+// Harmless while unused and a trap if anyone ever used it, which is why it went rather than being
+// left. `builder.Configuration` is the pre-build configuration, and reading that is the specific
+// mistake two comment blocks in this file exist to warn about - `matchDatabasePath` deliberately
+// comes from `app.Configuration` so a host that layers settings in during build is not read past.
+// An unused parameter holding the wrong value, in the one function whose job is to report deployment
+// state, is a wrong answer waiting for its first reader.
 static string[] ReadDeploymentWarnings(
-    IConfiguration configuration,
     IHostEnvironment environment,
     CorsOriginSettings allowedOrigins,
     FeatureFlags features,
