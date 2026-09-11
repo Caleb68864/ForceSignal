@@ -9,6 +9,7 @@
 
 import { firableArcs, firingArcs, shipIconOptions, weaponKinds } from '../constants.ts';
 import { newId } from './api.ts';
+import ordnanceBoundsFixture from './ordnanceBounds.json' with { type: 'json' };
 import { numberFrom, stringFrom, wholeNumberFrom } from './format.ts';
 import { wrapCourse } from './geometry.ts';
 import { newWeaponMount } from './weapons.ts';
@@ -19,6 +20,12 @@ import type { BattleView, FighterStatus, FiringArc, GameHandle, GameMode, MatchS
  * session written by an older build with the match id missing produced `GET /api/matches/undefined`
  * on every load.
  */
+/**
+ * The ceilings the server clamps an ordnance marker to, read from the fixture the .NET side reads
+ * too rather than written out here a second time. See `ordnanceBounds.json`.
+ */
+const ordnanceBounds = ordnanceBoundsFixture.bounds;
+
 export function normalizeSession(value: unknown): Session | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -143,10 +150,15 @@ function normalizeOrdnanceMarker(value: unknown): OrdnanceMarker | null {
     positionX: numberFrom(record.positionX, 0, 0, 144),
     positionY: numberFrom(record.positionY, 0, 0, 96),
     course: wrapCourse(wholeNumberFrom(record.course, 12, 1, 12)),
-    speed: wholeNumberFrom(record.speed, 0, 0, 120),
-    enduranceRemaining: wholeNumberFrom(record.enduranceRemaining, 0, 0, 48),
-    attackDice: wholeNumberFrom(record.attackDice, 0, 0, 48),
-    maxRange: wholeNumberFrom(record.maxRange, 0, 0, 240),
+    // The four ceilings below are the server's, restated. They used to be 120 / 48 / 48 / 240 -
+    // every one of them wider than the clamp the service enforces, all in the same direction - so a
+    // restored snapshot rendered a 48-dice salvo the server would halve to 24 the moment anything
+    // touched it. `ordnanceBounds.json` holds the pair together now; see the fixture for why the
+    // numbers live there once rather than here and in `InMemoryMatchService` separately.
+    speed: wholeNumberFrom(record.speed, 0, 0, ordnanceBounds.speed),
+    enduranceRemaining: wholeNumberFrom(record.enduranceRemaining, 0, 0, ordnanceBounds.enduranceRemaining),
+    attackDice: wholeNumberFrom(record.attackDice, 0, 0, ordnanceBounds.attackDice),
+    maxRange: wholeNumberFrom(record.maxRange, 0, 0, ordnanceBounds.maxRange),
     status: normalizeOrdnanceStatus(record.status),
   };
 }

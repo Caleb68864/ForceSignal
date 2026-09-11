@@ -1,0 +1,37 @@
+{
+  "what": "The ceilings an ordnance marker is held to, written once for both languages.",
+  "why": [
+    "Every one of these is a clamp the server enforces and the client used to restate - and every",
+    "one of the four had drifted, all in the same direction: the client allowed 120 / 48 / 48 / 240",
+    "where the service clamps 72 / 24 / 24 / 120. A restored snapshot therefore drew a 48-dice salvo",
+    "on screen that the server halved to 24 the moment anything touched it, and nothing said so.",
+    "",
+    "The direction of the drift is what makes it worse than a mismatch: the client being the wider",
+    "of the two means the screen shows a number the engine will never honour, so the table plans",
+    "against it. A client narrower than the server would be the other failure - refusing a value the",
+    "engine would have accepted - which is the shape that once made a stationary ship unturnable.",
+    "",
+    "These are shape bounds, not rules numbers: they bound what a marker may carry rather than",
+    "stating anything about missiles, so they sit outside the content-policy guards deliberately,",
+    "for the same reason the ship-form bounds do. What was missing was the other half of that",
+    "argument - the pair could drift silently, and did, four times over.",
+    "",
+    "ordnanceBounds.test.ts reads them back through normalizeMatchSnapshot, the front door the app",
+    "actually calls, and OrdnanceBoundsParityTests drives CreateOrdnanceMarker and reads the snapshot",
+    "back. Both restore paths clamp to the same numbers (InMemoryMatchService.Restore.cs), so a",
+    "change on either side reddens one of the two suites."
+  ],
+  "bounds": {
+    "speed": 72,
+    "enduranceRemaining": 24,
+    "attackDice": 24,
+    "maxRange": 120
+  },
+  "floors": {
+    "speed": 0,
+    "enduranceRemaining": 0,
+    "attackDice": 0,
+    "maxRange": 0
+  },
+  "whyEachFloorIsZero": "A marker that entered nothing has entered nothing - there is no floor of one salvo, one die or one inch anywhere in this app, and inventing one would be this app writing a number the player owns."
+}
