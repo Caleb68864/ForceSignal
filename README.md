@@ -74,21 +74,41 @@ still says they are not.
 
 ## Local Development
 
+**Prerequisites:**
+
+- **.NET 10 SDK.**
+- **Node 22.4 or later** - a hard floor, not a preference. `vitest.config.ts` passes
+  `--no-experimental-webstorage`, which only exists from 22.4; an older Node dies on the unrecognised
+  option before a single test runs, and `engines` in `package.json` only *warns* at install. CI pins 22.
+- **PowerShell 7 (`pwsh`)** for the two scripts written in it, `scripts/verify.ps1` and
+  `scripts/docker-smoke.ps1`. It is not Windows-only: on Linux or macOS install `pwsh` and invoke the
+  scripts as `pwsh ./scripts/verify.ps1`, which is exactly what CI does on its Ubuntu runner. Nothing
+  else in the repository needs it - every other command below runs in bash or zsh as written.
+- **Python 3.12 with Playwright**, only for `scripts/two-player-smoke.py`.
+
 Run the API:
 
-```powershell
+```sh
 dotnet run --project src/ForceSignal.Api
 ```
 
 Run the web app:
 
-```powershell
+```sh
 cd src/ForceSignal.Web
 npm install
 npm run dev
 ```
 
 Open `http://localhost:6297`. The web app expects the API at `http://localhost:5225` by default.
+
+Check one side without running the whole gate:
+
+```sh
+dotnet test                                   # every .NET project, from the repository root
+npm test --prefix src/ForceSignal.Web         # tsc --noEmit, eslint, then vitest
+npm run lint --prefix src/ForceSignal.Web     # eslint alone
+```
 
 ## Docker Readiness
 
@@ -104,7 +124,7 @@ Every one of those is a name `docker-compose.yml` interpolates, which is the onl
 
 Run the stack:
 
-```powershell
+```sh
 docker compose up --build
 ```
 
@@ -128,17 +148,20 @@ Readiness reports `persistence` as `sqlite`, `in-memory`, or `mixed` when some e
 
 Smoke test a running stack:
 
-```powershell
-.\scripts\docker-smoke.ps1
+```sh
+pwsh ./scripts/docker-smoke.ps1
 ```
 
 The API fails fast outside Development unless `Cors:AllowedOrigins` is configured. The compose file wires this from `FORCESIGNAL_WEB_ORIGIN`, and the API reads that name directly too, so running it without compose honours the same variable.
 
 ## Verification
 
-```powershell
-.\scripts\verify.ps1
+```sh
+pwsh ./scripts/verify.ps1
 ```
+
+This is the whole gate CI runs, and it needs `pwsh` (see Prerequisites). To check a single side, the
+`dotnet test` and `npm test` commands under Local Development are the same steps it takes.
 
 Pass `-IncludeDocker` when Docker is running to build the images, start the compose stack, and run `scripts/docker-smoke.ps1`. CI passes it, because the smoke test holds the only assertions that read a running stack rather than a config file: that the configured database actually opened, so a restart resumes the game, and that nginx assembled the security headers onto every response including `/health`.
 
@@ -146,11 +169,15 @@ Pass `-IncludeDocker` when Docker is running to build the images, start the comp
 
 `scripts/two-player-smoke.py` plays a whole turn through two browsers on two seats - the only check that hidden orders lock and reveal independently on separate devices, and that a phase turning over on one reaches the other without a reload. CI runs it as its own job. To run it yourself, start the API on 8080 and the web dev server against it, then run the script with Playwright installed:
 
-```powershell
-$env:ASPNETCORE_URLS = "http://localhost:8080"; dotnet run --project src/ForceSignal.Api --no-launch-profile
-$env:VITE_API_BASE_URL = "http://localhost:8080"; npm run dev --prefix src/ForceSignal.Web
+```sh
+ASPNETCORE_URLS=http://localhost:8080 dotnet run --project src/ForceSignal.Api --no-launch-profile
+VITE_API_BASE_URL=http://localhost:8080 npm run dev --prefix src/ForceSignal.Web
 python scripts/two-player-smoke.py
 ```
+
+Each of the first two stays in the foreground, so give each its own terminal, and stop both when the
+script finishes. In PowerShell the environment variables are set as
+`$env:ASPNETCORE_URLS = "http://localhost:8080"` before the command instead.
 
 ## API Documentation
 
