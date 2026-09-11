@@ -24,7 +24,6 @@ const covers = ['None', 'Soft', 'Hard'];
 // - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
 // because this route carries no die source and no second unit.
 const unarmedActions = ['Move', 'Dash', 'Observe', 'Communicate', 'GoInPosition'];
-const threatLevels = [1, 2, 3, 4, 5, 6];
 const commandLadder = ['Squad', 'Platoon', 'Company', 'Battalion', 'Regiment'];
 
 /** Where a command level sits on the ladder, for deciding who may rally whom. */
@@ -56,6 +55,85 @@ type ShotForm = {
   inPosition: boolean;
 };
 
+/**
+ * What the three forms on this screen open on, hoisted out of the component so the content policy
+ * can be held to by a test rather than by a caption.
+ *
+ * `lib/contentPolicy.test.ts` walks these. It could not before - they were `useState` seeds inside
+ * the component and nothing outside could see them - and that gap is why an add-a-squad panel
+ * captioned "No stats are supplied here" opened on a whole record card.
+ *
+ * Zero is this screen's spelling of "not entered", the same as the ship form's. Every die select
+ * carries an unentered option so a form that has been filled in nowhere does not *look* filled in,
+ * and the server refuses a die that is not on the ladder rather than choosing one.
+ */
+export const newUnitForm: UnitForm = {
+  name: 'Alpha Squad',
+  side: 'blue',
+  qualityDie: 0,
+  leadershipValue: 0,
+  figures: 0,
+  armourDie: 0,
+  weaponName: 'Rifles',
+  impactDie: 0,
+  fatigue: 'Fresh',
+  level: 'Squad',
+};
+
+/** What the fire panel opens on. The firepower die is off the player's own table, not this one. */
+export const newShotForm: ShotForm = {
+  targetId: '',
+  weaponName: '',
+  firepowerDie: 0,
+  supportWeapons: [],
+  distanceInches: 0,
+  cover: 'None',
+  inPosition: false,
+};
+
+/** What the close-assault panel opens on. */
+export const newAssaultForm = {
+  defenderId: '',
+  terror: false,
+  // Counted on the table rather than read off a rulebook: how many figures paired off, and how
+  // many went down. Neither has a meaningful zero - the engine refuses an assault of no pairs and
+  // a settle-up with nobody down - so these are the two exemptions this screen argues for.
+  pairs: 1,
+  threatLevel: 0,
+  attackerShift: 0,
+  defenderShift: 0,
+  downed: 1,
+  wonTheAssault: true,
+  // Blank rather than typical. These started life as the published bands, which is the same
+  // mistake as writing them into the engine - a default that happens to be somebody's numbers is
+  // still those numbers, shipped.
+  deadUpTo: 0,
+  woundedUpTo: 0,
+  defendersInCover: true,
+};
+
+/**
+ * The threat level the confidence and reaction tests open on.
+ *
+ * The caption beside this control has always said "the threat level is the one your own table gives
+ * the event", and the control opened on 2 - so the app supplied one anyway, and a player who took a
+ * test without touching it tested against a number off nobody's table.
+ */
+export const newThreatLevel = 0;
+
+/** The threat levels a player may pick, with the unentered one this app opens on. */
+const threatLevels = [0, 1, 2, 3, 4, 5, 6];
+
+/**
+ * What a die select says before anybody has picked one.
+ *
+ * Blanking a form is only half of it. A `<select>` holding a value none of its options carry shows
+ * whichever option happens to be first, so a quality select seeded at zero over a ladder of
+ * 4 to 12 would read "D4" while sending nothing - the form would look filled in and be empty, which
+ * is worse than the number it replaced. So "not entered" is a value the control can actually hold.
+ */
+const unentered = 0;
+
 export function StarGruntView() {
   // The game this device started, kept across a refresh. Read back on mount below.
   const [handle, setHandle] = useState<GameHandle | null>(() => readStored(starGruntGameKey, normalizeGameHandle));
@@ -67,47 +145,13 @@ export function StarGruntView() {
   // state, and `disabled={busy}` only takes effect after the re-render.
   const busyRef = useRef(false);
   const [gameName, setGameName] = useState('Hill 43');
-  const [unitForm, setUnitForm] = useState<UnitForm>({
-    name: 'Alpha Squad',
-    side: 'blue',
-    qualityDie: 8,
-    leadershipValue: 2,
-    figures: 8,
-    armourDie: 6,
-    weaponName: 'Rifles',
-    impactDie: 10,
-    fatigue: 'Fresh',
-    level: 'Squad',
-  });
+  const [unitForm, setUnitForm] = useState<UnitForm>(newUnitForm);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [importSide, setImportSide] = useState('blue');
   // Read off the player's own threat table, which this app does not ship.
-  const [threatLevel, setThreatLevel] = useState(2);
-  const [assault, setAssault] = useState({
-    defenderId: '',
-    terror: false,
-    pairs: 1,
-    threatLevel: 0,
-    attackerShift: 0,
-    defenderShift: 0,
-    downed: 1,
-    wonTheAssault: true,
-    // Blank rather than typical. These started life as the published bands, which is the same
-    // mistake as writing them into the engine - a default that happens to be somebody's numbers is
-    // still those numbers, shipped.
-    deadUpTo: 0,
-    woundedUpTo: 0,
-    defendersInCover: true,
-  });
-  const [shot, setShot] = useState<ShotForm>({
-    targetId: '',
-    weaponName: '',
-    firepowerDie: 8,
-    supportWeapons: [],
-    distanceInches: 10,
-    cover: 'None',
-    inPosition: false,
-  });
+  const [threatLevel, setThreatLevel] = useState(newThreatLevel);
+  const [assault, setAssault] = useState(newAssaultForm);
+  const [shot, setShot] = useState<ShotForm>(newShotForm);
 
   function say(text: string) {
     setMessage(text);
@@ -298,7 +342,9 @@ export function StarGruntView() {
         <label>
           Threat level
           <select value={threatLevel} onChange={(event) => setThreatLevel(Number(event.target.value))}>
-            {threatLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+            {threatLevels.map((level) => (
+              <option key={level} value={level}>{level === unentered ? 'Not entered' : level}</option>
+            ))}
           </select>
         </label>
       </div>
@@ -627,7 +673,9 @@ export function StarGruntView() {
             level: unitForm.level,
             qualityDie: unitForm.qualityDie,
             leadershipValue: unitForm.leadershipValue,
-            figures: Array.from({ length: Math.max(1, unitForm.figures) }, () => ({ armourDie: unitForm.armourDie })),
+            // Exactly as many as were entered. `Math.max(1, ...)` put a figure in a squad nobody had
+            // counted, and through the armour select that figure came with a die as well.
+            figures: Array.from({ length: unitForm.figures }, () => ({ armourDie: unitForm.armourDie })),
             weapons: [{
               name: unitForm.weaponName,
               impactDie: unitForm.impactDie,
@@ -825,6 +873,7 @@ function FirePanel({
       <label title="From your own rules, off how many figures are actually shooting. The app ships no firepower table.">
         Firepower
         <select value={shot.firepowerDie} onChange={(event) => onChange({ firepowerDie: Number(event.target.value) })}>
+          <option value={unentered}>Not entered</option>
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
         </select>
       </label>
@@ -846,9 +895,9 @@ function FirePanel({
         Range
         <input
           type="number"
-          min="1"
+          min="0"
           value={shot.distanceInches}
-          onChange={(event) => onChange({ distanceInches: wholeNumberFrom(event.target.value, 1, 1, 999) })}
+          onChange={(event) => onChange({ distanceInches: wholeNumberFrom(event.target.value, 0, 0, 999) })}
         />
       </label>
       <label>
@@ -894,12 +943,14 @@ function AddUnitPanel({
       <label>
         Quality
         <select value={form.qualityDie} onChange={(event) => onChange({ qualityDie: Number(event.target.value) })}>
+          <option value={unentered}>Not entered</option>
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
         </select>
       </label>
       <label title="Leadership Value from your record card: 1 to 3, and 1 is the best.">
         Leadership
         <select value={form.leadershipValue} onChange={(event) => onChange({ leadershipValue: Number(event.target.value) })}>
+          <option value={unentered}>Not entered</option>
           {[1, 2, 3].map((value) => <option key={value} value={value}>{value}{value === 1 ? ' (best)' : ''}</option>)}
         </select>
       </label>
@@ -907,15 +958,16 @@ function AddUnitPanel({
         Figures
         <input
           type="number"
-          min="1"
+          min="0"
           max="20"
           value={form.figures}
-          onChange={(event) => onChange({ figures: wholeNumberFrom(event.target.value, 1, 1, 20) })}
+          onChange={(event) => onChange({ figures: wholeNumberFrom(event.target.value, 0, 0, 20) })}
         />
       </label>
       <label>
         Armour
         <select value={form.armourDie} onChange={(event) => onChange({ armourDie: Number(event.target.value) })}>
+          <option value={unentered}>Not entered</option>
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
         </select>
       </label>
@@ -938,6 +990,7 @@ function AddUnitPanel({
       <label>
         Impact
         <select value={form.impactDie} onChange={(event) => onChange({ impactDie: Number(event.target.value) })}>
+          <option value={unentered}>Not entered</option>
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
         </select>
       </label>
