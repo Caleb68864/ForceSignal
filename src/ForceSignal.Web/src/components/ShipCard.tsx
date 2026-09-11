@@ -555,12 +555,19 @@ export function FiringConsole({
 }
 export function CourseCompass({
   currentCourse,
+  currentVelocity,
   thrustRating,
   draft,
   canEdit,
   onDraftChange,
 }: {
   currentCourse: number;
+  /**
+   * What the ship is doing now, which is half of what the turn limit depends on: a ship at rest
+   * that is not accelerating rotates to any heading for free. Without it this compass drew its
+   * limits at half thrust around a stationary ship and the helm could not plot a legal rotation.
+   */
+  currentVelocity: number;
   thrustRating: number;
   draft: DraftOrder;
   canEdit: boolean;
@@ -570,7 +577,7 @@ export function CourseCompass({
   const courses = Array.from({ length: 12 }, (_, index) => index + 1);
   const currentAngle = courseAngle(currentCourse);
   const selectedAngle = courseAngle(selectedCourse);
-  const maxTurn = maxLegalTurn(thrustRating, draft.velocityDelta);
+  const maxTurn = maxLegalTurn(thrustRating, draft.velocityDelta, currentVelocity);
   const turnTotal = totalTurnSteps(draft);
 
   function updateFromPointer(event: PointerEvent<HTMLDivElement>) {

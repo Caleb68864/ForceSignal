@@ -334,7 +334,7 @@ export function PlayMap({
 
     const targetCourse = courseFromTablePoint(shipToPlot, point.x, point.y);
     const draft = draftFor(shipToPlot.id, drafts);
-    const maxTurn = maxLegalTurn(usableThrust(shipToPlot), draft.velocityDelta);
+    const maxTurn = maxLegalTurn(usableThrust(shipToPlot), draft.velocityDelta, shipToPlot.currentVelocity);
     const plannedCourse = previewCourse(shipToPlot.currentCourse, draft);
     const remainingTurns = Math.max(0, maxTurn - totalTurnSteps(draft));
 

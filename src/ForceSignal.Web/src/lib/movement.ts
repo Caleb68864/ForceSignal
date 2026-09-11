@@ -75,7 +75,27 @@ export function previewCourse(currentCourse: number, draft: DraftOrder) {
 export function usableThrust(ship: Pick<Ship, 'thrustRating' | 'driveDamage'>) {
   return Math.max(0, ship.thrustRating - ship.driveDamage);
 }
-export function maxLegalTurn(thrustRating: number, velocityDelta: number) {
+/**
+ * Most turn steps the helm may still plot, given what the ship is doing.
+ *
+ * `currentVelocity` is not decoration and is not optional. A ship at rest that is not accelerating
+ * rotates on the spot to any heading, spending no thrust and ignoring the half-thrust cap - the
+ * resolver carves that out by name in `FullThrustLightCinematicRules.MaxTurnSteps` and again in its
+ * `Validate`, and this file had no copy of it. So the compass drew PORT/STARBOARD LIMIT at
+ * ceil(thrust/2) around a stationary ship, `clampDraftForShip` trimmed the manoeuvre back down, and
+ * the map answered "has no turn points left" to a rotation the server would have accepted. With
+ * `defaultShipForm.currentVelocity` now opening at zero, that is the state every ship is created in.
+ *
+ * The velocity is a required parameter rather than one defaulting to something, because a caller
+ * that does not know the ship's velocity cannot answer this question and should not be able to
+ * compile as though it had. `turnLimitCases.json` holds this function and the resolver to each
+ * other across the language boundary.
+ */
+export function maxLegalTurn(thrustRating: number, velocityDelta: number, currentVelocity: number) {
+  if (currentVelocity === 0 && velocityDelta === 0) {
+    return 12;
+  }
+
   const remainingThrust = Math.max(0, thrustRating - Math.abs(velocityDelta));
   return Math.min(Math.ceil(thrustRating / 2), remainingThrust);
 }
@@ -118,9 +138,9 @@ export function toOrder(draft: DraftOrder) {
     turnManeuvers: maneuvers,
   };
 }
-export function clampDraftForShip(thrustRating: number, draft: DraftOrder): DraftOrder {
+export function clampDraftForShip(thrustRating: number, draft: DraftOrder, currentVelocity: number): DraftOrder {
   const velocityDelta = Math.max(-thrustRating, Math.min(thrustRating, draft.velocityDelta));
-  const maxTurn = maxLegalTurn(thrustRating, velocityDelta);
+  const maxTurn = maxLegalTurn(thrustRating, velocityDelta, currentVelocity);
   const maneuvers = clampTurnManeuvers(turnManeuversForDraft(draft), maxTurn);
   const turnSteps = maneuvers.reduce((sum, maneuver) => sum + maneuver.steps, 0);
   const directions = new Set(maneuvers.map((maneuver) => maneuver.direction));
