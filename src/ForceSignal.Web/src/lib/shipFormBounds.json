@@ -1,0 +1,33 @@
+{
+  "what": "The bounds the new-ship form types within, and the clamps the service applies, held to each other.",
+  "why": [
+    "These are shape bounds rather than rules numbers - they bound what can be typed rather than",
+    "stating what a ship is - and docs/roadmap.md places them outside the content-policy render",
+    "guard deliberately, with that reason written down. What was missing is the other half of the",
+    "argument: each of them is written twice, once as a min/max on an input in ShipCard.tsx and once",
+    "as a Math.Clamp in the service, in two languages, with nothing holding the pair together.",
+    "",
+    "A form whose max drifts above the service's clamp lets a player type a number that is silently",
+    "discarded on the way in. A form whose max drifts below it refuses a value the engine would have",
+    "accepted - which is the shape that made a stationary ship unturnable.",
+    "",
+    "So the numbers live here once. shipFormBounds.test.tsx reads them off the rendered inputs and",
+    "ShipFormBoundsParityTests drives the service through CreateShip and reads the snapshot back.",
+    "",
+    "Fire control's 6 is the one worth a sentence, because it is tighter than every neighbour and",
+    "sits in the range a rules number would. It is not one: no RulesProfile field carries it, the",
+    "profile editor has no cell for it, and fire control in this game is limited by what a hull can",
+    "carry rather than by a flat ceiling. It is recorded here as a shape bound so that the next",
+    "reader does not have to re-derive that, and so that if it is ever found to be a rulebook number",
+    "in disguise - as the screen ceiling of 3 was - there is one place to change."
+  ],
+  "bounds": [
+    { "field": "hullMax", "label": "Hull boxes", "min": 1, "max": 80, "why": "a ship of no boxes is not a ship, so this one floors at 1 rather than at unentered" },
+    { "field": "armorMax", "label": "Armor boxes", "min": 0, "max": 40, "why": "shape bound" },
+    { "field": "fireControlMax", "label": "Firecons", "min": 0, "max": 6, "why": "shape bound, not a rules ceiling: no profile field carries it and the game limits fire control by hull rather than by a flat number" },
+    { "field": "pointDefenseSystems", "label": "Point defence", "min": 0, "max": 12, "why": "shape bound" },
+    { "field": "fighterBays", "label": "Fighter bays", "min": 0, "max": 12, "why": "shape bound" },
+    { "field": "damageControlParties", "label": "Damage control", "min": 0, "max": 12, "why": "shape bound" },
+    { "field": "pointsValue", "label": "Points (NPV)", "min": 0, "max": 99999, "why": "shape bound on a number off the player's own design sheet" }
+  ]
+}

@@ -1651,7 +1651,7 @@ function App() {
                 const isFocused = mapFocusShipId === ship.id || (!mapFocusShipId && canEdit && ownedShips[0]?.id === ship.id);
                 const showShipControls = canEdit && (isFocused || isEditing);
                 const shipThrust = usableThrust(ship);
-                const maxTurn = maxLegalTurn(shipThrust, draft.velocityDelta);
+                const maxTurn = maxLegalTurn(shipThrust, draft.velocityDelta, ship.currentVelocity);
                 const firingDraft = firingDraftFor(ship, snapshot.ships, firingDrafts, ownedShipIds);
                 return (
                   <article className={['ship-card', isFocused ? 'focused' : '', showShipControls ? '' : 'compact'].join(' ')} key={ship.id}>
@@ -1737,6 +1737,7 @@ function App() {
                         <span className="label">Helm</span>
                         <CourseCompass
                           currentCourse={ship.currentCourse}
+                          currentVelocity={ship.currentVelocity}
                           thrustRating={shipThrust}
                           draft={draft}
                           canEdit={canEdit}
@@ -1754,8 +1755,8 @@ function App() {
                           </p>
                           <div className="quick-actions">
                             <button className="ghost" type="button" onClick={() => updateDraft(ship.id, resetOrderDraft(draft))}>Drift</button>
-                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: shipThrust }))}>Max Accel</button>
-                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: -shipThrust }))}>Max Decel</button>
+                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: shipThrust }, ship.currentVelocity))}>Max Accel</button>
+                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: -shipThrust }, ship.currentVelocity))}>Max Decel</button>
                             <button className="ghost" type="button" onClick={() => applyOrderToOwnedFleet(ship.id)}>Copy Fleet</button>
                           </div>
                           <label>
@@ -1766,7 +1767,7 @@ function App() {
                               onChange={(event) => updateDraft(ship.id, clampDraftForShip(shipThrust, {
                                 ...draft,
                                 velocityDelta: Number(event.target.value),
-                              }))}
+                              }, ship.currentVelocity))}
                             />
                           </label>
                           <label>
@@ -1783,7 +1784,7 @@ function App() {
                                 turnManeuvers: Number(event.target.value) > 0
                                   ? [{ direction: draft.turnDirection === 'None' ? 'Starboard' : draft.turnDirection, steps: Number(event.target.value) }]
                                   : [],
-                              }))}
+                              }, ship.currentVelocity))}
                             />
                           </label>
                           <label>
@@ -1796,7 +1797,7 @@ function App() {
                                 turnManeuvers: event.target.value === 'None' || totalTurnSteps(draft) === 0
                                   ? []
                                   : [{ direction: event.target.value as Exclude<TurnDirection, 'None'>, steps: totalTurnSteps(draft) }],
-                              }))}
+                              }, ship.currentVelocity))}
                             >
                               <option>None</option>
                               <option>Port</option>

@@ -52,6 +52,37 @@ public sealed class GroundWireVocabularyTests
         AssertSameWords(Enum.GetNames<ChitSpecial>(), DirtsideWire.ChitSpecials);
 
     [Fact]
+    public void ValueScales_AreExactlyTheWaysAChitCanBeCounted() =>
+        AssertSameWords(Enum.GetNames<ChitValueScale>(), DirtsideWire.ValueScales);
+
+    /// <summary>
+    /// The colour sets a screen offers, held to the enum they are parsed against.
+    /// </summary>
+    /// <remarks>
+    /// A subset rather than an equality, and deliberately: <c>ChitColours</c> is a <c>[Flags]</c>
+    /// enum, so it also carries <c>None</c> and every pair, and the screens offer the four
+    /// single-word spellings a player picks from. What must hold is that nothing offered is a word
+    /// the parser would throw on - an equality here would fail today and would be asserting a UI
+    /// decision that has not been made. The unoffered values are recorded as an open item rather
+    /// than closed by a test that pretends otherwise.
+    /// </remarks>
+    [Fact]
+    public void ChitColourSets_AreAllWordsTheEngineWouldAccept()
+    {
+        var known = Enum.GetNames<ChitColours>();
+
+        // Reached-the-subject: the wire array is really populated, so the walk below is not over an
+        // empty list - which would pass while proving nothing.
+        Assert.NotEmpty(DirtsideWire.ChitColourSets);
+
+        foreach (var offered in DirtsideWire.ChitColourSets)
+        {
+            Assert.Contains(offered, known);
+            Assert.True(Enum.TryParse<ChitColours>(offered, ignoreCase: true, out _), $"'{offered}' is offered and does not parse");
+        }
+    }
+
+    [Fact]
     public void Ladder_IsTheFaceCountsOfTheSameQualityDice()
     {
         // StarGrunt sends dice as face counts rather than names, so this is the same ladder read as

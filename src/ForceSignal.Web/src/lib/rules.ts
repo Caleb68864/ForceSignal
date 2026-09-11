@@ -10,7 +10,7 @@
 import { arcAbbreviations, arcLabels, firableArcs } from '../constants.ts';
 import { distanceBetweenShips } from './geometry.ts';
 import { normalizeOrdnanceStatus, normalizeShipIconKey } from './normalize.ts';
-import type { DamageState, FiringArc, FiringDraft, MatchSnapshot, RulesProfile, Ship, ShipForm } from '../types.ts';
+import type { DamageState, FiringArc, FiringDraft, FiringSolution, MatchSnapshot, RulesProfile, Ship, ShipForm } from '../types.ts';
 
 export function arcLabel(arc: FiringArc) {
   return arcLabels[arc] ?? arc;
@@ -89,6 +89,49 @@ export function damageControlNote(rules?: RulesProfile): string {
   const odds = repairOddsNote(rules);
   const opening = 'Damage control parties. Between turns they roll to bring back systems lost to a threshold check';
   return odds ? `${opening}: ${odds.charAt(0).toLowerCase()}${odds.slice(1)}` : `${opening}, on the numbers in your profile.`;
+}
+
+/**
+ * The attacker's own numbers, as the bearing readout states them.
+ *
+ * The firing solution carries three of these and the console showed one. `workingFireControl` was
+ * rendered as "2 firecons" and `engagedTargetCount` and `targetScreens` - computed on the server in
+ * the same breath, put on the wire, and declared on `FiringSolution` - were read by nothing in
+ * either screen.
+ *
+ * The fire control pair is the one that costs a player something. A ship may direct one target per
+ * working fire control system, and `PrepareShot` refuses past it in as many words: *"has 2 working
+ * fire control systems and is already engaging X and Y"*. So the console was showing the capacity
+ * and hiding the usage, and the only way to discover a firecon was spent was to pick a target and
+ * be refused - which is the thing `IsValid`/`Errors` were wired for on the plotting side.
+ *
+ * Screens are the other half of judging a shot: what the target still generates after damage, which
+ * is not the rating it was built with. It is said only once a target is picked, because with no
+ * target the server sends zero and "unscreened" would be a statement about nobody.
+ *
+ * Lives here rather than in either screen because the bearing readout is written out twice, in
+ * `ShipCard` and in `PlayMap`, and a third copy of a rules-shaped sentence is how this repository
+ * has acquired every one of its drifts.
+ */
+export function firingReadoutNotes(solution: FiringSolution | null | undefined): string[] {
+  if (!solution) {
+    return [];
+  }
+
+  const firecons = solution.workingFireControl;
+  const engaged = solution.engagedTargetCount;
+  const notes = [
+    `${firecons} firecon${firecons === 1 ? '' : 's'}`
+    + (engaged > 0 ? `, ${engaged} engaged` : ''),
+  ];
+
+  if (solution.targetShipId) {
+    notes.push(solution.targetScreens > 0
+      ? `target screens ${solution.targetScreens}`
+      : 'target unscreened');
+  }
+
+  return notes;
 }
 
 /** What a needle beam does to the system it is aimed at, or null while the profile does not say. */

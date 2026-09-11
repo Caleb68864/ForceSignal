@@ -113,6 +113,17 @@ export const newAssaultForm = {
   // a D6 regardless, so a table whose chart is written for a D10 had its top band made unreachable.
   fateDie: 0,
   defendersInCover: true,
+  // Whether the men on each side are in power armour, which doubles a melee score after the roll.
+  // The contract carried these, `StarGruntGameService` passed them, and `CloseAssault.Fight`
+  // applies them - and this screen, the only caller of `fightMelee` anywhere, sent a literal false
+  // for both. So a table fielding power-armoured troopers fought every melee at half strength and
+  // nothing on screen said the option existed.
+  //
+  // False is the right opening value and is not a content-policy default: it is "these men are not
+  // in power armour", which is a fact about the figures on the table rather than a number off
+  // anybody's card - the same argument `defendersInCover` and `terror` already make.
+  attackerPowerArmour: false,
+  defenderPowerArmour: false,
 };
 
 /**
@@ -535,6 +546,22 @@ export function StarGruntView() {
                 onChange={(event) => setAssault((current) => ({ ...current, defendersInCover: event.target.checked }))}
               />
             </label>
+            <label title="Power armour doubles a figure's score after the roll rather than shifting the die before it.">
+              Attackers in power armour
+              <input
+                type="checkbox"
+                checked={assault.attackerPowerArmour}
+                onChange={(event) => setAssault((current) => ({ ...current, attackerPowerArmour: event.target.checked }))}
+              />
+            </label>
+            <label title="Power armour doubles a figure's score after the roll rather than shifting the die before it.">
+              Defenders in power armour
+              <input
+                type="checkbox"
+                checked={assault.defenderPowerArmour}
+                onChange={(event) => setAssault((current) => ({ ...current, defenderPowerArmour: event.target.checked }))}
+              />
+            </label>
             <div className="quick-actions">
               <button
                 type="button"
@@ -568,8 +595,8 @@ export function StarGruntView() {
                     pairings: Array.from({ length: Math.max(1, assault.pairs) }, () => ({
                       attackerShift: assault.attackerShift,
                       defenderShift: assault.defenderShift,
-                      attackerPowerArmour: false,
-                      defenderPowerArmour: false,
+                      attackerPowerArmour: assault.attackerPowerArmour,
+                      defenderPowerArmour: assault.defenderPowerArmour,
                     })),
                     defendersInCover: assault.defendersInCover,
                   }),

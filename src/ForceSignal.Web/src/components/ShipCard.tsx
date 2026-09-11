@@ -10,7 +10,7 @@ import { numberFrom, wholeNumberFrom } from '../lib/format.ts';
 import { courseAngle, courseFromPoint, distanceBetweenShips, wrapCourse } from '../lib/geometry.ts';
 import { formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, turnPatchForCourse, turnPatchFromManeuvers } from '../lib/movement.ts';
 import { normalizeShipIconKey } from '../lib/normalize.ts';
-import { arcLabel, buildPreTurnChecklist, damageControlNote, describeArcs, firingTargetOptions, isFighterGroupForm, needleSystemNote, partiesPerJobCap, pointDefenceNote, repairOddsNote } from '../lib/rules.ts';
+import { arcLabel, buildPreTurnChecklist, damageControlNote, describeArcs, firingReadoutNotes, firingTargetOptions, isFighterGroupForm, needleSystemNote, partiesPerJobCap, pointDefenceNote, repairOddsNote } from '../lib/rules.ts';
 import { useFiringSolution } from '../lib/useFiringSolution.ts';
 import { newWeaponMount, updateWeapon } from '../lib/weapons.ts';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, FiringSolution, MatchSnapshot, RepairJob, RulesProfile, Ship, ShipForm, ShipIconKey, TurnDirection, WeaponKind } from '../types.ts';
@@ -496,7 +496,7 @@ export function FiringConsole({
         <span className="label">Bearing</span>
         <strong>{solution?.targetArc ?? 'no target'}</strong>
         <small>{weapon ? describeArcs(weapon.arcs) : 'no mount'}</small>
-        <small>{solution ? `${solution.workingFireControl} firecon${solution.workingFireControl === 1 ? '' : 's'}` : ''}</small>
+        {firingReadoutNotes(solution).map((note) => <small key={note}>{note}</small>)}
         {solution?.toHitNumber ? <small>needs {solution.toHitNumber}+ to hit</small> : null}
         {weapon?.kind === 'NeedleBeam' && needleSystemNote(rules) ? <small>{needleSystemNote(rules)}</small> : null}
       </div>
@@ -555,12 +555,19 @@ export function FiringConsole({
 }
 export function CourseCompass({
   currentCourse,
+  currentVelocity,
   thrustRating,
   draft,
   canEdit,
   onDraftChange,
 }: {
   currentCourse: number;
+  /**
+   * What the ship is doing now, which is half of what the turn limit depends on: a ship at rest
+   * that is not accelerating rotates to any heading for free. Without it this compass drew its
+   * limits at half thrust around a stationary ship and the helm could not plot a legal rotation.
+   */
+  currentVelocity: number;
   thrustRating: number;
   draft: DraftOrder;
   canEdit: boolean;
@@ -570,7 +577,7 @@ export function CourseCompass({
   const courses = Array.from({ length: 12 }, (_, index) => index + 1);
   const currentAngle = courseAngle(currentCourse);
   const selectedAngle = courseAngle(selectedCourse);
-  const maxTurn = maxLegalTurn(thrustRating, draft.velocityDelta);
+  const maxTurn = maxLegalTurn(thrustRating, draft.velocityDelta, currentVelocity);
   const turnTotal = totalTurnSteps(draft);
 
   function updateFromPointer(event: PointerEvent<HTMLDivElement>) {

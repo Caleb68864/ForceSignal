@@ -7,9 +7,11 @@ import { StarGruntView } from './StarGruntView.tsx';
 
 const readGame = vi.fn<(game: GameHandle) => Promise<StarGruntSnapshot>>();
 const addUnit = vi.fn<(game: GameHandle, unit: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
+const fightMelee = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
 vi.mock('../../lib/starGruntApi.ts', () => ({
   readGame: (game: GameHandle) => readGame(game),
   addUnit: (game: GameHandle, unit: Record<string, unknown>) => addUnit(game, unit),
+  fightMelee: (game: GameHandle, request: Record<string, unknown>) => fightMelee(game, request),
 }));
 
 const handle: GameHandle = { gameId: 'game-1', token: 'token-1' };
@@ -160,5 +162,75 @@ describe('StarGrunt add-a-squad panel', () => {
     expect(posted.leadershipValue).toBe(1);
     expect(posted.figures).toEqual(Array.from({ length: 5 }, () => ({ armourDie: 4 })));
     expect((posted.weapons as { impactDie: number }[])[0].impactDie).toBe(10);
+  });
+});
+
+/**
+ * The melee the engine can fight, as this screen is able to ask for it.
+ *
+ * `CloseAssault.Fight` doubles a figure's score for power armour, `Combatant` carries the flag,
+ * `StarGruntGameService` passes it and `MeleePairingDto` puts it on the wire - and this screen, the
+ * only caller of `fightMelee` in the app, sent a literal `false` for both sides with no control
+ * anywhere to change it. A table fielding power-armoured troopers fought every melee at half
+ * strength and nothing said the option existed.
+ *
+ * There was no workaround either, unlike the support-weapon flags beside it: the pairings are built
+ * in the component at click time from form state that had no armour field, so no imported force
+ * file could reach them.
+ */
+describe('StarGrunt close assault', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    fightMelee.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  /** Two units with one of them activated, which is what puts the assault panel on screen. */
+  function assaultSnapshot(): StarGruntSnapshot {
+    const snapshot = snapshotFrom(`${wholeUnit},${wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "bravo", "name": "Bravo Squad", "side": "red"')}`);
+    return { ...snapshot, activatingUnitId: 'alpha' };
+  }
+
+  async function openAssault() {
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue(assaultSnapshot());
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+  }
+
+  it('sends the power armour the table said its men are wearing', async () => {
+    await openAssault();
+    fightMelee.mockResolvedValue(assaultSnapshot());
+
+    // Reached-the-subject: the assault panel really rendered, so the checkboxes below are the
+    // real ones and Fight Round is on a live activation rather than absent.
+    const fightRound = screen.getByRole('button', { name: 'Fight Round' });
+    expect(fightRound).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('Attackers in power armour'));
+    fireEvent.click(screen.getByLabelText('Defenders in power armour'));
+    fireEvent.click(fightRound);
+
+    expect(await screen.findByText('A round of melee was fought.')).toBeTruthy();
+    const sent = fightMelee.mock.calls[0][1] as { pairings: { attackerPowerArmour: boolean; defenderPowerArmour: boolean }[] };
+    expect(sent.pairings[0].attackerPowerArmour).toBe(true);
+    expect(sent.pairings[0].defenderPowerArmour).toBe(true);
+  });
+
+  it('sends false when the table did not say so, which is the ordinary case', async () => {
+    // The control that must be accepted. A screen that sent `true` unconditionally would pass the
+    // test above and be exactly as wrong, in the other direction - and this flag is a fact about
+    // the figures on the table, so inventing either answer is the defect.
+    await openAssault();
+    fightMelee.mockResolvedValue(assaultSnapshot());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fight Round' }));
+
+    expect(await screen.findByText('A round of melee was fought.')).toBeTruthy();
+    const sent = fightMelee.mock.calls[0][1] as { pairings: { attackerPowerArmour: boolean; defenderPowerArmour: boolean }[] };
+    expect(sent.pairings[0].attackerPowerArmour).toBe(false);
+    expect(sent.pairings[0].defenderPowerArmour).toBe(false);
   });
 });

@@ -1,14 +1,11 @@
 namespace ForceSignal.Domain.Rules;
 
-/// <summary>Which way a fighter group is crossing the deck.</summary>
-public enum CarrierOperation
-{
-    /// <summary>The group is leaving the ship.</summary>
-    Launch,
-
-    /// <summary>The group is coming aboard.</summary>
-    Recovery
-}
+// `CarrierOperation` - a two-member enum for which way a group is crossing the deck - was declared
+// here and reached by nothing: no property was ever typed with it, nothing constructed one, and no
+// test named it. The distinction it was for is carried by the `bool isLaunch` that
+// `ResolveCarrierOperation` already takes, so the enum was a second spelling of a decision that had
+// already been made elsewhere. Removed rather than wired, because there is nothing to wire it to:
+// its would-be caller is complete without it. Same judgement as `DirtsideBoard.RemoveElement`.
 
 /// <summary>
 /// What a carrier is allowed to do with its bays this turn under one rules layer.

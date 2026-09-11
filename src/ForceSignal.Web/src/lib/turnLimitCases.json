@@ -1,0 +1,28 @@
+{
+  "what": "Turn-limit cases, held by both languages so the helm and the resolver cannot drift.",
+  "why": [
+    "The client re-implements the resolver's turn ceiling because a compass has to be drawn before",
+    "any round trip returns. That second implementation is allowed to exist only because this file",
+    "holds it to the first: `movement.test.ts` runs every case against `maxLegalTurn`, and",
+    "`TurnLimitParityTests` runs the same cases against FullThrustLightCinematicRules.MaxTurnSteps.",
+    "Change either implementation and one of the two suites goes red.",
+    "",
+    "The case that made this file necessary: a ship at rest that is not accelerating rotates to any",
+    "heading for free. The resolver carved that out by name in MaxTurnSteps and again in Validate;",
+    "the client had no copy, so the compass capped a stationary ship at half thrust and the map",
+    "refused the rotation with 'has no turn points left'."
+  ],
+  "cases": [
+    { "name": "under way, no velocity change, even thrust", "currentVelocity": 8, "thrustRating": 6, "velocityDelta": 0, "maxTurnSteps": 3 },
+    { "name": "under way, no velocity change, odd thrust rounds up", "currentVelocity": 8, "thrustRating": 5, "velocityDelta": 0, "maxTurnSteps": 3 },
+    { "name": "under way, accelerating, thrust binds before the half-thrust cap", "currentVelocity": 8, "thrustRating": 6, "velocityDelta": 4, "maxTurnSteps": 2 },
+    { "name": "under way, all thrust spent on acceleration", "currentVelocity": 8, "thrustRating": 4, "velocityDelta": 4, "maxTurnSteps": 0 },
+    { "name": "under way, more acceleration than thrust never goes below zero", "currentVelocity": 8, "thrustRating": 4, "velocityDelta": 9, "maxTurnSteps": 0 },
+    { "name": "under way, decelerating, the sign does not matter", "currentVelocity": 8, "thrustRating": 6, "velocityDelta": -4, "maxTurnSteps": 2 },
+    { "name": "under way with no thrust cannot turn", "currentVelocity": 8, "thrustRating": 0, "velocityDelta": 0, "maxTurnSteps": 0 },
+    { "name": "at rest and not accelerating rotates a full circle", "currentVelocity": 0, "thrustRating": 4, "velocityDelta": 0, "maxTurnSteps": 12 },
+    { "name": "at rest with no thrust entered still rotates - the state every new ship is created in", "currentVelocity": 0, "thrustRating": 0, "velocityDelta": 0, "maxTurnSteps": 12 },
+    { "name": "at rest but accelerating is an ordinary move again", "currentVelocity": 0, "thrustRating": 4, "velocityDelta": 2, "maxTurnSteps": 2 },
+    { "name": "at rest but accelerating hard spends the thrust", "currentVelocity": 0, "thrustRating": 4, "velocityDelta": 4, "maxTurnSteps": 0 }
+  ]
+}

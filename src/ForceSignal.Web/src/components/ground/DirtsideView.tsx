@@ -6,10 +6,10 @@ import type { ChitPotDraft } from '../../lib/chitPot.ts';
 import { chitPotSummary, emptyChitPotDraft, toChitPotInput } from '../../lib/chitPot.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 // The words the API accepts, not this screen's idea of them. See groundVocabulary.ts.
-import { bands, chitColours, chitSpecials, fireControls, qualityDice } from '../../lib/groundVocabulary.ts';
+import { bands, chitColours, chitColourSets, chitSpecials, fireControls, qualityDice } from '../../lib/groundVocabulary.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
-import { chitColourSets, DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
+import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
 function optionalWholeNumber(text: string, min: number, max: number) {
