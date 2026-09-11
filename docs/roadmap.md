@@ -562,6 +562,106 @@ worth keeping:
 Proven by planting a real production import of the icon module and watching the
 guard turn red where it had previously left eleven tests green.
 
+## Closed 2026-09-11 (W3 — reconciling scan 2's last three open rows)
+
+*Branch `fix/w3-reconcile-and-finish`, nine commits on top of `95b289d`. Baseline coming out:
+`dotnet build` clean with warnings-as-errors, **1444** .NET tests across 8 projects, **275** web tests,
+`tsc --noEmit` and `eslint` clean, both gate scripts passing, and `scripts/two-player-smoke.py` run
+locally against a dev pair with zero problems. Going in it was 1423 .NET and 262 web.*
+
+The cross-project roadmap still listed three grouped rows from scan 2 as open: `2F6-2F13`,
+`2F19-2F23` and `2F14-2F17, 2F24, 2F25`. **Each item was checked against the code before anything was
+done to it, because eight of the twenty had already shipped** in the content-policy rounds and the W2
+sweep — the same failure this file was corrected for once already, a list of open rows that were
+mostly closed. Each item below has one of three outcomes.
+
+### 2F6-2F13 — one of eight was still open
+
+| # | outcome | evidence |
+|---|---|---|
+| F6 sparse CSV import invents a stat block | **already done** | `41f07b8`. `normalizeFleetExportShip` reads a missing column as `unentered`, from a constant rather than from the form. |
+| F7 fighter endurance 6, reach 24, salvo reach 24 | **already done** | `4883420`. All four sites now clamp from zero, and the salvo refusal only fires against a reach the player entered. |
+| F8 `Class-2 Beam` guard is a blacklist of one string | **already done** | `41f07b8`. A rule about shape — the placeholder carries no digit — which the `Class-3 Beam` mutation fails. |
+| F9 `forceFormatVersion` asserted against itself | **already done** | `999f646`. A literal `1` plus a hand-kept v1 fixture. |
+| F10 four ordnance ceilings diverged 1.67-2x | **still open — fixed** | `9ff783c`, below. |
+| F11 settings without `chitPot` swaps the pot for the guess | **wrong as written, now** | `WriteSettings` always writes the pot, the built-in one included and flagged, so no row this service writes lacks one. A foreign or hand-edited row still falls back, flagged as the guess — which the scan itself checked in both directions and judged sound. `fdffb7d` separately made a *mis-shaped* blob cost only the settings. |
+| F12 an import with no weapons is handed Rifles | **already done** | `3ec09aa`. The file is refused with every gap named. |
+| F13 ship card states four player-owned numbers | **already done** | `b3b74f7`. |
+
+### 2F19-2F23 — three of five were still open
+
+| # | outcome | evidence |
+|---|---|---|
+| F19 power armour hardcoded `false` | **already done** | `42c237d`, two checkboxes. |
+| F20 transient reload error strands the Dirtside screen | **still open — fixed** | `8b71188`, below. |
+| F21 a ground vocabulary lives in a `.tsx` | **already done** | `20c23f6`. Both lists are in `groundVocabulary.ts` and the gate compares them. |
+| F22 a background failure overwrites the refusal | **still open — fixed** | `8b71188`, below. |
+| F23 README is PowerShell only | **still open — fixed** | `0195755`, below. |
+
+### 2F14-2F17, 2F24, 2F25 — all six were still open
+
+| # | outcome | evidence |
+|---|---|---|
+| F14 a CI check returns on its first line | **still open — fixed** | `c1a50b4`. |
+| F15 the two `/status` literals contradict `/ready` | **still open — fixed by removal** | `bd91b3c`, together with the separate F15 removal row. |
+| F16 unused `configuration` from the forbidden source | **still open — fixed** | `c1a50b4`. |
+| F17 legacy arc hyphen stripped on the server only | **still open — fixed** | `b67a404`. |
+| F24 accessibility regression in the Dirtside screens | **still open — mostly fixed** | `9129e95`. Two parts left, below. |
+| F25 three copies of "a match becomes live" | **still open — fixed** | `edb080a`. |
+
+### What landed
+
+- [x] **Four ordnance ceilings had drifted, all wider than the server's** (F10). The client allowed
+      120 / 48 / 48 / 240 where the service clamps 72 / 24 / 24 / 120, so a restored snapshot drew a
+      48-dice salvo the server halved the moment anything touched it. `ordnanceBounds.json` holds
+      them once; `ordnanceBounds.test.ts` reads them back through `normalizeMatchSnapshot` and
+      `OrdnanceBoundsParityTests` drives both create and update, since changing one of the server's
+      three copies is the dullest way past a guard written against create alone.
+- [x] **A hyphenated arc name meant two mounts** (F17). `Fore-Port` resolved to ForePort on the
+      server and fell back to Fore on screen. `legacyArcCases.json` holds thirteen spellings for both
+      languages, including that the blind spot is never produced, that an explicit arc list still
+      wins, and that `Fore/Port` falls back rather than being guessed at.
+- [x] **The two `/status` routes are gone** (F15, and the −6 F15 removal row). Compile-time literals
+      whose only provable fact was that the flag was on — which `/api/features` answers from the
+      same `FeatureFlags` instance — and whose `"playable"` had already drifted from `/ready`'s own
+      Dirtside warning. The three test files probe the create route now. The removal is asserted
+      with the flag **on**, because a 404 with it off proves nothing.
+- [x] **The deployment gate says which checks ran** (F14). The overlay check is kept, since the
+      overlay will be added again, but the gate now prints `5 of 6 ran` and names the one that had
+      nothing to examine. Controls: an overlay copied from `appsettings.json` exits 1, a real one
+      exits 0 with 6 of 6.
+- [x] **`ReadDeploymentWarnings` no longer takes an `IConfiguration`** (F16). It never read it, and
+      the call site passed the pre-build configuration this file warns about twice.
+- [x] **One `Register` against one `Forget`** (F25). `CreateMatch`, `LoadPersistedMatches` and
+      `RestoreMatch` each wrote the four registration steps by hand and `CreateMatch` skipped
+      `IndexMatch`. Harmless there; also the rule becoming "four steps, except when it is three".
+      `MatchRegistrationTests` holds all three entrances to the same four properties; dropping
+      `IndexMatch` reddens the two with something to index, dropping `Persist` reddens all three.
+- [x] **The Dirtside reopen offers Try Again** (F20). A 500 on reload used to leave a disabled
+      "Reopening last game..." and one live control, Forget Last Game. The handle is kept and a
+      retry re-runs the effect; a 404 is still forgotten and gets no retry.
+- [x] **A background refresh failure goes to the activity line** (F22). The success path had been
+      fixed for exactly this reason and the failure path had not. An expired session still takes
+      the message line, because that is the session ending rather than a report.
+- [x] **The Dirtside screens name what each button acts on** (F24). Per-element Move, Stand down,
+      Sensors, Recover systems and Aim, each platoon's Activate and each chit row's Remove carry
+      the name in their accessible label. Refusals that lived only in a `title` on a disabled
+      button are rendered as text, and the assault round is a live region.
+- [x] **The README runs on the machine CI runs on** (F23). Prerequisites with the Node 22.4 reason,
+      `pwsh ./scripts/verify.ps1`, `dotnet test` / `npm test` / `npm run lint`, and POSIX blocks.
+
+Every fix above carries a control that had to fail before the fix, and each guard a control that had
+to be accepted after it.
+
+### Deliberately left
+
+- **Two parts of F24.** Focus is not moved when an assault stage unmounts the form holding it, so
+  the next Tab starts at the top of the document; and there is still no `<form>` element anywhere,
+  so Enter and a tablet's Go key submit nothing. Both touch every screen's submit path and are a
+  design pass rather than a tail edit.
+- **Interception**, and **StarGrunt's band-to-rung walk** in `RangeBands.cs`. Both are the owner's —
+  see "Interception: finished up to the rules, and stopped there" and `NotYetThePlayers`.
+
 ## Closed 2026-09-11 (W2 — the half-wired sweep)
 
 *Five passes looking for unwired and half-wired things, then fixing them. Six commits on top of
@@ -922,7 +1022,9 @@ real defect worse than reported.*
   "the player's own reading of their card", which is not true while no client sends it. Left because
   interception cannot be resolved by this API at all (see the area-defence entry above), so the
   honest options are to wire the whole feature or to drop the field, and neither is a tail item.
-- `GET /api/stargrunt/status` and `GET /api/dirtside/status`: no client call, no script, no
+- ~~`GET /api/stargrunt/status` and `GET /api/dirtside/status`~~ -- **removed 2026-09-11** (W3,
+  `bd91b3c`), once a later pass was already in the three test files. Kept below as it was written:
+  no client call, no script, no
   healthcheck; the client asks `/api/features`. Used only by tests as a 200-vs-404 probe for the
   feature flag, which `/api/features` already answers. They also state engine readiness a third time
   (`"in-development"`, `"playable"`) beside `/api/features` and the `/ready` warnings, which is the
