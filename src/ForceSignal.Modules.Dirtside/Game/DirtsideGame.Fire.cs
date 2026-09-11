@@ -20,6 +20,17 @@ namespace ForceSignal.Modules.Dirtside.Game;
 /// <param name="Target">The platoon being shot at.</param>
 /// <param name="TargetElement">The element designated, before any dice.</param>
 /// <param name="MeasuredBand">The band the tape says the shot falls in.</param>
+/// <param name="TargetPosture">
+/// What the target is doing about being shot at, as this firer sees it.
+/// <para>
+/// Declared per shot, beside the measured band, and for the same reason: whether a vehicle is hull
+/// down is a statement about one line of sight rather than a property of the vehicle, and two people
+/// settle it by looking across the table. It used to live on the target's stored status, where
+/// nothing ever wrote it - so the die-shift mechanic the engine had implemented and tested was inert
+/// for every game ever played. A stored field would also have had to answer when a posture clears,
+/// and nothing on the table knows that either.
+/// </para>
+/// </param>
 /// <param name="WillMoveOverHalf">
 /// True when the element has not moved yet and means to move more than half its movement after
 /// firing. The resolver's contract is "has moved, or will move": a shot fired first is penalised
@@ -33,6 +44,7 @@ public sealed record FireCommand(
     UnitId Target,
     ElementId TargetElement,
     WeaponRangeBand MeasuredBand,
+    DefensivePosture TargetPosture = DefensivePosture.None,
     bool WillMoveOverHalf = false);
 
 public sealed partial record DirtsideGame
@@ -184,7 +196,7 @@ public sealed partial record DirtsideGame
                 target.Id.ToString(),
                 target.Signature,
                 target.ArmourValue,
-                targetStatus.Posture),
+                command.TargetPosture),
             command.MeasuredBand);
     }
 

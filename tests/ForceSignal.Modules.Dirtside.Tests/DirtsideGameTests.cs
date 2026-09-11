@@ -111,6 +111,60 @@ public sealed class DirtsideGameTests
     }
 
     [Fact]
+    public void ADeclaredPostureReachesTheDiceAndTheLogSaysSo()
+    {
+        // The mechanic that was inert. `PostureDie` had been wired into `Fire` since Dirtside had a
+        // screen, and nothing in production ever moved a target off None - there was no field on any
+        // contract to carry one - so every target in every game was in the open and the whole
+        // die-shift rule did nothing.
+        //
+        // Scripted: the target throws its signature die first, then its posture die, then the
+        // barrel. Signature 3 is a D6 in the invented tables and hull down is a D8, so a posture
+        // throw of 7 is a number the signature die could not have produced - it is the second die
+        // or it is nothing.
+        var afterPosture = GameFixtures.Activated()
+            .Fire(
+                Shot(posture: DefensivePosture.HullDown),
+                new ScriptedDice(2, 7, 6),
+                Pot(),
+                TestDieTables.Invented).Value!;
+
+        Assert.Contains(afterPosture.Log, entry => entry.Contains("best of two", StringComparison.Ordinal));
+        Assert.Contains(afterPosture.Log, entry => entry.Contains("against 7", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ATargetInTheOpenStillThrowsOneDie()
+    {
+        // The other half. A shot that declares nothing is the shot this game has always taken, and
+        // it must not have quietly acquired a second die.
+        var after = GameFixtures.Activated()
+            .Fire(Shot(), new ScriptedDice(2, 6), Pot(), TestDieTables.Invented).Value!;
+
+        Assert.DoesNotContain(after.Log, entry => entry.Contains("best of two", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void APostureTheProfileHasNoRowForRefusesTheShotWithoutSpendingIt()
+    {
+        // Posture rows are die table rows like any other, so a posture nobody has entered a die for
+        // is refused by name and costs the element nothing - the same treatment as a missing
+        // gunnery row, because it is the same kind of gap.
+        var table = GameFixtures.Activated();
+        var noTurretDown = TestDieTables.Invented with
+        {
+            PostureDice = TestDieTables.Invented.PostureDice.Remove(DefensivePosture.TurretDown),
+        };
+
+        var refused = table.Fire(
+            Shot(posture: DefensivePosture.TurretDown), new ScriptedDice(2, 7, 6), Pot(), noTurretDown);
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("TurretDown", refused.Reason!, StringComparison.Ordinal);
+        Assert.True(table.Fire(Shot(), new ScriptedDice(2, 6), Pot(), noTurretDown).IsAllowed);
+    }
+
+    [Fact]
     public void AShotThatLandsHardPutsTheTargetOutOfTheBattle()
     {
         // The target rolls first and the barrel second, so this is a 1 against an 8: a solid hit.
@@ -371,14 +425,18 @@ public sealed class DirtsideGameTests
         Assert.NotEqual(GameFixtures.TwoPlatoonGame(), GameFixtures.Activated());
     }
 
-    private static FireCommand Shot(string weapon = "Main Gun", ElementId? element = null) =>
+    private static FireCommand Shot(
+        string weapon = "Main Gun",
+        ElementId? element = null,
+        DefensivePosture posture = DefensivePosture.None) =>
         new(
             GameFixtures.Alpha,
             element ?? GameFixtures.AlphaOne,
             weapon,
             GameFixtures.Bravo,
             GameFixtures.BravoOne,
-            WeaponRangeBand.Close);
+            WeaponRangeBand.Close,
+            posture);
 
     private static ScriptedChitPot Pot(params DamageChit[] chits) =>
         new(chits.Length == 0 ? [DamageChit.Numerical(ChitColour.Red, 1)] : chits);

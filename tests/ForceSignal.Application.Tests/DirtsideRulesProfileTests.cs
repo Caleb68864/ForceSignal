@@ -89,6 +89,57 @@ public sealed class DirtsideRulesProfileTests
     }
 
     [Fact]
+    public void ADeclaredPostureReachesTheDiceThroughTheService()
+    {
+        // The wire half of the mechanic that was inert: `DirtsideFireRequest` had no posture field,
+        // so nothing a client could send would ever move a target off None.
+        //
+        // The invented tables put signature 3 on a D6 and hull down on a D8, and the target throws
+        // its signature die first and its posture die second - so a 7 in the second slot is a number
+        // the first die cannot produce. It is the posture die or the posture never arrived.
+        var service = new DirtsideGameService(new ScriptedQualityDice(2, 7, 6));
+        var game = Activated(service, DirtsideTestProfile.Invented);
+
+        var fired = service.Fire(game, new DirtsideFireRequest(
+            "alpha-1", "Main Gun", "bravo", "bravo-1", "Close", TargetPosture: "HullDown"));
+
+        Assert.Contains(fired.Log, entry => entry.Contains("against 7", StringComparison.Ordinal));
+        Assert.Contains(fired.Log, entry => entry.Contains("best of two", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("None")]
+    public void AShotThatNamesNoPostureIsATargetInTheOpen(string? posture)
+    {
+        // Absent and the word both mean the same thing, because a client with a dropdown sends the
+        // word and one without sends nothing. Refusing either would be this app being particular
+        // about a distinction that has no meaning at a table.
+        var service = new DirtsideGameService(new ScriptedQualityDice(2, 6));
+        var game = Activated(service, DirtsideTestProfile.Invented);
+
+        var fired = service.Fire(game, new DirtsideFireRequest(
+            "alpha-1", "Main Gun", "bravo", "bravo-1", "Close", TargetPosture: posture));
+
+        Assert.DoesNotContain(fired.Log, entry => entry.Contains("best of two", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void APostureThisEngineDoesNotKnowIsRefusedWithTheListItWouldHaveTaken()
+    {
+        var service = new DirtsideGameService(new ScriptedQualityDice(2, 7, 6));
+        var game = Activated(service, DirtsideTestProfile.Invented);
+
+        var refused = Assert.Throws<InvalidOperationException>(() => service.Fire(
+            game,
+            new DirtsideFireRequest("alpha-1", "Main Gun", "bravo", "bravo-1", "Close", TargetPosture: "Prone")));
+
+        Assert.Contains("Prone", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("HullDown", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ASnapshotReadsBackTheRowsThePlayersEntered()
     {
         var service = new DirtsideGameService();

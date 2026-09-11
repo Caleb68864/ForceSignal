@@ -22,6 +22,7 @@ import {
   postures,
   qualityDice,
 } from '../../lib/groundVocabulary.ts';
+
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
@@ -69,6 +70,9 @@ export function DirtsideView() {
     chitCount: 3,
     barrels: 1,
     isFixedMount: false,
+    // Off the card. The engine records it and resolves nothing with it yet; see the note beside
+    // the control.
+    isInterceptable: false,
     colours: 'All',
     // Off the command marker and the card. Blank when the card does not say - the platoon then
     // does everything except assault.
@@ -85,6 +89,10 @@ export function DirtsideView() {
     targetUnitId: '',
     targetElementId: '',
     measuredBand: 'Close',
+    // What the firer says the target is doing about being shot at. 'None' is a target in the open
+    // and is what the control opens on, because that is the state a model is in until somebody says
+    // otherwise - not a guess about the table.
+    targetPosture: 'None',
     overHalf: false,
     willMoveOverHalf: false,
   });
@@ -394,6 +402,13 @@ export function DirtsideView() {
     ?? activating?.elements.find(canStillFire)
     ?? null;
 
+  // Who the open activation is waiting on, as names rather than the ids the wire carries. Falls
+  // back to the id when the roster does not know it, which is version skew rather than a normal
+  // state - but printing nothing would be worse than printing something unfamiliar.
+  const stillToChoose = snapshot.elementsStillToChoose.map(
+    (id) => activating?.elements.find((element) => element.id === id)?.name ?? id,
+  );
+
   return (
     <section className="panel" aria-label="Dirtside">
       <h2>{snapshot.name}</h2>
@@ -481,11 +496,27 @@ export function DirtsideView() {
             neither. The activation cannot close until every element has said which - sitting out
             gives up its go for the whole turn.
           </p>
+          {/*
+            Who the activation is actually waiting on, by name.
+
+            The server has computed this on every snapshot since Dirtside had a screen and nothing
+            in either language read it, so a table learned it by asking each other across the table
+            or by hovering a disabled button. The ids are turned into names here because the wire
+            carries ids and nobody at a table calls a vehicle `alpha-2`.
+          */}
+          <p className="constraint-line" role="status" aria-live="polite">
+            {stillToChoose.length === 0
+              ? 'Every element has said what it is doing.'
+              : `Waiting on: ${stillToChoose.join(', ')}.`}
+          </p>
 
           {activating.elements.filter((element) => !element.isDestroyed).map((element) => (
             <div key={element.id} className="table-fields">
               <span className="label">
                 {element.name}
+                {/* The one flag on this DTO that had no renderer. Beside the two it is built from,
+                    so a reader can see that "has chosen" is not "has done both". */}
+                {element.hasChosen ? '' : ' · still to choose'}
                 {element.hasStoodDown ? ' · stood down' : ''}
                 {element.hasMoved ? ' · moved' : ''}
                 {element.hasTakenCombatAction ? ' · acted' : ''}
@@ -622,6 +653,23 @@ export function DirtsideView() {
                 {bands.map((band) => <option key={band} value={band}>{band}</option>)}
               </select>
             </label>
+            {/*
+              Declared per shot, beside the band, because it is the same kind of judgement: whether
+              that vehicle is hull down *from here* is settled by two people looking across a table,
+              not by a property of the vehicle. The engine has had the die-shift rule all along and
+              nothing could reach it - there was no field on any contract, so every target in every
+              game was in the open.
+            */}
+            <label title="What the target is doing about being shot at, as you see it from here. What each posture is worth comes off your own rulebook, on this game's die tables.">
+              Target posture
+              <select
+                value={shot.targetPosture}
+                onChange={(event) => setShot((current) => ({ ...current, targetPosture: event.target.value }))}
+              >
+                <option value="None">In the open</option>
+                {postures.map((posture) => <option key={posture} value={posture}>{posture}</option>)}
+              </select>
+            </label>
             <label title="Declared with the shot, and binding. The shot is penalised as if it had already moved; without it, the element is refused a move over half afterwards.">
               Will move over half its movement after firing
               <input
@@ -644,6 +692,7 @@ export function DirtsideView() {
                   || targetUnit?.elements.find((element) => !element.isDestroyed)?.id
                   || '',
                 measuredBand: shot.measuredBand,
+                targetPosture: shot.targetPosture,
                 willMoveOverHalf: shot.willMoveOverHalf,
               }))}
             >
@@ -704,6 +753,18 @@ export function DirtsideView() {
           <label title="Aimed by pointing the whole vehicle.">
             Fixed mount
             <input type="checkbox" checked={platoonForm.isFixedMount} onChange={(e) => setPlatoonForm({ ...platoonForm, isFixedMount: e.target.checked })} />
+          </label>
+          {/*
+            Recorded off the card, and recorded is all it is. The server has carried this field since
+            Dirtside had an API and no client could send it, so it arrived false for every weapon in
+            every game - a write-only chain with nothing at either end. It reaches the roster now.
+            What it does not yet do is anything: interception has no resolution in this engine - no
+            roll, no outcome, no route to answer or decline a window - and inventing one would be
+            inventing rules. See the roadmap entry for exactly what is missing.
+          */}
+          <label title="True when an area-defence gun could shoot down what this weapon throws. Recorded off your card; interception is not yet resolved by this app.">
+            Interceptable
+            <input type="checkbox" checked={platoonForm.isInterceptable} onChange={(e) => setPlatoonForm({ ...platoonForm, isInterceptable: e.target.checked })} />
           </label>
           <label title="Which chit colours this weapon's hits may count, off your own card.">
             Chit colours
@@ -770,6 +831,7 @@ export function DirtsideView() {
                   chitCount: platoonForm.chitCount,
                   barrels: platoonForm.barrels,
                   isFixedMount: platoonForm.isFixedMount,
+                  isInterceptable: platoonForm.isInterceptable,
                   close: row,
                   medium: row,
                   long: row,
