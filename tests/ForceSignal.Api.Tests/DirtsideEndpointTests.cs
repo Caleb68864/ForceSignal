@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using ForceSignal.Contracts.Ground;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Api.Tests;
 
@@ -32,7 +33,7 @@ public sealed class DirtsideEndpointTests
         using var factory = CreateFactory(dirtside: false);
         using var client = factory.CreateClient();
 
-        using var created = await client.PostAsJsonAsync("/api/dirtside/games", new CreateDirtsideGameRequest("Ridge 9"));
+        using var created = await client.PostAsJsonAsync("/api/dirtside/games", DirtsideTestProfile.CreateGame("Ridge 9"));
         using var status = await client.GetAsync(new Uri("/api/dirtside/status", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, created.StatusCode);
@@ -45,7 +46,7 @@ public sealed class DirtsideEndpointTests
         using var factory = CreateFactory(dirtside: true);
         using var client = factory.CreateClient();
 
-        using var response = await client.PostAsJsonAsync("/api/dirtside/games", new CreateDirtsideGameRequest("Ridge 9"));
+        using var response = await client.PostAsJsonAsync("/api/dirtside/games", DirtsideTestProfile.CreateGame("Ridge 9"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
 
@@ -290,7 +291,7 @@ public sealed class DirtsideEndpointTests
     /// <summary>Starts a game and leaves its token on the client for everything after.</summary>
     private static async Task<Guid> Create(HttpClient client)
     {
-        var created = await (await client.PostAsJsonAsync("/api/dirtside/games", new CreateDirtsideGameRequest("Ridge 9")))
+        var created = await (await client.PostAsJsonAsync("/api/dirtside/games", DirtsideTestProfile.CreateGame("Ridge 9")))
             .Content.ReadFromJsonAsync<DirtsideGameCreatedResponse>(JsonOptions);
         Assert.NotNull(created);
         client.DefaultRequestHeaders.Remove(TokenHeader);

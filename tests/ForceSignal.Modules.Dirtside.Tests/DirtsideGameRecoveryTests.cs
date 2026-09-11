@@ -18,7 +18,7 @@ public sealed class DirtsideGameRecoveryTests
         var down = SystemsDownByMisfire();
         var dice = new ScriptedDice(6);
 
-        var refused = down.RecoverSystems(GameFixtures.AlphaOne, dice);
+        var refused = down.RecoverSystems(GameFixtures.AlphaOne, dice, TestDieTables.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("an activation after", refused.Reason!, StringComparison.Ordinal);
@@ -30,13 +30,15 @@ public sealed class DirtsideGameRecoveryTests
     {
         var next = NextActivation(SystemsDownByMisfire());
 
-        var failed = next.RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(5)).Value!;
+        var failed = next
+            .RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(5), TestDieTables.Invented).Value!;
 
         Assert.True(failed.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne).IsSystemsDown);
         Assert.Contains(failed.Log, entry => entry.Contains("Still down", StringComparison.Ordinal));
 
         // The combat action is gone; the marker is not. The vehicle may try again next activation.
-        Assert.False(failed.RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(6)).IsAllowed);
+        Assert.False(failed
+            .RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(7), TestDieTables.Invented).IsAllowed);
     }
 
     [Fact]
@@ -44,7 +46,8 @@ public sealed class DirtsideGameRecoveryTests
     {
         var next = NextActivation(SystemsDownByMisfire());
 
-        var cleared = next.RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(6)).Value!;
+        var cleared = next
+            .RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(7), TestDieTables.Invented).Value!;
 
         var element = cleared.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne);
         Assert.False(element.IsSystemsDown);
@@ -57,15 +60,36 @@ public sealed class DirtsideGameRecoveryTests
     {
         var withBackup = SystemsDownByMisfire(hasBackupSystems: true);
 
-        var cleared = NextActivation(withBackup).RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(3)).Value!;
+        var cleared = NextActivation(withBackup)
+            .RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(4), TestDieTables.Invented).Value!;
 
         Assert.False(cleared.Status(GameFixtures.Alpha).Element(GameFixtures.AlphaOne).IsSystemsDown);
     }
 
     [Fact]
+    public void AGameWithNoRepairRowRefusesTheAttemptWithoutSpendingTheCombatAction()
+    {
+        // The refusal lands before the step is taken, so a crew whose players have not entered this
+        // row keep their combat action and can try again once the row is filled in. Refusing after
+        // the step would charge a table for this app's own policy.
+        var next = NextActivation(SystemsDownByMisfire());
+
+        var refused = next.RecoverSystems(
+            GameFixtures.AlphaOne, new ScriptedDice(7), TestDieTables.WithNoRepairRoll);
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("rules profile", refused.Reason!, StringComparison.Ordinal);
+
+        // And the action really is still there: the same attempt with the row present goes through.
+        Assert.True(next
+            .RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(7), TestDieTables.Invented).IsAllowed);
+    }
+
+    [Fact]
     public void AVehicleWhoseSystemsAreUpHasNothingToRecover()
     {
-        var refused = GameFixtures.Activated().RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(6));
+        var refused = GameFixtures.Activated()
+            .RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(7), TestDieTables.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("not down", refused.Reason!, StringComparison.Ordinal);
@@ -91,8 +115,8 @@ public sealed class DirtsideGameRecoveryTests
         var down = SystemsDownByMisfire();
 
         Assert.Equal(
-            down.WhyRecoverSystemsIsRefused(GameFixtures.AlphaOne),
-            down.RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(6)).Reason);
+            down.WhyRecoverSystemsIsRefused(GameFixtures.AlphaOne, TestDieTables.Invented),
+            down.RecoverSystems(GameFixtures.AlphaOne, new ScriptedDice(7), TestDieTables.Invented).Reason);
     }
 
     /// <summary>Alpha One's gun fails on Alpha's first activation, putting its own systems down.</summary>
@@ -114,7 +138,7 @@ public sealed class DirtsideGameRecoveryTests
         return table.Fire(
             new FireCommand(GameFixtures.Alpha, GameFixtures.AlphaOne, "Main Gun", GameFixtures.Bravo, GameFixtures.BravoOne, WeaponRangeBand.Close),
             new ScriptedDice(1, 8),
-            new ScriptedChitPot(DamageChit.Of(ChitSpecial.SystemsDownFirer))).Value!;
+            new ScriptedChitPot(DamageChit.Of(ChitSpecial.SystemsDownFirer)), TestDieTables.Invented).Value!;
     }
 
     /// <summary>Plays the turn out and opens Alpha's activation in the next one.</summary>

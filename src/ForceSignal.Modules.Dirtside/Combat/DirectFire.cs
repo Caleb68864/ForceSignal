@@ -72,6 +72,16 @@ public enum ShotRefusal
 
     /// <summary>There is no firer die left on the ladder.</summary>
     NoDieLeft = 4,
+
+    /// <summary>
+    /// The game's rules profile does not say which die one of the three sides of this shot rolls.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="NoDieLeft"/>, which is a rule about the shot. This one is a gap in
+    /// what the players entered, and the only refusal here that a table fixes by typing rather than
+    /// by moving a model.
+    /// </remarks>
+    NoDieOnTheProfile = 5,
 }
 
 /// <summary>
@@ -143,6 +153,7 @@ public static class DirectFire
     /// <summary>
     /// Resolves one declared shot in isolation, dice and chits and all.
     /// </summary>
+    /// <param name="profile">The dice this game's players entered off their own rulebook.</param>
     /// <param name="declaration">The binding declaration.</param>
     /// <param name="roller">Die source.</param>
     /// <param name="pot">The chit pot. Every hit draws from it independently.</param>
@@ -150,10 +161,12 @@ public static class DirectFire
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The mount has fewer than one barrel.</exception>
     public static ShotResult Resolve(
+        DirtsideRulesProfile profile,
         FireDeclaration declaration,
         IQualityDiceRoller roller,
         IChitPot pot)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(declaration);
         ArgumentNullException.ThrowIfNull(roller);
         ArgumentNullException.ThrowIfNull(pot);
@@ -168,6 +181,7 @@ public static class DirectFire
         }
 
         var solution = HitResolution.Solve(
+            profile,
             declaration.Firer.FireControl,
             band.Band,
             declaration.Target.Signature,
@@ -176,7 +190,15 @@ public static class DirectFire
 
         if (!solution.CanFire)
         {
-            return Refused(declaration, band, ShotRefusal.NoDieLeft, solution.Reason);
+            // Two different refusals arrive here wearing the same shape: a ladder that ran out, and
+            // a row the profile does not carry. They are kept apart, because a table reading "the
+            // game has no die for this" needs to know it is a gap in what they entered and not a
+            // rule about their sight.
+            return Refused(
+                declaration,
+                band,
+                solution.IsMissingFromProfile ? ShotRefusal.NoDieOnTheProfile : ShotRefusal.NoDieLeft,
+                solution.Reason);
         }
 
         var attempts = RollMount(solution, declaration.Weapon.Barrels, roller);
@@ -219,6 +241,7 @@ public static class DirectFire
     /// <summary>
     /// Resolves a whole piece of firing: every declaration, in the order it was declared.
     /// </summary>
+    /// <param name="profile">The dice this game's players entered off their own rulebook.</param>
     /// <param name="declarations">
     /// Every firing element's designated target, all of them made before this call. The order is the
     /// order the player chose to resolve them in, and it is load-bearing.
@@ -228,10 +251,12 @@ public static class DirectFire
     /// <returns>Every shot, fired or wasted.</returns>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public static DirectFireVolley Resolve(
+        DirtsideRulesProfile profile,
         IEnumerable<FireDeclaration> declarations,
         IQualityDiceRoller roller,
         IChitPot pot)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(declarations);
         ArgumentNullException.ThrowIfNull(roller);
         ArgumentNullException.ThrowIfNull(pot);
@@ -267,7 +292,7 @@ public static class DirectFire
                 continue;
             }
 
-            var shot = Resolve(declaration, roller, pot);
+            var shot = Resolve(profile, declaration, roller, pot);
             shots.Add(shot);
 
             if (shot.TargetDestroyed)

@@ -18,6 +18,15 @@ Use your own legally obtained rules and fleet data. ForceSignal links outward to
   tables, range bands, thresholds and reach are entered by the player and shipped by nobody. There
   is deliberately no default profile, and `docs/rules-profile-template.json` is blank rather than
   typical. A default that happens to be somebody's published numbers is still those numbers.
+- **All three engines, with one exception that is written down rather than left quiet.** Full
+  Thrust reads `RulesProfile`, StarGrunt ships no table at all, and Dirtside's three die tables -
+  gunnery, signature and posture - are now `DirtsideRulesProfile`, entered per game like the chit
+  pot. A Dirtside game whose profile has no row for a shot **refuses that shot and names the row**;
+  it does not fall back to anything, because a fallback here would be somebody's published table
+  wearing a default's clothes. The exception is StarGrunt's band-to-rung walk in `RangeBands.cs`,
+  which is a real rules table and needs a StarGrunt profile rather than one field. It is listed by
+  name in `EngineDiceContentPolicyTests.NotYetThePlayers` - a list kept separate from the
+  not-a-rules-number exemptions precisely so it cannot read as settled.
 - JSON/CSV fleet import and export are for user-owned data, and so is the rules profile.
 - Do not ship official Ground Zero Games fleets as sample data.
 - If compatibility wording is used publicly, get written permission from Ground Zero Games first.
@@ -52,12 +61,16 @@ The Full Thrust ship class icons are original inline SVG silhouettes drawn for F
 carry no third-party obligation.
 
 The ground unit icons are from [game-icons.net](https://game-icons.net) under
-[Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/), which requires
-the artists to be credited wherever the icons are used - including in a build someone else runs.
-See [ATTRIBUTION.md](ATTRIBUTION.md) for the per-artist credit. The same credit appears in the icon
-sheet's header and in the app's on-screen notice panel, so losing one copy does not put the project
-out of licence. Tests in `UnitIcon.test.ts` fail if the credits go missing or if the sheet and the
-app disagree about which icons exist.
+[Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/), which asks for the
+artists to be credited wherever the work is distributed - which a repository does, whether or not
+an app draws from it. **No screen renders one yet**: `UnitIcon.tsx` is imported only by its own test,
+so the set never reaches the bundle. The credit therefore says the artwork *ships* rather than that
+it is *used*, which is the smaller and truer claim, and it stays for exactly as long as the files
+do. See [ATTRIBUTION.md](ATTRIBUTION.md) for the per-artist credit; the same credit appears in the
+icon sheet's header and in the app's on-screen notice panel, so losing one copy does not put the
+project out of licence. Tests in `UnitIcon.test.ts` fail if the credits go missing, if the sheet and
+the app disagree about which icons exist, or if the icons get wired into a screen while the credit
+still says they are not.
 
 ## Local Development
 

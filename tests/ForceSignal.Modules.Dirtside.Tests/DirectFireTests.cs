@@ -46,7 +46,7 @@ public sealed class DirectFireTests
         // vehicle just died rather than being told that it did.
         var pot = new RecordingPot(Red(3));
 
-        var shot = DirectFire.Resolve(Declare(), new ScriptedDice(2, 7), pot);
+        var shot = DirectFire.Resolve(TestDieTables.Invented, Declare(), new ScriptedDice(2, 7), pot);
 
         Assert.True(shot.WasFired);
         Assert.Equal(1, shot.Hits);
@@ -63,7 +63,7 @@ public sealed class DirectFireTests
     {
         var pot = new RecordingPot(Red(3));
 
-        var shot = DirectFire.Resolve(Declare(), new ScriptedDice(7, 2), pot);
+        var shot = DirectFire.Resolve(TestDieTables.Invented, Declare(), new ScriptedDice(7, 2), pot);
 
         Assert.Equal(0, shot.Hits);
         Assert.Empty(shot.Damage);
@@ -80,7 +80,7 @@ public sealed class DirectFireTests
         var pot = new RecordingPot(Red(3));
         var dice = new ScriptedDice(2, 7);
 
-        var volley = DirectFire.Resolve(declarations, dice, pot);
+        var volley = DirectFire.Resolve(TestDieTables.Invented, declarations, dice, pot);
 
         Assert.True(volley.Shots[0].TargetDestroyed);
         Assert.False(volley.Shots[1].WasFired);
@@ -101,7 +101,7 @@ public sealed class DirectFireTests
         var declarations = new[] { Declare("A", "T1"), Declare("B", "T2") };
         var pot = new RecordingPot(Red(3), Red(3));
 
-        var volley = DirectFire.Resolve(declarations, new ScriptedDice(2, 7, 2, 7), pot);
+        var volley = DirectFire.Resolve(TestDieTables.Invented, declarations, new ScriptedDice(2, 7, 2, 7), pot);
 
         Assert.All(volley.Shots, s => Assert.True(s.WasFired));
         Assert.Equal(2, volley.Destroyed.Count);
@@ -115,7 +115,7 @@ public sealed class DirectFireTests
         // streakiness that makes a twin turret feel like one.
         var pot = new RecordingPot(Red(0), Red(0));
 
-        var shot = DirectFire.Resolve(Declare(barrels: 2), new ScriptedDice(5, 7, 3), pot);
+        var shot = DirectFire.Resolve(TestDieTables.Invented, Declare(barrels: 2), new ScriptedDice(5, 7, 3), pot);
 
         Assert.Equal(2, shot.Attempts.Count);
         Assert.All(shot.Attempts, a => Assert.Equal(5, a.TargetScore));
@@ -133,7 +133,7 @@ public sealed class DirectFireTests
         // somebody batching the draws, so it is asserted here rather than assumed.
         var pot = new RecordingPot(Red(1), Red(1), Red(1), Red(1), Red(1), Red(1));
 
-        var shot = DirectFire.Resolve(Declare(chitCount: 3, barrels: 2), new ScriptedDice(2, 7, 7), pot);
+        var shot = DirectFire.Resolve(TestDieTables.Invented, Declare(chitCount: 3, barrels: 2), new ScriptedDice(2, 7, 7), pot);
 
         Assert.Equal(2, shot.Hits);
         Assert.Equal(TwoDrawsOfThree, pot.Requests);
@@ -149,7 +149,7 @@ public sealed class DirectFireTests
             ChitPotComposition.Of([DamageChit.Of(ChitSpecial.Boom), Red(0), Red(0)]),
             _ => 0);
 
-        var shot = DirectFire.Resolve(Declare(chitCount: 3, barrels: 2), new ScriptedDice(2, 7, 7), pot);
+        var shot = DirectFire.Resolve(TestDieTables.Invented, Declare(chitCount: 3, barrels: 2), new ScriptedDice(2, 7, 7), pot);
 
         Assert.Equal(2, shot.Damage.Count);
         Assert.All(shot.Damage, d => Assert.True(d.CatastrophicKill));
@@ -163,7 +163,7 @@ public sealed class DirectFireTests
         // barrel of a twin turret behaving as though it had waited to see what the first did.
         var pot = new RecordingPot(Red(3), Red(3));
 
-        var shot = DirectFire.Resolve(Declare(barrels: 2, armour: 1), new ScriptedDice(2, 7, 8), pot);
+        var shot = DirectFire.Resolve(TestDieTables.Invented, Declare(barrels: 2, armour: 1), new ScriptedDice(2, 7, 8), pot);
 
         Assert.Equal(2, shot.Damage.Count);
         Assert.All(shot.Damage, d => Assert.Equal(NumericalDamage.KnockedOut, d.Numerical));
@@ -173,7 +173,7 @@ public sealed class DirectFireTests
     [Fact]
     public void ADamagedFirersCloseShotReallyResolvesAsMedium()
     {
-        var shot = DirectFire.Resolve(
+        var shot = DirectFire.Resolve(TestDieTables.Invented, 
             Declare(band: WeaponRangeBand.Close, firerIsDamaged: true),
             new ScriptedDice(2, 7),
             new RecordingPot(Red(3)));
@@ -198,12 +198,12 @@ public sealed class DirectFireTests
             new ChitValidity(ChitColours.Red),
             ChitValidity.Ineffective);
 
-        var healthy = DirectFire.Resolve(
+        var healthy = DirectFire.Resolve(TestDieTables.Invented, 
             Declare(band: WeaponRangeBand.Close, armour: 1, card: card),
             new ScriptedDice(1, 8),
             new RecordingPot(Green(3)));
 
-        var damaged = DirectFire.Resolve(
+        var damaged = DirectFire.Resolve(TestDieTables.Invented, 
             Declare(band: WeaponRangeBand.Close, armour: 1, firerIsDamaged: true, card: card),
             new ScriptedDice(1, 8),
             new RecordingPot(Green(3)));
@@ -226,7 +226,7 @@ public sealed class DirectFireTests
         var dice = new ScriptedDice(2, 7);
         var pot = new RecordingPot(Red(3));
 
-        var shot = DirectFire.Resolve(
+        var shot = DirectFire.Resolve(TestDieTables.Invented, 
             Declare(band: WeaponRangeBand.Long, firerIsDamaged: true), dice, pot);
 
         Assert.False(shot.WasFired);
@@ -247,7 +247,7 @@ public sealed class DirectFireTests
             new TargetElement("T", 3, 2),
             WeaponRangeBand.Long);
 
-        var shot = DirectFire.Resolve(declaration, new ScriptedDice(), new RecordingPot());
+        var shot = DirectFire.Resolve(TestDieTables.Invented, declaration, new ScriptedDice(), new RecordingPot());
 
         Assert.Equal(ShotRefusal.NoDieLeft, shot.Refusal);
         Assert.Contains("no die left", shot.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -260,7 +260,7 @@ public sealed class DirectFireTests
         var declarations = new[] { Declare("A", "T1"), Declare("A", "T2") };
         var pot = new RecordingPot(DamageChit.Of(ChitSpecial.SystemsDownFirer), Red(3));
 
-        var volley = DirectFire.Resolve(declarations, new ScriptedDice(2, 7, 2, 7), pot);
+        var volley = DirectFire.Resolve(TestDieTables.Invented, declarations, new ScriptedDice(2, 7, 2, 7), pot);
 
         Assert.True(volley.Shots[0].FirerSystemsDown);
         Assert.True(volley.Shots[0].Damage[0].ShotNeverHappened);
@@ -271,7 +271,7 @@ public sealed class DirectFireTests
 
     [Fact]
     public void AnEmptyVolleyIsAVolley() =>
-        Assert.Empty(DirectFire.Resolve(
+        Assert.Empty(DirectFire.Resolve(TestDieTables.Invented, 
             Array.Empty<FireDeclaration>(), new ScriptedDice(), new RecordingPot()).Shots);
 
     [Fact]
@@ -281,12 +281,12 @@ public sealed class DirectFireTests
         var dice = new ScriptedDice();
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            DirectFire.Resolve(Declare(barrels: 0), dice, pot));
-        Assert.Throws<ArgumentNullException>(() => DirectFire.Resolve((FireDeclaration)null!, dice, pot));
-        Assert.Throws<ArgumentNullException>(() => DirectFire.Resolve(Declare(), null!, pot));
-        Assert.Throws<ArgumentNullException>(() => DirectFire.Resolve(Declare(), dice, null!));
+            DirectFire.Resolve(TestDieTables.Invented, Declare(barrels: 0), dice, pot));
+        Assert.Throws<ArgumentNullException>(() => DirectFire.Resolve(TestDieTables.Invented, (FireDeclaration)null!, dice, pot));
+        Assert.Throws<ArgumentNullException>(() => DirectFire.Resolve(TestDieTables.Invented, Declare(), null!, pot));
+        Assert.Throws<ArgumentNullException>(() => DirectFire.Resolve(TestDieTables.Invented, Declare(), dice, null!));
         Assert.Throws<ArgumentNullException>(() =>
-            DirectFire.Resolve((IEnumerable<FireDeclaration>)null!, dice, pot));
+            DirectFire.Resolve(TestDieTables.Invented, (IEnumerable<FireDeclaration>)null!, dice, pot));
     }
 
     private sealed class ScriptedDice(params int[] rolls) : IQualityDiceRoller

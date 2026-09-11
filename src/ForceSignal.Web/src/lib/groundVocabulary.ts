@@ -66,6 +66,16 @@ export const valueScales = ['Doubled', 'FaceValue', 'Halved'] as const;
  */
 export const chitColourSets = ['All', 'Red', 'Yellow', 'Green'] as const;
 
+/**
+ * Postures a Dirtside die table has a row for.
+ *
+ * Not every member of the engine's `DefensivePosture`: `None` is a target doing nothing about being
+ * shot at, which throws no second die, so there is no row for it on anybody's card and the server
+ * refuses one by name. Which postures exist is the engine's; what die each is worth is the
+ * player's, and this list carries none of that.
+ */
+export const postures = ['SoftCover', 'Evading', 'HullDown', 'TurretDown'] as const;
+
 export type Band = (typeof bands)[number];
 export type FireControl = (typeof fireControls)[number];
 export type QualityDieName = (typeof qualityDice)[number];
@@ -74,3 +84,4 @@ export type ChitColourName = (typeof chitColours)[number];
 export type ChitSpecialName = (typeof chitSpecials)[number];
 export type ValueScaleName = (typeof valueScales)[number];
 export type ChitColourSetName = (typeof chitColourSets)[number];
+export type PostureName = (typeof postures)[number];

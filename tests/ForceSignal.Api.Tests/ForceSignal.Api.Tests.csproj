@@ -30,4 +30,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- One copy of the invented Dirtside die tables, shared with the other ground test project
+         rather than typed out twice. -->
+    <Compile Include="..\TestSupport\DirtsideTestProfile.cs" Link="TestSupport\DirtsideTestProfile.cs" />
+  </ItemGroup>
+
 </Project>

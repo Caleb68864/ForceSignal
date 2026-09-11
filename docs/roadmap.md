@@ -390,6 +390,109 @@ fallback, and it is now impossible to play on it without being told.
 
 Still open: **the on-screen validity-card editor** (gap 16). The pot half of gap 15 shipped.
 
+## Closed 2026-09-11 (the Dirtside die tables, and the icon attribution)
+
+*Two owner decisions, answered and acted on. Branch `fix/dirtside-die-tables`.*
+
+### The Dirtside die tables are the players'
+
+The decision was **carry them on the rules profile** — the only one of the three
+options that changes what the repository ships rather than how it describes
+itself. Documenting an exemption would have disclosed the exposure; silence
+removed neither.
+
+`HitResolution` held three tables the module's whole combat model rested on: a
+fire-control level was worth a D6, a D8 or a D10; a posture a D6 through a D12;
+and a signature indexed the quality ladder, so signature 1 was a D12. They are
+now `DirtsideRulesProfile`, entered per game, carried in the stored row's
+optional settings field beside the chit pot, reported on every snapshot, and
+typed into a Die tables fieldset on the create screen.
+
+- [x] **A missing row refuses and never substitutes.** `Solve` names the row —
+      *"the die a Superior fire control rolls"* — and `ShotSolution` carries
+      `IsMissingFromProfile`, so a gap in what was typed is told apart from a
+      ladder that ran out. **The refusal lands before the step is taken**, in
+      `Fire` and in `RecoverSystems` both, so a shot the game cannot settle is
+      not charged to the element: every other refusal there is something the
+      player could have known, and this one is a gap in what they typed.
+- [x] **Only the rows a shot reads are required.** The over-strict trap this
+      project has paid for twice. A table whose vehicles are all one gunnery
+      grade and never go to ground enters three lines, not twelve, and
+      `OnlyTheRowsThisShotReadsHaveToBeThere` and
+      `APartlyFilledProfileSettlesTheShotsItHasRowsFor` are the controls that
+      must be accepted.
+- [x] **Two more dice went with them**, because the widened guard can see them
+      and an exemption for either would have been a fiction: `SystemsDownRecovery`'s
+      D6 and its 6/3 targets, and `InfantryCombat.ResolveRiders`' D6 and its 6/3
+      thresholds. The second has no production caller, so its numbers are
+      parameters rather than profile fields.
+- [x] **Storage is optional inside the already-optional settings blob**, and read
+      in its own `try` so a profile this version cannot parse costs the profile
+      and not the pot. A mismatched `FormatVersion` is skipped rather than
+      migrated, so a required field would have retired every stored Dirtside
+      game on the machine. `AGameStoredBeforeProfilesExistedStillOpens` pins it.
+- [x] **The guard follows, over both engines.** `EngineDiceContentPolicyTests`
+      moved to `ForceSignal.Application.Tests` and now scans StarGrunt *and*
+      Dirtside. It also learned to see a die table written as arithmetic —
+      `QualityDice.Ladder[5 - signature]` was a complete table invisible to a
+      scan looking only for `QualityDie.Dn`, and a guard that can be walked
+      around by subtraction is not a guard.
+
+**What widening the scan uncovered, and what was done about it.** StarGrunt's
+`RangeBands.cs` reads the target's range die as `QualityDice.Ladder[bandsOut - 1
++ posture.Shifts]`. That the walk is one rung per band, and that it starts at the
+bottom, are readings off a rulebook exactly as Dirtside's three tables were — and
+the ladder's length then sets maximum effective range, so it is load-bearing.
+
+It is **not** in the exemption list. It is in a second list, `NotYetThePlayers`,
+kept apart from `NotARulesDie` on purpose: an entry in the first is a claim that a
+die is not a rules number, and that claim cannot be made honestly here. *"An
+exemption list that launders a violation is worse than no list"* — so the
+violation sits under a heading that says what it is. Fixing it means giving
+StarGrunt a profile of its own (the band-to-rung walk, the band width in inches
+and the posture shifts all come off one page, and splitting one out would leave a
+half-entered table), which is the next content-policy item and is scoped out of
+this pass.
+
+**Still this app's numbers, and not covered by a die guard:** nothing now, in the
+dice. The two *number* pairs that went with the dice were the last of them in the
+Dirtside module.
+
+### The unit icon attribution is true
+
+The decision was **make it true**, and the check before removing anything was the
+load-bearing part. The repo records CC BY 3.0 in three places and nothing else
+anywhere; that licence asks for credit wherever the work is **distributed**, and
+a repository distributes the sheet whether or not a screen draws from it. So
+deleting the credit while the files remain would have turned an over-generous
+statement into a breach. **The credit stays; the claim changed** — the artwork
+ships and is credited, and no screen draws one yet — in `main.tsx`,
+`ATTRIBUTION.md`, the sheet's own header and the README.
+
+Wiring the icons was the other honest option and was not taken: no ground DTO
+carries an icon key, so it needs a wire field plus a picker plus a place in the
+element row, and which icon a unit gets is a product decision rather than
+plumbing.
+
+**The guard for it was a false green twice and had to be rebuilt**, which is
+worth keeping:
+
+- The claim was **prose, and prose reflows**. The check matched the sentence *"no
+  screen draws one yet"*, JSX had wrapped it across two source lines, and so the
+  string appeared nowhere — both branches passed against nothing. The panel
+  states its claim as `data-icon-status="shipped-not-shown"` now, an attribute,
+  which cannot be line-wrapped.
+- The detector **answered yes to a sentence about itself**: it counted any
+  mention of `UnitIcon`, and `main.tsx`'s own comment about the credit names the
+  module. It reads import statements now.
+- The control was **structurally invisible**: it asserted the detector could see
+  this test's own import of `UnitIcon.tsx`, and `import.meta.glob` never includes
+  the file that calls it. It runs against `ShipCard` instead, a sibling that
+  really is imported.
+
+Proven by planting a real production import of the icon module and watching the
+guard turn red where it had previously left eleven tests green.
+
 ## Closed 2026-09-11 (W2 — the half-wired sweep)
 
 *Five passes looking for unwired and half-wired things, then fixing them. Six commits on top of

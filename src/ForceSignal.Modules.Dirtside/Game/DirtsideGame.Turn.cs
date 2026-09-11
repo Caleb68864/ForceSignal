@@ -248,19 +248,28 @@ public sealed partial record DirtsideGame
     /// </summary>
     /// <param name="element">The element whose crew are trying.</param>
     /// <param name="dice">Where the die result comes from.</param>
+    /// <param name="profile">The die and number this game's players entered off their own rulebook.</param>
     /// <returns>The game with the attempt made, or why it could not be.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="dice"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <remarks>
     /// Refused, not rolled and failed, on the activation the marker went on - the resolver says
     /// why, and refusing before the step is taken means the combat action is not spent on a roll
     /// that was never allowed. A failure costs the combat action and nothing else, so the same
     /// vehicle may try again every activation for as long as the game lasts.
+    /// <para>
+    /// A profile that does not carry this roll is refused in the same place and for the same
+    /// reason: the crew must not spend their combat action on an attempt the game cannot settle.
+    /// </para>
     /// </remarks>
-    public GameOutcome<DirtsideGame> RecoverSystems(ElementId element, IQualityDiceRoller dice)
+    public GameOutcome<DirtsideGame> RecoverSystems(
+        ElementId element,
+        IQualityDiceRoller dice,
+        DirtsideRulesProfile profile)
     {
         ArgumentNullException.ThrowIfNull(dice);
+        ArgumentNullException.ThrowIfNull(profile);
 
-        if (WhyRecoverSystemsIsRefused(element) is { } reason)
+        if (WhyRecoverSystemsIsRefused(element, profile) is { } reason)
         {
             return GameOutcome.Refused<DirtsideGame>(reason);
         }
@@ -274,6 +283,7 @@ public sealed partial record DirtsideGame
 
         var status = Status(unit).Element(element);
         var attempt = SystemsDownRecovery.Attempt(
+            profile,
             status.SystemsDownOnActivation ?? 0,
             CurrentActivationNumber,
             dice,
@@ -294,9 +304,13 @@ public sealed partial record DirtsideGame
 
     /// <summary>Whether an element could try to recover its systems now, and why not.</summary>
     /// <param name="element">The element.</param>
+    /// <param name="profile">The die and number this game's players entered off their own rulebook.</param>
     /// <returns>The refusal in words, or null when the crew may try.</returns>
-    public string? WhyRecoverSystemsIsRefused(ElementId element)
+    /// <exception cref="ArgumentNullException"><paramref name="profile"/> is null.</exception>
+    public string? WhyRecoverSystemsIsRefused(ElementId element, DirtsideRulesProfile profile)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+
         if (Session.CurrentFrame is not { Kind: FrameKind.Activation } frame)
         {
             return "Nothing is activated.";
@@ -322,6 +336,13 @@ public sealed partial record DirtsideGame
         if (!SystemsDownRecovery.CanAttempt(status.SystemsDownOnActivation ?? 0, CurrentActivationNumber))
         {
             return "Repairs cannot start until an activation after the one the damage happened on.";
+        }
+
+        if (profile.SystemsDownRecoveryDie is null || SystemsDownRecovery.Required(profile, definition.HasBackupSystems) is null)
+        {
+            return "This game has no die table entry for getting a Systems Down marker off. Enter the "
+                + "die and the number it has to reach in the game's rules profile - this app ships "
+                + "no dice of its own.";
         }
 
         var check = GroundCombatSequence.CanTakeStep(

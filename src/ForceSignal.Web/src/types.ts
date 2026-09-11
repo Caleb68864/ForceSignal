@@ -609,6 +609,28 @@ export type DirtsideSnapshot = {
   version: number;
   // What this game's chit pot holds, so the table can read back the counts it is playing on.
   chitPot?: DirtsideChitPot | null;
+  // The dice this game is settled with, as the players entered them. Empty tables are a real
+  // answer: this app ships no dice, and a game whose rows are missing is told so before it fires.
+  profile?: DirtsideRulesProfile | null;
+};
+
+/** One row of a die table: a key off the record card, and the die it rolls. */
+export type DirtsideDieRow = { key: string; die: string };
+
+/**
+ * Every die a Dirtside game is settled with, off the players' own rulebook.
+ *
+ * Nothing here is this app's. A row nobody entered is absent rather than zero, and the server
+ * refuses the shot that would have read it, naming the row. So an empty table is not a broken
+ * profile - it is a profile whose owners have not needed that row yet.
+ */
+export type DirtsideRulesProfile = {
+  fireControl: DirtsideDieRow[];
+  posture: DirtsideDieRow[];
+  signature: DirtsideDieRow[];
+  systemsDownRecoveryDie?: string | null;
+  systemsDownRecoveryRoll: number;
+  systemsDownRecoveryRollWithBackup: number;
 };
 
 /** How many chits of one colour and number the pot holds. Counted off the user's own sheet. */

@@ -218,15 +218,16 @@ public sealed class InfantryCombatTests
     }
 
     [Theory]
-    // Immobilised or blinded but intact: the passengers simply get out.
+    // Immobilised or blinded but intact: the passengers simply get out. The two numbers are the
+    // invented ones below, not this app's - it has none.
     [InlineData(NumericalDamage.None, 0)]
-    [InlineData(NumericalDamage.Damaged, 6)]
-    [InlineData(NumericalDamage.KnockedOut, 3)]
+    [InlineData(NumericalDamage.Damaged, LostOnDamaged)]
+    [InlineData(NumericalDamage.KnockedOut, LostOnKnockedOut)]
     public void RidersFareByHowBadlyTheirTransportWasHit(NumericalDamage damage, int expectedLostOn)
     {
         var outcome = Outcome(damage);
 
-        var casualties = InfantryCombat.ResolveRiders(outcome, riderStands: 3, new FixedDie(6));
+        var casualties = Riders(outcome, riderStands: 3, new FixedDie(8));
 
         Assert.Equal(expectedLostOn, casualties.LostOn);
         Assert.Equal(expectedLostOn == 0 ? 0 : 3, casualties.Lost);
@@ -235,8 +236,8 @@ public sealed class InfantryCombatTests
     [Fact]
     public void ADamagedTransportOnlyShakesOutTheUnluckiest()
     {
-        var casualties = InfantryCombat.ResolveRiders(
-            Outcome(NumericalDamage.Damaged), riderStands: 4, new SequencedDie(6, 5, 1, 6));
+        var casualties = Riders(
+            Outcome(NumericalDamage.Damaged), riderStands: 4, new SequencedDie(7, 5, 1, 8));
 
         Assert.Equal(2, casualties.Lost);
         Assert.False(casualties.AllKilled);
@@ -245,8 +246,8 @@ public sealed class InfantryCombatTests
     [Fact]
     public void AKnockedOutTransportIsFarWorseForTheSameRolls()
     {
-        var casualties = InfantryCombat.ResolveRiders(
-            Outcome(NumericalDamage.KnockedOut), riderStands: 4, new SequencedDie(6, 5, 1, 6));
+        var casualties = Riders(
+            Outcome(NumericalDamage.KnockedOut), riderStands: 4, new SequencedDie(7, 5, 1, 8));
 
         Assert.Equal(3, casualties.Lost);
     }
@@ -256,8 +257,7 @@ public sealed class InfantryCombatTests
     {
         var die = new FixedDie(1);
 
-        var casualties = InfantryCombat.ResolveRiders(
-            Outcome(NumericalDamage.None, boom: true), riderStands: 4, die);
+        var casualties = Riders(Outcome(NumericalDamage.None, boom: true), riderStands: 4, die);
 
         Assert.Equal(4, casualties.Lost);
         Assert.True(casualties.AllKilled);
@@ -268,7 +268,7 @@ public sealed class InfantryCombatTests
     [Fact]
     public void ACrashKillsEveryoneWhateverTheTransportsDamageState()
     {
-        var casualties = InfantryCombat.ResolveRiders(
+        var casualties = Riders(
             Outcome(NumericalDamage.None), riderStands: 2, new FixedDie(1), transportCrashed: true);
 
         Assert.Equal(2, casualties.Lost);
@@ -284,7 +284,7 @@ public sealed class InfantryCombatTests
             armourValue: 1,
             new RecordingPot(DamageChit.Of(ChitSpecial.SystemsDownFirer)));
 
-        var casualties = InfantryCombat.ResolveRiders(outcome, riderStands: 3, new FixedDie(6));
+        var casualties = Riders(outcome, riderStands: 3, new FixedDie(8));
 
         Assert.True(outcome.ShotNeverHappened);
         Assert.Equal(0, casualties.Lost);
@@ -311,6 +311,28 @@ public sealed class InfantryCombatTests
         FirerSystemsDown: false,
         boom,
         ShotNeverHappened: false);
+
+    /// <summary>A rider on a merely damaged transport is lost on this, in the invented set.</summary>
+    private const int LostOnDamaged = 7;
+
+    /// <summary>A rider on a knocked-out transport is lost on this, in the invented set.</summary>
+    private const int LostOnKnockedOut = 4;
+
+    /// <summary>
+    /// Rides the invented numbers into <see cref="InfantryCombat.ResolveRiders"/>.
+    /// </summary>
+    /// <remarks>
+    /// The die and the two thresholds used to be written into the engine; they are the players' and
+    /// are now arguments. Invented here, and deliberately unlike the set they replaced, so a test
+    /// that passes proves the code read what it was handed.
+    /// </remarks>
+    private static MountedCasualties Riders(
+        DamageOutcome outcome,
+        int riderStands,
+        IQualityDiceRoller roller,
+        bool transportCrashed = false) =>
+        InfantryCombat.ResolveRiders(
+            outcome, riderStands, roller, QualityDie.D8, LostOnDamaged, LostOnKnockedOut, transportCrashed);
 
     private sealed class FixedDie(int roll) : IQualityDiceRoller
     {

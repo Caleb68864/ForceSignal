@@ -2,6 +2,7 @@ using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.Dirtside.Chits;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -101,7 +102,7 @@ public sealed class DirtsideAssaultServiceTests
     public void ADieThatIsNotOnTheLadderIsRefused()
     {
         var service = new DirtsideGameService();
-        var created = service.CreateGame(new CreateDirtsideGameRequest("Ridge"));
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge"));
 
         Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(
             created.GameId, Platoon("alpha", "Alpha Troop", "blue") with { QualityDie = "D20" }));
@@ -127,9 +128,10 @@ public sealed class DirtsideAssaultServiceTests
     {
         // Alpha One's gun fails on its first activation - the chit says so - and its own systems go
         // down. The attempt the same activation is refused, and the snapshot says why in the same
-        // words. Next turn the crew roll a 3, which is enough with backup systems.
+        // words. Next turn the crew roll a 4, which is what the invented profile asks of a vehicle
+        // with backup systems.
         var service = new DirtsideGameService(
-            new ScriptedQualityDice(1, 8) { Fallback = 3 },
+            new ScriptedQualityDice(1, 8) { Fallback = 4 },
             null,
             ScriptedChitPot.Handing(DamageChit.Of(ChitSpecial.SystemsDownFirer)));
         var game = Activated(service);
@@ -165,7 +167,7 @@ public sealed class DirtsideAssaultServiceTests
     /// <summary>Two platoons that can assault and be assaulted, with Alpha's activation open.</summary>
     private static Guid Activated(DirtsideGameService service)
     {
-        var created = service.CreateGame(new CreateDirtsideGameRequest("Ridge 9"));
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
         service.AddPlatoon(created.GameId, Platoon("alpha", "Alpha Troop", "blue"));
         service.AddPlatoon(created.GameId, Platoon("bravo", "Bravo Troop", "red"));
         service.BeginTurn(created.GameId);

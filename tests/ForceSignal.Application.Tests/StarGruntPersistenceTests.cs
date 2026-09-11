@@ -89,17 +89,4 @@ public sealed class StarGruntPersistenceTests
         LeadershipValue: 2,
         Figures: [.. Enumerable.Repeat(new StarGruntFigureDto(6), 8)],
         Weapons: [new StarGruntWeaponDto("Rifles", 10)]);
-
-    /// <summary>A store that keeps its rows in memory, standing in for the SQLite one.</summary>
-    private sealed class MemoryStore : IMatchStore
-    {
-        private readonly Dictionary<Guid, string> _rows = [];
-
-        public void Save(Guid matchId, string state) => _rows[matchId] = state;
-
-        public void Remove(Guid matchId) => _rows.Remove(matchId);
-
-        public IReadOnlyList<StoredMatch> LoadAll() =>
-            [.. _rows.Select(row => new StoredMatch(row.Key, row.Value))];
-    }
 }

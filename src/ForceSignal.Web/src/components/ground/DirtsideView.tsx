@@ -4,9 +4,24 @@ import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.
 import * as api from '../../lib/dirtsideApi.ts';
 import type { ChitPotDraft } from '../../lib/chitPot.ts';
 import { chitPotSummary, emptyChitPotDraft, toChitPotInput } from '../../lib/chitPot.ts';
+import type { DirtsideProfileDraft } from '../../lib/dirtsideProfile.ts';
+import {
+  emptyProfileDraft,
+  profileSummary,
+  signatures,
+  toProfileInput,
+} from '../../lib/dirtsideProfile.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 // The words the API accepts, not this screen's idea of them. See groundVocabulary.ts.
-import { bands, chitColours, chitColourSets, chitSpecials, fireControls, qualityDice } from '../../lib/groundVocabulary.ts';
+import {
+  bands,
+  chitColours,
+  chitColourSets,
+  chitSpecials,
+  fireControls,
+  postures,
+  qualityDice,
+} from '../../lib/groundVocabulary.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
@@ -79,6 +94,16 @@ export function DirtsideView() {
   // admits it is guessing at.
   const [pot, setPot] = useState<ChitPotDraft>(emptyChitPotDraft);
 
+  // Which die each row of the rulebook rolls. Starts empty and stays empty unless the user reads
+  // them in. There is no fallback behind this one - a game with no rows refuses its first shot and
+  // says which row it wanted - which is why the form says so rather than letting them find out.
+  const [profile, setProfile] = useState<DirtsideProfileDraft>(emptyProfileDraft);
+
+  /** Sets one row of one die table, or clears it when the user picks the blank option. */
+  function setDieRow(table: 'fireControl' | 'posture' | 'signature', key: string, die: string) {
+    setProfile((current) => ({ ...current, [table]: { ...current[table], [key]: die } }));
+  }
+
   function say(text: string) {
     setMessage(text);
     setMessageIsError(false);
@@ -117,7 +142,7 @@ export function DirtsideView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      const created = await api.createGame(gameName, toChitPotInput(pot));
+      const created = await api.createGame(gameName, toChitPotInput(pot), toProfileInput(profile));
       const handle = { gameId: created.gameId, token: created.token };
       writeStorage(dirtsideGameKey, handle);
       setGame(handle);
@@ -265,6 +290,90 @@ export function DirtsideView() {
           ))}
         </fieldset>
 
+        <fieldset>
+          <legend>Die tables</legend>
+          <p className="privacy">
+            Which die each line of your own rulebook rolls. This app ships none of them, and there is
+            no fallback: a game with a row missing refuses the shot that would have read it and says
+            which row it wants. You only need the rows your table will actually use - a force with
+            one grade of gunnery that never goes to ground needs three lines, not twelve. Like the
+            chit pot, it can only be set when the game is started.
+          </p>
+          <div className="row">
+            {fireControls.map((level) => (
+              <label key={`fc-${level}`}>
+                {level} gunnery
+                <select
+                  value={profile.fireControl[level] ?? ''}
+                  onChange={(event) => setDieRow('fireControl', level, event.target.value)}
+                >
+                  <option value="">not entered</option>
+                  {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <div className="row">
+            {signatures.map((signature) => (
+              <label key={`sig-${signature}`}>
+                Signature {signature}
+                <select
+                  value={profile.signature[signature] ?? ''}
+                  onChange={(event) => setDieRow('signature', signature, event.target.value)}
+                >
+                  <option value="">not entered</option>
+                  {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <div className="row">
+            {postures.map((posture) => (
+              <label key={`posture-${posture}`}>
+                {posture}
+                <select
+                  value={profile.posture[posture] ?? ''}
+                  onChange={(event) => setDieRow('posture', posture, event.target.value)}
+                >
+                  <option value="">not entered</option>
+                  {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <div className="row">
+            <label>
+              Systems-down repair die
+              <select
+                value={profile.systemsDownRecoveryDie}
+                onChange={(event) =>
+                  setProfile({ ...profile, systemsDownRecoveryDie: event.target.value })}
+              >
+                <option value="">not entered</option>
+                {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
+              </select>
+            </label>
+            <label>
+              Repair reaches
+              <input
+                inputMode="numeric"
+                value={profile.systemsDownRecoveryRoll}
+                onChange={(event) =>
+                  setProfile({ ...profile, systemsDownRecoveryRoll: event.target.value })}
+              />
+            </label>
+            <label>
+              With backup systems
+              <input
+                inputMode="numeric"
+                value={profile.systemsDownRecoveryRollWithBackup}
+                onChange={(event) =>
+                  setProfile({ ...profile, systemsDownRecoveryRollWithBackup: event.target.value })}
+              />
+            </label>
+          </div>
+        </fieldset>
+
         <button type="button" disabled={busy || Boolean(game)} onClick={() => void start()}>
           {game ? 'Reopening last game...' : 'Start Game'}
         </button>
@@ -299,6 +408,20 @@ export function DirtsideView() {
       */}
       <p className={snapshot.chitPot?.isBuiltInDefaultGuess ? 'constraint-line warning' : 'constraint-line'}>
         Chit pot: {chitPotSummary(snapshot.chitPot)}
+      </p>
+      {/*
+        Beside the pot, and for the same reason: a table arguing about a roll should be able to read
+        which die the game thinks it is settling that roll with. The warning styling is on the case
+        that ends in a refused shot, so the news arrives before the model is in somebody's hand.
+      */}
+      <p
+        className={
+          snapshot.profile && snapshot.profile.fireControl.length === 0
+            ? 'constraint-line warning'
+            : 'constraint-line'
+        }
+      >
+        Die tables: {profileSummary(snapshot.profile)}
       </p>
       <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
 
