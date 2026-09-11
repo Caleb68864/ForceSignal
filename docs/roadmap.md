@@ -390,6 +390,128 @@ fallback, and it is now impossible to play on it without being told.
 
 Still open: **the on-screen validity-card editor** (gap 16). The pot half of gap 15 shipped.
 
+## Closed 2026-09-11 (W2 — the half-wired sweep)
+
+*Five passes looking for unwired and half-wired things, then fixing them. Six commits on top of
+`5175801`. Baseline coming out: `dotnet build` clean with warnings-as-errors, **1397** .NET tests
+across 8 projects, **243** web tests, `tsc --noEmit` and `eslint` clean,
+`scripts/check-ground-vocabulary.py` passing, and `scripts/two-player-smoke.py` run locally against a
+dev pair with zero problems and zero console errors. Going in it was 1391 .NET and 233 web.*
+
+- [x] **A ship at rest can be turned again.** `FullThrustLightCinematicRules` carves out a stationary
+      ship by name, twice — `MaxTurnSteps` returns 12 and `Validate` lets `rotatingAtRest` past both
+      the thrust-spend check and the turn cap — because a ship at velocity zero that is not
+      accelerating rotates to any heading for free. The client's `maxLegalTurn` took no velocity at
+      all, so it could not tell a stationary ship from one under way and answered ceil(thrust/2) for
+      both. That number draws the compass's PORT and STARBOARD LIMIT, caps its slider, trims a plot
+      in `clampDraftForShip`, and is what the map tests before answering *"has no turn points left"*.
+      Proven by calling both sides: the resolver answered 12 for a thrust-4 ship at rest, the client
+      answered 2. **Not an edge case** — `defaultShipForm.currentVelocity` has opened at zero since
+      the content-policy work, so every ship is created in exactly this state, and with thrust also
+      unentered `maxLegalTurn(0, 0)` was 0 and a new ship could not be turned at all. An instance of
+      shape 6: the blanking was right and it made a rare carve-out the default state.
+      `turnLimitCases.json` now holds the client and the resolver to each other across the language
+      boundary, with a second test checking the ceiling describes what `Validate` will accept.
+- [x] **The firing console states the fire control it has already spent.**
+      `FiringSolutionDto.EngagedTargetCount` and `.TargetScreens` were computed, put on the wire and
+      declared at `types.ts:176-177`, and read by nothing in either language — while every sibling
+      field on that DTO is rendered. A ship directs one target per working fire control system and
+      `PrepareShot` refuses past it, so the readout was showing the capacity and hiding the usage and
+      the only way to learn a firecon was spent was to pick a target and be refused. Both now render,
+      through one `firingReadoutNotes` in `lib/rules.ts` rather than a third copy of a readout that
+      was already written out twice.
+- [x] **Power armour can be declared.** `CloseAssault.Fight` doubles a figure's melee score for it,
+      the flag runs end to end from `MeleePairingDto` to `Combatant` — and `StarGruntView`, the only
+      caller of `fightMelee` in the app, sent a literal `false` for both sides with no control
+      anywhere. A table fielding power-armoured troopers fought every melee at half strength. Unlike
+      the support-weapon flags beside it there was no import workaround either, because the pairings
+      are built in the component at click time. Two checkboxes, matching how the panel already
+      applies one set of values across N pairings. Per-pairing values stay unreachable and are a
+      separate, larger piece of work.
+- [x] **The ship form's bounds and the service's clamps are held to each other.** Seven numbers, each
+      written once as a `min`/`max` in `ShipCard.tsx` and once as a `Math.Clamp` in the service, with
+      nothing tying the pair. They agree today; `shipFormBounds.json` is what keeps them agreeing.
+      The firecon cap of `6` that prompted this is **a shape bound, not a rules number** — no
+      `RulesProfile` field carries it, the profile editor has no cell for it, and fire control is
+      limited by what a hull can carry rather than by a flat ceiling — and the reason is now written
+      down rather than inferred, because *"it has always been 6"* is not an argument.
+- [x] **The last two ground vocabularies join the gate, and the gate can see them.** `valueScales`
+      and `chitColourSets` lived in `DirtsideAssaultPanel.tsx` beside their own dropdowns, absent
+      from `DirtsideWire` and `groundVocabulary.ts` while the server parses both by name. **The
+      reason nothing noticed is the useful half:** the gate's local-redeclaration scan matched
+      `^const <name>` and both are `export const`, so it looked straight past them and reported the
+      vocabularies single-sourced. Its name list was also maintained separately from its own
+      comparisons. Both fixed. `ChitColourSets` is held to `ChitColours` as a **subset** rather than
+      an equality, with the reason: it is a `[Flags]` enum carrying `None` and every pair, and
+      widening what the screens offer is a UI decision nobody has made (still open, see #12).
+- [x] **`CarrierOperation` removed.** A two-member enum reached by nothing — no property typed with
+      it, nothing constructing one, no test naming it. A word-boundary search across the repository
+      returns exactly one line, its own declaration; a substring search returns more and all of them
+      are `FullThrustCarrierOperationRules` and `ResolveCarrierOperation`, which is presumably how it
+      survived earlier passes. Removed rather than wired because the launch-or-recovery distinction
+      is already carried by the `bool isLaunch` its would-be caller takes.
+
+### Found by W2 and deliberately left, with the evidence
+
+*So the next sweep need not re-derive them. Each is a feature someone started or a decision that is
+not a mechanical edit, not an oversight.*
+
+- **`DefensivePosture` is a reader with no writer.** `HitResolution.PostureDie` branches on
+  `SoftCover`, `Evading` and `HullDown` and is genuinely wired into `DirtsideGame.Fire`, but nothing
+  in production ever sets `ElementStatus.Posture` to anything but `None`: there is no `posture` field
+  on any contract, so the client cannot send one. The whole posture die-shift mechanic is inert, and
+  `TurretDown` has no arm in `PostureDie` either. Wiring it is a wire field plus a UI plus a decision
+  about when a posture is declared — the same class as interception, and a feature rather than a
+  tail item.
+- **`UnitIcon.tsx` is a subsystem with no entry point.** An eighteen-icon component, a 23k sprite
+  sheet in `assets/`, a `.unit-icon-svg` rule in `style.css`, a licensed artwork set, and
+  `UnitIcon.test.ts` as its **only** importer — searched across `src/`, `tests/` and `scripts/` for
+  both `UnitIcon` and `unitIcon` in `.ts`, `.tsx`, `.cs`, `.py`, `.json`, `.html` and `.css`. No
+  ground screen renders one and no ground DTO carries an icon key. It is also the one item here with
+  a **live user-facing consequence**: `main.tsx:1294-1302` credits game-icons.net in the app's notice
+  panel and `ATTRIBUTION.md` documents the set as used, while the module is never imported and so
+  never reaches the bundle. Wiring it needs either a wire field and a picker, or a client-side
+  derivation like `normalizeShipIconKey`; removing it discards a curated, licensed, tested asset set.
+  **Left for an owner decision precisely because the cheap answer is not obviously right**, and
+  flagged because the credit is a statement about the app that is not currently true.
+- **`ShipDto.HullRowsCompleted`** — computed by `FullThrustLightThresholdRules.RowsCompletedFor` on
+  every snapshot and read by no client code; its sibling `hullRows` *is* rendered. A one-line render
+  once somebody decides where the damage track should say it.
+- **`ShipClassBand.Capital`** — produced by `FromIconKey` for dreadnoughts and carriers, and
+  `RowCountFor` has no arm for it, so it falls to the same default as an unrecognised band.
+  `RulesProfile` has `EscortRowCount` and `CruiserRowCount` and no `CapitalRowCount`, so this is a
+  missing profile field rather than a missing branch.
+- **`ShotRefusal`'s four reasons** — each assigned at its own call site and only ever consumed as
+  `Refusal == None`; the human-readable distinction travels separately as free text. Harmless today,
+  and worth knowing before someone adds a fifth expecting it to be branched on.
+- **`StarGruntAction.GoInPosition`** — reachable from the UI and accepted by the server, with no arm
+  in `Cost`, `IsLeaderAction`, `MayRepeat` or `AsSuppressedAction`. Taking it spends the activation
+  and does nothing else; "in position" is declared per shot instead.
+- **Ten `FiringResultDto` fields the client never reads** (`WeaponName`, `TurnNumber`, `Range`,
+  `RangeBand`, `Arc`, `RawDice`, `RangePenalty`, `SystemPenalty`, and `MapRange`/`RangeDisagreed`
+  which are not even mirrored on the TS type). Four of them are read back on the restore path, so
+  they are not dead — they are an after-action review nobody has built the screen for.
+
+### Checked and found properly wired
+
+- **The namespace-import escape hatch hides nothing.** `libSurface.test.ts` excuses a module whole
+  once anything does `import * as api`, and says so — 42 functions across `dirtsideApi.ts` and
+  `starGruntApi.ts` sit inside that exemption. Every one of them is really spelled by an importer as
+  `api.<name>`. That was the largest stated hole in the app's reachability guard and it is empty.
+- **Every contracts field was walked in both directions.** 96 records, 577 fields, writers and
+  readers classified separately, because a name count cannot tell them apart — the code that writes
+  a DTO field mentions it exactly as often as code that reads it. Six candidates came out; two were
+  the already-recorded `HasChosen`/`ElementsStillToChoose` and four are above.
+- **`UnitIcon.tsx` is the only production module unreachable from `main.tsx`.** The import graph was
+  walked from the entry point; everything else in `src/` is reachable.
+- **Thirty-one enums are fully produced and consumed**, including `TurnDirection`, `ShipSystemKind`,
+  `QualityDie`, `FiringArc`, `WeaponKind`, `ChitColour`, `ChitSpecial`, `HitEffect`, `AssaultStage`
+  and `ConfidenceLevel`.
+- **The feature flags and every configuration key are read**, and the three deployment keys are
+  already cross-checked against `.env.example` and `docker-compose.yml` by a CI script.
+- **The six vocabularies the gate already covered are identical** between `DirtsideWire`/
+  `StarGruntWire` and `groundVocabulary.ts`, line for line.
+
 ## Closed 2026-09-10 / 2026-09-11 (scan 2, and the content policy)
 
 *Twenty-seven commits across four rounds, on top of `f422f2f`. Measured baseline coming out, on
