@@ -18,6 +18,15 @@ Use your own legally obtained rules and fleet data. ForceSignal links outward to
   tables, range bands, thresholds and reach are entered by the player and shipped by nobody. There
   is deliberately no default profile, and `docs/rules-profile-template.json` is blank rather than
   typical. A default that happens to be somebody's published numbers is still those numbers.
+- **All three engines, with one exception that is written down rather than left quiet.** Full
+  Thrust reads `RulesProfile`, StarGrunt ships no table at all, and Dirtside's three die tables -
+  gunnery, signature and posture - are now `DirtsideRulesProfile`, entered per game like the chit
+  pot. A Dirtside game whose profile has no row for a shot **refuses that shot and names the row**;
+  it does not fall back to anything, because a fallback here would be somebody's published table
+  wearing a default's clothes. The exception is StarGrunt's band-to-rung walk in `RangeBands.cs`,
+  which is a real rules table and needs a StarGrunt profile rather than one field. It is listed by
+  name in `EngineDiceContentPolicyTests.NotYetThePlayers` - a list kept separate from the
+  not-a-rules-number exemptions precisely so it cannot read as settled.
 - JSON/CSV fleet import and export are for user-owned data, and so is the rules profile.
 - Do not ship official Ground Zero Games fleets as sample data.
 - If compatibility wording is used publicly, get written permission from Ground Zero Games first.
