@@ -72,7 +72,10 @@ internal static class GameFixtures
     /// <summary>The worked firefight's dice: three through, two hits, one of them a kill.</summary>
     public static readonly int[] AKillAndAStop = [6, 7, 5, 4, 5, 3, 5, 9, 4];
 
-    /// <summary>Alpha's rifles at Bravo, just over one band away and in soft cover.</summary>
+    /// <summary>
+    /// Alpha's rifles at Bravo, just over one band away and in soft cover - on
+    /// <see cref="TestRangeTable.Invented"/>, the second band's D4 moved two rungs to a D8.
+    /// </summary>
     /// <returns>The volley.</returns>
     public static FireCommand Volley() => new()
     {
@@ -80,7 +83,7 @@ internal static class GameFixtures
         Target = Bravo,
         WeaponName = "Rifles",
         FirepowerDie = QualityDie.D10,
-        // The squad support is folded in, which is what makes this the rulebook's worked example:
+        // The squad support is folded in, which is what makes this the worked firefight's shape:
         // quality, small arms and one support die against the target's single range die.
         SupportWeapons = ["Squad Support"],
         DistanceInches = 9,

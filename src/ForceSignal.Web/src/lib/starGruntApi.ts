@@ -20,9 +20,32 @@ export function readFeatures() {
   return get<FeatureFlags>('/api/features');
 }
 
-/** Starts a game. */
-export function createGame(name: string) {
-  return post<StarGruntGameCreated>('/api/stargrunt/games', { name });
+/**
+ * The range table a game is played on, off the user's own rulebook. This app supplies none of it.
+ *
+ * An entry the user has not made is left out of the body rather than sent as zero, so the server
+ * reads it as not entered; a zero the user did type is sent, because a cover shift of nothing is a
+ * real answer.
+ */
+export type StarGruntRulesProfileInput = {
+  bandWidths: { qualityDie: number; inches: number }[];
+  rangeDice: { bandsOut: number; die: number }[];
+  effectiveBands?: number;
+  softCoverShift?: number;
+  hardCoverShift?: number;
+  inPositionShift?: number;
+  meleeCoverShift?: number;
+};
+
+/**
+ * Starts a game.
+ *
+ * The range table is sent when the user has read it off their rulebook and left out when they have
+ * not, and there is no fallback to leave it out into: a game with no table refuses its first shot
+ * and names the entry it wanted. Partial is fine and is sent as given.
+ */
+export function createGame(name: string, profile?: StarGruntRulesProfileInput) {
+  return post<StarGruntGameCreated>('/api/stargrunt/games', profile ? { name, profile } : { name });
 }
 
 /** Reads a game back. */

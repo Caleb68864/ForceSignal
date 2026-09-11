@@ -92,7 +92,7 @@ public sealed class GameCasualtyTests
         var game = GameFixtures.Firefight()
             .WithStatus(GameFixtures.Bravo, status => status with { FiguresAlive = 1, FiguresWounded = 0 });
 
-        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(OneKill), new ScriptedAllocator(0)).Value!;
+        var after = game.Fire(GameFixtures.Volley(), new ScriptedDice(OneKill), TestRangeTable.Invented, new ScriptedAllocator(0)).Value!;
 
         var status = after.Status(GameFixtures.Bravo);
         Assert.Equal(0, status.FiguresAlive);
@@ -112,6 +112,6 @@ public sealed class GameCasualtyTests
 
     private static StarGruntGame Fire(int[] dice, int[] allocation) =>
         GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(dice), new ScriptedAllocator(allocation))
+            .Fire(GameFixtures.Volley(), new ScriptedDice(dice), TestRangeTable.Invented, new ScriptedAllocator(allocation))
             .Value!;
 }

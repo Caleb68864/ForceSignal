@@ -18,6 +18,14 @@ import { downloadText, wholeNumberFrom } from '../../lib/format.ts';
 import { qualityLadder as ladder } from '../../lib/groundVocabulary.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import * as api from '../../lib/starGruntApi.ts';
+import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
+import {
+  emptyStarGruntProfileDraft,
+  starGruntProfileIsEmpty,
+  starGruntProfileSummary,
+  toStarGruntProfileInput,
+  visibleBandRows,
+} from '../../lib/starGruntProfile.ts';
 import type { GameHandle, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
@@ -166,6 +174,23 @@ export function StarGruntView() {
   const [threatLevel, setThreatLevel] = useState(newThreatLevel);
   const [assault, setAssault] = useState(newAssaultForm);
   const [shot, setShot] = useState<ShotForm>(newShotForm);
+  // The range table off the user's own rulebook. Starts empty and stays empty unless they read it
+  // in. There is no fallback behind it - a shot that needs an entry nobody made is refused, naming
+  // it - which is why the form says so rather than letting them find out mid-firefight.
+  const [profile, setProfile] = useState<StarGruntProfileDraft>(emptyStarGruntProfileDraft);
+
+  /** Sets one of the range table's plain numbers, keeping whatever was typed as typed. */
+  function setProfileNumber(
+    field: 'effectiveBands' | 'softCoverShift' | 'hardCoverShift' | 'inPositionShift' | 'meleeCoverShift',
+    text: string,
+  ) {
+    setProfile((current) => ({ ...current, [field]: text }));
+  }
+
+  /** Sets one row of one of the range table's two tables, or clears it. */
+  function setProfileRow(table: 'bandInches' | 'rangeDice', key: string, text: string) {
+    setProfile((current) => ({ ...current, [table]: { ...current[table], [key]: text } }));
+  }
 
   function say(text: string) {
     setMessage(text);
@@ -210,7 +235,7 @@ export function StarGruntView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      const created = await api.createGame(gameName);
+      const created = await api.createGame(gameName, toStarGruntProfileInput(profile));
       const next = { gameId: created.gameId, token: created.token };
       writeStorage(starGruntGameKey, next);
       setHandle(next);
@@ -280,6 +305,90 @@ export function StarGruntView() {
           Game name
           <input value={gameName} onChange={(event) => setGameName(event.target.value)} />
         </label>
+        <fieldset>
+          <legend>Range table</legend>
+          <p className="privacy">
+            The numbers off your own rulebook's range page. This app ships none of them and there is
+            no fallback: a shot that needs an entry you have not made is refused, and says which. You
+            only need what your table will use - one kind of troops shooting across open ground needs
+            one band width and the rows it shoots at. It can only be set when the game is started.
+          </p>
+          <div className="row">
+            {ladder.map((die) => (
+              <label key={`band-${die}`}>
+                Band for D{die} troops, inches
+                <input
+                  inputMode="numeric"
+                  placeholder="Not entered"
+                  value={profile.bandInches[String(die)] ?? ''}
+                  onChange={(event) => setProfileRow('bandInches', String(die), event.target.value)}
+                />
+              </label>
+            ))}
+          </div>
+          <div className="row">
+            {/* One row per band filled in, and one more: how many bands a page has is its own. */}
+            {visibleBandRows(profile).map((band) => (
+              <label key={`range-${band}`}>
+                Range die, {band} band{band === 1 ? '' : 's'} out
+                <select
+                  value={profile.rangeDice[String(band)] ?? ''}
+                  onChange={(event) => setProfileRow('rangeDice', String(band), event.target.value)}
+                >
+                  <option value="">Not entered</option>
+                  {ladder.map((die) => <option key={die} value={String(die)}>D{die}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <div className="row">
+            <label title="How many bands out small arms still have an effective shot at a target in the open.">
+              Bands of effective range
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.effectiveBands}
+                onChange={(event) => setProfileNumber('effectiveBands', event.target.value)}
+              />
+            </label>
+            <label title="Rungs soft cover moves the range die and the armour die up. Zero is an answer.">
+              Soft cover, rungs
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.softCoverShift}
+                onChange={(event) => setProfileNumber('softCoverShift', event.target.value)}
+              />
+            </label>
+            <label title="Rungs hard cover moves the range die and the armour die up. Zero is an answer.">
+              Hard cover, rungs
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.hardCoverShift}
+                onChange={(event) => setProfileNumber('hardCoverShift', event.target.value)}
+              />
+            </label>
+            <label title="Rungs a target settled into its position adds, on top of any cover.">
+              Dug in, rungs
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.inPositionShift}
+                onChange={(event) => setProfileNumber('inPositionShift', event.target.value)}
+              />
+            </label>
+            <label title="Rungs cover is worth to a defender in the first round of a melee.">
+              Melee cover, rungs
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.meleeCoverShift}
+                onChange={(event) => setProfileNumber('meleeCoverShift', event.target.value)}
+              />
+            </label>
+          </div>
+        </fieldset>
         <button type="button" disabled={busy || Boolean(handle)} onClick={start}>
           {handle ? 'Reopening last game...' : 'Start Game'}
         </button>
@@ -302,6 +411,14 @@ export function StarGruntView() {
           Turn {snapshot.turnNumber} · {snapshot.phase}
           {snapshot.activeSide ? ` · ${snapshot.activeSide} to act` : ''}
           {snapshot.firstActivationChooser ? ` · ${snapshot.firstActivationChooser} chooses who goes first` : ''}
+        </p>
+        {/*
+          On every screen rather than only at setup, so a table arguing about a shot can read which
+          numbers the game is settling it with. Warning-styled when there is nothing to settle one
+          with, so the news arrives before a model is in somebody's hand.
+        */}
+        <p className={starGruntProfileIsEmpty(snapshot.profile) ? 'constraint-line warning' : 'constraint-line'}>
+          Range table: {starGruntProfileSummary(snapshot.profile)}
         </p>
         <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         <div className="quick-actions">

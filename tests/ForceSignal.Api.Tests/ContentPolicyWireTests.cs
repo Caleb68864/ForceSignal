@@ -224,6 +224,109 @@ public sealed class ContentPolicyWireTests
         Assert.Contains(log, entry => entry.Contains("counted its down", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A StarGrunt game created from a body with no range table in it at all - which is every create
+    /// request any client sent before the table was the players' - fires its first shot and is
+    /// refused, naming the entry.
+    /// </summary>
+    /// <remarks>
+    /// Posted as bytes with no <c>profile</c> key, for the reason the downed-figure test above is: only
+    /// a JSON body shows what a missing property does. The old engine settled this shot on a band the
+    /// size of the firer's own die and a walk up the ladder from its bottom rung, with nothing on the
+    /// wire to say so.
+    /// </remarks>
+    [Fact]
+    public async Task AStarGruntShotFromAGameCreatedWithNoTableIsRefusedNamingTheEntry()
+    {
+        using var factory = CreateGroundFactory();
+        using var client = factory.CreateClient();
+
+        var (created, shot) = await PlayToAShot(client, """{ "name": "Hill 43" }""");
+        var body = await shot.Content.ReadAsStringAsync();
+
+        // Reached-the-subject: the create answered and reported a table, empty rather than absent.
+        var profile = created.GetProperty("snapshot").GetProperty("profile");
+        Assert.Empty(profile.GetProperty("bandWidths").EnumerateArray());
+
+        Assert.False(shot.IsSuccessStatusCode, body);
+        Assert.Contains("range band is for D8 troops", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheSameShotFromAGameWhoseBodyCarriedATableIsSettled()
+    {
+        // The control that must be accepted, also as bytes: a table typed into the create body is
+        // read, reported back, and settles the shot. Invented numbers, the same as the shared fixture.
+        using var factory = CreateGroundFactory();
+        using var client = factory.CreateClient();
+
+        var (created, shot) = await PlayToAShot(client, """
+            {
+              "name": "Hill 43",
+              "profile": {
+                "bandWidths": [ { "qualityDie": 8, "inches": 7 } ],
+                "rangeDice": [ { "bandsOut": 2, "die": 4 } ],
+                "softCoverShift": 2
+              }
+            }
+            """);
+        var body = await shot.Content.ReadAsStringAsync();
+
+        Assert.Equal(7, created.GetProperty("snapshot").GetProperty("profile")
+            .GetProperty("bandWidths")[0].GetProperty("inches").GetInt32());
+        Assert.True(shot.IsSuccessStatusCode, body);
+    }
+
+    /// <summary>
+    /// Creates a StarGrunt game from the body given, puts a squad a side on it, opens Alpha's
+    /// activation, and fires Alpha's rifles at Bravo nine inches away in soft cover.
+    /// </summary>
+    private static async Task<(JsonElement Created, HttpResponseMessage Shot)> PlayToAShot(HttpClient client, string createBody)
+    {
+        using var response = await client.PostAsync("/api/stargrunt/games", Body(createBody));
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, text);
+        var created = JsonDocument.Parse(text).RootElement.Clone();
+        var game = created.GetProperty("gameId").GetGuid();
+
+        client.DefaultRequestHeaders.Remove("X-Game-Token");
+        client.DefaultRequestHeaders.Add("X-Game-Token", created.GetProperty("token").GetString());
+
+        foreach (var (id, side) in new[] { ("alpha", "blue"), ("bravo", "red") })
+        {
+            var unit = await client.PostAsJsonAsync(
+                $"/api/stargrunt/games/{game}/units",
+                new Contracts.Ground.AddStarGruntUnitRequest(
+                    id,
+                    $"{id} squad",
+                    side,
+                    "Squad",
+                    QualityDie: 8,
+                    LeadershipValue: 2,
+                    Figures: [.. Enumerable.Repeat(new Contracts.Ground.StarGruntFigureDto(6), 8)],
+                    Weapons: [new Contracts.Ground.StarGruntWeaponDto("Rifles", 10)]),
+                JsonOptions);
+            unit.EnsureSuccessStatusCode();
+        }
+
+        (await client.PostAsJsonAsync($"/api/stargrunt/games/{game}/turns/begin", new { }, JsonOptions)).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync(
+            $"/api/stargrunt/games/{game}/turns/current/first-activator",
+            new Contracts.Ground.ChooseFirstActivatorRequest("blue", true),
+            JsonOptions)).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync(
+            $"/api/stargrunt/games/{game}/activations",
+            new Contracts.Ground.BeginStarGruntActivationRequest("blue", "alpha"),
+            JsonOptions)).EnsureSuccessStatusCode();
+
+        var shot = await client.PostAsJsonAsync(
+            $"/api/stargrunt/games/{game}/activations/current/fire",
+            new Contracts.Ground.StarGruntFireRequest("alpha", "bravo", "Rifles", 10, [], 9, "Soft"),
+            JsonOptions);
+
+        return (created, shot);
+    }
+
     /// <summary>A StarGrunt game with one squad on it, reachable by the token on the client.</summary>
     private static async Task<Guid> OpenGroundGame(HttpClient client)
     {

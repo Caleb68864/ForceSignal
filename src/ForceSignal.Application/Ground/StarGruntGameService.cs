@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.GroundCombat.Dice;
@@ -112,6 +113,12 @@ public sealed class StarGruntGameService : IStarGruntGameService
     private readonly List<SkippedSave> _skippedSaves = [];
 
     /// <summary>
+    /// How the settings blob is written into the stored row. Web defaults so the field names match
+    /// the ones the same DTO carries on the wire, as Dirtside's do.
+    /// </summary>
+    private static readonly JsonSerializerOptions SettingsJson = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
     /// Builds the service and brings back whatever the store was holding, so a restart resumes the
     /// games rather than ending them.
     /// </summary>
@@ -154,7 +161,16 @@ public sealed class StarGruntGameService : IStarGruntGameService
             try
             {
                 var row = GroundGameRecord.Unwrap(saved.State);
-                _games[saved.MatchId] = new Held(StarGruntGameSerialization.Restore(row.Game), 1, row.Token, row.LastActivity);
+
+                // A row stored before the range table became the players' carries no settings at
+                // all, and reads back as a blank table - a game that opens, plays, and refuses its
+                // first shot by name. Not a guess this app is making: the absence of one.
+                _games[saved.MatchId] = new Held(
+                    StarGruntGameSerialization.Restore(row.Game),
+                    1,
+                    row.Token,
+                    row.LastActivity,
+                    ReadStoredProfile(row.Settings));
             }
 #pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
             catch (Exception ex)
@@ -171,11 +187,15 @@ public sealed class StarGruntGameService : IStarGruntGameService
         ArgumentNullException.ThrowIfNull(request);
         var name = string.IsNullOrWhiteSpace(request.Name) ? "StarGrunt" : GroundGameGuards.Truncate(request.Name);
 
+        // Read before the lock is taken: a table that does not describe a page is a refusal, and
+        // there is no reason to hold every other table up while it is worked out.
+        var profile = StarGruntRulesProfileMapping.FromRequest(request.Profile);
+
         lock (_gate)
         {
             EvictIdleGames();
             var id = Guid.NewGuid();
-            var held = new Held(StarGruntGame.Create(name), 1, GroundGameGuards.NewToken(), DateTimeOffset.UtcNow);
+            var held = new Held(StarGruntGame.Create(name), 1, GroundGameGuards.NewToken(), DateTimeOffset.UtcNow, profile);
             _games[id] = held;
             Persist(id, held);
             return new StarGruntGameCreatedResponse(id, ToSnapshot(id, held), held.Token);
@@ -270,7 +290,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
             TargetPosture = new TargetPosture(Cover(request.Cover), request.InPosition),
         };
 
-        return Command(gameId, game => game.Fire(command, _dice, _allocator));
+        return CommandWithHeld(gameId, (game, held) => game.Fire(command, _dice, held.Profile, _allocator));
     }
 
     /// <inheritdoc />
@@ -363,12 +383,13 @@ public sealed class StarGruntGameService : IStarGruntGameService
             pairing.AttackerPowerArmour,
             pairing.DefenderPowerArmour)).ToArray();
 
-        return Command(gameId, game => game.FightMeleeRound(
+        return CommandWithHeld(gameId, (game, held) => game.FightMeleeRound(
             new UnitId(request.AttackerId),
             new UnitId(request.DefenderId),
             pairings,
             request.DefendersInCover,
-            _dice));
+            _dice,
+            held.Profile));
     }
 
     /// <inheritdoc />
@@ -403,11 +424,19 @@ public sealed class StarGruntGameService : IStarGruntGameService
     public StarGruntSnapshotDto EndTurn(Guid gameId) => Command(gameId, game => game.EndTurn());
 
     /// <summary>Runs a command, turning its refusal into the error the API reports as a 400.</summary>
-    private StarGruntSnapshotDto Command(Guid gameId, Func<StarGruntGame, GameOutcome<StarGruntGame>> command)
+    private StarGruntSnapshotDto Command(Guid gameId, Func<StarGruntGame, GameOutcome<StarGruntGame>> command) =>
+        CommandWithHeld(gameId, (game, _) => command(game));
+
+    /// <summary>
+    /// The same, for a command that needs something this service holds about the game beyond the
+    /// game itself - the range table, which is the players' and belongs to one game.
+    /// </summary>
+    private StarGruntSnapshotDto CommandWithHeld(Guid gameId, Func<StarGruntGame, Held, GameOutcome<StarGruntGame>> command)
     {
         lock (_gate)
         {
-            var outcome = command(Find(gameId).Game);
+            var held = Find(gameId);
+            var outcome = command(held.Game, held);
             return outcome.IsAllowed
                 ? Store(gameId, outcome.Value!)
                 : throw new InvalidOperationException(outcome.Reason);
@@ -450,7 +479,60 @@ public sealed class StarGruntGameService : IStarGruntGameService
     }
 
     private void Persist(Guid gameId, Held held) =>
-        _store.Save(gameId, GroundGameRecord.Wrap(held.Token, held.LastActivity, StarGruntGameSerialization.Save(held.Game)));
+        _store.Save(
+            gameId,
+            GroundGameRecord.Wrap(
+                held.Token,
+                held.LastActivity,
+                StarGruntGameSerialization.Save(held.Game),
+                WriteSettings(held)));
+
+    /// <summary>
+    /// What this service knows about a game that the module's document does not: the range table its
+    /// players entered. Null when they entered nothing, so a game with no table writes exactly the
+    /// row this service wrote before tables existed.
+    /// </summary>
+    /// <remarks>
+    /// In the row's optional settings field rather than in the module's document, for the reason the
+    /// token is: the module takes the table as an argument to the command that reads it and has no
+    /// field for it. And optional rather than a format bump, because a mismatched
+    /// <c>GroundGameRecord</c> format is skipped rather than migrated - a required field would have
+    /// retired every stored StarGrunt game on the machine.
+    /// </remarks>
+    private static string? WriteSettings(Held held) =>
+        held.Profile.IsBlank
+            ? null
+            : JsonSerializer.Serialize(new StoredSettings(StarGruntRulesProfileMapping.ToDto(held.Profile)), SettingsJson);
+
+    /// <summary>
+    /// Reads a stored row's range table, or answers a blank one.
+    /// </summary>
+    /// <param name="settings">The row's settings blob, or null when it carries none.</param>
+    /// <returns>The table the players entered, or a blank one.</returns>
+    /// <remarks>
+    /// In its own try, and narrower than the per-row catch around it, for the reason Dirtside's pot
+    /// spelled out after paying for it: the settings are what this service knows about a game, not the
+    /// game, so a blob that is present and of another shape must cost the settings and not the
+    /// document, the token and the turn. Falling back here is not the silent kind: a blank table is on
+    /// every snapshot and refuses the first shot by name, so a table whose profile failed to load
+    /// finds out at the same moment as one that never entered it.
+    /// </remarks>
+    private static StarGruntRulesProfile ReadStoredProfile(string? settings)
+    {
+        try
+        {
+            return !string.IsNullOrWhiteSpace(settings)
+                && JsonSerializer.Deserialize<StoredSettings>(settings, SettingsJson)?.Profile is { } stored
+                    ? StarGruntRulesProfileMapping.FromDto(stored)
+                    : StarGruntRulesProfile.Empty;
+        }
+        // JsonException is a blob of another shape; InvalidOperationException is one whose entries no
+        // longer describe a table this version can build - a die that has been renamed, say.
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return StarGruntRulesProfile.Empty;
+        }
+    }
 
     /// <summary>
     /// Drops the oldest log lines once the game passes its ceiling. Done here rather than in the
@@ -595,7 +677,10 @@ public sealed class StarGruntGameService : IStarGruntGameService
             SequenceGuards.FirstActivationChooser(game.Session)?.Value,
             [.. game.Units.Values.Select(unit => ToUnitDto(game, unit, legality[unit.Id], activated.Contains(unit.Id)))],
             [.. game.Log],
-            held.Version);
+            held.Version,
+            // Reported whether or not anything was entered. A blank table coming back as a blank table
+            // is what lets a screen say so before the first shot is refused, rather than after.
+            StarGruntRulesProfileMapping.ToDto(held.Profile));
     }
 
     private static StarGruntUnitDto ToUnitDto(
@@ -639,6 +724,27 @@ public sealed class StarGruntGameService : IStarGruntGameService
             [.. legality.Weapons.Select(weapon => new StarGruntWeaponLegalityDto(weapon.Name, weapon.CanFire, weapon.Blocker))]);
     }
 
-    /// <summary>One game, how many times it has changed, the token that opens it, and when it was last touched.</summary>
-    private sealed record Held(StarGruntGame Game, long Version, string Token, DateTimeOffset LastActivity);
+    /// <summary>
+    /// One game, how many times it has changed, the token that opens it, when it was last touched, and
+    /// the range table its players entered.
+    /// </summary>
+    /// <param name="Game">The game itself.</param>
+    /// <param name="Version">Bumped on every change.</param>
+    /// <param name="Token">What a caller has to present to touch it.</param>
+    /// <param name="LastActivity">When it was last read or changed.</param>
+    /// <param name="Profile">
+    /// The range table, here rather than on the game value for the reason Dirtside's is: the module
+    /// takes it as an argument to the command that reads it. Blank when nobody entered one, which is a
+    /// playable state and not an error - it is the first shot that says what is missing.
+    /// </param>
+    private sealed record Held(
+        StarGruntGame Game,
+        long Version,
+        string Token,
+        DateTimeOffset LastActivity,
+        StarGruntRulesProfile Profile);
+
+    /// <summary>What the stored row's settings field holds for this engine.</summary>
+    /// <param name="Profile">The range table, or null when nobody entered one.</param>
+    private sealed record StoredSettings(StarGruntRulesProfileDto? Profile = null);
 }

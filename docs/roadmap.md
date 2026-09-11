@@ -255,6 +255,9 @@ the roadmap lists only what a table can reach.
       is a command element, and a weapon with no support firepower die is most weapons.
 - [x] The close-assault settle-up asks which die the player's own table reads its bands against,
       rather than throwing a D6 at bands written for something else (2026-09-11).
+- [x] The range page is the players': band widths, range dice, reach and cover shifts are entered on
+      the create screen and carried per game, and a shot that reads an entry nobody made is refused
+      by name before it is spent (2026-09-11). See "StarGrunt's range page" below.
 
 ### Dirtside II
 
@@ -459,6 +462,96 @@ what the interceptor rolls and against what, what a success does to the shot,
 and whether one element may do it more than once a turn. The reach in (2) is a
 number and belongs on the rules profile beside the die tables, not in the code.
 
+## Closed 2026-09-11 (StarGrunt's range page, and a guard that can see a walk)
+
+*Branch `feat/stargrunt-profile`, six commits on top of `5414a8f`. Coming out: `dotnet build` clean
+with warnings-as-errors, **1484** .NET tests across 8 projects, **290** web tests, `tsc --noEmit` and
+`eslint` clean, both gate scripts passing, `scripts/two-player-smoke.py` run locally with zero
+problems, and the StarGrunt screen driven in a browser both ways - a game with a range table fires,
+one without refuses by name. Going in it was 1444 .NET and 275 web.*
+
+The owner chose this as the highest-impact next item: `NotYetThePlayers` held one entry, and the
+README's claim was false while it did.
+
+### What the range page was, and where it went
+
+`RangeBands.cs` carried StarGrunt's whole range page as arithmetic on the quality ladder, which is
+why no guard saw it as a table: a band was the firer's own quality die read as inches
+(`QualityDice.Faces`), the target's die walked up the ladder one rung per band from the bottom, soft
+and hard cover were worth one and two rungs because those were `CoverLevel`'s enum values, being dug
+in was worth one more, and the reach was `QualityDice.Ladder.Count` bands. The previous note was
+right that splitting one out would leave a half-entered table, so the page moved together.
+
+- [x] **`StarGruntRulesProfile`**: band width per firer quality, a range die per band out (a table,
+      not a walk, so a page of any shape can be entered), how many bands small arms reach, and the
+      soft-cover, hard-cover and in-position shifts. The engine keeps the procedure: count the bands,
+      look the die up, move it up by the cover, a die pushed off the ladder is no effective shot, and
+      the same rungs go on the armour.
+- [x] **A missing entry refuses and never substitutes.** The refusal names the entry - *"how many
+      inches a range band is for D8 troops"* - and `RangeSolution.IsMissingFromProfile` tells it apart
+      from a shot that is merely too long. **It lands before the step is taken**, so the volley is
+      not charged to the unit; a shot past the reach the players entered is still taken and wasted,
+      because that is what the rules make of it.
+- [x] **Only what a shot reads is asked for**, in the order it reads it. `OnlyWhatTheShotReadsHasToBeThere`
+      (one width, one row, nothing else) and `APartlyFilledTableSettlesTheShotsItHasEntriesFor` are
+      the controls that must be accepted; every refusing path has its own. With no reach entered, a
+      band past the last row is refused naming *both* honest answers rather than deciding the table
+      ends where the typing did.
+- [x] **Stored games still open.** A blank table writes no settings at all, so the row is the shape
+      this service always wrote; a stored table is read in its own `try`. `AGameStoredBeforeTablesExistedStillOpens`
+      seeds a hand-written format-1 row with no settings and one with `"settings":null`, and the game
+      opens, plays and refuses its first shot by name. Probed both ways: a required table fails both
+      cases, a narrowed catch fails the unreadable-blob case.
+- [x] **The create screen** grows a Range table fieldset: widths per quality, range-die rows that grow
+      one past the last band filled in, reach, and the four shifts. Every select opens on "Not
+      entered" as a value it can hold; every input opens empty. Zero is sent when typed, because a
+      cover shift of nothing is an answer. Every game screen carries a "Range table:" line,
+      warning-styled when empty.
+
+### The guard, and what it found
+
+`EngineDiceContentPolicyTests` counted `QualityDie.Dn` and `Ladder[` and could not see `Faces()` or
+`Ladder.Count`. It now counts every way a module can reach the ladder - a die named, the ladder
+touched in any form, any call on `QualityDice`, an integer cast to a die, the dice enumerated, and a
+`using static`/alias that would hide the rest - and keys by module path, because both modules have a
+`CloseAssault.cs` and the old file-name key added them together. Red on the old tree
+(`RangeBands.cs:Faces() x1`, `Ladder x3`); red again when a probe put the walk back as
+`ShiftClosed(first, bandsOut - 1)`; and `TheDullestShiftIsCaught` plants
+`QualityDice.ShiftClosed(quality, 1)`, which the old expressions could not match.
+
+**What widening it found, and what was done about each:**
+
+- [x] **StarGrunt's melee cover shift**, `CoverShift = 1`, argued in its own comment as "the one shift
+      in a close combat this engine owns". It is a cover shift like the three that moved, so it moved
+      too: `StarGruntRulesProfile.MeleeCoverShift`, refused by name when a round is fought with the
+      defenders in cover and the entry is missing, never asked in the open.
+- [x] **StarGrunt's communication die**, one rung per command level skipped. No production caller, so
+      the cost per level is a parameter - the precedent Dirtside's rider check set.
+- [ ] **Dirtside's firer walk**, `(int)band + (firerMovedOverHalf ? -1 : 0)`: the `WeaponRangeBand`
+      enum values *are* the table - close +1, medium 0, long -1 - and a hurried shot costs one more.
+      The same shape StarGrunt's walk was. **Recorded in `NotYetThePlayers`, not touched**: this pass
+      was told to leave the Dirtside tables alone, and `DirtsideRulesProfile`'s own remarks call
+      "a band and a hurried shot move the firer down the ladder" procedure. Whether *how far* is
+      procedure too is the owner's call.
+- [ ] **Dirtside's Under Fire rung**, `underFire ? ShiftClosed(quality, -1) : quality` in
+      `InfantryCombat.SolveFireEffectiveness`. No production caller. Recorded, not touched.
+
+`NotARulesDie` now carries five arguments, each for a line that reads only the players' dice and
+rungs; `NotYetThePlayers` carries the two Dirtside entries. **What the guard cannot see** is written on
+it: `QualityDie` is an enum whose values are face counts, and C# lets `die + 2` compile without a
+cast. Nothing does it today; closing it needs a compiler-backed analyser.
+
+### Not dice, and so not covered
+
+The guard counts dice. The StarGrunt module still holds some counts as procedure that a stricter
+reading would call numbers, and none has been argued line by line: two actions to an activation, at
+most three suppression markers, a hit that more than doubles the armour roll kills, two wounds on one
+figure in one volley is a death, power armour doubles a melee score, terror doubles a stand threat,
+and the service accepts a Leadership Value of 1 to 3. Separately, `UnitDefinition.LeadershipValue`
+still opens on `= 2`, which is the exact shape `QualityDie` was fixed for - a stored blob without the
+property would restore with a rating nobody gave it. Every blob this service has written carries the
+property, so it bites nobody today, and it is left for the owner rather than changed on the way past.
+
 ## Closed 2026-09-11 (the Dirtside die tables, and the icon attribution)
 
 *Two owner decisions, answered and acted on. Branch `fix/dirtside-die-tables`.*
@@ -521,7 +614,9 @@ violation sits under a heading that says what it is. Fixing it means giving
 StarGrunt a profile of its own (the band-to-rung walk, the band width in inches
 and the posture shifts all come off one page, and splitting one out would leave a
 half-entered table), which is the next content-policy item and is scoped out of
-this pass.
+this pass. *(Paid later the same day - see "StarGrunt's range page, and a guard
+that can see a walk" above. Widening the guard again for it found that
+Dirtside's own firer walk is the same shape; that is recorded there.)*
 
 **Still this app's numbers, and not covered by a die guard:** nothing now, in the
 dice. The two *number* pairs that went with the dice were the last of them in the
@@ -660,7 +755,8 @@ to be accepted after it.
   so Enter and a tablet's Go key submit nothing. Both touch every screen's submit path and are a
   design pass rather than a tail edit.
 - **Interception**, and **StarGrunt's band-to-rung walk** in `RangeBands.cs`. Both are the owner's —
-  see "Interception: finished up to the rules, and stopped there" and `NotYetThePlayers`.
+  see "Interception: finished up to the rules, and stopped there" and `NotYetThePlayers`. *(The walk
+  was closed after this pass; interception is still waiting.)*
 
 ## Closed 2026-09-11 (W2 — the half-wired sweep)
 
@@ -940,7 +1036,9 @@ contract that it ships no table at all.
 ### Content policy — what remains, plainly
 
 *"This app ships no rules numbers" is the kind of claim that rots quietly, so this is the list as of
-2026-09-11, not a summary of it.*
+2026-09-11, not a summary of it.* *(Superseded twice since: the Dirtside die tables and StarGrunt's
+range page have both moved to per-game profiles. The current list is the one in "StarGrunt's range
+page, and a guard that can see a walk" and in `NotYetThePlayers`.)*
 
 - **The Dirtside die tables in `HitResolution.cs` — open, and the largest remaining item.** A fire
   control level is worth a D6, a D8 or a D10; a defensive posture is worth a D6, a D8, a D10 or a

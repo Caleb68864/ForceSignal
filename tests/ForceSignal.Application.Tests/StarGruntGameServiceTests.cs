@@ -1,6 +1,7 @@
 using ForceSignal.Application;
 using ForceSignal.Application.Ground;
 using ForceSignal.Contracts.Ground;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -212,7 +213,9 @@ public sealed class StarGruntGameServiceTests
 
     private static Guid Table(StarGruntGameService service)
     {
-        var created = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        // With the invented range table, because every shot here is about what the service does
+        // with a volley rather than about a table that has not been entered.
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
         service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue"));
         service.AddUnit(created.GameId, Squad("bravo", "Bravo Squad", "red"));
         return created.GameId;

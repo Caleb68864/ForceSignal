@@ -52,7 +52,9 @@ public sealed record FireOutcome(
 /// What is being fired, at what, from where. Every die here is entered by the user from their own
 /// records - the engine ships no weapon or armour values of its own.
 /// </summary>
-/// <param name="FirerQuality">The firing unit's quality die, which also sets the range band.</param>
+/// <param name="FirerQuality">
+/// The firing unit's quality die. The range band width is looked up against it on the profile.
+/// </param>
 /// <param name="FirepowerDie">
 /// The small-arms firepower die, derived from how many figures are actually shooting.
 /// </param>
@@ -93,9 +95,13 @@ public sealed record FireAttempt(
 /// Suppression, not casualties, is the ordinary result of a firefight. Any success at all lays it.
 /// </para>
 /// </remarks>
+/// <param name="profile">
+/// The range table this game's players entered: band widths, range dice and what cover is worth.
+/// </param>
 /// <param name="roller">Die source, injectable so a game can be replayed exactly.</param>
-public sealed class FireCombat(IQualityDiceRoller? roller = null)
+public sealed class FireCombat(StarGruntRulesProfile profile, IQualityDiceRoller? roller = null)
 {
+    private readonly StarGruntRulesProfile _profile = profile ?? throw new ArgumentNullException(nameof(profile));
     private readonly IQualityDiceRoller _roller = roller ?? new QualityDiceRoller();
 
     /// <summary>Resolves one exchange of fire from end to end.</summary>
@@ -107,10 +113,15 @@ public sealed class FireCombat(IQualityDiceRoller? roller = null)
         ArgumentNullException.ThrowIfNull(attempt);
 
         var range = RangeBands.Resolve(
+            _profile,
             attempt.DistanceInches,
             attempt.FirerQuality,
             attempt.TargetPosture,
             attempt.IsCloseRangeWeapon);
+
+        // Nothing is rolled either way. A shot past effective range comes back as one that achieved
+        // nothing; one the profile cannot settle comes back carrying that fact on its range solution,
+        // and the game refuses it before this is ever reached rather than letting it be spent.
         if (!range.CanFireEffectively)
         {
             return new FireOutcome(range, default, false, 0, null, []);
@@ -153,7 +164,8 @@ public sealed class FireCombat(IQualityDiceRoller? roller = null)
         }
 
         // Step 3. Each potential hit is the weapon's impact against the target's armour, with the
-        // armour shifted up by whatever the target is hiding behind. No other modifiers apply.
+        // armour shifted up by whatever the target is hiding behind - the same rungs, off the same
+        // profile entries, that moved the range die. No other modifiers apply.
         //
         // This is an open shift, which is easy to miss and changes the answer at the top of the
         // ladder: armour that is already as good as the ladder goes still benefits from more cover,
@@ -163,7 +175,7 @@ public sealed class FireCombat(IQualityDiceRoller? roller = null)
             attempt.ImpactDie,
             0,
             attempt.TargetArmourDie,
-            attempt.TargetPosture.Shifts);
+            range.PostureShift);
 
         var hits = new List<ResolvedHit>(potentialHits);
         for (var hit = 0; hit < potentialHits; hit++)

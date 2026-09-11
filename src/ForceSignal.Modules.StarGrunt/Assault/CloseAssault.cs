@@ -11,14 +11,16 @@ namespace ForceSignal.Modules.StarGrunt.Assault;
 /// that the shift is an open one.
 /// </param>
 /// <param name="PowerArmour">True when he is in power armour, which doubles his score.</param>
-/// <param name="InCoverThisRound">
-/// True when he is a defender still getting the benefit of cover, which is the first round only.
+/// <param name="CoverShift">
+/// Rungs of cover he still has this round, off the players' profile: a defender's cover in the first
+/// round only, and zero for everybody else. This was a flag, and the rungs it was worth were this
+/// module's own <c>CoverShift = 1</c>.
 /// </param>
 public readonly record struct Combatant(
     QualityDie Quality,
     int WeaponShift = 0,
     bool PowerArmour = false,
-    bool InCoverThisRound = false);
+    int CoverShift = 0);
 
 /// <summary>How one pair of figures settled it.</summary>
 /// <param name="AttackerDie">The die the attacker ended up throwing, after every shift.</param>
@@ -62,9 +64,9 @@ public enum DownedFate
 /// <remarks>
 /// <para>
 /// Everything here is procedure. The numbers that decide a charge - which weapon shifts a die by
-/// how much, whether a unit is terrifying - are the user's own, and the two that are not are
-/// countable rather than tabled: the threat of a charge follows from the attacker's own confidence,
-/// and the threat of receiving one follows from the odds.
+/// how much, what cover is worth in the first round, whether a unit is terrifying - are the user's
+/// own, and the two that are not are countable rather than tabled: the threat of a charge follows
+/// from the attacker's own confidence, and the threat of receiving one follows from the odds.
 /// </para>
 /// <para>
 /// What is deliberately not here is who fights whom. The attacker pairs off one figure per
@@ -124,10 +126,11 @@ public static class CloseAssault
     /// <returns>What the exchange came to.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="roller"/> is null.</exception>
     /// <remarks>
-    /// The higher roll downs the loser and a tie settles nothing - both fight on. Weapon shifts are
-    /// open, so a shift that would push a die past the top of the ladder comes off the opponent's
-    /// die instead, which is the same crossover the shared dice layer already does for fire.
-    /// Power armour doubles the score after the roll rather than shifting the die before it.
+    /// The higher roll downs the loser and a tie settles nothing - both fight on. Weapon and cover
+    /// shifts are open, so a shift that would push a die past the top of the ladder comes off the
+    /// opponent's die instead, which is the same crossover the shared dice layer already does for
+    /// fire. Power armour doubles the score after the roll rather than shifting the die before it.
+    /// Every rung here arrived with the combatants; none is this module's.
     /// </remarks>
     public static MeleeExchange Fight(Combatant attacker, Combatant defender, IQualityDiceRoller roller)
     {
@@ -135,9 +138,9 @@ public static class CloseAssault
 
         var dice = QualityDice.ShiftOpposed(
             attacker.Quality,
-            attacker.WeaponShift,
+            attacker.WeaponShift + attacker.CoverShift,
             defender.Quality,
-            defender.WeaponShift + (defender.InCoverThisRound ? CoverShift : 0));
+            defender.WeaponShift + defender.CoverShift);
 
         var attackerScore = roller.Roll(dice.Actor) * (attacker.PowerArmour ? 2 : 1);
         var defenderScore = roller.Roll(dice.Opponent) * (defender.PowerArmour ? 2 : 1);
@@ -184,14 +187,4 @@ public static class CloseAssault
         int attackerCasualties,
         int defenderCasualties) =>
         (attackerCasualties > defenderCasualties, Math.Max(0, attackerCasualties), Math.Max(0, defenderCasualties));
-
-    /// <summary>
-    /// What cover is worth to a defender in the first round of a melee.
-    /// </summary>
-    /// <remarks>
-    /// One step, and named rather than inlined because it is the one shift in a close combat this
-    /// engine owns: it is a property of being charged in cover rather than of any weapon, and it
-    /// stops mattering the moment the attackers are in among them.
-    /// </remarks>
-    private const int CoverShift = 1;
 }

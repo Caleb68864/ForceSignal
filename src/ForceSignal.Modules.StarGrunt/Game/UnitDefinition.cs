@@ -89,7 +89,8 @@ public sealed record UnitDefinition
     public CommandLevel Level { get; init; } = CommandLevel.Squad;
 
     /// <summary>
-    /// The unit's quality die, which also sets its range band.
+    /// The unit's quality die, which is also what its range band width is looked up against on the
+    /// players' profile.
     /// </summary>
     /// <remarks>
     /// Required, and it used to open on <c>QualityDie.D8</c>. That initialiser is not a C#

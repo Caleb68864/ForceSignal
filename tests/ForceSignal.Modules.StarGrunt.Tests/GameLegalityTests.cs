@@ -51,10 +51,10 @@ public sealed class GameLegalityTests
     {
         // Rifles have already fired this activation, so a second volley is refused.
         var game = GameFixtures.Firefight()
-            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
+            .Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman()).Value!;
 
         var legality = game.LegalityFor(GameFixtures.Alpha);
-        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
+        var refused = game.Fire(GameFixtures.Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
         var rifles = legality.Weapons.Single(weapon => weapon.Name == "Rifles");
         Assert.False(rifles.CanFire);

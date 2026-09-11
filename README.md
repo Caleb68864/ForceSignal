@@ -18,15 +18,27 @@ Use your own legally obtained rules and fleet data. ForceSignal links outward to
   tables, range bands, thresholds and reach are entered by the player and shipped by nobody. There
   is deliberately no default profile, and `docs/rules-profile-template.json` is blank rather than
   typical. A default that happens to be somebody's published numbers is still those numbers.
-- **All three engines, with one exception that is written down rather than left quiet.** Full
-  Thrust reads `RulesProfile`, StarGrunt ships no table at all, and Dirtside's three die tables -
-  gunnery, signature and posture - are now `DirtsideRulesProfile`, entered per game like the chit
-  pot. A Dirtside game whose profile has no row for a shot **refuses that shot and names the row**;
-  it does not fall back to anything, because a fallback here would be somebody's published table
-  wearing a default's clothes. The exception is StarGrunt's band-to-rung walk in `RangeBands.cs`,
-  which is a real rules table and needs a StarGrunt profile rather than one field. It is listed by
-  name in `EngineDiceContentPolicyTests.NotYetThePlayers` - a list kept separate from the
-  not-a-rules-number exemptions precisely so it cannot read as settled.
+- **All three engines read their tables off a per-game profile the players fill in.** Full Thrust
+  reads `RulesProfile`. Dirtside's three die tables - gunnery, signature and posture - are
+  `DirtsideRulesProfile`, entered per game like the chit pot. StarGrunt's range page - how wide a
+  band is for each quality of troops, the die a target rolls at each band out, how far small arms
+  reach, and what soft cover, hard cover and a settled position are worth - is
+  `StarGruntRulesProfile`, with the rungs cover is worth in a melee beside it. A ground game whose
+  profile has no entry for a shot **refuses that shot before it is spent, and names the entry**; it
+  does not fall back to anything, because a fallback here would be somebody's published table
+  wearing a default's clothes. Only what a shot reads has to be there.
+- **Two exceptions, written down rather than left quiet, both in Dirtside.** The firer's die still
+  walks one rung per range band and one more for a hurried shot, and an Under Fire marker still costs
+  one rung on the fire-effectiveness check. They are the same shape StarGrunt's range walk was - the
+  size of a shift written into the engine - and were found when the die guard was widened to see
+  that shape. They are listed by name in `EngineDiceContentPolicyTests.NotYetThePlayers`, a list
+  kept separate from the not-a-rules-number exemptions precisely so it cannot read as settled.
+- **What the guard covers, and what it does not.** That test counts every way either ground engine's
+  code can reach the quality ladder, and each one has to be classified. It does not count numbers
+  that are not dice. The engines still hold some counts as procedure - two actions to an activation,
+  at most three suppression markers, a hit that more than doubles the armour roll kills, power
+  armour and terror each double - and whether each of those is the engine's or the player's has not
+  been argued line by line the way the dice have.
 - JSON/CSV fleet import and export are for user-owned data, and so is the rules profile.
 - Do not ship official Ground Zero Games fleets as sample data.
 - If compatibility wording is used publicly, get written permission from Ground Zero Games first.

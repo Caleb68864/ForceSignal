@@ -21,7 +21,7 @@ public sealed class GameSupportFireTests
         // Quality, small arms and the SAW: three dice against the target's one.
         var game = GameFixtures.Firefight();
 
-        var after = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
+        var after = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
         Assert.True(after.IsAllowed);
         Assert.Contains(after.Value!.Log, entry => entry.Contains("Squad Support", StringComparison.Ordinal));
@@ -32,9 +32,9 @@ public sealed class GameSupportFireTests
     {
         // The trade-off the rules make explicit: weight of fire now, or its own punch later.
         var game = GameFixtures.Firefight()
-            .Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
+            .Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman()).Value!;
 
-        var refused = game.Fire(Volley() with { WeaponName = "Squad Support" }, new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(Volley() with { WeaponName = "Squad Support" }, new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("already fired", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -44,9 +44,9 @@ public sealed class GameSupportFireTests
     public void TheSmallArmsStillCannotFireTwiceEither()
     {
         var game = GameFixtures.Firefight()
-            .Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
+            .Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman()).Value!;
 
-        var refused = game.Fire(Volley(), new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(Volley(), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented);
 
         Assert.False(refused.IsAllowed);
     }
@@ -55,7 +55,7 @@ public sealed class GameSupportFireTests
     public void AWeaponTheUnitDoesNotCarryCannotBeFoldedIn()
     {
         var refused = GameFixtures.Firefight()
-            .Fire(Volley("Mortar"), new ScriptedDice(GameFixtures.AKillAndAStop));
+            .Fire(Volley("Mortar"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("Mortar", refused.Reason!, StringComparison.Ordinal);
@@ -66,7 +66,7 @@ public sealed class GameSupportFireTests
     {
         // Rifles are the small arms, not a support weapon to add on top of themselves.
         var refused = GameFixtures.Firefight()
-            .Fire(Volley("Rifles"), new ScriptedDice(GameFixtures.AKillAndAStop));
+            .Fire(Volley("Rifles"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("support weapon", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -84,7 +84,7 @@ public sealed class GameSupportFireTests
                     : weapon)],
             });
 
-        var refused = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("on its own", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -96,7 +96,7 @@ public sealed class GameSupportFireTests
         // Support weapons add weight of fire, never their own heavier impact: every hit is resolved
         // on the small arms. The volley is named for the rifles, with the support weapon alongside.
         var after = GameFixtures.Firefight()
-            .Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman()).Value!;
+            .Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman()).Value!;
 
         Assert.Contains(after.Log, entry =>
             entry.Contains("fired Rifles with Squad Support", StringComparison.Ordinal));
@@ -107,7 +107,7 @@ public sealed class GameSupportFireTests
     {
         // The other half of the trade: fired as its own action, the support weapon's punch counts.
         var after = GameFixtures.Firefight()
-            .Fire(Volley() with { WeaponName = "Squad Support" }, new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
+            .Fire(Volley() with { WeaponName = "Squad Support" }, new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
         Assert.True(after.IsAllowed);
     }
@@ -128,7 +128,7 @@ public sealed class GameSupportFireTests
                     : weapon)],
             });
 
-        var refused = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop));
+        var refused = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented);
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("Squad Support", refused.Reason!, StringComparison.Ordinal);
@@ -150,7 +150,7 @@ public sealed class GameSupportFireTests
             game.Units[GameFixtures.Alpha]
                 .Weapons.Single(weapon => weapon.Name == "Squad Support").SupportFirepowerDie);
 
-        var after = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), GameFixtures.HitsARifleman());
+        var after = game.Fire(Volley("Squad Support"), new ScriptedDice(GameFixtures.AKillAndAStop), TestRangeTable.Invented, GameFixtures.HitsARifleman());
 
         Assert.True(after.IsAllowed);
         Assert.Contains(after.Value!.Log, entry => entry.Contains("fired Rifles with Squad Support", StringComparison.Ordinal));
@@ -172,6 +172,7 @@ public sealed class GameSupportFireTests
         var after = game.Fire(
             Volley() with { WeaponName = "Squad Support" },
             new ScriptedDice(GameFixtures.AKillAndAStop),
+            TestRangeTable.Invented,
             GameFixtures.HitsARifleman());
 
         Assert.True(after.IsAllowed);

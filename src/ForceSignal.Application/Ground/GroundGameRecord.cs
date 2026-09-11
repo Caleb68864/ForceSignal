@@ -45,9 +45,10 @@ internal static class GroundGameRecord
     /// <param name="settings">
     /// What this engine's service knows about the game beyond the module's document and the token,
     /// as JSON, or null when it knows nothing extra. Dirtside stores the chit pot the players
-    /// counted here; StarGrunt stores nothing, and a Dirtside row written before the pot became the
-    /// player's carries nothing either. Opaque on purpose - the wrapper is shared by both engines
-    /// and has no business knowing what is in it.
+    /// counted and their die tables here; StarGrunt stores the range table its players entered, and
+    /// nothing at all when they entered none. A row of either engine written before those became the
+    /// players' carries nothing. Opaque on purpose - the wrapper is shared by both engines and has no
+    /// business knowing what is in it.
     /// </param>
     /// <returns>The row to store.</returns>
     public static string Wrap(string token, DateTimeOffset lastActivity, string game, string? settings = null)

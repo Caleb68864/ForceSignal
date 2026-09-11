@@ -68,6 +68,10 @@ public sealed partial record StarGruntGame
     /// per-activation weapon limit honest - the limit lives in the frame's spent resources, so it is
     /// the sequence layer that refuses a second volley from the same weapon, not a flag kept here.
     /// </remarks>
+    /// <param name="profile">
+    /// The range table this game's players entered off their own rulebook. A shot that reads an entry
+    /// it does not carry is refused, naming the entry, before anything is spent.
+    /// </param>
     /// <param name="allocator">
     /// Who catches the hits, injectable so a test can put a round where it needs it. Defaults to
     /// spreading them evenly across the figures still standing.
@@ -75,10 +79,12 @@ public sealed partial record StarGruntGame
     public GameOutcome<StarGruntGame> Fire(
         FireCommand command,
         IQualityDiceRoller dice,
+        StarGruntRulesProfile profile,
         IFigureAllocator? allocator = null)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(dice);
+        ArgumentNullException.ThrowIfNull(profile);
         allocator ??= new FigureAllocator();
 
         if (!HasUnit(command.Firer))
@@ -161,6 +167,19 @@ public sealed partial record StarGruntGame
 
         var armour = target.Figures[0].ArmourDie;
 
+        // An entry the range table does not carry is refused here rather than inside the resolution,
+        // so the shot is not spent on a question the game cannot answer. Every other refusal on the
+        // way to the step is something the player could have known; this one is a gap in what they
+        // typed, and taking the volley for it would be punishing them for this app's own policy.
+        // A shot that is merely out of reach is not refused: it is taken, and achieves nothing,
+        // which is what the rules make of it.
+        var range = RangeBands.Resolve(
+            profile, command.DistanceInches, firer.QualityDie, command.TargetPosture, weapon.IsCloseRange);
+        if (range.IsMissingFromProfile)
+        {
+            return GameOutcome.Refused<StarGruntGame>(range.Reason!);
+        }
+
         // Spend the action first. If the sequence refuses - wrong side's go, weapon already fired
         // this activation, no activation open at all - nothing has been rolled and nothing has moved.
         // Every weapon in the volley is spent, which is what stops a support weapon firing again
@@ -173,7 +192,7 @@ public sealed partial record StarGruntGame
             return spent;
         }
 
-        var outcome = new FireCombat(dice).Resolve(new FireAttempt(
+        var outcome = new FireCombat(profile, dice).Resolve(new FireAttempt(
             FirerQuality: firer.QualityDie,
             FirepowerDie: command.FirepowerDie,
             // Every weapon in `support` was refused above unless its card gave a die, so this is a

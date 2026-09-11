@@ -1,6 +1,7 @@
 using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -74,7 +75,7 @@ public sealed class StarGruntPersistenceTests
 
     private static Guid Table(StarGruntGameService service)
     {
-        var created = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
         service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue"));
         service.AddUnit(created.GameId, Squad("bravo", "Bravo Squad", "red"));
         return created.GameId;

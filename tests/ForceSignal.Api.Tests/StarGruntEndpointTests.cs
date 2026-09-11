@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using ForceSignal.Contracts.Features;
 using ForceSignal.Contracts.Ground;
+using ForceSignal.TestSupport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -237,7 +238,7 @@ public sealed class StarGruntEndpointTests
     /// <summary>Starts a game and leaves its token on the client for everything after.</summary>
     private static async Task<Guid> Create(HttpClient client)
     {
-        var created = await (await client.PostAsJsonAsync("/api/stargrunt/games", new CreateStarGruntGameRequest("Hill 43")))
+        var created = await (await client.PostAsJsonAsync("/api/stargrunt/games", StarGruntTestProfile.CreateGame("Hill 43")))
             .Content.ReadFromJsonAsync<StarGruntGameCreatedResponse>(JsonOptions);
         Assert.NotNull(created);
         client.DefaultRequestHeaders.Remove(TokenHeader);

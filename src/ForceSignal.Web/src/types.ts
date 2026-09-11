@@ -411,6 +411,27 @@ export type StarGruntSnapshot = {
   units: StarGruntUnit[];
   log: string[];
   version: number;
+  // The range table this game is played on, as the players entered it. Empty is a real answer:
+  // this app ships no range table, and a game whose entries are missing is told so before it fires.
+  profile?: StarGruntRulesProfile | null;
+};
+
+/**
+ * The numbers a StarGrunt shot reads off the rulebook's range page, and the cover a melee reads, as
+ * the players entered them.
+ *
+ * Nothing here is this app's. A row nobody entered is absent and a number nobody entered is null -
+ * not zero, which is a real answer for a cover shift - and the server refuses whatever would have
+ * read it, naming the entry.
+ */
+export type StarGruntRulesProfile = {
+  bandWidths: { qualityDie: number; inches: number }[];
+  rangeDice: { bandsOut: number; die: number }[];
+  effectiveBands?: number | null;
+  softCoverShift?: number | null;
+  hardCoverShift?: number | null;
+  inPositionShift?: number | null;
+  meleeCoverShift?: number | null;
 };
 /**
  * What this device needs to get back into a ground game: the id names it, and the token - minted

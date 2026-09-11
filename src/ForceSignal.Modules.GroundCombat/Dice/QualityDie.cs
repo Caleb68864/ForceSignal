@@ -6,8 +6,9 @@ namespace ForceSignal.Modules.GroundCombat.Dice;
 /// ones move it down, and the number rolled is the number used.
 /// </summary>
 /// <remarks>
-/// The value of each member is its face count, which is what a roller needs and what a range band
-/// is measured in. There is no d20 anywhere in the game.
+/// The value of each member is its face count, which is what a roller needs. It used to be what a
+/// StarGrunt range band was measured in as well, which was a rules number wearing a die's face count;
+/// how wide a band is belongs to the players' profile now. There is no d20 anywhere in the game.
 /// </remarks>
 public enum QualityDie
 {
@@ -62,7 +63,7 @@ public static class QualityDice
     /// <summary>The ladder, worst to best.</summary>
     public static IReadOnlyList<QualityDie> Ladder => LadderOrder;
 
-    /// <summary>Faces on a die, which is also the number a range band is measured in.</summary>
+    /// <summary>Faces on a die: the highest number it can roll, and the divisor a range die sets.</summary>
     /// <param name="die">The die to measure.</param>
     /// <returns>The face count.</returns>
     public static int Faces(QualityDie die) => (int)die;
