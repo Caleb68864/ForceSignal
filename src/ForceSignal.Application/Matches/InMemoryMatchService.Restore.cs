@@ -255,10 +255,7 @@ public sealed partial class InMemoryMatchService
                 : string.Empty;
             match.AddLog("Session", match.Phase.ToString(), $"Match restored from {savedNote} into room {joinCode}.{droppedNote}");
 
-            _matches.Add(matchId, match);
-            _joinCodes[joinCode] = matchId;
-            IndexMatch(match);
-            match.Persist = Persist;
+            Register(match);
             match.Touch("MatchRestored");
             return new MatchRestoredResponse(
                 matchId,

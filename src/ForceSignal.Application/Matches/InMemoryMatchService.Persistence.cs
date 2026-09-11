@@ -78,10 +78,7 @@ public sealed partial class InMemoryMatchService
                 }
 
                 var match = FromPersisted(persisted);
-                _matches[match.Id] = match;
-                _joinCodes[match.JoinCode] = match.Id;
-                IndexMatch(match);
-                match.Persist = Persist;
+                Register(match);
             }
 #pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
             catch (Exception ex)
