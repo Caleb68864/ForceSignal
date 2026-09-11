@@ -88,8 +88,19 @@ public sealed record UnitDefinition
     /// <summary>Where it sits in the chain of command.</summary>
     public CommandLevel Level { get; init; } = CommandLevel.Squad;
 
-    /// <summary>The unit's quality die, which also sets its range band.</summary>
-    public QualityDie QualityDie { get; init; } = QualityDie.D8;
+    /// <summary>
+    /// The unit's quality die, which also sets its range band.
+    /// </summary>
+    /// <remarks>
+    /// Required, and it used to open on <c>QualityDie.D8</c>. That initialiser is not a C#
+    /// convenience here: a saved game is JSON, and the deserialiser fills a property the bytes do
+    /// not carry from exactly this expression - so a blob written by a version that did not store
+    /// it came back with average troops nobody had rated, and the number sets both the firer's own
+    /// die and how far it shoots. There is no "unentered" rung on this ladder to fall back to, so
+    /// the shape refuses the blob rather than choosing: a save that does not say what quality a
+    /// unit was is not a save of that unit.
+    /// </remarks>
+    public required QualityDie QualityDie { get; init; }
 
     /// <summary>
     /// The leader's Leadership Value, from 1 to 3, where 1 is the best.

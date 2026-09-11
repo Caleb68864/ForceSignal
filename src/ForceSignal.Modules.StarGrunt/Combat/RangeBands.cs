@@ -36,12 +36,21 @@ public readonly record struct TargetPosture(CoverLevel Cover, bool InPosition = 
 /// The range die the target will roll, or the reason there is no shot worth taking.
 /// </summary>
 /// <param name="CanFireEffectively">False when the shot is beyond effective range.</param>
-/// <param name="RangeDie">The die the target rolls. Meaningless when the shot is impossible.</param>
+/// <param name="RangeDie">
+/// The die the target rolls, or null when the shot is impossible and there is no die.
+/// <para>
+/// This was not nullable, so the two refusals below had to name a die to fill the slot and both
+/// named a D12. Nothing reads it on that path - <c>FireCombat</c> returns before it is touched - but
+/// a rung of the quality ladder sitting in a field is a number this app chose whether anybody looks
+/// at it or not, and the next reader has no way to tell a placeholder from a decision. Null says
+/// what is true: past effective range there is no die to throw.
+/// </para>
+/// </param>
 /// <param name="BandsOut">How many range bands separate the two, rounded up.</param>
 /// <param name="Reason">Why the shot is impossible, or null when it is not.</param>
 public readonly record struct RangeSolution(
     bool CanFireEffectively,
-    QualityDie RangeDie,
+    QualityDie? RangeDie,
     int BandsOut,
     string? Reason);
 
@@ -90,7 +99,7 @@ public static class RangeBands
 
         if (isCloseRangeWeapon && bandsOut > 1)
         {
-            return new RangeSolution(false, QualityDie.D12, bandsOut,
+            return new RangeSolution(false, null, bandsOut,
                 $"That weapon is only effective inside {band} inches.");
         }
 
@@ -102,7 +111,7 @@ public static class RangeBands
             // that is not capped - it means there is no effective fire to be had. This is also
             // where the reduced reach into cover comes from: it falls out of the shift rather than
             // being a separate rule.
-            return new RangeSolution(false, QualityDie.D12, bandsOut,
+            return new RangeSolution(false, null, bandsOut,
                 $"That is past effective range against a target in {Describe(posture)}.");
         }
 

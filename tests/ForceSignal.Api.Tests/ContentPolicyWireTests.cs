@@ -152,6 +152,116 @@ public sealed class ContentPolicyWireTests
         Assert.Equal(0, edited.GetProperty("fireControlMax").GetInt32());
     }
 
+    /// <summary>
+    /// The settle-up after a close assault, where the bands were the player's and the die was not.
+    /// </summary>
+    /// <remarks>
+    /// <c>SettleTheDowned</c> took <c>deadUpTo</c> and <c>woundedUpTo</c> off the player and then
+    /// threw a flat <c>QualityDie.D6</c> at them, which is half a table. A chart written for a D10 -
+    /// dead on 1 to 3, wounded on 4 to 7, stunned above - had its stunned band made unreachable,
+    /// silently, and a man who should have picked himself up died instead.
+    /// <para>
+    /// Posted as bytes with no <c>fateDie</c> key at all, because that is the only shape that shows
+    /// what a missing property does. A C# caller omitting the argument is doing so knowingly; a JSON
+    /// body simply has no such key, and the wire contract's own default is what fills it in.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task SettlingTheDownedWithNoDieInTheBodyIsRefusedRatherThanRolledOnOneOfOurs()
+    {
+        using var factory = CreateGroundFactory();
+        using var client = factory.CreateClient();
+        var game = await OpenGroundGame(client);
+
+        using var response = await client.PostAsync(
+            $"/api/stargrunt/games/{game}/assaults/downed",
+            Body("""
+                {
+                  "unitId": "alpha",
+                  "downed": 2,
+                  "wonTheAssault": true,
+                  "deadUpTo": 3,
+                  "woundedUpTo": 7
+                }
+                """));
+
+        var body = await response.Content.ReadAsStringAsync();
+
+        // Refused, and said out loud. The old behaviour was a 200 with two figures settled on a
+        // die nobody at the table had named.
+        Assert.False(response.IsSuccessStatusCode, body);
+        Assert.Contains("die", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SettlingTheDownedOnTheDieTheBodyNamedIsAllowed()
+    {
+        // The control that must be accepted. A refusal that refused every settle-up would satisfy
+        // the test above and take a rule out of the game.
+        using var factory = CreateGroundFactory();
+        using var client = factory.CreateClient();
+        var game = await OpenGroundGame(client);
+
+        using var response = await client.PostAsync(
+            $"/api/stargrunt/games/{game}/assaults/downed",
+            Body("""
+                {
+                  "unitId": "alpha",
+                  "downed": 2,
+                  "wonTheAssault": true,
+                  "deadUpTo": 3,
+                  "woundedUpTo": 7,
+                  "fateDie": 10
+                }
+                """));
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, body);
+
+        // Reached-the-subject: the settle-up really happened and really wrote a line about it.
+        var log = JsonDocument.Parse(body).RootElement.GetProperty("log").EnumerateArray()
+            .Select(entry => entry.GetString() ?? string.Empty);
+        Assert.Contains(log, entry => entry.Contains("counted its down", StringComparison.Ordinal));
+    }
+
+    /// <summary>A StarGrunt game with one squad on it, reachable by the token on the client.</summary>
+    private static async Task<Guid> OpenGroundGame(HttpClient client)
+    {
+        var created = (await (await client.PostAsJsonAsync(
+                "/api/stargrunt/games",
+                new Contracts.Ground.CreateStarGruntGameRequest("Hill 43"),
+                JsonOptions))
+            .Content.ReadFromJsonAsync<JsonElement>(JsonOptions));
+        var token = created.GetProperty("token").GetString();
+        var game = created.GetProperty("gameId").GetGuid();
+
+        client.DefaultRequestHeaders.Remove("X-Game-Token");
+        client.DefaultRequestHeaders.Add("X-Game-Token", token);
+
+        var unit = await client.PostAsJsonAsync(
+            $"/api/stargrunt/games/{game}/units",
+            new Contracts.Ground.AddStarGruntUnitRequest(
+                "alpha",
+                "Alpha Squad",
+                "blue",
+                "Squad",
+                QualityDie: 8,
+                LeadershipValue: 2,
+                Figures: [.. Enumerable.Repeat(new Contracts.Ground.StarGruntFigureDto(6), 8)],
+                Weapons: [new Contracts.Ground.StarGruntWeaponDto("Rifles", 10)]),
+            JsonOptions);
+        unit.EnsureSuccessStatusCode();
+
+        return game;
+    }
+
+    private static WebApplicationFactory<Program> CreateGroundFactory() =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Development");
+            builder.UseSetting("Features:StarGrunt", "true");
+        });
+
     private sealed record Table(Guid MatchId, string ParticipantToken, string FleetId);
 
     private static async Task<Table> OpenTable(HttpClient client)

@@ -266,7 +266,7 @@ public sealed partial class GroundGameHardeningTests
         service.AddUnit(game, Squad("alpha", "blue", figures: 8));
 
         var settled = service.SettleTheDowned(game, new StarGruntSettleDownedRequest(
-            "alpha", Downed: int.MaxValue, WonTheAssault: true, DeadUpTo: 2, WoundedUpTo: 4));
+            "alpha", Downed: int.MaxValue, WonTheAssault: true, DeadUpTo: 2, WoundedUpTo: 4, FateDie: 6));
 
         Assert.Contains(settled.Log, entry => entry.Contains("8 dead", StringComparison.Ordinal));
     }

@@ -109,6 +109,9 @@ export const newAssaultForm = {
   // still those numbers, shipped.
   deadUpTo: 0,
   woundedUpTo: 0,
+  // The die those two bands are read against. It was not on this form at all and the engine threw
+  // a D6 regardless, so a table whose chart is written for a D10 had its top band made unreachable.
+  fateDie: 0,
   defendersInCover: true,
 };
 
@@ -601,6 +604,16 @@ export function StarGruntView() {
                 onChange={(event) => setAssault((current) => ({ ...current, deadUpTo: wholeNumberFrom(event.target.value, 1, 1, 12) }))}
               />
             </label>
+            <label title="The die your own table reads those bands against. Without it the bands say nothing, so the game asks rather than picking one.">
+              Settled on
+              <select
+                value={assault.fateDie}
+                onChange={(event) => setAssault((current) => ({ ...current, fateDie: Number(event.target.value) }))}
+              >
+                <option value={unentered}>Not entered</option>
+                {ladder.map((face) => <option key={face} value={face}>D{face}</option>)}
+              </select>
+            </label>
             <label title="Rolls above dead and up to this are wounded; anything higher is stunned.">
               Wounded up to
               <input
@@ -632,6 +645,7 @@ export function StarGruntView() {
                     assault.wonTheAssault,
                     assault.deadUpTo,
                     assault.woundedUpTo,
+                    assault.fateDie,
                   ),
                   `${activating.name} counted its down.`,
                 )}

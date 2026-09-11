@@ -148,10 +148,13 @@ export function settleTheDowned(
   wonTheAssault: boolean,
   deadUpTo: number,
   woundedUpTo: number,
+  // The die the bands above are read against, off the same table. Zero when the table has not said,
+  // which the game refuses by name rather than throwing a die of its own choosing.
+  fateDie: number,
 ) {
   return post<StarGruntSnapshot>(
     `/api/stargrunt/games/${game.gameId}/assaults/downed`,
-    { unitId, downed, wonTheAssault, deadUpTo, woundedUpTo },
+    { unitId, downed, wonTheAssault, deadUpTo, woundedUpTo, fateDie },
     undefined,
     gameAuth(game),
   );

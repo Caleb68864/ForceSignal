@@ -61,6 +61,9 @@ public sealed class UnitModelTests
         Id = new UnitId("alpha"),
         Name = "Alpha Squad",
         Side = new SideId("blue"),
+        // Stated, because the type no longer states it for anybody. These tests are about how many
+        // figures a unit has, so the die is a fixture detail rather than the subject.
+        QualityDie = QualityDie.D8,
         Figures = [.. Enumerable.Repeat(new FigureProfile(QualityDie.D6), figures)],
     };
 }
