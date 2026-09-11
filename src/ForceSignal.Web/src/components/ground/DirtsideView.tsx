@@ -47,6 +47,13 @@ export function DirtsideView() {
   // The game this device started, kept across a refresh. Read back on mount below.
   const [game, setGame] = useState<GameHandle | null>(() => readStored(dirtsideGameKey, normalizeGameHandle));
   const [snapshot, setSnapshot] = useState<DirtsideSnapshot | null>(null);
+  // The reopen below is keyed on `[game, snapshot]`, and a failure that is not the server saying the
+  // game is gone changes neither - so it used to run once and never again, leaving the screen
+  // showing a disabled "Reopening last game..." with Forget Last Game as the only live control, and
+  // that control throws the game away. A five-second hiccup at a table meant one available action
+  // and it was the destructive one. `reopenAttempt` is what a Try Again can change to run it again.
+  const [reopenFailed, setReopenFailed] = useState(false);
+  const [reopenAttempt, setReopenAttempt] = useState(0);
   const [message, setMessage] = useState('');
   const [messageIsError, setMessageIsError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -210,6 +217,7 @@ export function DirtsideView() {
       .then((next) => {
         if (!cancelled) {
           setSnapshot(next);
+          setReopenFailed(false);
           setMessage(`Reopened ${next.name}.`);
           setMessageIsError(false);
         }
@@ -220,18 +228,26 @@ export function DirtsideView() {
         }
 
         if (error instanceof ApiRequestError && [401, 403, 404].includes(error.status)) {
+          // The server no longer has this game, or no longer lets this device in. Nothing a retry
+          // could do, so it is forgotten rather than left to fail every action.
           localStorage.removeItem(dirtsideGameKey);
           setGame(null);
+          setReopenFailed(false);
           setMessage('The game this device last played is no longer available. Start a new one.');
         } else {
-          setMessage(error instanceof Error ? error.message : String(error));
+          // Anything else - a 500, a dropped connection, a server mid-restart - may well work on the
+          // next try, so the game handle is kept and a Try Again is offered. Forgetting it here
+          // would throw away a game over a hiccup; offering nothing left the player only the button
+          // that throws it away deliberately.
+          setReopenFailed(true);
+          setMessage(`${error instanceof Error ? error.message : String(error)} The game has not been forgotten - try again.`);
         }
         setMessageIsError(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [game, snapshot]);
+  }, [game, snapshot, reopenAttempt]);
 
   if (!game || !snapshot) {
     return (
@@ -383,8 +399,21 @@ export function DirtsideView() {
         </fieldset>
 
         <button type="button" disabled={busy || Boolean(game)} onClick={() => void start()}>
-          {game ? 'Reopening last game...' : 'Start Game'}
+          {game ? (reopenFailed ? 'Could not reopen last game' : 'Reopening last game...') : 'Start Game'}
         </button>
+        {game && reopenFailed ? (
+          <button
+            type="button"
+            onClick={() => {
+              setReopenFailed(false);
+              setMessage('Reopening...');
+              setMessageIsError(false);
+              setReopenAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Try Again
+          </button>
+        ) : null}
         {game ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
         <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
       </section>

@@ -20,14 +20,21 @@ vi.mock('./lib/starGruntApi.ts', () => ({
 }));
 
 // The hub is a live connection to a server that is not there. The screen only needs it to build,
-// start and accept a subscription; nothing in this test is driven through it.
+// start and accept a subscription. The `MatchSnapshotChanged` handler is kept so a test can deliver
+// a push the way the server would; the rest is inert.
+const hub: { notify?: (matchId: string, version: number, reason: string) => void } = {};
+
 vi.mock('@microsoft/signalr', () => {
   class HubConnectionBuilder {
     withUrl() { return this; }
     withAutomaticReconnect() { return this; }
     build() {
       return {
-        on: () => undefined,
+        on: (event: string, handler: (matchId: string, version: number, reason: string) => void) => {
+          if (event === 'MatchSnapshotChanged') {
+            hub.notify = handler;
+          }
+        },
         onreconnecting: () => undefined,
         onclose: () => undefined,
         onreconnected: () => undefined,
@@ -196,5 +203,86 @@ describe('tapping a setup control twice', () => {
     await waitFor(() => {
       expect((screen.getByRole('button', { name: 'Create Fleet' }) as HTMLButtonElement).disabled).toBe(false);
     });
+  });
+});
+
+/**
+ * The `MatchSnapshotChanged` handler the screen registered, once it has.
+ *
+ * Waiting for it is the reached-the-subject check: a test that pushed into `hub.notify` before the
+ * screen had subscribed would be calling nothing at all and would then assert against a screen that
+ * had never been told anything.
+ */
+async function subscribedHandler() {
+  await waitFor(() => expect(hub.notify).toBeTypeOf('function'));
+  const notify = hub.notify;
+  if (!notify) {
+    throw new Error('the screen never subscribed to MatchSnapshotChanged');
+  }
+
+  return notify;
+}
+
+describe('a background refresh that fails', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    hub.notify = undefined;
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+  });
+
+  // The success path of background traffic was routed to the activity line for exactly this reason,
+  // with the reason written beside it - and the failure path still went to the message line. So at a
+  // table: your shot is refused with a specific reason, the opponent moves a ship half a second
+  // later, the push-triggered GET times out on venue wifi, and the reason your shot failed is
+  // replaced by "The ForceSignal server did not answer". The refusal was the only copy.
+  it('does not overwrite the message the player is reading', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    const standingMessage = await screen.findByText('Created room ALPHA.');
+
+    // Reached-the-subject: the screen really subscribed, so the push below is the real handler
+    // rather than a test talking to itself.
+    const notify = await subscribedHandler();
+
+    get.mockRejectedValue(new Error('The ForceSignal server did not answer within 15 seconds.'));
+    notify('match-ALPHA', 2, 'ShipMoved');
+
+    // The failure is reported - beside the connection state, where background traffic already goes.
+    await screen.findByText(/Could not refresh:.*did not answer/);
+
+    // And the message the player was reading is still on screen.
+    expect(standingMessage.textContent).toBe('Created room ALPHA.');
+  });
+
+  // The control that must still happen. An expired session is not a report about traffic, it is
+  // every control on the screen having just stopped working, so it takes the message line whoever
+  // asked for the request that found out.
+  it('still takes the message line when the session has expired', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    const { ApiRequestError } = await import('./lib/api.ts');
+    await import('./main.tsx');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Created room ALPHA.');
+    const notify = await subscribedHandler();
+
+    get.mockRejectedValue(new ApiRequestError('Match not found.', 404));
+    notify('match-ALPHA', 2, 'ShipMoved');
+
+    await screen.findByText('Match session expired. Create or join a room again.');
   });
 });
