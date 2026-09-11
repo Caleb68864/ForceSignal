@@ -381,6 +381,11 @@ public sealed class StarGruntGameService : IStarGruntGameService
             request.WonTheAssault,
             request.DeadUpTo,
             request.WoundedUpTo,
+            // Zero is "the table did not say", not a die of no faces, so it is carried across as
+            // nothing rather than run through Die() - which would refuse the request with a
+            // sentence about the ladder instead of the one the game has written for it. Anything
+            // else is held to the ladder, so a 7 off a typo is refused rather than rounded.
+            request.FateDie == 0 ? null : Die(request.FateDie, "downed-figure"),
             _dice));
     }
 

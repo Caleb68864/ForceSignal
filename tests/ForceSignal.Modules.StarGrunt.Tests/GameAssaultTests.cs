@@ -1,3 +1,4 @@
+using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Assault;
 using ForceSignal.Modules.StarGrunt.Game;
@@ -176,7 +177,7 @@ public sealed class GameAssaultTests
     {
         var game = Activated().WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 6 });
 
-        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 2, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, new ScriptedDice(5, 3)).Value!;
+        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 2, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, QualityDie.D6, new ScriptedDice(5, 3)).Value!;
 
         // One stunned man back on his feet, one wounded who is a casualty rather than a rifle.
         Assert.Equal(7, after.Status(GameFixtures.Alpha).FiguresAlive);
@@ -188,7 +189,7 @@ public sealed class GameAssaultTests
     {
         var game = Activated().WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 6 });
 
-        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 1, wonTheAssault: false, deadUpTo: 2, woundedUpTo: 4, new ScriptedDice(5)).Value!;
+        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: 1, wonTheAssault: false, deadUpTo: 2, woundedUpTo: 4, QualityDie.D6, new ScriptedDice(5)).Value!;
 
         Assert.Equal(6, after.Status(GameFixtures.Alpha).FiguresAlive);
         Assert.Contains(after.Log, entry => entry.Contains("left to the victors", StringComparison.Ordinal));
@@ -197,7 +198,7 @@ public sealed class GameAssaultTests
     [Fact]
     public void SettlingNobodyIsRefused()
     {
-        var refused = Activated().SettleTheDowned(GameFixtures.Alpha, downed: 0, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, new ScriptedDice(5));
+        var refused = Activated().SettleTheDowned(GameFixtures.Alpha, downed: 0, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, QualityDie.D6, new ScriptedDice(5));
 
         Assert.False(refused.IsAllowed);
     }
@@ -211,12 +212,58 @@ public sealed class GameAssaultTests
         Assert.False(refused.IsAllowed);
     }
 
+    /// <summary>
+    /// The bands and the die they are read against are one number, not two.
+    /// </summary>
+    /// <remarks>
+    /// This rolled a flat D6 while taking <c>deadUpTo</c> and <c>woundedUpTo</c> off the player,
+    /// which is half a table: a chart written for a D10 - dead on 1-3, wounded on 4-7, stunned on
+    /// 8-10 - had its stunned band made unreachable, silently, by a die it was never written for. A
+    /// man who should have got back up died instead and nothing on screen said why.
+    /// </remarks>
+    [Fact]
+    public void SettlingWithNoDieNamedIsRefused()
+    {
+        var refused = Activated().SettleTheDowned(
+            GameFixtures.Alpha, downed: 1, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, fateDie: null, new ScriptedDice(5));
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("die", refused.Reason!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NothingIsRolledWhenNoDieWasNamed()
+    {
+        // Refused before a die is asked for: an empty script throws the moment anything rolls.
+        var refused = Activated().SettleTheDowned(
+            GameFixtures.Alpha, downed: 1, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, fateDie: null, new ScriptedDice());
+
+        Assert.False(refused.IsAllowed);
+        Assert.Null(refused.Value);
+    }
+
+    [Fact]
+    public void TheDieTheTableNamedIsTheDieThatIsThrown()
+    {
+        // The control that must be accepted, and the one that shows the die is carried rather than
+        // merely demanded. The chart here is a D10 one: a 9 is the stunned band, which under the
+        // old flat D6 could not be reached at all.
+        var game = Activated().WithStatus(GameFixtures.Alpha, status => status with { FiguresAlive = 6 });
+
+        var after = game.SettleTheDowned(
+            GameFixtures.Alpha, downed: 1, wonTheAssault: true, deadUpTo: 3, woundedUpTo: 7, QualityDie.D10, new ScriptedDice(9)).Value!;
+
+        // Stunned, on his side's ground, so he is back on his feet.
+        Assert.Equal(7, after.Status(GameFixtures.Alpha).FiguresAlive);
+        Assert.Equal(0, after.Status(GameFixtures.Alpha).FiguresWounded);
+    }
+
     [Fact]
     public void BandsThatDoNotClimbAreRefused()
     {
         // Wounded has to sit above dead, or the roll reads as nonsense.
         var refused = Activated().SettleTheDowned(
-            GameFixtures.Alpha, downed: 1, wonTheAssault: true, deadUpTo: 4, woundedUpTo: 2, new ScriptedDice(3));
+            GameFixtures.Alpha, downed: 1, wonTheAssault: true, deadUpTo: 4, woundedUpTo: 2, QualityDie.D6, new ScriptedDice(3));
 
         Assert.False(refused.IsAllowed);
         Assert.Contains("climb", refused.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -231,7 +278,7 @@ public sealed class GameAssaultTests
         var fullStrength = game.Unit(GameFixtures.Alpha).FullStrength;
         var dice = new ScriptedDice([.. Enumerable.Repeat(5, 64)]);
 
-        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: int.MaxValue, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, dice).Value!;
+        var after = game.SettleTheDowned(GameFixtures.Alpha, downed: int.MaxValue, wonTheAssault: true, deadUpTo: 2, woundedUpTo: 4, QualityDie.D6, dice).Value!;
 
         // Every roll a 5 is a stunned man back on his feet - one per figure the unit ever had.
         Assert.Equal(64 - fullStrength, dice.Remaining);

@@ -142,7 +142,24 @@ public sealed partial record StarGruntGame
 
         // Armour is the target's, and a unit whose figures differ takes the fire on the first of
         // them. Per-figure allocation is a refinement the rules allow and this slice does not need.
-        var armour = target.Figures.IsDefaultOrEmpty ? QualityDie.D6 : target.Figures[0].ArmourDie;
+        //
+        // A unit with no roster has no armour die, and this read `IsDefaultOrEmpty ? QualityDie.D6`
+        // - a rating this app chose, in the one roll that decides whether a hit kills, wounds or
+        // does nothing. Not dead code either: a saved game carries the definitions and the statuses
+        // as two lists, so a blob written before figures were on the definition restores with an
+        // empty roster and its figure count intact, and the unit is on the table, not wiped out,
+        // and wearing nothing.
+        //
+        // Refused by name at the point the die is actually needed, which is the same answer a
+        // support weapon whose card gives no firepower die gets. Inventing one is the defect;
+        // quietly shooting at the softest die on the ladder would be the same defect wearing a 4.
+        if (target.Figures.IsDefaultOrEmpty)
+        {
+            return GameOutcome.Refused<StarGruntGame>(
+                $"{target.Name}'s roster carries no armour dice, so there is nothing to resolve a hit against.");
+        }
+
+        var armour = target.Figures[0].ArmourDie;
 
         // Spend the action first. If the sequence refuses - wrong side's go, weapon already fired
         // this activation, no activation open at all - nothing has been rolled and nothing has moved.

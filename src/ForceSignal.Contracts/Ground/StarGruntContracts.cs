@@ -176,12 +176,22 @@ public sealed record StarGruntMeleeRequest(
 /// <param name="WonTheAssault">True when its side holds the ground at the finish.</param>
 /// <param name="DeadUpTo">The highest roll that means dead, off the player's own table.</param>
 /// <param name="WoundedUpTo">The highest roll that means wounded; above it is stunned.</param>
+/// <param name="FateDie">
+/// The die those bands are read against, as a face count, off the same table they came from. Zero
+/// when the table did not say, which the game refuses rather than guessing at.
+/// <para>
+/// The engine threw a flat D6 here while taking the bands off the player, which is half a table: a
+/// chart reading dead on 1-3 and wounded on 4-7 had its 8 to 10 stunned band made unreachable,
+/// silently, because the die it was written for was never the die being rolled.
+/// </para>
+/// </param>
 public sealed record StarGruntSettleDownedRequest(
     string UnitId,
     int Downed,
     bool WonTheAssault,
     int DeadUpTo = 0,
-    int WoundedUpTo = 0);
+    int WoundedUpTo = 0,
+    int FateDie = 0);
 
 /// <summary>Declares whether a unit has scattered out of integrity.</summary>
 /// <param name="UnitId">The unit.</param>

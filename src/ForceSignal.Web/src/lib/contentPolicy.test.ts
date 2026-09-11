@@ -17,6 +17,12 @@ import { defaultShipForm, newOrdnanceDraft } from '../constants.ts';
 import { normalizeFleetExportShip } from './fleetIo.ts';
 import { newWeaponMount } from './weapons.ts';
 import { normalizeWeaponMount } from './normalize.ts';
+import {
+  newAssaultForm,
+  newShotForm,
+  newThreatLevel,
+  newUnitForm,
+} from '../components/ground/StarGruntView.tsx';
 
 /**
  * The only numbers on a new-ship form that may be non-zero, each with the reason it is not a rules
@@ -131,6 +137,68 @@ describe('a fleet import invents nothing the file did not carry', () => {
     expect(ship.thrustRating).toBe(5);
     expect(ship.screenRating).toBe(2);
     expect(ship.fireControlMax).toBe(4);
+  });
+});
+
+/**
+ * The same walk over the StarGrunt screen's forms, which this file could not see.
+ *
+ * It walked `constants.ts` and `fleetIo.ts` and stopped there, so the add-a-squad panel - a screen
+ * whose own caption reads "Transcribed off your own record card. No stats are supplied here." - kept
+ * a whole record card in its opening state: quality D8, Leadership 2, eight figures, armour D6 and
+ * an impact die of 10. The guard gap was half the finding; a fix that left this file walking two
+ * modules would let the next one in by the same door.
+ *
+ * These are the only numbers those forms may open on, each with the reason it is not a rules number.
+ */
+const notARulesNumberOnTheGroundForms: Record<string, string> = {
+  // How many figures of a unit went down in an assault, and how many pairs fought. Counts off the
+  // table in front of the players, like a model's place on the felt - and an assault of no pairs,
+  // or a settle-up with nobody down, is not a thing that happened. The engine refuses both.
+  pairs: 'how many figures paired off, counted on the table; an assault of no pairs did not happen',
+  downed: 'how many figures went down, counted on the table; the engine refuses a settle-up of none',
+};
+
+function groundFormNumbers(name: string, form: Record<string, unknown>): string[] {
+  return numericFields(form)
+    .filter(([field, value]) => value !== 0 && !(field in notARulesNumberOnTheGroundForms))
+    .map(([field, value]) => `${name}.${field} = ${value}`);
+}
+
+describe('the StarGrunt screen ships no rules numbers either', () => {
+  it('opens the add-a-squad form on nothing at all', () => {
+    // Reached-the-subject: it really is the add-unit form, with the numbers on it to check.
+    expect(newUnitForm.weaponName.length).toBeGreaterThan(0);
+    expect(numericFields(newUnitForm as unknown as Record<string, unknown>).length).toBeGreaterThan(3);
+
+    expect(groundFormNumbers('unit', newUnitForm as unknown as Record<string, unknown>)).toEqual([]);
+  });
+
+  it('opens the fire panel on nothing at all', () => {
+    expect(numericFields(newShotForm as unknown as Record<string, unknown>).length).toBeGreaterThan(1);
+
+    expect(groundFormNumbers('shot', newShotForm as unknown as Record<string, unknown>)).toEqual([]);
+  });
+
+  it('opens the assault panel on nothing but what the table counted', () => {
+    expect(numericFields(newAssaultForm).length).toBeGreaterThan(4);
+
+    expect(groundFormNumbers('assault', newAssaultForm)).toEqual([]);
+  });
+
+  it('opens the threat level unentered, which is what its own caption promises', () => {
+    // "The threat level is the one your own table gives the event" - said on screen, beside a
+    // control that opened on 2.
+    expect(newThreatLevel).toBe(0);
+  });
+
+  it('holds every exemption to being a real field, so the list cannot rot', () => {
+    const onTheForms = { ...newUnitForm, ...newShotForm, ...newAssaultForm } as Record<string, unknown>;
+
+    for (const field of Object.keys(notARulesNumberOnTheGroundForms)) {
+      expect(Object.hasOwn(onTheForms, field)).toBe(true);
+      expect(typeof onTheForms[field]).toBe('number');
+    }
   });
 });
 

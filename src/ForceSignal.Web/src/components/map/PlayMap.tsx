@@ -1080,7 +1080,7 @@ function FighterRangeOverlay({ ship, ships, tableWidth, tableDepth }: { ship: Sh
     </div>
   );
 }
-function FighterOpsPanel({
+export function FighterOpsPanel({
   ship,
   carriers,
   busy,
@@ -1111,17 +1111,22 @@ function FighterOpsPanel({
       {/* Each of these is a network write, so they commit when editing finishes rather than
           on every keystroke: typing 14 into Used sent a 1 and then a 14, with the server's echo
           of the 1 landing in the box mid-edit. */}
+      {/* The group's own endurance and reach. These boxes read `ship.fighterEnduranceMax || 6` and
+          `ship.fighterMaxRange || 24`, so a group nobody had rated was shown six turns and a reach
+          of 24 - directly contradicting the caption a line above, which reads the real zero as "0
+          turns left". `min={1}` was the other half: a table that plays no endurance rule and types
+          0 had it clamped up to 1 and committed to the server, which accepts zero perfectly well. */}
       <label>
         Used
-        <CommittedNumber min={0} max={ship.fighterEnduranceMax || 24} value={ship.fighterEnduranceUsed} disabled={busy} onCommit={(value) => onChange({ fighterEnduranceUsed: value })} />
+        <CommittedNumber min={0} max={ship.fighterEnduranceMax} value={ship.fighterEnduranceUsed} disabled={busy} onCommit={(value) => onChange({ fighterEnduranceUsed: value })} />
       </label>
       <label>
         Max
-        <CommittedNumber min={1} max={24} value={ship.fighterEnduranceMax || 6} disabled={busy} onCommit={(value) => onChange({ fighterEnduranceMax: value })} />
+        <CommittedNumber min={0} max={24} value={ship.fighterEnduranceMax} disabled={busy} onCommit={(value) => onChange({ fighterEnduranceMax: value })} />
       </label>
       <label>
         Range
-        <CommittedNumber min={1} max={120} value={ship.fighterMaxRange || 24} disabled={busy} onCommit={(value) => onChange({ fighterMaxRange: value })} />
+        <CommittedNumber min={0} max={120} value={ship.fighterMaxRange} disabled={busy} onCommit={(value) => onChange({ fighterMaxRange: value })} />
       </label>
       <button className="ghost" type="button" disabled={busy} onClick={() => onChange({ fighterStatus: 'Airborne', fighterEnduranceUsed: 0 })}>Launch</button>
       <button className="ghost" type="button" disabled={busy} onClick={() => onChange({ fighterStatus: 'Recovering' })}>Return</button>

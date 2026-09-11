@@ -233,13 +233,26 @@ public sealed partial record StarGruntGame
     /// <param name="wonTheAssault">True when its side holds the ground at the finish.</param>
     /// <param name="deadUpTo">The highest roll that means dead, off the player's own table.</param>
     /// <param name="woundedUpTo">The highest roll that means wounded.</param>
+    /// <param name="fateDie">
+    /// The die those bands are read against, off the same table they came from. Null when the table
+    /// did not say, which is refused rather than guessed at.
+    /// </param>
     /// <param name="dice">Where the die results come from.</param>
     /// <returns>The game with the fates settled, or why they could not be.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="dice"/> is null.</exception>
     /// <remarks>
+    /// <para>
     /// A stunned man on the winning side gets up again; on the losing side he is left behind and
     /// taken, which is why this cannot be rolled until somebody has won. The losers cannot carry
     /// their downed away.
+    /// </para>
+    /// <para>
+    /// The die is supplied for the same reason the bands are. This rolled a flat <c>QualityDie.D6</c>
+    /// while taking the bands off the player - which is half a table: a player whose own chart reads
+    /// dead on 1-3 and wounded on 4-7 had the 8 to 10 that means stunned made unreachable, silently,
+    /// because the app was throwing a die their chart was never written for. Bands without the die
+    /// they are read against are not numbers at all.
+    /// </para>
     /// </remarks>
     public GameOutcome<StarGruntGame> SettleTheDowned(
         UnitId unit,
@@ -247,6 +260,7 @@ public sealed partial record StarGruntGame
         bool wonTheAssault,
         int deadUpTo,
         int woundedUpTo,
+        QualityDie? fateDie,
         IQualityDiceRoller dice)
     {
         ArgumentNullException.ThrowIfNull(dice);
@@ -255,6 +269,12 @@ public sealed partial record StarGruntGame
         {
             return GameOutcome.Refused<StarGruntGame>(
                 "The bands have to climb: dead at the bottom, then wounded, then stunned above it.");
+        }
+
+        if (fateDie is null)
+        {
+            return GameOutcome.Refused<StarGruntGame>(
+                "Your table has not said which die the downed are settled on, so the bands above have nothing to be read against.");
         }
 
         if (!HasUnit(unit))
@@ -278,7 +298,7 @@ public sealed partial record StarGruntGame
 
         for (var figure = 0; figure < downed; figure++)
         {
-            switch (CloseAssault.Fate(dice.Roll(QualityDie.D6), deadUpTo, woundedUpTo))
+            switch (CloseAssault.Fate(dice.Roll(fateDie.Value), deadUpTo, woundedUpTo))
             {
                 case DownedFate.Dead:
                     dead++;

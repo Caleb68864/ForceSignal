@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FiringSolution, Ship } from '../types.ts';
 
 /** How long the range box has to stop changing before it is worth asking about. */
-export const firingSolutionDebounceMs = 120;
+const firingSolutionDebounceMs = 120;
 
 /**
  * The server's answer for the shot currently drafted, or null when there is nothing to ask about.

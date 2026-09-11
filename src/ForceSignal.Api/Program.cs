@@ -413,9 +413,11 @@ static IMatchStore OpenMatchStore(IServiceProvider services, string engine, stri
 
     try
     {
-        var store = new SqliteMatchStore(path, tableName);
-        report.Record(engine, durable: true);
-        return store;
+        // Wrapped rather than handed over bare. The report used to be written once, here, and never
+        // revisited - so a volume unmounted mid-session or a disk that filled produced a 503 per
+        // request while /ready went on saying "sqlite". The wrapper records the opening state and
+        // then keeps it honest; see ReportingMatchStore.
+        return new ReportingMatchStore(new SqliteMatchStore(path, tableName), report, engine);
     }
     catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or ArgumentException)
     {

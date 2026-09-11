@@ -116,6 +116,9 @@ public sealed class FireCombat(IQualityDiceRoller? roller = null)
             return new FireOutcome(range, default, false, 0, null, []);
         }
 
+        // Past the refusal above, so the solution really does carry a die.
+        var rangeDie = range.RangeDie!.Value;
+
         // Step 1. The firer's hand is quality, firepower, and one die per support weapon; the
         // target answers with the single range die.
         var firerDice = new List<QualityDie>(2 + attempt.SupportDice.Count)
@@ -126,7 +129,7 @@ public sealed class FireCombat(IQualityDiceRoller? roller = null)
         firerDice.AddRange(attempt.SupportDice);
 
         var firerRolls = firerDice.Select(_roller.Roll).ToArray();
-        var opposed = OpposedRolls.Resolve(firerRolls, _roller.Roll(range.RangeDie));
+        var opposed = OpposedRolls.Resolve(firerRolls, _roller.Roll(rangeDie));
         var suppresses = opposed.Result != OpposedResult.Failed;
         if (opposed.Result != OpposedResult.Effective)
         {
@@ -135,14 +138,14 @@ public sealed class FireCombat(IQualityDiceRoller? roller = null)
 
         // Step 2. Potential hits, from the total of every firer die divided by the range die's
         // type. The leftover points buy a chance at one more.
-        var divisor = QualityDice.Faces(range.RangeDie);
+        var divisor = QualityDice.Faces(rangeDie);
         var potentialHits = opposed.ActorTotal / divisor;
         var remainder = opposed.ActorTotal % divisor;
 
         int? remainderRoll = null;
         if (remainder > 0)
         {
-            remainderRoll = _roller.Roll(range.RangeDie);
+            remainderRoll = _roller.Roll(rangeDie);
             if (remainderRoll <= remainder)
             {
                 potentialHits++;
