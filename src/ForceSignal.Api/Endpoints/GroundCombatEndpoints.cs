@@ -17,10 +17,26 @@ namespace ForceSignal.Api.Endpoints;
 /// </para>
 /// <para>
 /// Every route that names a game requires that game's token, through <see cref="GameTokenFilter{TService}"/>.
-/// Only the status routes and the create routes are open: one says the engine is here, the other
-/// is where the token comes from. Being open with no credentials to ask for is what makes a create
-/// route the one a stranger loops on, so both share the budget that already guards opening a Full
-/// Thrust match.
+/// Only the create routes are open, because that is where the token comes from. Being open with no
+/// credentials to ask for is what makes a create route the one a stranger loops on, so both share
+/// the budget that already guards opening a Full Thrust match.
+/// </para>
+/// <para>
+/// There were two further open routes, <c>GET /api/stargrunt/status</c> and
+/// <c>GET /api/dirtside/status</c>, and they are gone. Each returned a compile-time literal naming
+/// the engine and a readiness word, so the only fact either could establish was that the route had
+/// been mapped - which is to say that the flag was on, which <c>GET /api/features</c> answers from
+/// the same <see cref="FeatureFlags"/> instance that decides the mapping. No client, script or
+/// healthcheck ever called them; the app asks <c>/api/features</c>.
+/// </para>
+/// <para>
+/// The readiness word is why they were removed rather than left dead. <c>"playable"</c> was a third
+/// hand-written description of a capability that <c>/api/features</c> and the <c>/ready</c> warnings
+/// already describe, and it had already drifted: <c>/ready</c> lists opportunity fire, area-defence
+/// interception and indirect fire as unreachable in the same engine this route called playable. It
+/// also could not tell a healthy engine from a degraded one - a Dirtside store that had fallen back
+/// to memory returned the identical bytes - so it was capable of reassuring an operator about a
+/// machine that was losing every game at the next restart.
 /// </para>
 /// </remarks>
 public static class GroundCombatEndpoints
@@ -31,11 +47,6 @@ public static class GroundCombatEndpoints
     public static IEndpointRouteBuilder MapStarGruntEndpoints(this IEndpointRouteBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
-
-        app.MapGet("/api/stargrunt/status", () => Results.Ok(new { engine = "StarGrunt", status = "in-development" }))
-            .WithName("GetStarGruntStatus")
-            .WithTags("StarGrunt")
-            .WithSummary("Reports that the StarGrunt engine is mounted on this server.");
 
         app.MapPost("/api/stargrunt/games", (CreateStarGruntGameRequest request, IStarGruntGameService games) =>
             Results.Ok(games.CreateGame(request)))
@@ -295,11 +306,6 @@ public static class GroundCombatEndpoints
     public static IEndpointRouteBuilder MapDirtsideEndpoints(this IEndpointRouteBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
-
-        app.MapGet("/api/dirtside/status", () => Results.Ok(new { engine = "Dirtside", status = "playable" }))
-            .WithName("GetDirtsideStatus")
-            .WithTags("Dirtside")
-            .WithSummary("Reports that the Dirtside engine is mounted on this server.");
 
         app.MapPost("/api/dirtside/games", (CreateDirtsideGameRequest request, IDirtsideGameService games) =>
             Results.Ok(games.CreateGame(request)))

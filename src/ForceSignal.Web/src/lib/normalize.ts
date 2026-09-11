@@ -9,6 +9,7 @@
 
 import { firableArcs, firingArcs, shipIconOptions, weaponKinds } from '../constants.ts';
 import { newId } from './api.ts';
+import ordnanceBoundsFixture from './ordnanceBounds.json' with { type: 'json' };
 import { numberFrom, stringFrom, wholeNumberFrom } from './format.ts';
 import { wrapCourse } from './geometry.ts';
 import { newWeaponMount } from './weapons.ts';
@@ -19,6 +20,12 @@ import type { BattleView, FighterStatus, FiringArc, GameHandle, GameMode, MatchS
  * session written by an older build with the match id missing produced `GET /api/matches/undefined`
  * on every load.
  */
+/**
+ * The ceilings the server clamps an ordnance marker to, read from the fixture the .NET side reads
+ * too rather than written out here a second time. See `ordnanceBounds.json`.
+ */
+const ordnanceBounds = ordnanceBoundsFixture.bounds;
+
 export function normalizeSession(value: unknown): Session | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -143,10 +150,15 @@ function normalizeOrdnanceMarker(value: unknown): OrdnanceMarker | null {
     positionX: numberFrom(record.positionX, 0, 0, 144),
     positionY: numberFrom(record.positionY, 0, 0, 96),
     course: wrapCourse(wholeNumberFrom(record.course, 12, 1, 12)),
-    speed: wholeNumberFrom(record.speed, 0, 0, 120),
-    enduranceRemaining: wholeNumberFrom(record.enduranceRemaining, 0, 0, 48),
-    attackDice: wholeNumberFrom(record.attackDice, 0, 0, 48),
-    maxRange: wholeNumberFrom(record.maxRange, 0, 0, 240),
+    // The four ceilings below are the server's, restated. They used to be 120 / 48 / 48 / 240 -
+    // every one of them wider than the clamp the service enforces, all in the same direction - so a
+    // restored snapshot rendered a 48-dice salvo the server would halve to 24 the moment anything
+    // touched it. `ordnanceBounds.json` holds the pair together now; see the fixture for why the
+    // numbers live there once rather than here and in `InMemoryMatchService` separately.
+    speed: wholeNumberFrom(record.speed, 0, 0, ordnanceBounds.speed),
+    enduranceRemaining: wholeNumberFrom(record.enduranceRemaining, 0, 0, ordnanceBounds.enduranceRemaining),
+    attackDice: wholeNumberFrom(record.attackDice, 0, 0, ordnanceBounds.attackDice),
+    maxRange: wholeNumberFrom(record.maxRange, 0, 0, ordnanceBounds.maxRange),
     status: normalizeOrdnanceStatus(record.status),
   };
 }
@@ -210,7 +222,14 @@ export function normalizeArcs(arcs: unknown, legacyArc: unknown): FiringArc[] {
   return firable.length > 0 ? firable : ['Fore'];
 }
 export function expandLegacyArc(legacyArc: string): FiringArc[] {
-  switch (legacyArc.trim().toLowerCase()) {
+  // Separators come off before anything is compared, which is what the server has always done
+  // (`ExpandLegacyArc` in `InMemoryMatchService.Normalization.cs` strips both). This side stripped
+  // only spaces, and only in the fallback branch, so a weapons cell reading `Fore-Port` resolved to
+  // `ForePort` on the server and to `Fore` on screen: an imported mount silently lost its port arc,
+  // and the two disagreed about a ship they were both describing. `legacyArcCases.json` holds the
+  // two implementations to each other now.
+  const name = legacyArc.trim().replaceAll(' ', '').replaceAll('-', '').toLowerCase();
+  switch (name) {
     case 'all':
       return [...firableArcs];
     case 'port':
@@ -220,7 +239,7 @@ export function expandLegacyArc(legacyArc: string): FiringArc[] {
     case 'aft':
       return ['AftPort', 'AftStarboard'];
     default: {
-      const match = firingArcs.find((arc) => arc.toLowerCase() === legacyArc.trim().toLowerCase().replaceAll(' ', ''));
+      const match = firingArcs.find((arc) => arc.toLowerCase() === name);
       return match && match !== 'Aft' ? [match] : ['Fore'];
     }
   }

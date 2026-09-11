@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ForceSignal.Contracts.Features;
 using ForceSignal.Contracts.Ground;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -34,10 +35,15 @@ public sealed class DirtsideEndpointTests
         using var client = factory.CreateClient();
 
         using var created = await client.PostAsJsonAsync("/api/dirtside/games", DirtsideTestProfile.CreateGame("Ridge 9"));
-        using var status = await client.GetAsync(new Uri("/api/dirtside/status", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, created.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, status.StatusCode);
+
+        // And the client is told so rather than having to discover it from a 404. This used to be
+        // asserted through `GET /api/dirtside/status`, which was removed: it returned a compile-time
+        // literal, so the only thing it could establish was that the route had been mapped, which is
+        // what `/api/features` reports from the same FeatureFlags instance that decides the mapping.
+        var flags = await client.GetFromJsonAsync<FeatureFlagsDto>("/api/features");
+        Assert.False(flags!.Dirtside);
     }
 
     [Fact]
@@ -278,14 +284,44 @@ public sealed class DirtsideEndpointTests
     }
 
     [Fact]
-    public async Task TheStatusRouteStaysOpen()
+    public async Task TheOnlyRouteOpenWithoutAGameTokenIsTheOneThatIssuesIt()
     {
+        // This replaces `TheStatusRouteStaysOpen`. `GET /api/dirtside/status` is gone. It said
+        // `"playable"`, a third hand-written description of a capability `/api/features` and the
+        // `/ready` warnings already carry - and one that had already drifted, because `/ready` lists
+        // opportunity fire, area-defence interception and indirect fire as unreachable in the same
+        // engine this route called playable. It also returned identical bytes from an engine whose
+        // store had fallen back to memory, so it could reassure an operator about a machine that was
+        // losing every Dirtside game at the next restart.
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+
+        using var created = await client.PostAsJsonAsync("/api/dirtside/games", DirtsideTestProfile.CreateGame("Ridge 9"));
+        created.EnsureSuccessStatusCode();
+
+        var body = await created.Content.ReadFromJsonAsync<DirtsideGameCreatedResponse>(JsonOptions);
+        Assert.NotNull(body);
+
+        // Reading it back without the token it just issued is refused, so the create route really is
+        // the only open door rather than one of several. 401 rather than 403: no header at all is a
+        // missing credential, where a header that does not open this game is the 403 above.
+        using var withoutToken = await client.GetAsync(new Uri($"/api/dirtside/games/{body.GameId}", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.Unauthorized, withoutToken.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheRemovedStatusRouteIsGoneWithTheFlagOnAsWellAsOff()
+    {
+        // The control on the removal. A 404 with the flag off proves nothing - every Dirtside route
+        // 404s then - so this asks with the flag *on*, where a route that still existed would answer.
         using var factory = CreateFactory(dirtside: true);
         using var client = factory.CreateClient();
 
         using var status = await client.GetAsync(new Uri("/api/dirtside/status", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.NotFound, status.StatusCode);
 
-        status.EnsureSuccessStatusCode();
+        var flags = await client.GetFromJsonAsync<FeatureFlagsDto>("/api/features");
+        Assert.True(flags!.Dirtside);
     }
 
     /// <summary>Starts a game and leaves its token on the client for everything after.</summary>

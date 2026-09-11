@@ -308,7 +308,7 @@ function App() {
         // the message line overwrote whatever error the player was reading, so a failed action
         // vanished a fraction of a second later and left no evidence it had happened at all.
         setActivity(`${reason} · v${version}`);
-        loadSnapshot(session.matchId).catch(handleSessionError);
+        loadSnapshot(session.matchId).catch((error: unknown) => handleSessionError(error, true));
       }
     });
 
@@ -321,10 +321,14 @@ function App() {
     // or the client silently stops receiving snapshot notifications after any network blip.
     connection.onreconnected(() => {
       setConnectionState('live');
-      joinGroup().catch(showError(setMessage));
+      // Background, both of them: nobody asked for this reconnect, so a failure here reports beside
+      // the connection chip rather than over whatever the player is reading. The expired-session
+      // case still takes the message line, because that is the session ending rather than a report.
+      joinGroup().catch((error: unknown) =>
+        setActivity(`Could not rejoin the live feed: ${error instanceof Error ? error.message : String(error)}`));
       // Resync independently of the rejoin: if the match is gone (for example the API restarted
       // and dropped in-memory state) this is what surfaces the expired session.
-      loadSnapshot(session.matchId).catch(handleSessionError);
+      loadSnapshot(session.matchId).catch((error: unknown) => handleSessionError(error, true));
     });
 
     const started = connection
@@ -1227,10 +1231,27 @@ function App() {
   // a 403 means this device's token no longer opens it, which for a session read back out of
   // storage comes to the same thing - nothing this screen can do will make it work again, so the
   // only useful answer is to let go and offer the join form.
-  function handleSessionError(error: unknown) {
+  //
+  // `background` says whether the player asked for this. The success path of background traffic was
+  // already routed to the activity line, with the reason written beside it: writing it to the
+  // message line overwrote whatever the player was reading. The failure path was not, so the shape
+  // it was fixed for came straight back through it - your shot is refused with a specific reason,
+  // the opponent moves a ship half a second later, that push-triggered GET times out on venue wifi,
+  // and the reason your shot failed is replaced by "The ForceSignal server did not answer within 15
+  // seconds". The refusal was the only copy of that information and it is gone.
+  //
+  // The session-expired branch is deliberately not background-aware. It is not a report about
+  // traffic, it is the session ending underneath the player, and every control on the screen has
+  // just stopped working - so it takes the message line whoever asked.
+  function handleSessionError(error: unknown, background = false) {
     if (error instanceof ApiRequestError && (error.status === 404 || error.status === 403)) {
       clearSession();
       setMessage('Match session expired. Create or join a room again.');
+      return;
+    }
+
+    if (background) {
+      setActivity(`Could not refresh: ${error instanceof Error ? error.message : String(error)}`);
       return;
     }
 

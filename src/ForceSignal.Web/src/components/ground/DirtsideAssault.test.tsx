@@ -247,7 +247,7 @@ describe('Dirtside systems-down recovery', () => {
     mocks.recoverSystems.mockResolvedValue(recovered);
     await open(snapshotWith({ units: [{ ...alpha, elements: [down, alpha.elements[1]] }, bravo] }));
 
-    const button = screen.getByRole('button', { name: 'Recover Systems' }) as HTMLButtonElement;
+    const button = screen.getByRole('button', { name: 'Recover systems on Tank 1' }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
 
@@ -260,9 +260,11 @@ describe('Dirtside systems-down recovery', () => {
     const down = element('alpha-1', 'Tank 1', { isSystemsDown: true, canRecoverSystems: false, whyItCannotRecoverSystems: reason });
     await open(snapshotWith({ units: [{ ...alpha, elements: [down, alpha.elements[1]] }, bravo] }));
 
-    const button = screen.getByRole('button', { name: 'Recover Systems' }) as HTMLButtonElement;
+    const button = screen.getByRole('button', { name: 'Recover systems on Tank 1' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(button.title).toBe(reason);
+    // And as text beside it, because a disabled button's tooltip reaches a mouse and nothing else.
+    expect(screen.getByText(`Tank 1: ${reason}`)).toBeTruthy();
     expect(mocks.recoverSystems).not.toHaveBeenCalled();
   });
 });
@@ -299,9 +301,12 @@ describe('Dirtside fire-and-move declaration', () => {
     // point of rendering `hasChosen` at all. Matched as a substring rather than as the whole row,
     // so this test stays about immobilisation rather than about the shape of the marker chain.
     expect(screen.getByText(/Tank 1 .*· immobilised/)).toBeTruthy();
-    const moves = screen.getAllByRole('button', { name: 'Move' }) as HTMLButtonElement[];
-    expect(moves[0].disabled).toBe(true);
-    expect(moves[1].disabled).toBe(false);
+    // Found by the element's name, which is what these buttons are called now rather than a bare
+    // "Move" repeated per row - and which is also a stronger test than the index order it replaces.
+    const stuckMove = screen.getByRole('button', { name: 'Move Tank 1' }) as HTMLButtonElement;
+    const otherMove = screen.getByRole('button', { name: `Move ${alpha.elements[1].name}` }) as HTMLButtonElement;
+    expect(stuckMove.disabled).toBe(true);
+    expect(otherMove.disabled).toBe(false);
   });
 });
 

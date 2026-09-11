@@ -276,9 +276,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 TableDepth = Math.Clamp(request.TableDepth, 24, 96)
             };
             match.AddLog("Setup", "FleetSetup", "Match created.");
-            _matches.Add(matchId, match);
-            _joinCodes.Add(joinCode, matchId);
-            match.Persist = Persist;
+            Register(match);
             Persist(match);
             return new MatchCreatedResponse(matchId, joinCode, participant.Id, participant.Token);
         }
@@ -1698,6 +1696,37 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             throw new InvalidOperationException(
                 $"This server is already hosting {MaxConcurrentMatches} matches, which is as many as it holds. Try again later.");
         }
+    }
+
+    /// <summary>Makes a match live: findable by id, findable by join code, indexed, and persisting.</summary>
+    /// <remarks>
+    /// <para>
+    /// The exact inverse of <see cref="Forget"/>, which is why it exists. Teardown was centralised
+    /// and correctly reversed all four steps; the three places that set a match up wrote the ritual
+    /// out by hand - <c>CreateMatch</c>, <c>LoadPersistedMatches</c> and <c>RestoreMatch</c>, three
+    /// siblings of one partial class - and they had already diverged. <c>CreateMatch</c> did not call
+    /// <see cref="IndexMatch"/> at all.
+    /// </para>
+    /// <para>
+    /// That omission was harmless: a match created here has no fleets, ships or markers yet, and the
+    /// indexes fill in as each is added. It was harmless and it was also the rule becoming "four
+    /// steps, except when it is three, and you have to know why" - and one <c>Forget</c> against
+    /// three ad-hoc registrations is the asymmetry that lets the next step be forgotten somewhere it
+    /// is not harmless.
+    /// </para>
+    /// <para>
+    /// Assigns rather than <c>Add</c>s, deliberately. All three callers mint the id with
+    /// <c>Guid.NewGuid()</c> and take the join code from <c>CreateJoinCode</c>, which already refuses
+    /// a code in use, so there is nothing for the stricter overload to catch - and an assignment is
+    /// what the restore path needed anyway.
+    /// </para>
+    /// </remarks>
+    private void Register(MatchState match)
+    {
+        _matches[match.Id] = match;
+        _joinCodes[match.JoinCode] = match.Id;
+        IndexMatch(match);
+        match.Persist = Persist;
     }
 
     private void Forget(Guid matchId)

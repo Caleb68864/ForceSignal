@@ -63,6 +63,44 @@ describe('DirtsideView reopening', () => {
     expect(readGame).not.toHaveBeenCalled();
     expect((screen.getByRole('button', { name: 'Start Game' }) as HTMLButtonElement).disabled).toBe(false);
   });
+
+  // A transient failure used to leave exactly one live control on this screen, and it was the one
+  // that throws the game away: the effect is keyed on `[game, snapshot]`, neither of which a 500
+  // changes, so it ran once and never again while the Start button sat disabled reading
+  // "Reopening last game...". The game is kept - it is almost certainly still on the server - and
+  // a Try Again runs the reopen again.
+  it('keeps a stored game after a transient failure and offers a retry that works', async () => {
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+    readGame.mockRejectedValueOnce(new ApiRequestError('The server did not answer.', 500));
+
+    render(<DirtsideView />);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('has not been forgotten');
+
+    // Not forgotten, and not pretending to still be loading.
+    expect(localStorage.getItem(dirtsideGameKey)).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Could not reopen last game' })).toBeTruthy();
+
+    // The retry really runs the reopen again, and the screen arrives.
+    readGame.mockResolvedValue(snapshot);
+    screen.getByRole('button', { name: 'Try Again' }).click();
+
+    expect(await screen.findByText('Reopened Ridge Line.')).toBeTruthy();
+    expect(readGame).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('heading', { name: 'Ridge Line' })).toBeTruthy();
+  });
+
+  // The control on the retry: a 404 is not transient, so it must still be forgotten rather than
+  // offered a Try Again that can only fail. An over-broad fix here would keep a dead game forever.
+  it('offers no retry for a game the server no longer has', async () => {
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+    readGame.mockRejectedValue(new ApiRequestError('Game not found.', 404));
+
+    render(<DirtsideView />);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('no longer available');
+    expect(screen.queryByRole('button', { name: 'Try Again' })).toBeNull();
+  });
 });
 
 function element(extra: Partial<DirtsideElementState> = {}): DirtsideElementState {
@@ -136,6 +174,52 @@ describe('DirtsideView element movement', () => {
     expect(row).toContain('damaged');
     expect(row).toContain('move 6');
     expect(row).not.toContain('move 12');
+  });
+});
+
+// Every per-element button used to read the same to a screen reader - "Move", "Move", "Move" - with
+// the element's name in a sibling span nothing attached to them. The name travels in the accessible
+// name now, and a refusal that lived only in a `title` on a disabled button is rendered as text.
+describe('DirtsideView element controls are told apart', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+  });
+
+  afterEach(cleanup);
+
+  it('names the element in every per-element button', async () => {
+    readGame.mockResolvedValue(activating([
+      element(),
+      element({ id: 'alpha-2', name: 'Alpha Two' }),
+    ]));
+
+    render(<DirtsideView />);
+
+    // The control that must be accepted: the verb a sighted player reads is unchanged.
+    expect((await screen.findAllByText('Move')).length).toBe(2);
+
+    // And the two are distinguishable by accessible name, which is what a reader hears.
+    expect(screen.getByRole('button', { name: 'Move Alpha One' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Move Alpha Two' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stand down Alpha Two' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aim Alpha One' })).toBeTruthy();
+
+    // The dullest violation: a bare "Move" with no name must not survive anywhere.
+    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull();
+  });
+
+  it('renders the recovery refusal as text rather than only as a tooltip', async () => {
+    readGame.mockResolvedValue(activating([element({
+      isSystemsDown: true,
+      canRecoverSystems: false,
+      whyItCannotRecoverSystems: 'The marker went on this activation.',
+    })]));
+
+    render(<DirtsideView />);
+
+    expect(await screen.findByText('Alpha One: The marker went on this activation.')).toBeTruthy();
   });
 });
 

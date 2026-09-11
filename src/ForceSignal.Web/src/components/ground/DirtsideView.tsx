@@ -47,6 +47,13 @@ export function DirtsideView() {
   // The game this device started, kept across a refresh. Read back on mount below.
   const [game, setGame] = useState<GameHandle | null>(() => readStored(dirtsideGameKey, normalizeGameHandle));
   const [snapshot, setSnapshot] = useState<DirtsideSnapshot | null>(null);
+  // The reopen below is keyed on `[game, snapshot]`, and a failure that is not the server saying the
+  // game is gone changes neither - so it used to run once and never again, leaving the screen
+  // showing a disabled "Reopening last game..." with Forget Last Game as the only live control, and
+  // that control throws the game away. A five-second hiccup at a table meant one available action
+  // and it was the destructive one. `reopenAttempt` is what a Try Again can change to run it again.
+  const [reopenFailed, setReopenFailed] = useState(false);
+  const [reopenAttempt, setReopenAttempt] = useState(0);
   const [message, setMessage] = useState('');
   const [messageIsError, setMessageIsError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -210,6 +217,7 @@ export function DirtsideView() {
       .then((next) => {
         if (!cancelled) {
           setSnapshot(next);
+          setReopenFailed(false);
           setMessage(`Reopened ${next.name}.`);
           setMessageIsError(false);
         }
@@ -220,18 +228,26 @@ export function DirtsideView() {
         }
 
         if (error instanceof ApiRequestError && [401, 403, 404].includes(error.status)) {
+          // The server no longer has this game, or no longer lets this device in. Nothing a retry
+          // could do, so it is forgotten rather than left to fail every action.
           localStorage.removeItem(dirtsideGameKey);
           setGame(null);
+          setReopenFailed(false);
           setMessage('The game this device last played is no longer available. Start a new one.');
         } else {
-          setMessage(error instanceof Error ? error.message : String(error));
+          // Anything else - a 500, a dropped connection, a server mid-restart - may well work on the
+          // next try, so the game handle is kept and a Try Again is offered. Forgetting it here
+          // would throw away a game over a hiccup; offering nothing left the player only the button
+          // that throws it away deliberately.
+          setReopenFailed(true);
+          setMessage(`${error instanceof Error ? error.message : String(error)} The game has not been forgotten - try again.`);
         }
         setMessageIsError(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [game, snapshot]);
+  }, [game, snapshot, reopenAttempt]);
 
   if (!game || !snapshot) {
     return (
@@ -280,7 +296,14 @@ export function DirtsideView() {
                   onChange={(event) => setNumericalRow(index, { count: event.target.value })}
                 />
               </label>
-              <button className="ghost" type="button" onClick={() => removeNumericalRow(index)}>
+              {/* One of these per chit row, and the row's own fields are the only thing telling
+                  them apart. A reader hearing six "Remove" buttons cannot pick the right one. */}
+              <button
+                className="ghost"
+                type="button"
+                aria-label={`Remove chit row ${index + 1}${row.colour ? `, ${row.colour}` : ''}${row.value ? ` ${row.value}` : ''}`}
+                onClick={() => removeNumericalRow(index)}
+              >
                 Remove
               </button>
             </div>
@@ -383,8 +406,21 @@ export function DirtsideView() {
         </fieldset>
 
         <button type="button" disabled={busy || Boolean(game)} onClick={() => void start()}>
-          {game ? 'Reopening last game...' : 'Start Game'}
+          {game ? (reopenFailed ? 'Could not reopen last game' : 'Reopening last game...') : 'Start Game'}
         </button>
+        {game && reopenFailed ? (
+          <button
+            type="button"
+            onClick={() => {
+              setReopenFailed(false);
+              setMessage('Reopening...');
+              setMessageIsError(false);
+              setReopenAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Try Again
+          </button>
+        ) : null}
         {game ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
         <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
       </section>
@@ -530,9 +566,19 @@ export function DirtsideView() {
                     when it was whole - which is the number the player would otherwise work from. */}
                 {element.isImmobilised ? '' : ` · move ${element.movement}`}
               </span>
+              {/*
+                Every button below carries the element's name in its `aria-label`.
+
+                The visible label is the verb alone, which is right on screen because the name is in
+                the `<span>` beside it - but that span is not attached to the buttons in any way a
+                screen reader can follow, so on a two-platoon table the reader heard eight identical
+                "Move" buttons with nothing to tell them apart. `ShipCard` already labels its
+                per-row +/- controls this way; the pattern just was not carried to these screens.
+              */}
               <button
                 type="button"
                 className="ghost"
+                aria-label={`Move ${element.name}`}
                 disabled={busy || element.hasMoved || element.hasStoodDown || Boolean(element.isImmobilised)}
                 title={element.isImmobilised
                   ? 'A Mobility chit took its tracks. It will never move again, though it may still fire.'
@@ -544,6 +590,7 @@ export function DirtsideView() {
               <button
                 type="button"
                 className="ghost"
+                aria-label={`Stand down ${element.name}`}
                 disabled={busy || element.hasMoved || element.hasTakenCombatAction || element.hasStoodDown}
                 title="Sitting out gives up its go for the whole turn, so it cannot follow a move or a shot."
                 onClick={() => void run(() => api.standDown(game, element.id))}
@@ -553,6 +600,7 @@ export function DirtsideView() {
               <button
                 type="button"
                 className="ghost"
+                aria-label={`Area defence sensors ${element.areaDefenceSensorsLive ? 'off' : 'on'} for ${element.name}`}
                 disabled={busy || element.hasTakenCombatAction || element.hasStoodDown}
                 title="Spends its one combat action, and buys interception for the rest of the turn."
                 onClick={() => void run(() => api.setSensors(game, element.id, !element.areaDefenceSensorsLive))}
@@ -563,6 +611,7 @@ export function DirtsideView() {
                 <button
                   type="button"
                   className="ghost"
+                  aria-label={`Recover systems on ${element.name}`}
                   disabled={busy || !element.canRecoverSystems}
                   title={element.canRecoverSystems
                     ? 'Spends its one combat action on getting the marker off. A miss can be tried again next activation.'
@@ -575,11 +624,30 @@ export function DirtsideView() {
               <button
                 type="button"
                 className="ghost"
+                aria-label={`Aim ${element.name}`}
                 disabled={busy || !canStillFire(element)}
                 onClick={() => setShot((current) => ({ ...current, elementId: element.id, weapon: '' }))}
               >
                 Aim This One
               </button>
+              {/*
+                The server's written refusal, as text rather than only as a tooltip.
+
+                A `title` on a disabled button reaches a mouse and nothing else: a disabled control is
+                not in the tab order and is not hoverable by keyboard, so the reason a player most
+                needs - why this button will not work - was the one thing they could not get at.
+                `End Activation` below already renders its reason as visible text; this is the same
+                pattern applied to its neighbours.
+              */}
+              {element.isSystemsDown && !element.canRecoverSystems && element.whyItCannotRecoverSystems ? (
+                <p className="constraint-line">{element.name}: {element.whyItCannotRecoverSystems}</p>
+              ) : null}
+              {element.isImmobilised ? (
+                <p className="constraint-line">
+                  {element.name}: a Mobility chit took its tracks. It will never move again, though it
+                  may still fire.
+                </p>
+              ) : null}
             </div>
           ))}
 
@@ -878,12 +946,17 @@ function PlatoonCard({ unit, isActivating, busy, onActivate }: {
       </span>
       <button
         type="button"
+        aria-label={`${isActivating ? 'Activated' : 'Activate'} ${unit.name}`}
         disabled={busy || !unit.canActivate || isActivating}
         title={unit.whyItCannotActivate ?? undefined}
         onClick={onActivate}
       >
         {isActivating ? 'Activated' : 'Activate'}
       </button>
+      {/* The refusal as text, not only as a tooltip on a control a keyboard cannot reach. */}
+      {!unit.canActivate && !isActivating && !unit.hasActivated && unit.whyItCannotActivate ? (
+        <p className="constraint-line">{unit.whyItCannotActivate}</p>
+      ) : null}
     </div>
   );
 }

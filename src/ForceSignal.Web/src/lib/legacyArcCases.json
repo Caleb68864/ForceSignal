@@ -1,0 +1,43 @@
+{
+  "what": "Mount names written before the six arcs existed, and the arcs each one expands to, held across the language boundary.",
+  "why": [
+    "A fleet file names its arcs as text, and two implementations read that text: ExpandLegacyArc in",
+    "InMemoryMatchService.Normalization.cs and expandLegacyArc in normalize.ts. They agreed on every",
+    "spelling either suite exercised and disagreed on the one neither did: the server stripped spaces",
+    "AND hyphens before comparing, the client stripped only spaces and only in its fallback branch.",
+    "",
+    "So a weapons cell reading `Fore-Port` resolved to ForePort on the server and fell back to Fore on",
+    "the client. The mount lost its port arc on screen while the server went on firing it through both",
+    "- the two halves of the app describing one ship differently, with nothing to notice.",
+    "",
+    "The cases below are the ones a file can actually carry: the four old ninety-degree names, the",
+    "six-arc names spelled the several ways a person writes them, and the blind spot, which no",
+    "expansion may ever resurrect because no weapon fires through it. legacyArcCases.test.ts runs",
+    "them against the client and LegacyArcParityTests runs the same list against the server, so a",
+    "change to either normalizer reddens one of the two suites.",
+    "",
+    "`aft` is the case worth reading twice: as an OLD arc name it was ninety degrees wide and becomes",
+    "the two quarters either side of the blind spot, while `Aft` as a SIX-arc name is the blind spot",
+    "itself and expands to nothing firable. Both sides have to answer that the same way and both do."
+  ],
+  "cases": [
+    { "written": "Fore", "arcs": ["Fore"], "why": "the plain spelling, and the control that must be accepted" },
+    { "written": "All", "arcs": ["Fore", "ForeStarboard", "AftStarboard", "AftPort", "ForePort"], "why": "an all-round turret bears through every arc a weapon may fire through" },
+    { "written": "Port", "arcs": ["ForePort", "AftPort"], "why": "an old ninety-degree side arc becomes the two sixty-degree arcs on that side" },
+    { "written": "Starboard", "arcs": ["ForeStarboard", "AftStarboard"], "why": "the mirror of Port" },
+    { "written": "Aft", "arcs": ["AftPort", "AftStarboard"], "why": "the OLD aft arc was ninety degrees and becomes the two quarters either side of the blind spot" },
+    { "written": "ForePort", "arcs": ["ForePort"], "why": "the six-arc name spelled as the enum" },
+    { "written": "Fore-Port", "arcs": ["ForePort"], "why": "THE DIVERGENCE: hyphenated is how a person writes it in a spreadsheet cell, and the client used to answer Fore" },
+    { "written": "Fore Port", "arcs": ["ForePort"], "why": "spaced, which the client already handled and the server did too" },
+    { "written": "fore-starboard", "arcs": ["ForeStarboard"], "why": "hyphenated and lower case at once" },
+    { "written": "AFT-PORT", "arcs": ["AftPort"], "why": "upper case with a hyphen, because a file is typed by hand" },
+    { "written": "Aft-Starboard", "arcs": ["AftStarboard"], "why": "the last of the four hyphenated quarters" },
+    { "written": "nonsense", "arcs": ["Fore"], "why": "a name neither side recognises falls back rather than leaving a mount bearing nowhere" },
+    { "written": "", "arcs": ["Fore"], "why": "an empty cell is the same fallback" }
+  ],
+  "blindSpot": {
+    "written": "Aft",
+    "mustNotContain": "Aft",
+    "why": "No weapon fires through the aft arc (rules-fidelity gap 3). An expansion that handed the blind spot back would put a mount there through the import door, so both sides are held to never producing it."
+  }
+}
