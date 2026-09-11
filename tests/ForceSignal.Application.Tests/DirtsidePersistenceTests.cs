@@ -70,17 +70,4 @@ public sealed class DirtsidePersistenceTests
 
         Assert.NotNull(service.GetSnapshot(game));
     }
-
-    /// <summary>A store that keeps its rows in memory, standing in for the SQLite one.</summary>
-    private sealed class MemoryStore : IMatchStore
-    {
-        private readonly Dictionary<Guid, string> _rows = [];
-
-        public void Save(Guid matchId, string state) => _rows[matchId] = state;
-
-        public void Remove(Guid matchId) => _rows.Remove(matchId);
-
-        public IReadOnlyList<StoredMatch> LoadAll() =>
-            [.. _rows.Select(row => new StoredMatch(row.Key, row.Value))];
-    }
 }

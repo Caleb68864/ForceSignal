@@ -1291,15 +1291,22 @@ function App() {
           <strong>Unofficial companion</strong>
           <p>ForceSignal is an unofficial tabletop companion. It is not affiliated with, endorsed by, or sponsored by Ground Zero Games.</p>
           <p>Full Thrust and Ground Zero Games are trademarks/property of their respective owners. Use your own legally obtained rules and fleet data.</p>
-          {/* Creative Commons Attribution requires the artists to be credited wherever the icons
-              are used, which includes a build someone else is running. This is that credit; the
-              other two copies are ATTRIBUTION.md and the icon sheet's own header. */}
+          {/* Creative Commons Attribution requires the artists to be credited wherever the work is
+              distributed, and this project distributes the sheet in its source tree - so the credit
+              stays whether or not a screen draws one. What changed is the claim: this used to read
+              as though the app used the icons, and no screen does. `UnitIcon.tsx` is imported by
+              nothing but its own test, so the set never reaches the bundle. Crediting artwork the
+              app does not show is over-generous rather than false; saying it shows it would have
+              been false. `unitIconCreditIsTrue` in UnitIcon.test.ts fails if either half of that
+              stops being so - including on the day somebody wires the icons up and the sentence
+              needs to go back to the stronger one. */}
           <p className="icon-credit">
-            Ground unit icons made by Lorc, Delapouite, Skoll and sbed, available on{' '}
+            Ground unit artwork by Lorc, Delapouite, Skoll and sbed, from{' '}
             <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a>
             {' '}under{' '}
             <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>.
-            Ship icons are original to ForceSignal.
+            The set ships with this project and is credited as that licence requires; no screen draws
+            one yet. Ship icons are original to ForceSignal.
           </p>
         </div>
         <a href={officialRulesUrl} target="_blank" rel="noreferrer">Rules</a>

@@ -3,10 +3,14 @@
   Ground-combat unit icons.
 
   These are NOT ForceSignal's own artwork, unlike the ship silhouettes, which are drawn inline in
-  the components. They come from game-icons.net and are used under Creative Commons Attribution 3.0,
-  which requires the original artist to be credited. The credit is carried in three places so it
-  cannot be lost by accident: here, in ATTRIBUTION.md at the repo root, and on screen in the app's
-  notice panel. Removing any one of them breaks the licence.
+  the components. They come from game-icons.net and are included under
+  Creative Commons Attribution 3.0, which asks for the original artist to be credited wherever the
+  work is distributed - which a repository does. No screen renders one yet: UnitIcon.tsx is imported only by its own test, so this
+  sheet never reaches a built bundle. That makes the credit no less required, because the file is
+  still shipped; it only means the credit says "shipped" rather than "used". The credit is carried
+  in three places so it cannot be lost by accident: here, in ATTRIBUTION.md at the repo root, and on
+  screen in the app's notice panel. Removing any one of them while this file is here breaks the
+  licence.
 
   Icons made by the following artists, available on https://game-icons.net:
 

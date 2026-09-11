@@ -3,17 +3,27 @@
 ## Ground unit icons — game-icons.net
 
 The ground unit icons in `src/ForceSignal.Web/src/assets/unit-icons.svg` come from
-[game-icons.net](https://game-icons.net) and are used under
+[game-icons.net](https://game-icons.net) and are included under
 [Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/).
 
-That licence requires the original artist to be credited wherever the icons are used, including in
-a distributed build of the app. This file is that credit, and it is repeated in the header of the
-icon sheet itself and in the app's on-screen notice panel — three copies, so removing one by
-accident does not silently put the project out of licence.
+**No screen renders one yet.** `UnitIcon.tsx` is imported by nothing but its own test, so the set is
+tree-shaken out and a built bundle contains none of it. That does not make the credit optional: the
+licence asks for it wherever the work is *distributed*, and this repository distributes the sheet
+whether or not the app draws from it. Crediting artwork that ships and is not shown is generous;
+deleting the credit while the file is still in the tree would be a licence breach, and removing the
+file is the only thing that would make the credit unnecessary.
+
+So the wording in each of the three places says *shipped*, not *used* — a smaller claim, and the
+true one. If the icons are ever wired into a screen, the stronger wording is correct again;
+`unitIconCreditIsTrue` in `UnitIcon.test.ts` fails on the day that happens, so the sentence cannot
+quietly stay understated either.
+
+The three copies are this file, the header of the icon sheet itself, and the app's on-screen notice
+panel, so removing one by accident does not silently put the project out of licence.
 
 Icons made by the following artists, available on <https://game-icons.net>:
 
-| Artist | Icons used |
+| Artist | Icons in the sheet |
 |---|---|
 | **Lorc** | `battle-tank`, `cannon`, `flying-flag`, `missile-pod`, `radar-dish` |
 | **Delapouite** | `battle-mech`, `crosshair`, `delivery-drone`, `helicopter`, `jet-fighter` |

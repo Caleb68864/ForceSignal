@@ -44,7 +44,14 @@ def typescript_values(source: str, name: str) -> list[str] | None:
     return quoted if quoted else re.findall(r"-?\d+", body)
 
 
-def compare(label: str, server: list[str] | None, client: list[str] | None) -> None:
+# Every client-side name this script has compared, in the order it compared them. The
+# local-redeclaration scan below reads this rather than a second hand-kept list.
+compared: list[tuple[str, str]] = []
+
+
+def compare(label: str, server: list[str] | None, client: list[str] | None, name: str = "") -> None:
+    if name:
+        compared.append((label, name))
     if server is None:
         problems.append(f"{label}: could not find the vocabulary in the contracts assembly.")
         return
@@ -62,15 +69,16 @@ dirtside = (CONTRACTS / "DirtsideContracts.cs").read_text(encoding="utf-8-sig")
 stargrunt = (CONTRACTS / "StarGruntContracts.cs").read_text(encoding="utf-8-sig")
 client = CLIENT.read_text(encoding="utf-8-sig")
 
-compare("Bands", csharp_strings(dirtside, "Bands"), typescript_values(client, "bands"))
-compare("FireControls", csharp_strings(dirtside, "FireControls"), typescript_values(client, "fireControls"))
-compare("QualityDice", csharp_strings(dirtside, "QualityDice"), typescript_values(client, "qualityDice"))
-compare("AssaultStages", csharp_strings(dirtside, "AssaultStages"), typescript_values(client, "assaultStages"))
-compare("ChitColours", csharp_strings(dirtside, "ChitColours"), typescript_values(client, "chitColours"))
-compare("ChitSpecials", csharp_strings(dirtside, "ChitSpecials"), typescript_values(client, "chitSpecials"))
-compare("ValueScales", csharp_strings(dirtside, "ValueScales"), typescript_values(client, "valueScales"))
-compare("ChitColourSets", csharp_strings(dirtside, "ChitColourSets"), typescript_values(client, "chitColourSets"))
-compare("Ladder", csharp_numbers(stargrunt, "Ladder"), typescript_values(client, "qualityLadder"))
+compare("Bands", csharp_strings(dirtside, "Bands"), typescript_values(client, "bands"), "bands")
+compare("FireControls", csharp_strings(dirtside, "FireControls"), typescript_values(client, "fireControls"), "fireControls")
+compare("QualityDice", csharp_strings(dirtside, "QualityDice"), typescript_values(client, "qualityDice"), "qualityDice")
+compare("AssaultStages", csharp_strings(dirtside, "AssaultStages"), typescript_values(client, "assaultStages"), "assaultStages")
+compare("ChitColours", csharp_strings(dirtside, "ChitColours"), typescript_values(client, "chitColours"), "chitColours")
+compare("ChitSpecials", csharp_strings(dirtside, "ChitSpecials"), typescript_values(client, "chitSpecials"), "chitSpecials")
+compare("ValueScales", csharp_strings(dirtside, "ValueScales"), typescript_values(client, "valueScales"), "valueScales")
+compare("Postures", csharp_strings(dirtside, "Postures"), typescript_values(client, "postures"), "postures")
+compare("ChitColourSets", csharp_strings(dirtside, "ChitColourSets"), typescript_values(client, "chitColourSets"), "chitColourSets")
+compare("Ladder", csharp_numbers(stargrunt, "Ladder"), typescript_values(client, "qualityLadder"), "qualityLadder")
 
 # A copy nothing reads is the state this was written to end, so check the client actually uses it.
 #
@@ -81,8 +89,10 @@ compare("Ladder", csharp_numbers(stargrunt, "Ladder"), typescript_values(client,
 #   DirtsideAssaultPanel.tsx while this script reported the vocabularies as single-sourced.
 # - the name list was not the same list as the comparisons above, so a vocabulary could be added to
 #   one and not the other. It is derived from them now, and cannot fall behind.
-local_names = ("bands", "fireControls", "qualityDice", "qualityLadder", "chitColours",
-               "chitSpecials", "valueScales", "chitColourSets")
+# Derived from the comparisons above rather than typed out again. The previous version of this
+# line claimed to be derived and was not - it was a second hand-kept tuple, and it was already
+# missing `assaultStages`, so a screen redeclaring that one locally would have gone unreported.
+local_names = tuple(sorted({name for _, name in compared}))
 for module in (ROOT / "src/ForceSignal.Web/src/components/ground").glob("*.tsx"):
     text = module.read_text(encoding="utf-8-sig")
     for name in local_names:

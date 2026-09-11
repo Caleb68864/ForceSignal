@@ -52,12 +52,16 @@ The Full Thrust ship class icons are original inline SVG silhouettes drawn for F
 carry no third-party obligation.
 
 The ground unit icons are from [game-icons.net](https://game-icons.net) under
-[Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/), which requires
-the artists to be credited wherever the icons are used - including in a build someone else runs.
-See [ATTRIBUTION.md](ATTRIBUTION.md) for the per-artist credit. The same credit appears in the icon
-sheet's header and in the app's on-screen notice panel, so losing one copy does not put the project
-out of licence. Tests in `UnitIcon.test.ts` fail if the credits go missing or if the sheet and the
-app disagree about which icons exist.
+[Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/), which asks for the
+artists to be credited wherever the work is distributed - which a repository does, whether or not
+an app draws from it. **No screen renders one yet**: `UnitIcon.tsx` is imported only by its own test,
+so the set never reaches the bundle. The credit therefore says the artwork *ships* rather than that
+it is *used*, which is the smaller and truer claim, and it stays for exactly as long as the files
+do. See [ATTRIBUTION.md](ATTRIBUTION.md) for the per-artist credit; the same credit appears in the
+icon sheet's header and in the app's on-screen notice panel, so losing one copy does not put the
+project out of licence. Tests in `UnitIcon.test.ts` fail if the credits go missing, if the sheet and
+the app disagree about which icons exist, or if the icons get wired into a screen while the credit
+still says they are not.
 
 ## Local Development
 

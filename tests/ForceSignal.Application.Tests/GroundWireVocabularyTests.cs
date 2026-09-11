@@ -56,6 +56,22 @@ public sealed class GroundWireVocabularyTests
         AssertSameWords(Enum.GetNames<ChitValueScale>(), DirtsideWire.ValueScales);
 
     /// <summary>
+    /// The postures a die table has a row for, held to the enum less its one member that has none.
+    /// </summary>
+    /// <remarks>
+    /// A subset rather than an equality, and the exception is written into the assertion rather than
+    /// left for a reader to infer: <c>None</c> is a target doing nothing, which throws no second die
+    /// at all. Offering a row for it would invite a player to enter a die nothing ever rolls, and
+    /// the mapping refuses it by name. Every other member must be here, so a posture added to the
+    /// ladder cannot leave the wire behind.
+    /// </remarks>
+    [Fact]
+    public void Postures_AreExactlyThePosturesADieTableHasARowFor() =>
+        AssertSameWords(
+            [.. Enum.GetNames<DefensivePosture>().Where(name => name != nameof(DefensivePosture.None))],
+            DirtsideWire.Postures);
+
+    /// <summary>
     /// The colour sets a screen offers, held to the enum they are parsed against.
     /// </summary>
     /// <remarks>

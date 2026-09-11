@@ -29,15 +29,45 @@ export type DirtsideChitPotInput = {
 };
 
 /**
+ * One row of a die table: a key off the record card, and the die it rolls.
+ */
+export type DirtsideDieRowInput = { key: string; die: string };
+
+/**
+ * The dice this game is settled with, off the user's own rulebook. This app supplies none of them.
+ */
+export type DirtsideRulesProfileInput = {
+  fireControl: DirtsideDieRowInput[];
+  posture: DirtsideDieRowInput[];
+  signature: DirtsideDieRowInput[];
+  systemsDownRecoveryDie?: string;
+  systemsDownRecoveryRoll: number;
+  systemsDownRecoveryRollWithBackup: number;
+};
+
+/**
  * Starts a game.
  *
  * The chit pot is sent when the user has counted one and left out when they have not. Leaving it out
  * is not free: the server falls back to a built-in composition whose special counts are its own
  * guess, and says so on the snapshot it hands back. The fallback exists for one release so that
  * games started before the pot was asked for still open.
+ *
+ * The die tables work the other way round. They are sent when the user has read them off their
+ * rulebook and left out when they have not, and there is no fallback to leave them out into: a game
+ * with no rows refuses its first shot and names the row it wanted. Partial is fine and is sent as
+ * given - only the rows a particular shot reads have to be there.
  */
-export function createGame(name: string, chitPot?: DirtsideChitPotInput) {
-  return post<DirtsideGameCreated>('/api/dirtside/games', chitPot ? { name, chitPot } : { name });
+export function createGame(
+  name: string,
+  chitPot?: DirtsideChitPotInput,
+  profile?: DirtsideRulesProfileInput,
+) {
+  return post<DirtsideGameCreated>('/api/dirtside/games', {
+    name,
+    ...(chitPot ? { chitPot } : {}),
+    ...(profile ? { profile } : {}),
+  });
 }
 
 /** Reads a game back. */
