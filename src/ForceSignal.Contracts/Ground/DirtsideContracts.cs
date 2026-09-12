@@ -164,6 +164,11 @@ public sealed record DirtsideDieRowDto(string Key, string Die);
 /// element eligible to answer, which is the half the snapshot can report today.
 /// </para>
 /// </param>
+/// <param name="LowestLeadershipValue">
+/// The smallest number a command marker in this game may carry as a Leadership Value, or null when
+/// not entered. Both ends or neither: one bound on its own is refused rather than half-honoured.
+/// </param>
+/// <param name="HighestLeadershipValue">The largest, or null when not entered.</param>
 public sealed record DirtsideRulesProfileDto(
     IReadOnlyList<DirtsideDieRowDto>? FireControl = null,
     IReadOnlyList<DirtsideDieRowDto>? Posture = null,
@@ -171,7 +176,9 @@ public sealed record DirtsideRulesProfileDto(
     string? SystemsDownRecoveryDie = null,
     int SystemsDownRecoveryRoll = 0,
     int SystemsDownRecoveryRollWithBackup = 0,
-    int AreaDefenceReach = 0);
+    int AreaDefenceReach = 0,
+    int? LowestLeadershipValue = null,
+    int? HighestLeadershipValue = null);
 
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>

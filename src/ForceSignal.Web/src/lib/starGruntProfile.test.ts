@@ -55,6 +55,43 @@ describe('the range table draft', () => {
     });
   });
 
+  it('sends the Leadership Values the table entered, and nothing when they entered none', () => {
+    const draft = emptyStarGruntProfileDraft();
+    draft.lowestLeadershipValue = '2';
+    draft.highestLeadershipValue = '5';
+
+    expect(toStarGruntProfileInput(draft)).toEqual({
+      bandWidths: [],
+      rangeDice: [],
+      lowestLeadershipValue: 2,
+      highestLeadershipValue: 5,
+    });
+    expect(toStarGruntProfileInput(emptyStarGruntProfileDraft())).toBeUndefined();
+  });
+
+  it('sends a Leadership Value bound at or below zero, because no floor here is this app\'s', () => {
+    // Zero is not this form's spelling of blank for these two, unlike everywhere a count is asked
+    // for. A table whose record cards run from zero has entered a bound, and dropping it would put
+    // this app back in the business of deciding which numbers are Leadership Values.
+    const draft = emptyStarGruntProfileDraft();
+    draft.lowestLeadershipValue = '0';
+    draft.highestLeadershipValue = '2';
+
+    expect(toStarGruntProfileInput(draft)).toMatchObject({ lowestLeadershipValue: 0, highestLeadershipValue: 2 });
+  });
+
+  it('passes half a range through rather than dropping the half that was typed', () => {
+    // The server refuses it and names the end that is missing, which is a better place for the
+    // player to meet it than a field that silently did nothing.
+    const draft = emptyStarGruntProfileDraft();
+    draft.lowestLeadershipValue = '2';
+
+    const input = toStarGruntProfileInput(draft);
+
+    expect(input).toMatchObject({ lowestLeadershipValue: 2 });
+    expect(input).not.toHaveProperty('highestLeadershipValue');
+  });
+
   it('drops what is not a number, a die, or a band rather than passing it on', () => {
     const draft = emptyStarGruntProfileDraft();
     draft.bandInches['8'] = 'seven';
@@ -123,7 +160,7 @@ describe('the range table summary', () => {
     const summary = starGruntProfileSummary(partial);
 
     expect(summary).toMatch(/^1 band width\(s\) and 1 range die row\(s\) entered/);
-    expect(summary).toMatch(/Not entered: reach, hard cover, dug in, cover in a melee\./);
+    expect(summary).toMatch(/Not entered: reach, hard cover, dug in, cover in a melee, Leadership Values\./);
     // Zero is entered, so soft cover is not in the list of gaps.
     expect(summary).not.toMatch(/soft cover/);
     expect(starGruntProfileIsEmpty(partial)).toBe(false);

@@ -129,7 +129,8 @@ public sealed class StarGruntGameServiceTests
         // it off meant a client writing the force out to a file had nowhere to read an armour die
         // from, so it wrote a number of its own - a D12 squad came back on D6 in the player's file.
         var service = new StarGruntGameService();
-        var created = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        var created = service.CreateGame(
+            new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly));
         service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue") with
         {
             Figures = [new StarGruntFigureDto(12), new StarGruntFigureDto(4), new StarGruntFigureDto(12)],
@@ -196,7 +197,8 @@ public sealed class StarGruntGameServiceTests
     public void ADieThatIsNotOnTheLadderIsRefused()
     {
         var service = new StarGruntGameService();
-        var created = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        var created = service.CreateGame(
+            new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly));
 
         Assert.Throws<InvalidOperationException>(() => service.AddUnit(created.GameId, new AddStarGruntUnitRequest(
             "alpha", "Alpha Squad", "blue", "Squad", QualityDie: 7, LeadershipValue: 2, Figures: [], Weapons: [])));

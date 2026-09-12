@@ -48,6 +48,40 @@ describe('the die table draft', () => {
     expect(input?.posture).toEqual([]);
   });
 
+  it('sends the Leadership Values the table entered, and nothing when they entered none', () => {
+    // The entry this module never had. Dirtside's service took whatever number reached a command
+    // marker - a probe put 99 and -4 on one - because nobody had ever been asked what the set was.
+    const draft = emptyProfileDraft();
+    draft.lowestLeadershipValue = '2';
+    draft.highestLeadershipValue = '5';
+
+    const input = toProfileInput(draft);
+
+    expect(input?.lowestLeadershipValue).toBe(2);
+    expect(input?.highestLeadershipValue).toBe(5);
+    expect(toProfileInput(emptyProfileDraft())).toBeUndefined();
+  });
+
+  it('sends a Leadership Value bound of zero rather than reading it as unentered', () => {
+    // Unlike every recovery roll on this form, where zero is this form's spelling of blank. A table
+    // whose command markers run from zero has entered a bound.
+    const draft = emptyProfileDraft();
+    draft.lowestLeadershipValue = '0';
+    draft.highestLeadershipValue = '3';
+
+    expect(toProfileInput(draft)?.lowestLeadershipValue).toBe(0);
+  });
+
+  it('passes half a range through rather than dropping the half that was typed', () => {
+    const draft = emptyProfileDraft();
+    draft.highestLeadershipValue = '5';
+
+    const input = toProfileInput(draft);
+
+    expect(input?.highestLeadershipValue).toBe(5);
+    expect(input?.lowestLeadershipValue).toBeUndefined();
+  });
+
   it('drops a die this app does not know the name of rather than passing it on', () => {
     // A hand-edited draft, or a saved one from a future version. The vocabulary is the engine's and
     // the client holds it in one place; anything else is not a die and is not sent as one.
@@ -153,6 +187,8 @@ describe('what the table is told about its dice', () => {
       systemsDownRecoveryRoll: 6,
       systemsDownRecoveryRollWithBackup: 3,
       areaDefenceReach: 9,
+      lowestLeadershipValue: 2,
+      highestLeadershipValue: 5,
     });
 
     expect(said).toContain('Every row');

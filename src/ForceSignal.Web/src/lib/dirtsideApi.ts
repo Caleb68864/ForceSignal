@@ -44,6 +44,8 @@ export type DirtsideRulesProfileInput = {
   systemsDownRecoveryRoll: number;
   systemsDownRecoveryRollWithBackup: number;
   areaDefenceReach: number;
+  lowestLeadershipValue?: number;
+  highestLeadershipValue?: number;
 };
 
 /**

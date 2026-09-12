@@ -241,7 +241,15 @@ public sealed class ContentPolicyWireTests
         using var factory = CreateGroundFactory();
         using var client = factory.CreateClient();
 
-        var (created, shot) = await PlayToAShot(client, """{ "name": "Hill 43" }""");
+        // The Leadership Values and nothing else. A record card has to carry one, and since the set
+        // of them came off the service and onto the profile a game that has not been told what they
+        // are is a game no squad can be put on the table in - which is its own test, not this one.
+        var (created, shot) = await PlayToAShot(client, """
+            {
+              "name": "Hill 43",
+              "profile": { "lowestLeadershipValue": 2, "highestLeadershipValue": 5 }
+            }
+            """);
         var body = await shot.Content.ReadAsStringAsync();
 
         // Reached-the-subject: the create answered and reported a table, empty rather than absent.
@@ -266,7 +274,9 @@ public sealed class ContentPolicyWireTests
               "profile": {
                 "bandWidths": [ { "qualityDie": 8, "inches": 7 } ],
                 "rangeDice": [ { "bandsOut": 2, "die": 4 } ],
-                "softCoverShift": 2
+                "softCoverShift": 2,
+                "lowestLeadershipValue": 2,
+                "highestLeadershipValue": 5
               }
             }
             """);
@@ -332,7 +342,10 @@ public sealed class ContentPolicyWireTests
     {
         var created = (await (await client.PostAsJsonAsync(
                 "/api/stargrunt/games",
-                new Contracts.Ground.CreateStarGruntGameRequest("Hill 43"),
+                new Contracts.Ground.CreateStarGruntGameRequest(
+                    "Hill 43",
+                    new Contracts.Ground.StarGruntRulesProfileDto(
+                        LowestLeadershipValue: 2, HighestLeadershipValue: 5)),
                 JsonOptions))
             .Content.ReadFromJsonAsync<JsonElement>(JsonOptions));
         var token = created.GetProperty("token").GetString();

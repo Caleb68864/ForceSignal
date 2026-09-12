@@ -664,6 +664,11 @@ property, so it bites nobody today, and it is left for the owner rather than cha
 > row carrying the property as an explicit `null` was skipped outright - the stored game simply gone.
 > The 1 to 3 bound is still open and is now a question put to the owner, not a note.
 
+> **The 1 to 3 bound is fixed too** (2026-09-12, below). The set of Leadership Values is the
+> players', for both games, and lives on each game's rules profile. The sentence above - "the service
+> accepts a Leadership Value of 1 to 3" - is a reading off a published page, and this file was one of
+> the six places that held a copy of it.
+
 ## Closed 2026-09-11 (the Leadership Value nobody entered)
 
 *Branch `fix/stargrunt-leadership-value`. One default removed; one bound referred to the owner.*
@@ -725,7 +730,67 @@ because JSON `null` overrides an initialiser; they are the half `QualityDie`'s s
 caught either. `EngineDiceContentPolicyTests` counts routes to the dice ladder and was not touched or
 narrowed: a Leadership Value is an `int`, not a rung.
 
-### The 1-to-3 bound: still asymmetric, and it is the owner's call
+### The 1-to-3 bound: answered, option 1 — closed 2026-09-12
+
+**The owner's decision was option 1: the set of Leadership Values is the players', for both games.**
+Done on `feat/leadership-value-range`; the statement of the question is left below as it was asked.
+
+`LeadershipRange` (`Modules.GroundCombat/Morale/LeadershipRange.cs`) is two entered numbers and no
+third, carried on `StarGruntRulesProfile` and `DirtsideRulesProfile` alike and read through one
+guard, because the two engines are supposed to agree about this and did not.
+
+- [x] **Every copy of the bound is gone.** Found by grepping for `1 to 3`, `1-3`, `1 best`, `1..3`
+      and every case of `leadership` across `.cs`, `.ts`, `.tsx`, `.md` and `.json`. Six copies, two
+      of them not on the earlier list: the service's guard and its refusal message
+      (`StarGruntGameService.cs:617`), two contract XML docs (`StarGruntContracts.cs:127` and `:300`),
+      `docs/stargrunt-fidelity-gaps.md:229,236`, the web tooltip **and the three options beside it**
+      (`StarGruntView.tsx:1108,1112`), and **the force-file importer**
+      (`forceIo.ts:55,58,174`), which kept a Leadership Value only if it was 1, 2 or 3 and reported
+      anything else as absent — a second implementation of the same page, in the one place that
+      reads a player's own file. Dirtside's screen had its own invented bound, `min="0" max="9"`
+      (`DirtsideView.tsx:897`), in front of a server that checked nothing.
+- [x] **A value outside the entered range is refused, naming the entry, and the message does not
+      recite a bound.** The unentered case names the entry and stops; the entered case quotes the
+      bounds, because by then they are the players' own two numbers being read back to them.
+- [x] **Both engines behave alike.** Dirtside's 99 and -4 are refused now, through the same guard
+      and with the same words. Its leadership stays *optional* — a marker that does not say is not a
+      marker with a bad number on it, and the nerve test already refuses that by name.
+- [x] **No direction entry.** A range is two numbers; "1 is best" is an ordering, and the ordering is
+      not a number to enter. Both engines already depend on it in the same direction —
+      `ConfidenceLadder.ScoreToBeat` is `leadership + threat` and the unit must *exceed* the total, so
+      lower is easier; `InfantryCombat.SolveFireEffectiveness` calls a roll *below* leadership
+      ineffective, so lower is harder to fall under. Storing a direction would let a table's answer
+      contradict arithmetic that never reads it.
+- [x] **Per-game, not per-force.** Every player-entered number in these games is on the game's
+      profile, and a rally sums a commander's Leadership Value with a subordinate's while both sides'
+      feed one `ConfidenceLadder` — two forces at one table on different scales would be adding
+      numbers off different pages.
+- [x] **A stored game still opens, and is never rejected at load.** Covered both engines:
+      `A{StarGrunt,Dirtside}GameStoredBeforeTheRangeExistedStillOpensAndThenSaysWhatItWants` strips
+      the two entries out of a real stored row, reopens it, and asserts nothing was skipped, the unit
+      still carries the number its card gave, and the *next* card entered is refused by name.
+- [x] **Accept controls, in both directions.** A value inside the entered range goes on the table in
+      both games (2, 4 and 5 against an invented range of 2 to 5 — 4 and 5 being values the old
+      hardcode refused); a Dirtside marker that says nothing is accepted even with no range entered;
+      and the whole existing suite passes. The fixtures deliberately enter 2 to 5 rather than 1 to 3,
+      so a guard that still knew the published bound fails on both halves.
+- [x] **What this costs, said out loud.** A StarGrunt game whose profile has no Leadership Values can
+      no longer take a new unit: a record card must carry one, and there is no authority for any
+      number. It still opens, still shows what it has, still plays. `StarGruntRulesProfile.Empty`'s
+      own documentation said such a game "can be set up", and now says this instead.
+- [x] **`EngineDiceContentPolicyTests` untouched and not narrowed.** It scans the two modules for
+      routes to the quality ladder; a Leadership Value is an `int`, the new type is in the shared
+      `GroundCombat` project it deliberately does not scan, and nothing here names a die.
+
+Mutation, both directions. Putting the hardcoded `value is >= 1 and <= 3` and its *"(1 to 3, 1
+best)"* message back is named by 6 tests, including the `Assert.DoesNotContain` that catches the
+recited bound in the message. Making the range check pass everything is named by 10, across both
+engines — and by the pre-existing `AUnitAddedOverTheWireStillHasToNameItsLeadershipValue`, which now
+leans on this guard to keep a body that omits the value out. Two earlier attempts at that second
+mutation never reached the tests: warnings-as-errors caught them at compile (CS0162, CS1718), which
+is the build doing the mutation testing's job for it.
+
+### The question as it was asked
 
 Checked at `f1fb3ec` rather than assumed, and the earlier note's line numbers have moved:
 `DirtsideGameService.cs:654` (was cited as 461) passes `request.LeadershipValue` straight to the

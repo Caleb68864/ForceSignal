@@ -32,7 +32,7 @@ public sealed partial class GroundGameHardeningTests
     {
         var starGrunt = new StarGruntGameService();
         var dirtside = new DirtsideGameService();
-        var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly));
         var armour = dirtside.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
 
         // The same shape as a Full Thrust participant token: 256 bits, hex, minted once.
@@ -56,7 +56,7 @@ public sealed partial class GroundGameHardeningTests
         // A restart that minted a new token would lock every device at the table out of a game
         // that is otherwise still there - which is why it is stored with the game.
         var store = new MemoryStore();
-        var created = new StarGruntGameService(null, store).CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        var created = new StarGruntGameService(null, store).CreateGame(new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly));
 
         var restarted = new StarGruntGameService(null, store);
 
@@ -142,7 +142,7 @@ public sealed partial class GroundGameHardeningTests
     public void AGameHoldsOnlySoManyUnits()
     {
         var starGrunt = new StarGruntGameService();
-        var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest("Hill 43")).GameId;
+        var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly)).GameId;
         for (var i = 0; i < 200; i++)
         {
             starGrunt.AddUnit(infantry, Squad($"unit-{i}", i % 2 == 0 ? "blue" : "red", figures: 1));
@@ -167,7 +167,7 @@ public sealed partial class GroundGameHardeningTests
     public void AUnitCarriesOnlySoManyFiguresElementsAndWeapons()
     {
         var starGrunt = new StarGruntGameService();
-        var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest("Hill 43")).GameId;
+        var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly)).GameId;
 
         var crowd = Assert.Throws<InvalidOperationException>(() =>
             starGrunt.AddUnit(infantry, Squad("crowd", "blue", figures: 51)));
@@ -249,7 +249,7 @@ public sealed partial class GroundGameHardeningTests
     public void AMeleeRoundNamesOnlySoManyPairings()
     {
         var service = new StarGruntGameService();
-        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43")).GameId;
+        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly)).GameId;
 
         var refused = Assert.Throws<InvalidOperationException>(() => service.FightMelee(game, new StarGruntMeleeRequest(
             "alpha", "bravo", [.. Enumerable.Range(0, 101).Select(_ => new StarGruntMeleePairingDto())])));
@@ -263,7 +263,7 @@ public sealed partial class GroundGameHardeningTests
         // Every roll a 1, so every settled figure is dead. The count arrives off the wire; before
         // the clamp, two billion of them rolled two billion dice inside the lock.
         var service = new StarGruntGameService(new ScriptedQualityDice());
-        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43")).GameId;
+        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly)).GameId;
         service.AddUnit(game, Squad("alpha", "blue", figures: 8));
 
         var settled = service.SettleTheDowned(game, new StarGruntSettleDownedRequest(
@@ -277,7 +277,8 @@ public sealed partial class GroundGameHardeningTests
     {
         var tooLong = new string('x', 5000);
         var starGrunt = new StarGruntGameService();
-        var infantry = starGrunt.CreateGame(new CreateStarGruntGameRequest(tooLong));
+        var infantry = starGrunt.CreateGame(
+            new CreateStarGruntGameRequest(tooLong, StarGruntTestProfile.LeadershipValuesOnly));
         var unit = starGrunt.AddUnit(infantry.GameId, Squad(tooLong, "blue", figures: 1) with { Name = tooLong })
             .Units.Single();
 
@@ -315,7 +316,7 @@ public sealed partial class GroundGameHardeningTests
 
         var id = Guid.NewGuid();
         var token = new string('b', 64);
-        store.Save(id, Envelope(token, DateTimeOffset.UtcNow, StarGruntGameSerialization.Save(game)));
+        store.Save(id, Envelope(token, DateTimeOffset.UtcNow, StarGruntGameSerialization.Save(game), LeadershipSettings));
 
         var service = new StarGruntGameService(null, store);
         service.RequireToken(id, token);
@@ -337,8 +338,18 @@ public sealed partial class GroundGameHardeningTests
         Weapons: [new StarGruntWeaponDto("Rifles", 10)]);
 
     /// <summary>The row shape the services write, built by hand so a test can put a known one in the store.</summary>
-    private static string Envelope(string token, DateTimeOffset lastActivity, string game) =>
-        $$"""{"formatVersion":1,"token":"{{token}}","lastActivity":"{{lastActivity.ToString("o", CultureInfo.InvariantCulture)}}","game":{{game}}}""";
+    private static string Envelope(string token, DateTimeOffset lastActivity, string game, string settings = "") =>
+        $$"""{"formatVersion":1,"token":"{{token}}","lastActivity":"{{lastActivity.ToString("o", CultureInfo.InvariantCulture)}}","game":{{game}}{{settings}}}""";
+
+    /// <summary>A settings blob carrying nothing but this game's Leadership Values.</summary>
+    /// <remarks>
+    /// For a hand-written row whose test then puts a unit on the table: a record card has to carry a
+    /// Leadership Value, and since the set of them came off the service a game that has not been told
+    /// what they are cannot take one. Nothing else off the range page is here, because nothing else
+    /// is read.
+    /// </remarks>
+    private const string LeadershipSettings =
+        ""","settings":{"profile":{"lowestLeadershipValue":2,"highestLeadershipValue":5}}""";
 
     /// <summary>A store that keeps its rows in memory, and can age one.</summary>
     private sealed class MemoryStore : IMatchStore

@@ -16,6 +16,7 @@ import { fromForceFile, toForceFile } from '../../lib/forceIo.ts';
 import { downloadText, wholeNumberFrom } from '../../lib/format.ts';
 // The ladder the API accepts, not this screen's idea of it. See groundVocabulary.ts.
 import { qualityLadder as ladder } from '../../lib/groundVocabulary.ts';
+import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
@@ -26,7 +27,7 @@ import {
   toStarGruntProfileInput,
   visibleBandRows,
 } from '../../lib/starGruntProfile.ts';
-import type { GameHandle, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
+import type { GameHandle, StarGruntRulesProfile, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
 // - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
@@ -181,7 +182,8 @@ export function StarGruntView() {
 
   /** Sets one of the range table's plain numbers, keeping whatever was typed as typed. */
   function setProfileNumber(
-    field: 'effectiveBands' | 'softCoverShift' | 'hardCoverShift' | 'inPositionShift' | 'meleeCoverShift',
+    field: 'effectiveBands' | 'softCoverShift' | 'hardCoverShift' | 'inPositionShift' | 'meleeCoverShift'
+      | 'lowestLeadershipValue' | 'highestLeadershipValue',
     text: string,
   ) {
     setProfile((current) => ({ ...current, [field]: text }));
@@ -385,6 +387,30 @@ export function StarGruntView() {
                 placeholder="Not entered"
                 value={profile.meleeCoverShift}
                 onChange={(event) => setProfileNumber('meleeCoverShift', event.target.value)}
+              />
+            </label>
+          </div>
+          <p className="privacy">
+            Which numbers your record cards carry as Leadership Values - both ends, off your own
+            rulebook. This app ships none, and a squad cannot go on the table until they are entered.
+          </p>
+          <div className="row">
+            <label title="The smallest number a record card in this game carries as a Leadership Value.">
+              Lowest Leadership Value
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.lowestLeadershipValue}
+                onChange={(event) => setProfileNumber('lowestLeadershipValue', event.target.value)}
+              />
+            </label>
+            <label title="The largest. Enter both ends or neither; half a range is refused.">
+              Highest Leadership Value
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.highestLeadershipValue}
+                onChange={(event) => setProfileNumber('highestLeadershipValue', event.target.value)}
               />
             </label>
           </div>
@@ -822,6 +848,7 @@ export function StarGruntView() {
       <AddUnitPanel
         form={unitForm}
         busy={busy}
+        profile={snapshot.profile}
         onChange={(patch) => setUnitForm((current) => ({ ...current, ...patch }))}
         onAdd={() => run(
           () => api.addUnit(game, {
@@ -1076,14 +1103,18 @@ function FirePanel({
 function AddUnitPanel({
   form,
   busy,
+  profile,
   onChange,
   onAdd,
 }: {
   form: UnitForm;
   busy: boolean;
+  /** This game's rules profile, which is where the Leadership Values live. */
+  profile: StarGruntRulesProfile | null | undefined;
   onChange: (patch: Partial<UnitForm>) => void;
   onAdd: () => void;
 }) {
+  const leadershipValues = leadershipValuesOf(profile);
   return (
     <div className="card-module" aria-label="Add a unit">
       <span className="label module-title">Add a squad</span>
@@ -1105,13 +1136,27 @@ function AddUnitPanel({
           {ladder.map((die) => <option key={die} value={die}>D{die}</option>)}
         </select>
       </label>
-      <label title="Leadership Value from your record card: 1 to 3, and 1 is the best.">
+      {/*
+        The numbers this game's own profile says are Leadership Values, and no others. This offered
+        1, 2 and 3 with "(best)" beside the first and a tooltip that spelled the bound out - three
+        numbers and an ordering, all read off a page this app does not have. Which numbers they are
+        is the table's entry now; which end is the good one is the engine's procedure and is not
+        stated here at all, because nothing here reads it.
+      */}
+      <label title={leadershipValuesSummary(profile)}>
         Leadership
-        <select value={form.leadershipValue} onChange={(event) => onChange({ leadershipValue: Number(event.target.value) })}>
+        <select
+          value={form.leadershipValue}
+          disabled={leadershipValues.length === 0}
+          onChange={(event) => onChange({ leadershipValue: Number(event.target.value) })}
+        >
           <option value={unentered}>Not entered</option>
-          {[1, 2, 3].map((value) => <option key={value} value={value}>{value}{value === 1 ? ' (best)' : ''}</option>)}
+          {leadershipValues.map((value) => <option key={value} value={value}>{value}</option>)}
         </select>
       </label>
+      {leadershipValues.length === 0 ? (
+        <p className="constraint-line">{leadershipValuesSummary(profile)}</p>
+      ) : null}
       <label>
         Figures
         <input

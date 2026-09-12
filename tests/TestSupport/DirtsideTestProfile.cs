@@ -51,7 +51,22 @@ internal static class DirtsideTestProfile
         // Invented like the rest, and in nobody's units. Nothing compares it with a distance,
         // because what an interception measures its reach against is one of the rules nobody has
         // written down; entering it is what makes an element eligible to answer.
-        AreaDefenceReach: 9);
+        AreaDefenceReach: 9,
+
+        // The same invented pair as StarGrunt's fixture, and deliberately so: the two engines are
+        // supposed to agree about what a Leadership Value is, and a fixture that gave them different
+        // sets would hide the day they stopped agreeing. 2 to 5 refuses a 1 and accepts a 4, which is
+        // backwards from the bound StarGrunt's service used to carry in its source.
+        LowestLeadershipValue: 2,
+        HighestLeadershipValue: 5);
+
+    /// <summary>The invented tables with the Leadership Values taken back out.</summary>
+    /// <remarks>For the refusal that names the entry when nobody has said what the values are.</remarks>
+    internal static DirtsideRulesProfileDto WithNoLeadershipValues { get; } = Invented with
+    {
+        LowestLeadershipValue = null,
+        HighestLeadershipValue = null,
+    };
 
     /// <summary>The invented tables with the area-defence reach taken back out.</summary>
     /// <remarks>
@@ -73,4 +88,10 @@ internal static class DirtsideTestProfile
     /// <returns>The request.</returns>
     internal static CreateDirtsideGameRequest CreateGameWithNoAreaDefenceReach(string name) =>
         new(name, null, WithNoAreaDefenceReach);
+
+    /// <summary>A create request whose profile says nothing about Leadership Values.</summary>
+    /// <param name="name">What to call the game.</param>
+    /// <returns>The request.</returns>
+    internal static CreateDirtsideGameRequest CreateGameWithNoLeadershipValues(string name) =>
+        new(name, null, WithNoLeadershipValues);
 }

@@ -14,6 +14,7 @@
  */
 
 import { fireControls, postures, qualityDice } from './groundVocabulary.ts';
+import { leadershipValuesOf } from './leadershipValues.ts';
 import type { DirtsideRulesProfileInput } from './dirtsideApi.ts';
 import type { DirtsideRulesProfile } from '../types.ts';
 
@@ -34,6 +35,10 @@ export type DirtsideProfileDraft = {
   systemsDownRecoveryRoll: string;
   systemsDownRecoveryRollWithBackup: string;
   areaDefenceReach: string;
+  /** The smallest number a command marker in this game may carry as a Leadership Value. */
+  lowestLeadershipValue: string;
+  /** The largest. Both ends or neither - the server refuses half a range where it is entered. */
+  highestLeadershipValue: string;
 };
 
 /** A form nobody has typed into. */
@@ -46,6 +51,8 @@ export function emptyProfileDraft(): DirtsideProfileDraft {
     systemsDownRecoveryRoll: '',
     systemsDownRecoveryRollWithBackup: '',
     areaDefenceReach: '',
+    lowestLeadershipValue: '',
+    highestLeadershipValue: '',
   };
 }
 
@@ -53,6 +60,18 @@ export function emptyProfileDraft(): DirtsideProfileDraft {
 function dieOf(text: string | undefined): string | null {
   const trimmed = (text ?? '').trim();
   return (qualityDice as readonly string[]).includes(trimmed) ? trimmed : null;
+}
+
+/**
+ * A whole number the user typed, or null when the field holds anything else - blank included.
+ *
+ * Separate from {@link rollOf} because zero is a real answer here: a table whose record cards run
+ * from 0 has entered a bound, and a nought that read back as 'not entered' would put this app back
+ * in the business of deciding which numbers are Leadership Values.
+ */
+function enteredNumber(text: string): number | null {
+  const trimmed = text.trim();
+  return /^-?\d+$/.test(trimmed) ? Number(trimmed) : null;
 }
 
 /** Whether a piece of the form holds a whole number above zero. */
@@ -86,9 +105,15 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
   const recoveryWithBackup = rollOf(draft.systemsDownRecoveryRollWithBackup);
   const areaDefenceReach = rollOf(draft.areaDefenceReach);
 
+  // Sent as a pair or not at all, and a half-filled pair is passed through rather than quietly
+  // dropped: the server refuses it where it was entered, which is where the blank field still is.
+  const lowest = enteredNumber(draft.lowestLeadershipValue);
+  const highest = enteredNumber(draft.highestLeadershipValue);
+
   const entered =
     fireControl.length + posture.length + signature.length
-    + (recoveryDie ? 1 : 0) + recoveryRoll + recoveryWithBackup + areaDefenceReach;
+    + (recoveryDie ? 1 : 0) + recoveryRoll + recoveryWithBackup + areaDefenceReach
+    + (lowest === null ? 0 : 1) + (highest === null ? 0 : 1);
   if (entered === 0) {
     return undefined;
   }
@@ -101,6 +126,8 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
     systemsDownRecoveryRoll: recoveryRoll,
     systemsDownRecoveryRollWithBackup: recoveryWithBackup,
     areaDefenceReach,
+    ...(lowest === null ? {} : { lowestLeadershipValue: lowest }),
+    ...(highest === null ? {} : { highestLeadershipValue: highest }),
   };
 }
 
@@ -134,6 +161,9 @@ export function profileSummary(profile: DirtsideRulesProfile | null | undefined)
     // interception does, so a table that never enters one meets the refusal at the moment somebody
     // tries to shoot a missile down rather than at the moment they fire.
     profile.areaDefenceReach > 0 ? null : 'area-defence reach',
+    // Not a die either, and the one whose absence stops a platoon going on the table with a number
+    // on its command marker rather than stopping a shot.
+    leadershipValuesOf(profile).length === 0 ? 'Leadership Values' : null,
   ].filter((part): part is string => part !== null);
 
   const counted = `${rows} die table row(s) entered, from your own rulebook`;

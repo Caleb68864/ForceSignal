@@ -87,6 +87,19 @@ function snapshotWith(overrides: Partial<DirtsideSnapshot> = {}): DirtsideSnapsh
     canEndActivation: false,
     whyActivationCannotEnd: 'Every element must say what it is doing.',
     assault: null,
+    // 2 to 5, invented, and deliberately backwards from the bound the other engine used to hold:
+    // this panel took any number from 0 to 9 and the server took whatever arrived, so 99 and -4
+    // both went onto a command marker. What a Leadership Value is comes off this profile now.
+    profile: {
+      fireControl: [],
+      posture: [],
+      signature: [],
+      systemsDownRecoveryRoll: 0,
+      systemsDownRecoveryRollWithBackup: 0,
+      areaDefenceReach: 0,
+      lowestLeadershipValue: 2,
+      highestLeadershipValue: 5,
+    },
     units: [alpha, bravo],
     log: [],
     version: 3,
@@ -340,7 +353,8 @@ describe('Dirtside add-platoon card numbers', () => {
     await open(snapshotWith({ activatingUnitId: null, units: [] }));
 
     fireEvent.change(screen.getByLabelText('Quality die'), { target: { value: 'D10' } });
-    fireEvent.change(screen.getByLabelText('Leadership value'), { target: { value: '2' } });
+    // 4 is a Leadership Value at this table. The box this replaced would have taken 99 as readily.
+    fireEvent.change(screen.getByLabelText('Leadership value'), { target: { value: '4' } });
     fireEvent.click(screen.getByLabelText('Backup systems'));
     fireEvent.change(screen.getByLabelText('Assault chits'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Kill threshold'), { target: { value: '6' } });
@@ -349,7 +363,26 @@ describe('Dirtside add-platoon card numbers', () => {
     await waitFor(() => expect(mocks.addPlatoon).toHaveBeenCalled());
     const sent = mocks.addPlatoon.mock.calls[0][1];
     expect(sent.qualityDie).toBe('D10');
-    expect(sent.leadershipValue).toBe(2);
+    expect(sent.leadershipValue).toBe(4);
     expect(sent.elements[0]).toEqual(expect.objectContaining({ hasBackupSystems: true, assaultChits: 3, killThreshold: 6 }));
+  });
+
+  it('offers the Leadership Values this game entered, and no others', async () => {
+    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+
+    const leadership = screen.getByLabelText('Leadership value') as HTMLSelectElement;
+
+    // The entered set plus the not-given option. The old control was a number box clamped 0 to 9,
+    // which was a bound this app had put on a card nobody had entered.
+    expect([...leadership.options].map((option) => option.value)).toEqual(['', '2', '3', '4', '5']);
+  });
+
+  it('offers no Leadership Value at all when the game was never told what they are', async () => {
+    await open(snapshotWith({ activatingUnitId: null, units: [], profile: null }));
+
+    const leadership = screen.getByLabelText('Leadership value') as HTMLSelectElement;
+
+    expect([...leadership.options].map((option) => option.value)).toEqual(['']);
+    expect(leadership.disabled).toBe(true);
   });
 });

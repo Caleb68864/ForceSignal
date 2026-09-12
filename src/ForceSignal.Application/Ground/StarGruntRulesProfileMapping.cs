@@ -60,7 +60,8 @@ internal static class StarGruntRulesProfileMapping
             Shift(dto.SoftCoverShift, "soft cover"),
             Shift(dto.HardCoverShift, "hard cover"),
             Shift(dto.InPositionShift, "a settled position"),
-            Shift(dto.MeleeCoverShift, "cover in a melee"));
+            Shift(dto.MeleeCoverShift, "cover in a melee"),
+            LeadershipRangeMapping.FromDto(dto.LowestLeadershipValue, dto.HighestLeadershipValue));
     }
 
     /// <summary>Reports a profile back the way it was entered.</summary>
@@ -83,7 +84,9 @@ internal static class StarGruntRulesProfileMapping
             profile.SoftCoverShift,
             profile.HardCoverShift,
             profile.InPositionShift,
-            profile.MeleeCoverShift);
+            profile.MeleeCoverShift,
+            profile.LeadershipValues.Lowest,
+            profile.LeadershipValues.Highest);
     }
 
     /// <summary>

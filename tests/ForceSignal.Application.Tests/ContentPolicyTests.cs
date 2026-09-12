@@ -2,6 +2,7 @@ using ForceSignal.Application.Ground;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Contracts.Matches;
+using ForceSignal.TestSupport;
 
 namespace ForceSignal.Application.Tests;
 
@@ -161,7 +162,10 @@ public sealed class ContentPolicyTests
         // to one. Most weapons never join a squad volley at all, so this was a number written onto
         // a weapon for a rule it will never be read by - until the day it is.
         var service = new StarGruntGameService();
-        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        // The Leadership Values, and nothing else off the range page: a record card has to carry one,
+        // and what this game's are is the players' as of the day the bound came off the service.
+        var game = service.CreateGame(new CreateStarGruntGameRequest(
+            "Hill 43", StarGruntTestProfile.LeadershipValuesOnly));
 
         var snapshot = service.AddUnit(game.GameId, new AddStarGruntUnitRequest(
             Id: "alpha",
@@ -193,7 +197,10 @@ public sealed class ContentPolicyTests
         // carries it, and it is still a different number from the impact die - the two are
         // deliberately unrelated, and a fix that collapsed them would satisfy the test above.
         var service = new StarGruntGameService();
-        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43"));
+        // The Leadership Values, and nothing else off the range page: a record card has to carry one,
+        // and what this game's are is the players' as of the day the bound came off the service.
+        var game = service.CreateGame(new CreateStarGruntGameRequest(
+            "Hill 43", StarGruntTestProfile.LeadershipValuesOnly));
 
         var snapshot = service.AddUnit(game.GameId, new AddStarGruntUnitRequest(
             Id: "alpha",

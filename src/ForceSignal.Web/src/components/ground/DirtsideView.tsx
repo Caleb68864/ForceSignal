@@ -23,6 +23,7 @@ import {
   qualityDice,
 } from '../../lib/groundVocabulary.ts';
 
+import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
@@ -412,6 +413,32 @@ export function DirtsideView() {
               />
             </label>
           </div>
+          <p className="privacy">
+            Which numbers your command markers carry as Leadership Values - both ends, off your own
+            rulebook. This app ships none, and a marker cannot carry one until they are entered.
+          </p>
+          <div className="table-fields">
+            <label title="The smallest number a command marker in this game carries as a Leadership Value.">
+              Lowest Leadership Value
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.lowestLeadershipValue}
+                onChange={(event) =>
+                  setProfile({ ...profile, lowestLeadershipValue: event.target.value })}
+              />
+            </label>
+            <label title="The largest. Enter both ends or neither; half a range is refused.">
+              Highest Leadership Value
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.highestLeadershipValue}
+                onChange={(event) =>
+                  setProfile({ ...profile, highestLeadershipValue: event.target.value })}
+              />
+            </label>
+          </div>
         </fieldset>
 
         <button type="button" disabled={busy || Boolean(game)} onClick={() => void start()}>
@@ -436,6 +463,9 @@ export function DirtsideView() {
     );
   }
 
+  // What this game's own profile says a Leadership Value is. Empty when nobody entered it, and then
+  // the add-a-platoon panel offers none and says so.
+  const leadershipValues = leadershipValuesOf(snapshot.profile);
   const activating = snapshot.units.find((unit) => unit.id === snapshot.activatingUnitId) ?? null;
   const enemies = activating
     ? snapshot.units.filter((unit) => unit.side !== activating.side)
@@ -892,9 +922,22 @@ export function DirtsideView() {
               {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
             </select>
           </label>
-          <label title="The leadership value on the command marker.">
+          {/*
+            The numbers this game's own profile says are Leadership Values. This was a number box
+            clamped to 0-9, which was a bound the app had put on a card without anybody entering it;
+            it also let 99 and -4 through to a server that stored them, because the clamp was HTML
+            and the server checked nothing.
+          */}
+          <label title={leadershipValuesSummary(snapshot.profile)}>
             Leadership value
-            <input type="number" min="0" max="9" value={platoonForm.leadershipValue} onChange={(e) => setPlatoonForm({ ...platoonForm, leadershipValue: e.target.value })} />
+            <select
+              value={platoonForm.leadershipValue}
+              disabled={leadershipValues.length === 0}
+              onChange={(e) => setPlatoonForm({ ...platoonForm, leadershipValue: e.target.value })}
+            >
+              <option value="">Not given</option>
+              {leadershipValues.map((value) => <option key={value} value={String(value)}>{value}</option>)}
+            </select>
           </label>
           <label title="Bought at design time. Makes a Systems Down marker easier to get off.">
             Backup systems

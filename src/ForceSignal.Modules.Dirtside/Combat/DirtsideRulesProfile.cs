@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using ForceSignal.Modules.GroundCombat.Dice;
+using ForceSignal.Modules.GroundCombat.Morale;
 
 namespace ForceSignal.Modules.Dirtside.Combat;
 
@@ -45,6 +46,13 @@ namespace ForceSignal.Modules.Dirtside.Combat;
 /// <param name="AreaDefenceReach">
 /// How far an area-defence system reaches to intercept, in the players' own distance units.
 /// </param>
+/// <param name="LeadershipValues">
+/// Which numbers count as Leadership Values in this game, or unentered when the players have not
+/// said. This module used to hold no opinion at all: a command marker took whatever number arrived,
+/// and a probe put 99 and -4 on one. The same entry, on the same terms, as StarGrunt's - one engine
+/// reading a number off a page cannot be stricter about it than the other, and both feed the one
+/// <see cref="ForceSignal.Modules.GroundCombat.Morale.ConfidenceLadder"/>.
+/// </param>
 public sealed record DirtsideRulesProfile(
     ImmutableDictionary<FireControlLevel, QualityDie> FireControlDice,
     ImmutableDictionary<DefensivePosture, QualityDie> PostureDice,
@@ -52,7 +60,8 @@ public sealed record DirtsideRulesProfile(
     QualityDie? SystemsDownRecoveryDie = null,
     int SystemsDownRecoveryRoll = 0,
     int SystemsDownRecoveryRollWithBackup = 0,
-    int AreaDefenceReach = 0)
+    int AreaDefenceReach = 0,
+    LeadershipRange LeadershipValues = default)
 {
     /// <summary>
     /// A profile with nothing entered. What a game created without one plays on, and what every
@@ -75,7 +84,8 @@ public sealed record DirtsideRulesProfile(
         && PostureDice.IsEmpty
         && SignatureDice.IsEmpty
         && SystemsDownRecoveryDie is null
-        && InterceptionReach is null;
+        && InterceptionReach is null
+        && LeadershipValues.IsBlank;
 
     /// <summary>The die a gunnery level rolls, or null when the profile does not say.</summary>
     /// <param name="level">The gunnery level.</param>
@@ -150,6 +160,7 @@ public sealed record DirtsideRulesProfile(
         && SystemsDownRecoveryRoll == other.SystemsDownRecoveryRoll
         && SystemsDownRecoveryRollWithBackup == other.SystemsDownRecoveryRollWithBackup
         && AreaDefenceReach == other.AreaDefenceReach
+        && LeadershipValues == other.LeadershipValues
         && Same(FireControlDice, other.FireControlDice)
         && Same(PostureDice, other.PostureDice)
         && Same(SignatureDice, other.SignatureDice);
@@ -162,6 +173,7 @@ public sealed record DirtsideRulesProfile(
         hash.Add(SystemsDownRecoveryRoll);
         hash.Add(SystemsDownRecoveryRollWithBackup);
         hash.Add(AreaDefenceReach);
+        hash.Add(LeadershipValues);
         hash.Add(FireControlDice.Count);
         hash.Add(PostureDice.Count);
         hash.Add(SignatureDice.Count);

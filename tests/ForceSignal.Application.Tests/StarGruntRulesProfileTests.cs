@@ -33,7 +33,7 @@ public sealed class StarGruntRulesProfileTests
     public void AGameWithNoTableRefusesItsFirstShotAndSaysWhichEntryItWants()
     {
         var service = new StarGruntGameService(new ScriptedQualityDice(AKillAndAStop), null, new ScriptedFigureAllocator());
-        var game = Activated(service, profile: null);
+        var game = Activated(service, StarGruntTestProfile.LeadershipValuesOnly);
 
         var refused = Assert.Throws<InvalidOperationException>(() => service.Fire(game, Volley()));
 
@@ -47,7 +47,7 @@ public sealed class StarGruntRulesProfileTests
     public void TheRefusedShotIsNotChargedToTheUnit()
     {
         var service = new StarGruntGameService(new ScriptedQualityDice(AKillAndAStop), null, new ScriptedFigureAllocator());
-        var game = Activated(service, profile: null);
+        var game = Activated(service, StarGruntTestProfile.LeadershipValuesOnly);
         var before = service.GetSnapshot(game);
 
         Assert.Throws<InvalidOperationException>(() => service.Fire(game, Volley()));
@@ -81,7 +81,9 @@ public sealed class StarGruntRulesProfileTests
         var partial = new StarGruntRulesProfileDto(
             BandWidths: [new StarGruntBandWidthDto(8, 7)],
             RangeDice: [new StarGruntRangeDieDto(2, 4)],
-            SoftCoverShift: 2);
+            SoftCoverShift: 2,
+            LowestLeadershipValue: 2,
+            HighestLeadershipValue: 5);
         var service = new StarGruntGameService(new ScriptedQualityDice(AKillAndAStop), null, new ScriptedFigureAllocator());
         var game = Activated(service, partial);
 
@@ -100,7 +102,7 @@ public sealed class StarGruntRulesProfileTests
         // The melee cover shift was this module's `CoverShift = 1`. Through the service it is the
         // game's own entry: refused by name when missing, never asked in the open, read when there.
         var blank = new StarGruntGameService(new ScriptedQualityDice(3, 9, 3, 9));
-        var game = Activated(blank, profile: null);
+        var game = Activated(blank, StarGruntTestProfile.LeadershipValuesOnly);
         var inCover = new StarGruntMeleeRequest("alpha", "bravo", [new StarGruntMeleePairingDto()], DefendersInCover: true);
 
         var refused = Assert.Throws<InvalidOperationException>(() => blank.FightMelee(game, inCover));

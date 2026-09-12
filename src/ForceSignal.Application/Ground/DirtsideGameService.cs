@@ -8,6 +8,7 @@ using ForceSignal.Modules.Dirtside.Game;
 using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
+using ForceSignal.Modules.GroundCombat.Morale;
 using ForceSignal.Modules.GroundCombat.Sequence;
 
 namespace ForceSignal.Application.Ground;
@@ -250,7 +251,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
         {
             var held = Find(gameId);
             GroundGameGuards.RequireRoom(held.Game.Units.Count, GroundGameGuards.MaxUnitsPerGame, "platoons");
-            var platoon = ToDefinition(request);
+            var platoon = ToDefinition(request, held.Profile.LeadershipValues);
             if (held.Game.HasUnit(platoon.Id))
             {
                 throw new InvalidOperationException($"There is already a platoon called '{platoon.Id}' in this game.");
@@ -637,13 +638,14 @@ public sealed class DirtsideGameService : IDirtsideGameService
     }
 
     /// <summary>Reads a platoon off the wire and onto the table.</summary>
-    private static PlatoonDefinition ToDefinition(AddDirtsidePlatoonRequest request)
+    private static PlatoonDefinition ToDefinition(AddDirtsidePlatoonRequest request, LeadershipRange leadershipValues)
     {
         GroundGameGuards.RequireAtMost(request.Elements?.Count ?? 0, GroundGameGuards.MaxMembersPerUnit, "elements");
 
+        var name = Required(request.Name, "A platoon needs a name.");
         return new PlatoonDefinition(
             new UnitId(Required(request.Id, "A platoon needs an id.")),
-            Required(request.Name, "A platoon needs a name."),
+            name,
             new SideId(Required(request.Side, "A platoon needs a side.")),
             Enum.TryParse<DirtsideUnitKind>(request.Kind, ignoreCase: true, out var kind)
                 ? kind
@@ -651,8 +653,30 @@ public sealed class DirtsideGameService : IDirtsideGameService
             request.IsCybertank,
             [.. (request.Elements ?? []).Select(ToElement)],
             Die(request.QualityDie),
-            request.LeadershipValue);
+            Leadership(request.LeadershipValue, leadershipValues, name));
     }
+
+    /// <summary>
+    /// Checks the number on a command marker is one of this game's Leadership Values.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This module used to check nothing: whatever arrived went onto the marker, and a probe put 99
+    /// and -4 on one. The other engine did check, against a bound written into its own source. Both
+    /// read the one <see cref="ForceSignal.Modules.GroundCombat.Morale.ConfidenceLadder"/>, so they
+    /// now read the one entry on the game's rules profile, through the one guard.
+    /// </para>
+    /// <para>
+    /// Null stays null and is never looked up. A marker that does not say is not a marker with a bad
+    /// number on it; it is a platoon whose nerve cannot be tested yet, which the game already refuses
+    /// by name at the roll. Nothing is being read, so nothing can be missing.
+    /// </para>
+    /// </remarks>
+    private static int? Leadership(int? value, LeadershipRange range, string platoonName) =>
+        value is null ? null
+        : range.WhyRefused(value.Value, platoonName) is { } refusal
+            ? throw new InvalidOperationException(refusal)
+            : value;
 
     /// <summary>Reads the die off a command marker, or nothing when the card does not say.</summary>
     private static QualityDie? Die(string? name) =>
