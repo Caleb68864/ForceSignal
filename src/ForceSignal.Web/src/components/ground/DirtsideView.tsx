@@ -402,6 +402,15 @@ export function DirtsideView() {
                   setProfile({ ...profile, systemsDownRecoveryRollWithBackup: event.target.value })}
               />
             </label>
+            <label title="How far an area-defence system reaches, in your own units, off your own rulebook. It makes an element eligible to intercept. It does not make interception work: what one rolls and what a success does to the shot are rules this app does not have.">
+              Area-defence reach
+              <input
+                inputMode="numeric"
+                value={profile.areaDefenceReach}
+                onChange={(event) =>
+                  setProfile({ ...profile, areaDefenceReach: event.target.value })}
+              />
+            </label>
           </div>
         </fieldset>
 
@@ -607,6 +616,34 @@ export function DirtsideView() {
               >
                 Sensors {element.areaDefenceSensorsLive ? 'Off' : 'On'}
               </button>
+              {/*
+                The other end of the Sensors button, and it always refuses.
+
+                It is here because the refusal is the only honest thing this app can say about
+                interception, and because without it the button above sells something a table can
+                never collect: a combat action buys live sensors, live sensors buy the right to
+                intercept, and nothing in this app can resolve an interception. That chain used to
+                end in silence. Now it ends in a sentence naming the four rules nobody has written
+                down - when a defender may declare, what is rolled and against what, what a success
+                does to the shot, and whether an element may do it twice in a turn.
+
+                Shown only once sensors are live, so it appears as the consequence of the purchase
+                rather than as a permanently dead control on every vehicle.
+              */}
+              {element.areaDefenceSensorsLive ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  aria-label={`Intercept with ${element.name}`}
+                  disabled={busy}
+                  title={element.canIntercept
+                    ? 'Eligible to answer - and answering is refused: this app has no interception rules, and will say which are missing.'
+                    : element.whyItCannotIntercept ?? undefined}
+                  onClick={() => void run(() => api.intercept(game, activating.id, element.id))}
+                >
+                  Intercept
+                </button>
+              ) : null}
               {element.isSystemsDown || element.canRecoverSystems ? (
                 <button
                   type="button"
@@ -826,11 +863,12 @@ export function DirtsideView() {
             Recorded off the card, and recorded is all it is. The server has carried this field since
             Dirtside had an API and no client could send it, so it arrived false for every weapon in
             every game - a write-only chain with nothing at either end. It reaches the roster now.
-            What it does not yet do is anything: interception has no resolution in this engine - no
-            roll, no outcome, no route to answer or decline a window - and inventing one would be
-            inventing rules. See the roadmap entry for exactly what is missing.
+            What it still does not do is decide anything. Interception has no resolution in this
+            engine - no roll, no outcome - and inventing one would be inventing rules. There is a
+            route now, and it exists to refuse and to name the four rules that are missing, which is
+            the honest end of the chain rather than the silent one. See the roadmap entry.
           */}
-          <label title="True when an area-defence gun could shoot down what this weapon throws. Recorded off your card; interception is not yet resolved by this app.">
+          <label title="True when an area-defence gun could shoot down what this weapon throws. Recorded off your card; interception is refused by this app, which has no rules for resolving one.">
             Interceptable
             <input type="checkbox" checked={platoonForm.isInterceptable} onChange={(e) => setPlatoonForm({ ...platoonForm, isInterceptable: e.target.checked })} />
           </label>

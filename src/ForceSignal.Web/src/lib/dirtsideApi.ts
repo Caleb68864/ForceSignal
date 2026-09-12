@@ -43,6 +43,7 @@ export type DirtsideRulesProfileInput = {
   systemsDownRecoveryDie?: string;
   systemsDownRecoveryRoll: number;
   systemsDownRecoveryRollWithBackup: number;
+  areaDefenceReach: number;
 };
 
 /**
@@ -85,10 +86,11 @@ export type DirtsideWeaponInput = {
    * True when an area-defence gun could shoot down what this weapon throws.
    *
    * The player's own reading of their card, and recorded rather than acted on: this engine has no
-   * interception resolution - no roll, no outcome, and no route to answer or decline a window - so
-   * the flag reaches the roster and stops there. It is sent anyway because it is theirs, and because
-   * the field existed on the server with nothing able to fill it in, which made it a write-only
-   * chain that nobody could tell was empty.
+   * interception resolution - no roll, no outcome - so the flag reaches the roster and stops there.
+   * It is sent anyway because it is theirs, and because the field existed on the server with nothing
+   * able to fill it in, which made it a write-only chain that nobody could tell was empty. There is
+   * a route to answer an interception now, and it exists to refuse and to say which rules are
+   * missing; see `intercept` below.
    */
   isInterceptable?: boolean;
   close: { colours: string };
@@ -163,6 +165,23 @@ export function standDown(game: GameHandle, elementId: string) {
 /** Switches an element's area-defence sensors on or off, spending its combat action. */
 export function setSensors(game: GameHandle, elementId: string, live: boolean) {
   return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/sensors`, { elementId, live }, undefined, gameAuth(game));
+}
+
+/**
+ * Answers an area-defence interception, which always fails.
+ *
+ * It is called for the message. This app cannot resolve an interception and will not guess at one:
+ * when a defender may declare, what the intercepting element rolls and against what, what a success
+ * does to the incoming shot, and whether one element may do it more than once a turn are rules, and
+ * this app ships none. The server names whichever is the most specific true reason - the element's
+ * own gates first, then the reach if the table has not entered one, then those four.
+ *
+ * The call exists so that a table that spent a combat action on sensors can find out what it bought.
+ * Before it, the checkbox on the roster, the action and the profile entry all led nowhere and there
+ * was no way to discover that from the screen.
+ */
+export function intercept(game: GameHandle, unitId: string, elementId: string) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/interceptions`, { unitId, elementId }, undefined, gameAuth(game));
 }
 
 /**
