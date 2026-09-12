@@ -435,6 +435,11 @@ export type StarGruntRulesProfile = {
   hardCoverShift?: number | null;
   inPositionShift?: number | null;
   meleeCoverShift?: number | null;
+  // Which numbers count as Leadership Values at this table. Both ends or neither - the server
+  // refuses half a range where it is entered. Null means nobody has said, and then no record card
+  // can carry one: this app ships no leadership ratings and the screen offers none.
+  lowestLeadershipValue?: number | null;
+  highestLeadershipValue?: number | null;
 };
 /**
  * What this device needs to get back into a ground game: the id names it, and the token - minted
@@ -681,6 +686,10 @@ export type DirtsideRulesProfile = {
   // that is a number rather than a rule, and so the one piece this app can hold. Zero is "not
   // entered", and an element whose game has not got one is not called eligible to intercept.
   areaDefenceReach: number;
+  // The same entry as StarGrunt's, deliberately. Both games read a leadership number into the one
+  // confidence ladder, so both read the same entry off their own game's profile.
+  lowestLeadershipValue?: number | null;
+  highestLeadershipValue?: number | null;
 };
 
 /** How many chits of one colour and number the pot holds. Counted off the user's own sheet. */

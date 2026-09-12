@@ -52,10 +52,25 @@ function supportDieFrom(value: unknown): number {
   return dieFrom(value) ?? 0;
 }
 
-/** The Leadership Value a file gave, 1 to 3 where 1 is best, or null when it gave none. */
+/**
+ * The Leadership Value a file gave, or null when it gave none.
+ *
+ * A whole number and nothing more. This used to keep it to 1, 2 or 3 and call anything else absent,
+ * which was a published bound written into an importer: a file from a table whose record cards run
+ * on some other set had its numbers silently thrown away and was then reported as having none. Which
+ * numbers are Leadership Values is the game's entry, and the server refuses a card the game's own
+ * profile does not hold - by name, where the player can act on it.
+ */
 function leadershipFrom(value: unknown): number | null {
-  const leadership = Number(value);
-  return Number.isInteger(leadership) && leadership >= 1 && leadership <= 3 ? leadership : null;
+  // Typed rather than coerced. `Number(null)` is 0 and `Number('')` is 0, so a file that said
+  // nothing - or a snapshot that came back saying the card never did - would have read back as a
+  // Leadership Value of zero the moment the 1-to-3 clamp that used to hide it came off.
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? value : null;
+  }
+
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return /^-?\d+$/.test(trimmed) ? Number(trimmed) : null;
 }
 
 const fatigues = ['Fresh', 'Tired', 'Exhausted'];
@@ -171,7 +186,7 @@ export function fromForceFile(payload: unknown): ImportedStarGruntForce {
 
     const leadershipValue = leadershipFrom(unit.leadershipValue);
     if (leadershipValue === null) {
-      missing('has no Leadership Value from 1 to 3');
+      missing('has no Leadership Value');
     }
 
     // A squad of nobody is not a squad; a squad of two hundred is a typo. The empty roster used to

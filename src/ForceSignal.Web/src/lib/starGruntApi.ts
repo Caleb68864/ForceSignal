@@ -35,6 +35,8 @@ export type StarGruntRulesProfileInput = {
   hardCoverShift?: number;
   inPositionShift?: number;
   meleeCoverShift?: number;
+  lowestLeadershipValue?: number;
+  highestLeadershipValue?: number;
 };
 
 /**

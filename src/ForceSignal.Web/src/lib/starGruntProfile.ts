@@ -14,6 +14,7 @@
  */
 
 import { qualityLadder } from './groundVocabulary.ts';
+import { leadershipValuesOf } from './leadershipValues.ts';
 import type { StarGruntRulesProfileInput } from './starGruntApi.ts';
 import type { StarGruntRulesProfile } from '../types.ts';
 
@@ -34,6 +35,10 @@ export type StarGruntProfileDraft = {
   hardCoverShift: string;
   inPositionShift: string;
   meleeCoverShift: string;
+  /** The smallest number a record card in this game may carry as a Leadership Value. */
+  lowestLeadershipValue: string;
+  /** The largest. Both ends or neither - the server refuses half a range. */
+  highestLeadershipValue: string;
 };
 
 /** A form nobody has typed into. */
@@ -46,6 +51,8 @@ export function emptyStarGruntProfileDraft(): StarGruntProfileDraft {
     hardCoverShift: '',
     inPositionShift: '',
     meleeCoverShift: '',
+    lowestLeadershipValue: '',
+    highestLeadershipValue: '',
   };
 }
 
@@ -53,6 +60,19 @@ export function emptyStarGruntProfileDraft(): StarGruntProfileDraft {
 function wholeNumber(text: string | undefined): number | null {
   const trimmed = (text ?? '').trim();
   return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+}
+
+/**
+ * A whole number the user typed, sign and all, or null when the field holds anything else.
+ *
+ * Separate from {@link wholeNumber} because a Leadership Value bound is the one number on this form
+ * that has no floor this app is entitled to set. Zero is an answer; so is a negative one, for a
+ * table whose scale runs through it. Refusing those here would be this app deciding which numbers
+ * are Leadership Values, which is the entry this field exists to take off it.
+ */
+function signedWholeNumber(text: string | undefined): number | null {
+  const trimmed = (text ?? '').trim();
+  return /^-?\d+$/.test(trimmed) ? Number(trimmed) : null;
 }
 
 /** Whether a piece of the form holds a die this app knows the face count of. */
@@ -106,16 +126,26 @@ export function toStarGruntProfileInput(draft: StarGruntProfileDraft): StarGrunt
     meleeCoverShift: wholeNumber(draft.meleeCoverShift),
   };
 
+  // Sent as a pair or not at all. Half a range is refused by the server where it is entered, which
+  // is where the user can still see the field they left blank - so this passes a half-filled pair
+  // through rather than quietly dropping the half that was typed.
+  const leadership = {
+    lowestLeadershipValue: signedWholeNumber(draft.lowestLeadershipValue),
+    highestLeadershipValue: signedWholeNumber(draft.highestLeadershipValue),
+  };
+  const anyLeadership = Object.values(leadership).some((value) => value !== null);
+
   const anyShift = Object.values(shifts).some((value) => value !== null);
-  if (bandWidths.length === 0 && rangeDice.length === 0 && !(reach !== null && reach > 0) && !anyShift) {
+  if (bandWidths.length === 0 && rangeDice.length === 0 && !(reach !== null && reach > 0)
+    && !anyShift && !anyLeadership) {
     return undefined;
   }
 
   // An unentered number is left off the body rather than sent as zero, so the server reads it as
   // not entered. A zero the user typed is sent, because for a shift it means something.
   const entered = Object.fromEntries(
-    Object.entries(shifts).filter(([, value]) => value !== null),
-  ) as Partial<Record<keyof typeof shifts, number>>;
+    Object.entries({ ...shifts, ...leadership }).filter(([, value]) => value !== null),
+  ) as Partial<Record<keyof typeof shifts | keyof typeof leadership, number>>;
 
   return {
     bandWidths,
@@ -145,9 +175,12 @@ export function starGruntProfileSummary(profile: StarGruntRulesProfile | null | 
     profile.hardCoverShift == null ? 'hard cover' : null,
     profile.inPositionShift == null ? 'dug in' : null,
     profile.meleeCoverShift == null ? 'cover in a melee' : null,
+    // Listed with the rest because it is the same kind of entry, and named last because it is the
+    // one whose absence stops a squad going on the table rather than stopping a shot.
+    leadershipValuesOf(profile).length === 0 ? 'Leadership Values' : null,
   ].filter((part): part is string => part !== null);
 
-  if (widths + rows === 0 && unentered.length === 5) {
+  if (widths + rows === 0 && unentered.length === 6) {
     return 'No range table has been entered for this game. This app ships none of its own, so the '
       + 'first shot will be refused and will say which entry it needs. Start a new game with the '
       + 'numbers from your own rulebook.';

@@ -24,13 +24,21 @@ const handle: GameHandle = { gameId: 'game-1', token: 'token-1' };
  * whatever the server sent - including a unit written by a version that did not put figures on the
  * wire.
  */
-function snapshotFrom(unitJson: string): StarGruntSnapshot {
+/**
+ * A snapshot, on a profile that says which numbers are Leadership Values.
+ *
+ * 2 to 5, invented, and deliberately backwards from the bound that used to be written into the
+ * add-a-squad panel: it offered 1, 2 and 3. A panel that still knew those would offer a 1 this
+ * table has not got and would not offer the 4 it has.
+ */
+function snapshotFrom(unitJson: string, profileJson = '"profile": { "bandWidths": [], "rangeDice": [], "lowestLeadershipValue": 2, "highestLeadershipValue": 5 },'): StarGruntSnapshot {
   return JSON.parse(`{
     "gameId": "game-1",
     "name": "Hill 43",
     "turnNumber": 1,
     "phase": "Setup",
     "sides": ["blue", "red"],
+    ${profileJson}
     "units": [${unitJson}],
     "log": []
   }`) as StarGruntSnapshot;
@@ -51,9 +59,10 @@ const wholeUnit = `{
 /** The same unit from a server that did not send rosters. Only `figures` differs. */
 const unitWithNoRoster = wholeUnit.replace('"figures": [{ "armourDie": 12 }, { "armourDie": 12 }],', '');
 
-async function open(unitJson: string) {
+async function open(unitJson: string, profileJson?: string) {
   localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
-  readGame.mockResolvedValue(snapshotFrom(unitJson));
+  readGame.mockResolvedValue(
+    profileJson === undefined ? snapshotFrom(unitJson) : snapshotFrom(unitJson, profileJson));
   render(<StarGruntView />);
   // Reached-the-subject: the game really opened, so the Export button below is on a live game.
   expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
@@ -154,16 +163,41 @@ describe('StarGrunt add-a-squad panel', () => {
     fireEvent.change(die('Quality'), { target: { value: '12' } });
     fireEvent.change(die('Armour'), { target: { value: '4' } });
     fireEvent.change(die('Impact'), { target: { value: '10' } });
-    fireEvent.change(die('Leadership'), { target: { value: '1' } });
+    // 4 is a Leadership Value at this table and was not one the panel used to offer at all.
+    fireEvent.change(die('Leadership'), { target: { value: '4' } });
     fireEvent.change(screen.getByLabelText('Figures'), { target: { value: '5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add Squad' }));
 
     expect(await screen.findByText(/joined blue\./)).toBeTruthy();
     const posted = addUnit.mock.calls[0][1];
     expect(posted.qualityDie).toBe(12);
-    expect(posted.leadershipValue).toBe(1);
+    expect(posted.leadershipValue).toBe(4);
     expect(posted.figures).toEqual(Array.from({ length: 5 }, () => ({ armourDie: 4 })));
     expect((posted.weapons as { impactDie: number }[])[0].impactDie).toBe(10);
+  });
+
+  it('offers the Leadership Values this game entered, and no others', async () => {
+    await open(wholeUnit);
+
+    const offered = [...die('Leadership').options].map((option) => option.value);
+
+    // The entered set, and the unentered option every control on this panel carries.
+    expect(offered).toEqual(['0', '2', '3', '4', '5']);
+    // The three the panel used to ship, off a page this app does not have. 2 and 3 are here because
+    // this table entered them, and 1 is the one that proves the difference.
+    expect(offered).not.toContain('1');
+  });
+
+  it('offers no Leadership Value at all when the game was never told what they are', async () => {
+    // A game whose profile says nothing about them - which every game stored before the entry
+    // existed reads back as. The panel offers none rather than falling back on three of its own,
+    // and says why, which is the refusal the server would give arriving before the player types.
+    await open(wholeUnit, '"profile": { "bandWidths": [], "rangeDice": [] },');
+
+    const leadership = die('Leadership');
+    expect([...leadership.options].map((option) => option.value)).toEqual(['0']);
+    expect(leadership.disabled).toBe(true);
+    expect(screen.getByText(/Nobody has entered which Leadership Values/)).toBeTruthy();
   });
 });
 
