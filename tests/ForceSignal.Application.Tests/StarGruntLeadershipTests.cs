@@ -45,6 +45,11 @@ public sealed class StarGruntLeadershipTests
         Assert.Empty(service.SkippedSaves);
         Assert.Equal(2, service.GetSnapshot(id).Units.Count);
 
+        // And it says so on every snapshot rather than only when it refuses, which is what lets a
+        // screen show the gap before somebody rolls. A 2 here is the defect itself: a rating nobody
+        // gave, reported to the table as fact.
+        Assert.Null(service.GetSnapshot(id).Units.Single(unit => unit.Id == "alpha").LeadershipValue);
+
         // It plays, and the first roll that reads the card is refused by name.
         service.BeginTurn(id);
         service.ChooseFirstActivator(id, new ChooseFirstActivatorRequest("blue", TakeIt: true));

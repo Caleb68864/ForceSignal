@@ -378,7 +378,10 @@ export type StarGruntUnit = {
   side: string;
   level: string;
   qualityDie: number;
-  leadershipValue: number;
+  // Off the command marker. Null when the record card has not said, which a game stored before
+  // units carried one reads back as: the server refuses every morale roll by name until it does,
+  // and a screen that showed a number here would be showing one nobody entered.
+  leadershipValue: number | null;
   fatigue: string;
   // The roster the player entered, at full strength, each figure carrying the armour die they
   // chose. Export reads the dice from here: there is nowhere else on a snapshot that holds them.
@@ -454,11 +457,24 @@ export type StarGruntForceFile = {
     name: string;
     level: string;
     qualityDie: number;
-    leadershipValue: number;
+    // Null when the unit it was written from had none. Written through rather than filled in,
+    // because a file is the roster as it stood and the import names every gap it finds.
+    leadershipValue: number | null;
     fatigue: string;
     figures: StarGruntFigure[];
     weapons: StarGruntWeapon[];
   }[];
+};
+
+/**
+ * A force file that has already been read back and checked.
+ *
+ * The same shape as {@link StarGruntForceFile} except that a unit's Leadership Value is certainly
+ * there: a file that leaves it out is thrown out by name rather than returned, so nothing this type
+ * describes can carry the gap onwards into an add-unit request.
+ */
+export type ImportedStarGruntForce = Omit<StarGruntForceFile, 'units'> & {
+  units: (Omit<StarGruntForceFile['units'][number], 'leadershipValue'> & { leadershipValue: number })[];
 };
 
 /** What one beam die scores against one level of screening. */

@@ -296,7 +296,11 @@ public sealed record StarGruntWeaponLegalityDto(string Name, bool CanFire, strin
 /// <param name="Side">Which side it is on.</param>
 /// <param name="Level">Its command level.</param>
 /// <param name="QualityDie">Its quality die, as a face count.</param>
-/// <param name="LeadershipValue">Its Leadership Value, 1 to 3, where 1 is best.</param>
+/// <param name="LeadershipValue">
+/// Its Leadership Value, 1 to 3, where 1 is best - or null when its record card has not said, which
+/// a game stored before units carried one reads back as. A screen showing a number here that nobody
+/// entered is the defect; every roll in the game bar a shot is measured against it.
+/// </param>
 /// <param name="Fatigue">How worn it is, which caps its confidence.</param>
 /// <param name="Figures">
 /// The roster the player entered, at full strength, each figure with the armour die they chose.
@@ -325,7 +329,7 @@ public sealed record StarGruntUnitDto(
     string Side,
     string Level,
     int QualityDie,
-    int LeadershipValue,
+    int? LeadershipValue,
     string Fatigue,
     IReadOnlyList<StarGruntFigureDto> Figures,
     int FiguresAlive,

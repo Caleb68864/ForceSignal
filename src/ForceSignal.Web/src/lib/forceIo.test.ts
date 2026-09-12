@@ -244,6 +244,17 @@ describe('a force file with a die missing is not given one', () => {
     expect(() => fromForceFile(without('leadershipValue'))).toThrow(/Bravo Squad/);
   });
 
+  it('writes out the gap a snapshot came back with rather than closing it on the way past', () => {
+    // The snapshot's Leadership Value is nullable now: a game stored before units carried one comes
+    // back saying so, and the server refuses every morale roll by name until somebody enters it.
+    // Export must not turn that into a 2 on its way into the player's own file, and the round trip
+    // must not read one back - which is exactly the defect export already paid for on armour dice.
+    const written = toForceFile('blue', [unit({ name: 'Bravo Squad', leadershipValue: null })]);
+
+    expect(written.units[0].leadershipValue).toBeNull();
+    expect(() => fromForceFile(JSON.parse(JSON.stringify(written)))).toThrow(/Bravo Squad/);
+  });
+
   it('refuses a figure with no armour die, which is the number export was fixed for', () => {
     expect(() => fromForceFile(without('figure.armourDie'))).toThrow(/Bravo Squad/);
   });

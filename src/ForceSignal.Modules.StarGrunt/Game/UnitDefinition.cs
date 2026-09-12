@@ -104,14 +104,31 @@ public sealed record UnitDefinition
     public required QualityDie QualityDie { get; init; }
 
     /// <summary>
-    /// The leader's Leadership Value, from 1 to 3, where 1 is the best.
+    /// The number on the unit's command marker, or null when its record card has not said.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A number rather than a die, which is what the rules use and what every roll against a leader
     /// has to beat. It was modelled as a die at first and that was simply wrong: nothing in the game
     /// ever rolls a leadership die, and the suppression and rally engines both take a value.
+    /// </para>
+    /// <para>
+    /// Nullable, and it used to open on <c>= 2</c>. That initialiser was the same defect as
+    /// <see cref="QualityDie"/>'s: a saved game is JSON, and the deserialiser fills a property the
+    /// bytes do not carry from exactly this expression - so a document written while units still had
+    /// a <c>LeadershipDie</c> came back rated 2, and this is the number <em>every</em> roll that
+    /// matters is measured against.
+    /// </para>
+    /// <para>
+    /// Unlike the quality die it is not <c>required</c>, because the two have different honest
+    /// answers. There is no unentered rung of the quality ladder to stand on, so a save that does not
+    /// say what quality a unit was is not a save of that unit. A leadership value has a perfectly
+    /// good unentered state, and refusing the blob would retire a stored game over it. So this takes
+    /// the range page's shape instead: the game opens, and the action that reads the value is refused
+    /// by name before anything is spent.
+    /// </para>
     /// </remarks>
-    public int LeadershipValue { get; init; } = 2;
+    public int? LeadershipValue { get; init; }
 
     /// <summary>
     /// How worn the unit is, which caps where its confidence starts and how far it can be rallied.

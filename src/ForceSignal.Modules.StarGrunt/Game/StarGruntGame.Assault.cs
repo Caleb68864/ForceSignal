@@ -77,7 +77,13 @@ public sealed partial record StarGruntGame
                 $"{charging.Name} is {status.Confidence} and will not charge anyone.");
         }
 
-        var test = Confidence.React(charging.QualityDie, charging.LeadershipValue, threatLevel, dice);
+        // Before the roll, and so before the step below spends the activation on it.
+        if (LeadershipBlocker(charging) is { } missing)
+        {
+            return GameOutcome.Refused<StarGruntGame>(missing);
+        }
+
+        var test = Confidence.React(charging.QualityDie, charging.LeadershipValue!.Value, threatLevel, dice);
         var step = StarGruntSteps.Simple(test.Passed ? StarGruntAction.CloseAssault : StarGruntAction.RefusedOrder);
         var spent = TakeStep(step);
         if (!spent.IsAllowed)
@@ -135,6 +141,13 @@ public sealed partial record StarGruntGame
                     .WithLog($"{receiving.Name} was already broken and routed the moment {charging.Name} came on."));
         }
 
+        // The defender's card is the one this reads, and it is read after the broken-already case
+        // above, which settles without rolling and so has nothing to measure.
+        if (LeadershipBlocker(receiving) is { } missing)
+        {
+            return GameOutcome.Refused<StarGruntGame>(missing);
+        }
+
         var threat = CloseAssault.StandThreat(
             CloseAssault.Strength(Status(attacker).FiguresAlive),
             CloseAssault.Strength(receivingStatus.FiguresAlive),
@@ -143,7 +156,7 @@ public sealed partial record StarGruntGame
         var test = Confidence.Test(
             receivingStatus.Confidence,
             receiving.QualityDie,
-            receiving.LeadershipValue,
+            receiving.LeadershipValue!.Value,
             threat,
             dice);
 

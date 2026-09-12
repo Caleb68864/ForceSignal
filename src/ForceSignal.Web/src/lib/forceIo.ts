@@ -11,7 +11,7 @@
  * quality ladder or into range rather than trusted.
  */
 
-import type { StarGruntForceFile, StarGruntUnit } from '../types.ts';
+import type { ImportedStarGruntForce, StarGruntForceFile, StarGruntUnit } from '../types.ts';
 
 /**
  * The version written today. Bump it only when an older file would be read wrongly.
@@ -145,7 +145,7 @@ export function toForceFile(side: string, units: StarGruntUnit[]): StarGruntForc
  *
  * @throws {Error} When the payload is not a force at all, or when it leaves out a die.
  */
-export function fromForceFile(payload: unknown): StarGruntForceFile {
+export function fromForceFile(payload: unknown): ImportedStarGruntForce {
   if (typeof payload !== 'object' || payload === null) {
     throw new Error('That file does not hold a force.');
   }
