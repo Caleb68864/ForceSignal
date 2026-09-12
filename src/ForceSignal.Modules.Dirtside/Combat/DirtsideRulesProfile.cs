@@ -42,13 +42,17 @@ namespace ForceSignal.Modules.Dirtside.Combat;
 /// <param name="SystemsDownRecoveryDie">The die a crew throws to get a Systems Down marker off.</param>
 /// <param name="SystemsDownRecoveryRoll">The number that throw has to reach without backup systems.</param>
 /// <param name="SystemsDownRecoveryRollWithBackup">The number it has to reach with them.</param>
+/// <param name="AreaDefenceReach">
+/// How far an area-defence system reaches to intercept, in the players' own distance units.
+/// </param>
 public sealed record DirtsideRulesProfile(
     ImmutableDictionary<FireControlLevel, QualityDie> FireControlDice,
     ImmutableDictionary<DefensivePosture, QualityDie> PostureDice,
     ImmutableDictionary<int, QualityDie> SignatureDice,
     QualityDie? SystemsDownRecoveryDie = null,
     int SystemsDownRecoveryRoll = 0,
-    int SystemsDownRecoveryRollWithBackup = 0)
+    int SystemsDownRecoveryRollWithBackup = 0,
+    int AreaDefenceReach = 0)
 {
     /// <summary>
     /// A profile with nothing entered. What a game created without one plays on, and what every
@@ -70,7 +74,8 @@ public sealed record DirtsideRulesProfile(
         FireControlDice.IsEmpty
         && PostureDice.IsEmpty
         && SignatureDice.IsEmpty
-        && SystemsDownRecoveryDie is null;
+        && SystemsDownRecoveryDie is null
+        && InterceptionReach is null;
 
     /// <summary>The die a gunnery level rolls, or null when the profile does not say.</summary>
     /// <param name="level">The gunnery level.</param>
@@ -113,6 +118,25 @@ public sealed record DirtsideRulesProfile(
         return required > 0 ? required : null;
     }
 
+    /// <summary>How far an area-defence system reaches, or null when the profile does not say.</summary>
+    /// <remarks>
+    /// <para>
+    /// Zero is "not entered", the same convention <see cref="SystemsDownRecoveryTarget"/> uses, and
+    /// it costs nothing here: a system that reaches nowhere is not a system anybody would write on a
+    /// card, so there is no real answer that zero would be hiding.
+    /// </para>
+    /// <para>
+    /// <b>What this is not.</b> It is not half of a resolver. Nothing in this engine compares it
+    /// with a distance yet, because what an interception measures its reach <em>against</em> - the
+    /// firer, the target, the round's path - is one of the things nobody has written down. It is
+    /// here because it is the one piece of interception that is a <em>number</em> rather than a
+    /// procedure, and numbers are the players'. Its reader today is the eligibility question on the
+    /// game, which will not call an element able to answer until its table has said how far it
+    /// reaches.
+    /// </para>
+    /// </remarks>
+    public int? InterceptionReach => AreaDefenceReach > 0 ? AreaDefenceReach : null;
+
     /// <summary>Compares two profiles by their contents, tables included.</summary>
     /// <param name="other">The profile to compare against.</param>
     /// <remarks>
@@ -125,6 +149,7 @@ public sealed record DirtsideRulesProfile(
         && SystemsDownRecoveryDie == other.SystemsDownRecoveryDie
         && SystemsDownRecoveryRoll == other.SystemsDownRecoveryRoll
         && SystemsDownRecoveryRollWithBackup == other.SystemsDownRecoveryRollWithBackup
+        && AreaDefenceReach == other.AreaDefenceReach
         && Same(FireControlDice, other.FireControlDice)
         && Same(PostureDice, other.PostureDice)
         && Same(SignatureDice, other.SignatureDice);
@@ -136,6 +161,7 @@ public sealed record DirtsideRulesProfile(
         hash.Add(SystemsDownRecoveryDie);
         hash.Add(SystemsDownRecoveryRoll);
         hash.Add(SystemsDownRecoveryRollWithBackup);
+        hash.Add(AreaDefenceReach);
         hash.Add(FireControlDice.Count);
         hash.Add(PostureDice.Count);
         hash.Add(SignatureDice.Count);

@@ -51,7 +51,13 @@ internal static class TestDieTables
         ]),
         SystemsDownRecoveryDie: QualityDie.D8,
         SystemsDownRecoveryRoll: 7,
-        SystemsDownRecoveryRollWithBackup: 4);
+        SystemsDownRecoveryRollWithBackup: 4,
+
+        // Invented like the rest, and in nobody's units: the engine never compares this with
+        // anything, because what an interception measures its reach against is one of the things
+        // nobody has written down. It is here so that the tests about the entry being present and
+        // the entry being absent are about the same profile.
+        AreaDefenceReach: 9);
 
     /// <summary>
     /// A profile with nothing in it, for the tests about what a game does before anybody has entered

@@ -174,49 +174,93 @@ public sealed partial record DirtsideGame
     }
 
     /// <summary>
-    /// Answers an open area-defence interception window with one element's guns.
+    /// What an interception would be resolved by, if anybody had written it down.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The refusal every eligible interception ends in, and the honest end of this feature. The
+    /// sequencing is built, the gating is built, the reach is on the profile - and what an
+    /// interception actually <em>does</em> is recorded nowhere in this repository: not in the
+    /// engine, not in the docs, not in any test, and not in any commit that has ever been made on
+    /// any branch. Four things are missing, and every one of them is a rule rather than a number,
+    /// so this app cannot supply them the way it supplies a blank field for a die.
+    /// </para>
+    /// <para>
+    /// Writing a plausible one would be the invented <c>Class-2 Beam</c> again: a procedure that
+    /// looks like the game, settles real shots, and came from nobody's rulebook. So the command
+    /// stops here and says which four sentences would let it go on.
+    /// </para>
+    /// </remarks>
+    public const string InterceptionProcedureIsNotRecorded =
+        "This app cannot resolve an interception, and will not guess at one. Four things are "
+        + "missing and all four are rules rather than numbers: when a defender may declare, what "
+        + "the intercepting element rolls and against what, what a success does to the incoming "
+        + "shot, and whether one element may intercept more than once a turn. The reach is a "
+        + "number and is on the game's rules profile; the procedure is not, and this app ships "
+        + "none of its own.";
+
+    /// <summary>
+    /// Answers an area-defence interception window with one element's guns, or says why not.
     /// </summary>
     /// <param name="unit">The platoon answering.</param>
     /// <param name="element">The element whose sensors are doing the intercepting.</param>
-    /// <returns>The game with the interception under way, or why it was refused.</returns>
+    /// <param name="profile">The numbers this game's players entered off their own rulebook.</param>
+    /// <returns>Always a refusal, naming the most specific true reason.</returns>
     /// <remarks>
     /// <para>
-    /// This is what the combat action spent on <see cref="SetAreaDefenceSensors"/> buys, and until
-    /// now nothing spent it on anything: the flag was set, echoed in the snapshot, and read by no
-    /// rule at all, so an element whose sensors had never been switched on could intercept exactly
-    /// as freely as one that had paid for it. A player who spends an action on a standing capability
-    /// has to be able to find out that they have it and that somebody else does not.
+    /// <b>This always refuses, and that is the feature.</b> It used to run the gates and then hand
+    /// the sequence layer a reaction declaration, which - for an element that passed every gate -
+    /// came back "No window is waiting for an answer." That sentence is true of the sequence and
+    /// false about the game: <see cref="DirtsideGame.InterceptionOpening"/> returns null
+    /// unconditionally, so the window it tells the reader to wait for cannot open in any game this
+    /// engine can play. A refusal that sends a table back to the table to wait for something that
+    /// will never arrive is worse than one that sends them to their rulebook.
     /// </para>
     /// <para>
-    /// The interception itself costs nothing, which is why the sensor check is the whole of the
-    /// gate: an element that has already used its activation may still answer, because live sensors
-    /// are a capability bought earlier rather than a go being traded away now.
+    /// So the order is: the gates first, because "your sensors are off" and "nobody entered your
+    /// reach" are more specific and more actionable than anything below them, and then
+    /// <see cref="InterceptionProcedureIsNotRecorded"/>, which is what is actually wrong.
+    /// </para>
+    /// <para>
+    /// The sequencing this used to call is <c>DirtsideTurn.InterceptWithAreaDefence</c> and it is
+    /// still there, still tested against the shared layer's frame stack, and still correct. It is
+    /// what this method will call again on the day the four sentences arrive. It is not called now
+    /// because declaring a reaction to a window that cannot open is not a step towards anything.
     /// </para>
     /// </remarks>
-    public GameOutcome<DirtsideGame> InterceptWithAreaDefence(UnitId unit, ElementId element)
-    {
-        if (WhyInterceptionIsRefused(unit, element) is { } reason)
-        {
-            return GameOutcome.Refused<DirtsideGame>(reason);
-        }
-
-        return Apply(
-            GroundCombatSequence.CanDeclareReaction(Session, unit, DirtsideActivationPolicy.AreaDefenceCost),
-            () => DirtsideTurn.InterceptWithAreaDefence(Session, unit));
-    }
+    /// <exception cref="ArgumentNullException"><paramref name="profile"/> is null.</exception>
+    public GameOutcome<DirtsideGame> InterceptWithAreaDefence(
+        UnitId unit,
+        ElementId element,
+        DirtsideRulesProfile profile) =>
+        GameOutcome.Refused<DirtsideGame>(
+            WhyInterceptionIsRefused(unit, element, profile) ?? InterceptionProcedureIsNotRecorded);
 
     /// <summary>
-    /// Why this element cannot intercept, or null when it can.
+    /// Why this element is not eligible to intercept, or null when it is.
     /// </summary>
     /// <param name="unit">The platoon answering.</param>
     /// <param name="element">The element whose sensors would do it.</param>
-    /// <returns>The refusal in words, or null.</returns>
+    /// <param name="profile">The numbers this game's players entered off their own rulebook.</param>
+    /// <returns>The refusal in words, or null when the element could answer.</returns>
     /// <remarks>
+    /// <para>
+    /// Eligibility only, which is a real question with a real yes: this element is alive, its
+    /// systems are up, it paid a combat action for live sensors, and its table has said how far
+    /// they reach. Null here does <b>not</b> mean an interception can be resolved - nothing can,
+    /// see <see cref="InterceptionProcedureIsNotRecorded"/> - it means this element is the one that
+    /// would answer if it could.
+    /// </para>
+    /// <para>
     /// Shared with <see cref="InterceptWithAreaDefence"/> rather than written twice, so a screen
     /// showing why a button is disabled uses the same words the command would refuse with.
+    /// </para>
     /// </remarks>
-    public string? WhyInterceptionIsRefused(UnitId unit, ElementId element)
+    /// <exception cref="ArgumentNullException"><paramref name="profile"/> is null.</exception>
+    public string? WhyInterceptionIsRefused(UnitId unit, ElementId element, DirtsideRulesProfile profile)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+
         if (!HasUnit(unit))
         {
             return $"There is no platoon called '{unit}' on the table.";
@@ -238,9 +282,19 @@ public sealed partial record DirtsideGame
             return $"{Describe(unit, element)} has its systems down and cannot intercept.";
         }
 
-        return status.AreaDefenceSensorsLive
-            ? null
-            : $"{Describe(unit, element)} does not have its area-defence sensors on.";
+        if (!status.AreaDefenceSensorsLive)
+        {
+            return $"{Describe(unit, element)} does not have its area-defence sensors on.";
+        }
+
+        // The one number in interception, and so the one part of it that is the players'. Asked
+        // last because it is the only one of these a table fixes by typing rather than by moving a
+        // model or spending an action, and asking it first would send somebody to their rulebook
+        // over a vehicle that is on fire.
+        return profile.InterceptionReach is null
+            ? "This game has no entry for how far an area-defence system reaches. Enter it in the "
+                + "game's rules profile - this app ships no numbers of its own."
+            : null;
     }
 
     /// <summary>
