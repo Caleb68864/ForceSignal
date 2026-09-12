@@ -61,6 +61,19 @@ internal static class StarGruntTestProfile
         HighestLeadershipValue = null,
     };
 
+    /// <summary>
+    /// Nothing but the invented Leadership Values: no band widths, no range dice, no shifts.
+    /// </summary>
+    /// <remarks>
+    /// What a test meaning "this game has no range table" hands in, now that the set of Leadership
+    /// Values is on the same profile. A StarGrunt record card has to carry a Leadership Value, so a
+    /// profile that says nothing about them is a game no unit can be put on the table in - which is
+    /// the entered-nothing case, tested on its own, and not what those tests are about.
+    /// </remarks>
+    internal static StarGruntRulesProfileDto LeadershipValuesOnly { get; } = new(
+        LowestLeadershipValue: 2,
+        HighestLeadershipValue: 5);
+
     /// <summary>A create request carrying the invented table and nothing else.</summary>
     /// <param name="name">What to call the game.</param>
     /// <returns>The request.</returns>

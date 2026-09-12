@@ -89,9 +89,20 @@ public sealed record StarGruntRulesProfile(
     /// stored game written before profiles existed reads back as.
     /// </summary>
     /// <remarks>
-    /// Blank, not typical. A game on this profile can be set up, activated and argued over, and its
-    /// first shot is refused with the name of the entry it is missing. Retiring such a game would take
-    /// the table's evening; inventing a die for it would take the thing this policy protects.
+    /// <para>
+    /// Blank, not typical. A game on this profile still opens, still shows every unit already on it,
+    /// and still plays as far as anything that reads an entry - then refuses with the name of the
+    /// entry it is missing. Retiring such a game would take the table's evening; inventing a die for
+    /// it would take the thing this policy protects.
+    /// </para>
+    /// <para>
+    /// <b>One thing it can no longer do is take a new unit.</b> A StarGrunt record card has to carry
+    /// a Leadership Value - that has been the wire's stance since units stopped carrying a leadership
+    /// die - and which numbers are Leadership Values is now on this profile, so a game that has not
+    /// been told what they are has no authority to accept any. The refusal names the entry. That is
+    /// narrower than it sounds: a stored game is never rejected at load, and the units it already
+    /// carries keep the numbers their cards gave.
+    /// </para>
     /// </remarks>
     public static StarGruntRulesProfile Empty { get; } = new(
         ImmutableDictionary<QualityDie, int>.Empty,

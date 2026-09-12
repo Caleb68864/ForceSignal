@@ -3,6 +3,7 @@ using System.Text.Json;
 using ForceSignal.Application.Matches;
 using ForceSignal.Contracts.Ground;
 using ForceSignal.Modules.GroundCombat.Dice;
+using ForceSignal.Modules.GroundCombat.Morale;
 using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Assault;
 using ForceSignal.Modules.StarGrunt.Combat;
@@ -230,7 +231,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
         {
             var held = Find(gameId);
             GroundGameGuards.RequireRoom(held.Game.Units.Count, GroundGameGuards.MaxUnitsPerGame, "units");
-            var unit = ToDefinition(request);
+            var unit = ToDefinition(request, held.Profile.LeadershipValues);
             if (held.Game.HasUnit(unit.Id))
             {
                 throw new InvalidOperationException($"There is already a unit called '{unit.Id}' in this game.");
@@ -567,21 +568,22 @@ public sealed class StarGruntGameService : IStarGruntGameService
         }
     }
 
-    private static UnitDefinition ToDefinition(AddStarGruntUnitRequest request)
+    private static UnitDefinition ToDefinition(AddStarGruntUnitRequest request, LeadershipRange leadershipValues)
     {
         GroundGameGuards.RequireAtMost(request.Figures?.Count ?? 0, GroundGameGuards.MaxMembersPerUnit, "figures");
         GroundGameGuards.RequireAtMost(request.Weapons?.Count ?? 0, GroundGameGuards.MaxWeaponsPerUnit, "weapons");
 
+        var name = Required(request.Name, "A unit needs a name.");
         return new UnitDefinition
         {
             Id = new UnitId(Required(request.Id, "A unit needs an id.")),
-            Name = Required(request.Name, "A unit needs a name."),
+            Name = name,
             Side = new SideId(Required(request.Side, "A unit needs a side.")),
             Level = Enum.TryParse<CommandLevel>(request.Level, ignoreCase: true, out var level)
                 ? level
                 : throw new InvalidOperationException($"'{request.Level}' is not a command level."),
             QualityDie = Die(request.QualityDie, nameof(request.QualityDie)),
-            LeadershipValue = Leadership(request.LeadershipValue),
+            LeadershipValue = Leadership(request.LeadershipValue, leadershipValues, name),
             Fatigue = Enum.TryParse<FatigueLevel>(request.Fatigue, ignoreCase: true, out var fatigue)
                 ? fatigue
                 : throw new InvalidOperationException($"'{request.Fatigue}' is not a fatigue level (Fresh, Tired, Exhausted)."),
@@ -608,16 +610,24 @@ public sealed class StarGruntGameService : IStarGruntGameService
         string.IsNullOrWhiteSpace(value) ? throw new InvalidOperationException(message) : GroundGameGuards.Truncate(value);
 
     /// <summary>
-    /// Checks a Leadership Value is one the rules recognise.
+    /// Checks a Leadership Value is one of this game's, as the players entered them.
     /// </summary>
     /// <remarks>
-    /// One to three, one being the best. Not a die: nothing rolls a leadership die, and every roll
-    /// against a leader has to beat this number.
+    /// <para>
+    /// This used to read <c>value is &gt;= 1 and &lt;= 3</c> and refuse anything else by quoting that
+    /// bound back - "not one the rules use (1 to 3, 1 best)". The set of Leadership Values is a
+    /// reading off somebody's page, so it is on the game's rules profile now with every other number
+    /// these games read, and the refusal names the entry instead of reciting it.
+    /// </para>
+    /// <para>
+    /// Not a die: nothing rolls a leadership die, and every roll against a leader has to beat this
+    /// number. Nor is the ordering here - see <see cref="LeadershipRange"/>.
+    /// </para>
     /// </remarks>
-    private static int Leadership(int value) =>
-        value is >= 1 and <= 3
-            ? value
-            : throw new InvalidOperationException($"A Leadership Value of {value} is not one the rules use (1 to 3, 1 best).");
+    private static int Leadership(int value, LeadershipRange range, string unitName) =>
+        range.WhyRefused(value, unitName) is { } refusal
+            ? throw new InvalidOperationException(refusal)
+            : value;
 
     /// <summary>Turns a face count into a rung of the ladder, refusing anything that is not one.</summary>
     private static QualityDie Die(int faces, string what) =>
