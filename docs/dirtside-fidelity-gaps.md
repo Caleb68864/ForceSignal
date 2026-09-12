@@ -212,7 +212,7 @@ A reaction route answers the window with a fire command from the responding unit
 `Fire` path, with `MovedOverHalf` on the mover already declared by the move), and a decline route
 closes it. The snapshot needs to show an open window, which it cannot today.
 
-## Gap 8 - Sensors can be switched on, and live sensors intercept nothing - OPEN
+## Gap 8 - Sensors can be switched on, and live sensors intercept nothing - OPEN, and narrowed to four sentences
 
 **Severity: high, and actively misleading.** `SetAreaDefenceSensors` is reachable and spends the
 element's one combat action (`Game/DirtsideGame.Turn.cs:159`, route at
@@ -239,6 +239,35 @@ against what, what a success does to the shot, or whether one element may do it 
 turn. The reach in particular is a number and belongs on the rules profile beside the die tables,
 not in the code. Four sentences from the owner would close all of it; a plausible-looking resolver
 would be the `Class-2 Beam` defect again.
+
+**Revisited again 2026-09-11, and wired to the edge of its rules.** Everything above that is not a
+rule is now built and reachable, and one sentence of it was wrong:
+
+- **"So today 'Sensors On' costs a combat action and buys nothing"** is no longer true, and the
+  worse version of it was never quite right either. The game-level command did not push a frame and
+  roll nothing - `InterceptionOpening` returns null, so no window ever opened and
+  `CanDeclareReaction` refused first, with **"No window is waiting for an answer."** That sentence
+  reads as *wait, and one will come*, and none ever can. The defect was a misleading refusal, not a
+  silent one.
+- **The reach is on the rules profile**, as this document said it should be: `areaDefenceReach`,
+  entered on the create screen, validated, round-tripped, and read by eligibility. Nothing compares
+  it with a distance, because what it is measured *against* is one of the four missing sentences.
+- **`POST /api/dirtside/games/{id}/interceptions`** answers, always with a 400 naming the most
+  specific true reason - the element's gates, then the reach, then the four rules.
+- **`canIntercept` / `whyItCannotIntercept`** are on every element snapshot, and an Intercept button
+  sits beside Sensors once they are live.
+
+**Searched exhaustively before any of it was written** - all 14 branches, the whole history with
+pickaxes and deleted-file scans, every doc, comment, UI string and test name. No interception
+resolver has ever existed in this repository, and the procedure is described nowhere. The "sensor's
+die against the incoming weapon" line above is a proposal in this document, not a rule, and is
+retracted three paragraphs later.
+
+What the repo *does* settle, and so what is no longer an open question: **who may answer** (alive,
+systems up, sensors paid for, already-activated is fine) and **what it costs** (nothing; the combat
+action was the price). Still open, and only a rulebook can close them: when a defender may declare,
+what is rolled and against what, what a success does to the shot, and whether one element may do it
+more than once a turn.
 
 ## Gap 9 - Indirect fire is not built - OPEN
 
@@ -454,9 +483,11 @@ Recorded so a later scan does not re-find them as if they were oversights.
    exactly the size this list predicted.
 5. **Gap 10** - infantry as stands. The largest piece after the interrupts, and the one most tables
    will hit first.
-6. **Gaps 7 and 8** - opportunity fire and interception. The window machinery is built and tested
-   in the shared layer; what is needed is the "who can see" input, one resolver, and the reaction
-   routes. The readiness warning comes down when these land.
+6. **Gap 7** - opportunity fire. The window machinery is built and tested in the shared layer; what
+   is needed is the "who can see" input, one resolver, and the reaction route.
+   ~~**Gap 8** - interception.~~ **Wired 2026-09-11 as far as its rules go**: the reach, the
+   eligibility, the route and the refusal. It is not waiting on work any more - it is waiting on
+   four sentences from a rulebook, and nobody should start a resolver before they arrive.
 7. **Gaps 15 and 16** - the pot and the card editor.
 8. **Gap 9** - indirect fire, as its own piece of work.
 
