@@ -226,15 +226,26 @@ The policy's weapon gate now checks every weapon a step names rather than only t
 ## Gap 11 - Leadership was modelled as a die - FIXED 2026-08-10
 
 **Severity: high, and it blocked gap 1.** `UnitDefinition` carried a `LeadershipDie` on the quality
-ladder. The rules use a **Leadership Value** of 1 to 3, where 1 is best, printed on the activation
-marker - and every roll against a leader has to beat that number. Nothing in the game ever rolls a
+ladder. A unit's leadership is a **Leadership Value** printed on its activation marker - a number,
+not a die - and every roll against a leader has to beat it. Nothing in the game ever rolls a
 leadership die.
 
 Found while wiring gap 1: `Suppression.TryClear` takes an integer, and there was no honest way to
 pass it one. The engines were right and the model built on top of them was wrong.
 
-Now `LeadershipValue`, validated 1 to 3 at the boundary, and the screen offers those three rather
-than a die. Rally will want the same value, so this unblocks gap 3 as well.
+Now `LeadershipValue`, a number off the card. Rally wants the same value, so this unblocked gap 3
+as well.
+
+**Followed up 2026-09-12.** The fix validated the value against a bound written into the service and
+refused anything else by quoting the bound back at the player - which is this repository publishing a
+rules number in a refusal message, and the screen offered exactly that set of numbers besides. Which
+numbers count as Leadership Values is on the game's rules profile now (`LowestLeadershipValue` and
+`HighestLeadershipValue`, both ends or neither), in both ground games; a value the game's own profile
+does not hold is refused by name, and a game that has not been told what they are cannot put a
+Leadership Value on a card at all. Which end is the *good* one is not an entry: it falls out of
+procedures both engines already own - `ConfidenceLadder.ScoreToBeat` adds leadership to threat and
+the unit must exceed the total, and Dirtside's fire-effectiveness check calls a roll below leadership
+ineffective - so a lower value is better in both, and nothing reads a stored direction.
 
 ---
 

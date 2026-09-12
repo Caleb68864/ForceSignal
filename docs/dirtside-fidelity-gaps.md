@@ -127,6 +127,16 @@ and the saved game. A platoon whose card does not say what it rolls can do every
 before; it cannot launch or receive an assault, and the refusal names the platoon rather than
 defaulting a number - the content policy's line, held.
 
+**Followed up 2026-09-12.** "Both entered off the player's own card" was half true: the number was
+entered but nothing checked it was a number that could be on a card. A probe put 99 and -4 on a
+command marker through `AddDirtsidePlatoonRequest` and the service stored both verbatim, to be added
+to a threat level and rolled against. StarGrunt's service checked - against a bound written into its
+own source, which is the opposite failure. Which numbers count as Leadership Values is now an entry
+on each game's rules profile (`LowestLeadershipValue`, `HighestLeadershipValue`, both ends or
+neither), read through one guard both engines share, and a value the game's profile does not hold is
+refused naming the entry. A marker that says nothing is still a marker that says nothing: null is
+never looked up, and the platoon's nerve is refused by name at the roll as before.
+
 The hole is closed; what remains is callers. Only the assault reads the two numbers today, and the
 confidence tests, reaction tests and infantry fire-effectiveness check that will read them next are
 gaps 4, 5, 6 and 10, not this one. The screen's field for them is package B.

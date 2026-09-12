@@ -131,7 +131,11 @@ public sealed record StarGruntWeaponDto(
 /// <param name="Side">Which side it belongs to.</param>
 /// <param name="Level">Where it sits in the chain of command.</param>
 /// <param name="QualityDie">Its quality die, as a face count.</param>
-/// <param name="LeadershipValue">Its Leadership Value, 1 to 3, where 1 is best.</param>
+/// <param name="LeadershipValue">
+/// Its Leadership Value, off its record card. Which numbers count as one is the game's own entry -
+/// see <see cref="StarGruntRulesProfileDto.LowestLeadershipValue"/> - and a number this game's
+/// profile does not hold is refused by name. This app ships no leadership ratings of its own.
+/// </param>
 /// <param name="Fatigue">How worn it is: Fresh, Tired or Exhausted.</param>
 /// <param name="Figures">The figures in it.</param>
 /// <param name="Weapons">What it is carrying.</param>
@@ -304,9 +308,10 @@ public sealed record StarGruntWeaponLegalityDto(string Name, bool CanFire, strin
 /// <param name="Level">Its command level.</param>
 /// <param name="QualityDie">Its quality die, as a face count.</param>
 /// <param name="LeadershipValue">
-/// Its Leadership Value, 1 to 3, where 1 is best - or null when its record card has not said, which
-/// a game stored before units carried one reads back as. A screen showing a number here that nobody
-/// entered is the defect; every roll in the game bar a shot is measured against it.
+/// Its Leadership Value, off its record card - or null when the card has not said, which a game
+/// stored before units carried one reads back as. A screen showing a number here that nobody entered
+/// is the defect; every roll in the game bar a shot is measured against it. Which numbers count as
+/// one is this game's own entry, not this app's.
 /// </param>
 /// <param name="Fatigue">How worn it is, which caps its confidence.</param>
 /// <param name="Figures">
