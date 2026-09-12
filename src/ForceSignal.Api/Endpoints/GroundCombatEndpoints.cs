@@ -400,7 +400,19 @@ public static class GroundCombatEndpoints
             .WithName("SetDirtsideAreaDefenceSensors")
             .WithTags("Dirtside")
             .WithSummary("Switches an element's area-defence sensors on or off.")
-            .WithDescription("Spends the element's one combat action, which is the price of a standing reaction: live sensors let it intercept on anybody's activation for the rest of the turn, and the engine refuses an interception from an element that has not paid for one. Resolving an interception is not yet reachable from this API - readiness says so - so for now this records the capability rather than exercising it.")
+            .WithDescription("Spends the element's one combat action, which is the price of a standing reaction: live sensors let it intercept on anybody's activation for the rest of the turn, and the engine refuses an interception from an element that has not paid for one. The snapshot's canIntercept then says whether this element is eligible to answer - though answering is refused whatever it says, because this app has no interception procedure.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/interceptions", (
+            Guid gameId,
+            DirtsideInterceptRequest request,
+            IDirtsideGameService games) => Results.Ok(games.Intercept(gameId, request)))
+            .WithName("InterceptWithDirtsideAreaDefence")
+            .WithTags("Dirtside")
+            .WithSummary("Answers an area-defence interception, and always refuses.")
+            .WithDescription("This route exists in order to refuse, and the refusal is the feature. Interception is built as far as the rules go - the window, the reaction frame, the free cost, the sensor gate and the reach on the rules profile - and what an interception does is written in no rulebook this app has been given. Four sentences are missing: when a defender may declare, what the intercepting element rolls and against what, what a success does to the incoming shot, and whether one element may do it more than once a turn. The 400 names whichever is the most specific true reason - the element's own gates first, then those four. Without this route a checkbox, a combat action and a profile entry would all quietly lead nowhere, which is the defect it was added to remove.")
             .Produces<DirtsideSnapshotDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .RequireGameToken<IDirtsideGameService>();

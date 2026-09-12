@@ -575,6 +575,15 @@ export type DirtsideElementState = {
   // Whether its crew could try to get a Systems Down marker off right now, and if not, why not.
   canRecoverSystems?: boolean;
   whyItCannotRecoverSystems?: string | null;
+  // Whether this element is eligible to answer an area-defence interception - alive, systems up, a
+  // combat action already spent on live sensors, and a reach entered on the game's rules profile.
+  //
+  // Eligibility, not capability. Answering is refused even when this is true: nothing in this app
+  // can resolve an interception, because what it rolls and what a success does to the shot are rules
+  // nobody has written down. This says which vehicle would answer if it could, which is what the
+  // combat action bought.
+  canIntercept?: boolean;
+  whyItCannotIntercept?: string | null;
 };
 
 /** A Dirtside platoon as the table sees it. */
@@ -652,6 +661,10 @@ export type DirtsideRulesProfile = {
   systemsDownRecoveryDie?: string | null;
   systemsDownRecoveryRoll: number;
   systemsDownRecoveryRollWithBackup: number;
+  // How far an area-defence system reaches, in the table's own units. The one piece of interception
+  // that is a number rather than a rule, and so the one piece this app can hold. Zero is "not
+  // entered", and an element whose game has not got one is not called eligible to intercept.
+  areaDefenceReach: number;
 };
 
 /** How many chits of one colour and number the pot holds. Counted off the user's own sheet. */

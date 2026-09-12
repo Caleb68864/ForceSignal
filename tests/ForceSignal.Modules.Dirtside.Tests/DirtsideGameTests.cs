@@ -350,13 +350,13 @@ public sealed class DirtsideGameTests
         // bought something.
         var game = GameFixtures.Activated();
 
-        var refusal = game.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne);
+        var refusal = game.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne, TestDieTables.Invented);
         Assert.NotNull(refusal);
         Assert.Contains("area-defence sensors", refusal, StringComparison.OrdinalIgnoreCase);
-        Assert.False(game.InterceptWithAreaDefence(GameFixtures.Alpha, GameFixtures.AlphaOne).IsAllowed);
+        Assert.False(game.InterceptWithAreaDefence(GameFixtures.Alpha, GameFixtures.AlphaOne, TestDieTables.Invented).IsAllowed);
 
         var live = game.SetAreaDefenceSensors(GameFixtures.AlphaOne, live: true).Value!;
-        Assert.Null(live.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne));
+        Assert.Null(live.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne, TestDieTables.Invented));
     }
 
     [Fact]
@@ -369,9 +369,60 @@ public sealed class DirtsideGameTests
             GameFixtures.Alpha,
             status => status.WithElement(GameFixtures.AlphaOne, element => element with { IsSystemsDown = true }));
 
-        var refusal = down.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne);
+        var refusal = down.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne, TestDieTables.Invented);
         Assert.NotNull(refusal);
         Assert.Contains("systems down", refusal, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnInterceptionIsRefusedForTheRealReasonRatherThanForAWindowThatCanNeverOpen()
+    {
+        // The defect this test was written for, and it is a lie rather than a silence. Every gate
+        // passes - the platoon is on the table, the element is alive, its systems are up, it paid a
+        // combat action for live sensors, and its reach is on the profile - and the command was then
+        // refused with "No window is waiting for an answer."
+        //
+        // That sentence reads as "wait, and one will", and none ever will: `InterceptionOpening`
+        // returns null unconditionally and deliberately, so the window this refusal points at cannot
+        // open in any game. The true reason is that nobody has written down what an interception
+        // does - what it rolls, against what, what a success does to the shot - and a refusal that
+        // says so sends the reader to the rulebook instead of back to the table to wait.
+        var live = GameFixtures.Activated().SetAreaDefenceSensors(GameFixtures.AlphaOne, live: true).Value!;
+
+        var outcome = live.InterceptWithAreaDefence(GameFixtures.Alpha, GameFixtures.AlphaOne, TestDieTables.Invented);
+
+        Assert.False(outcome.IsAllowed);
+        Assert.Null(outcome.Value);
+        Assert.DoesNotContain("window", outcome.Reason!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("this app", outcome.Reason!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnInterceptorWhoseReachNobodyEnteredIsRefusedByTheNameOfThatEntry()
+    {
+        // The reach is a number off the players' rulebook, and it is the one piece of interception
+        // this app can hold honestly - so it goes on the rules profile beside the die tables, and a
+        // game whose profile does not carry it is told which entry it wants rather than being given
+        // a plausible distance. The same policy the die tables run on.
+        var live = GameFixtures.Activated().SetAreaDefenceSensors(GameFixtures.AlphaOne, live: true).Value!;
+
+        var refusal = live.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne, TestDieTables.Blank);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("reach", refusal, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("rules profile", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnElementThatHasPaidForSensorsAndEnteredItsReachIsEligibleToAnswer()
+    {
+        // The control that must be ACCEPTED. Eligibility is a real question with a real yes, and it
+        // is the half of interception this app can answer: this element could answer a window if the
+        // procedure existed. Without this, every assertion above is satisfied by a method that
+        // refuses everything for any reason at all.
+        var live = GameFixtures.Activated().SetAreaDefenceSensors(GameFixtures.AlphaOne, live: true).Value!;
+
+        Assert.Null(live.WhyInterceptionIsRefused(GameFixtures.Alpha, GameFixtures.AlphaOne, TestDieTables.Invented));
     }
 
     [Fact]

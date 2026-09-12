@@ -278,13 +278,16 @@ the roadmap lists only what a table can reach.
       (gaps 12-13, 2026-08-29).
 - [ ] Confidence tests, Under Fire markers and reaction tests, all built in the module and not yet
       called by the game outside a close assault's aftermath (gaps 4-6).
-- [ ] Opportunity fire and area-defence interception. The windows and their costs are built and the
-      board never opens one: `DirtsideGame.InterceptionOpening` returns null unconditionally
-      (`DirtsideGame.cs:194`), so no route can reach the feature (gaps 7-8). **Half of this row was
-      corrected on 2026-09-09:** "Sensors On buys nothing" is no longer true - the engine's own
-      interception refuses an element whose sensors are dark. What remains open is the window, not
-      the cost of it. Opening one before the rest is wired would deadlock a game rather than enrich
-      it, which is why the opening is deliberately still null.
+- [ ] Opportunity fire. The window and its cost are built and the board never opens one:
+      `DirtsideGame.OpportunityFireOpening` returns null, so no route can reach it (gap 7).
+- [ ] Area-defence interception (gap 8) - **wired as far as its rules go, 2026-09-11, and the rest
+      is the owner's.** The reach is on the rules profile and entered on the create screen,
+      eligibility is on every element snapshot, and `POST .../interceptions` answers - always with a
+      400 naming what is missing. What is left is four sentences off a rulebook: when a defender may
+      declare, what is rolled and against what, what a success does to the shot, and whether one
+      element may do it more than once a turn. `InterceptionOpening` stays null until those arrive,
+      because a window that can only be declined is the shape already rejected here. See
+      "Interception: reachable, always refused, and still waiting on four sentences".
 - [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10).
 - [ ] Defensive posture declared on the shot (gap 11).
 - [x] A configurable chit pot, entered on the create screen and carried per game (gap 15,
@@ -425,6 +428,110 @@ Still open: **the on-screen validity-card editor** (gap 16). The pot half of gap
       roster. The field had existed on the server since Dirtside had an API with
       no client able to send it, so it arrived `false` for every weapon in every
       game.
+
+### The two `/status` routes: already gone, re-verified rather than re-removed
+
+*2026-09-11, same branch.* This pass was asked to remove `GET /api/stargrunt/status`
+and `GET /api/dirtside/status` and to rewrite the three test files that exercised
+them. **It was already done**, at `bd91b3c`, and the row below records it. Nothing
+was deleted this time; what follows is the re-verification, because a removal claimed
+and a removal checked are different things.
+
+- **No route.** Every `MapGet`/`MapPost` in `src/` was grepped for `status`: the only
+  hit is `/health`'s `status = "ok"` response body (`Program.cs:239`), which is a JSON
+  field, not a path.
+- **No caller.** Client (`src/ForceSignal.Web/src/lib/*.ts`), `scripts/`,
+  `docker-compose.yml`, `src/ForceSignal.Api/Dockerfile`. The Dockerfile's
+  `HEALTHCHECK` hits `/ready`; `docker-smoke.ps1` reads `/health` and `/ready`.
+- **`/health` and `/ready` untouched**, as instructed.
+- **The three test files were rewritten, not deleted**, which was the whole cost of
+  the job and is why it was deferred twice. `TheStatusRouteStaysOpen` became
+  `TheOnlyRouteOpenWithoutAGameTokenIsTheOneThatIssuesIt` on both engines, and
+  `FeatureFlagTests` now probes the create route.
+- **Two tests still name the dead paths on purpose** and should stay:
+  `TheRemovedStatusRouteIsGoneWithTheFlagOnAsWellAsOff`, on both engines, asks with
+  the flag **on** — where a surviving route would answer — so the 404 means something.
+  A 404 with the flag off would prove nothing.
+
+### Interception: reachable, always refused, and still waiting on four sentences
+
+*Updated 2026-09-11, branch `feat/interception-reach-and-refusal`. The section below
+this one is what was written the first time and is kept because its five questions
+are still the right five. What changed is that the answer is now reachable, the
+reach is enterable, and one claim in it turned out to be wrong.*
+
+**The wrong claim.** It said `InterceptWithAreaDefence` "pushes a reaction frame onto
+the sequence and rolls nothing". That is true of `DirtsideTurn.InterceptWithAreaDefence`
+in the sequence layer, which tests drive with a hand-built board. It was never true of
+the game-level command in any reachable state: because `InterceptionOpening` returns
+null unconditionally, no window ever opens, so `CanDeclareReaction` refused first and
+the command came back **"No window is waiting for an answer."** The defect was not a
+silent frame. It was a misleading sentence — one that reads as *wait, and a window will
+come*, when none ever can.
+
+**What was searched before anything was written.** Every branch (14 local), the whole
+history with `-S` pickaxes and `--diff-filter=D`, `docs/`, `vault/`, `docs/plans/`,
+`docs/converge/`, every comment in the module, every UI string, every test name, and
+`docs/rules-profile-template.json`. **No interception resolver has ever existed on any
+branch, and no description of the procedure exists anywhere in this repository.** The
+one line that names a shape — gap 8's "the sensor's die against the incoming weapon" —
+is a proposal in a *What should change* paragraph, and the same document retracts it
+twenty lines later as unguessable. Full Thrust's `FullThrustPointDefenseRules` is a
+real interception resolver with every number off the profile, and it is a different
+game at a different scale; copying its procedure into Dirtside would be inventing.
+
+**What the repo does answer**, which narrows the five:
+
+- **Who may answer** — settled and enforced. Alive, systems up, area-defence sensors
+  switched on with a combat action, and eligible whether or not it has already
+  activated (`AreaDefenceCost = ReactionCost.None`, and the deliberately absent
+  unactivated filter at `DirtsideActivationPolicy.cs:254`).
+- **What it costs** — settled. Answering is free; the combat action was paid when the
+  sensors went live.
+- **What triggers the window, structurally** — a `DirectFire` step naming a weapon the
+  card marks `IsInterceptable`, with no cap on responders. That is plumbing, not a
+  rule about when a defender may *declare*.
+
+**What was wired, without inventing anything:**
+
+- [x] **`areaDefenceReach` is on the rules profile**, through the whole chain: engine
+      record, DTO, `AtLeastZero` validation, create screen, snapshot, round trip.
+      Unentered is zero and `InterceptionReach` answers null for it. It is **not** half
+      a resolver — nothing compares it with a distance, because *what a reach is measured
+      against* is one of the four missing sentences. Its reader is eligibility: an
+      element whose table never entered one is not called able to answer.
+- [x] **The refusal names the real reason.** `InterceptionProcedureIsNotRecorded` lists
+      the four sentences. The gates run first, so the most specific true thing wins:
+      "your sensors are off" and "enter your reach" are things a table can act on now;
+      the four rules are not.
+- [x] **`POST /api/dirtside/games/{id}/interceptions` exists and always answers 400.**
+      The route is the point. Before it, a checkbox on the roster, a combat action and a
+      profile entry all led nowhere and no screen said so.
+- [x] **`canIntercept` / `whyItCannotIntercept` on every element snapshot**, beside
+      `canRecoverSystems`, in the words the command refuses with. Not gated on the open
+      frame, unlike recovery — live sensors are standing, so the question has an answer
+      at every moment of the turn.
+- [x] **An Intercept button** beside Sensors, shown once sensors are live so it reads as
+      the consequence of the purchase rather than as a dead control everywhere.
+- [x] **Readiness splits interception onto its own row.** The other two on the old row
+      are work nobody has done; this is everything this app can build, built, stopped at
+      a question. "Not yet reachable" would now be wrong in both directions.
+
+**Still the owner's, and still four sentences.** Nothing below has moved:
+
+1. **When may a defender declare an interception?**
+2. **What does the intercepting element roll, and against what?** (Nothing in the engine
+   says. A quality die against a target number, an opposed roll against the firer, and a
+   chit draw are all procedures this app would be making up.)
+3. **What does a success do to the shot?** (Stopped entirely, degraded, or the chit count
+   reduced — nothing says.)
+4. **May one element intercept more than once a turn?** (Free is settled; repeatable is
+   not. `InterruptWindow.MayAnswer` blocks a second answer to *the same* window, and
+   nothing tracks interceptions across a turn.)
+
+The reach in the old question (2) is answered: it is a number, it is on the profile, and
+it is entered. What is left is what to measure it against, which is part of (1) and (2)
+above.
 
 ### Interception: finished up to the rules, and stopped there
 
@@ -756,7 +863,8 @@ to be accepted after it.
   design pass rather than a tail edit.
 - **Interception**, and **StarGrunt's band-to-rung walk** in `RangeBands.cs`. Both are the owner's —
   see "Interception: finished up to the rules, and stopped there" and `NotYetThePlayers`. *(The walk
-  was closed after this pass; interception is still waiting.)*
+  was closed after this pass. Interception was wired to the edge of its rules on 2026-09-11 — reach,
+  eligibility, route, refusal — and the four rules themselves are still waiting.)*
 
 ## Closed 2026-09-11 (W2 — the half-wired sweep)
 
@@ -1114,12 +1222,17 @@ real defect worse than reported.*
   `whyActivationCannotEnd` instead, which is what `HasChosen`'s own remarks say it should. Left
   because removing a snapshot field is a wire change and the better answer for
   `ElementsStillToChoose` is probably to render it, the way the order preview's verdict was.
-- `DirtsideWeaponDto.IsInterceptable` and `WeaponDefinition.IsInterceptable`: a complete write-only
-  chain -- copied DTO to definition at `DirtsideGameService.cs`, read nowhere, and not even sent by
-  the client, whose `DirtsideWeaponInput` does not carry the field. Its doc defends keeping it as
-  "the player's own reading of their card", which is not true while no client sends it. Left because
-  interception cannot be resolved by this API at all (see the area-defence entry above), so the
-  honest options are to wire the whole feature or to drop the field, and neither is a tail item.
+- ~~`DirtsideWeaponDto.IsInterceptable` and `WeaponDefinition.IsInterceptable`~~: a complete
+  write-only chain -- copied DTO to definition at `DirtsideGameService.cs`, read nowhere, and not
+  even sent by the client, whose `DirtsideWeaponInput` does not carry the field. Its doc defends
+  keeping it as "the player's own reading of their card", which is not true while no client sends
+  it. Left because interception cannot be resolved by this API at all (see the area-defence entry
+  above), so the honest options are to wire the whole feature or to drop the field, and neither is a
+  tail item. **The client half closed 2026-09-11** (a checkbox on the add-platoon form), and
+  **the rest of the chain as far as the rules allow on 2026-09-11**: the flag is still not read by a
+  resolver, because there is no resolver and there are no rules for one, but interception is now
+  reachable and refuses by name rather than being absent. The field stays; dropping it was the other
+  honest option and it is the player's reading of their card, which is now true.
 - ~~`GET /api/stargrunt/status` and `GET /api/dirtside/status`~~ -- **removed 2026-09-11** (W3,
   `bd91b3c`), once a later pass was already in the three test files. Kept below as it was written:
   no client call, no script, no

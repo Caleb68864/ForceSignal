@@ -191,7 +191,13 @@ public sealed class ApiDocumentationAndReadinessTests
     {
         // The warning is a to-do list an operator reads before a game. Close assault and
         // systems-down recovery reached the table, so it must stop naming them and keep naming what
-        // has not: opportunity fire, area-defence interception and indirect fire.
+        // has not: opportunity fire and indirect fire.
+        //
+        // Area-defence interception came off this row and got one of its own, because it stopped
+        // being the same kind of unfinished. The other two are work nobody has done; interception is
+        // everything this app can build, built and reachable, stopped at a question only a rulebook
+        // answers. Listing it as "not yet reachable" would have been wrong in both directions - the
+        // route answers, and it will never do more until somebody writes the rules down.
         using var factory = CreateFactory("Development", new Dictionary<string, string?> { ["Features:Dirtside"] = "true" });
         using var client = factory.CreateClient();
 
@@ -204,7 +210,37 @@ public sealed class ApiDocumentationAndReadinessTests
 
         Assert.Contains("close assault", warning[..warning.IndexOf(';', StringComparison.Ordinal)], StringComparison.OrdinalIgnoreCase);
         Assert.Contains("systems-down recovery", warning, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("opportunity fire, area-defence interception and indirect fire are not yet reachable", warning, StringComparison.Ordinal);
+        Assert.Contains("opportunity fire and indirect fire are not yet reachable", warning, StringComparison.Ordinal);
+
+        // And it is no longer named on this row at all, rather than named twice in two different
+        // tenses - which is how the removed /status route's "playable" came to contradict /ready.
+        Assert.DoesNotContain("interception", warning, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DirtsideReadiness_SaysInterceptionIsRefusedAndWhichRulesAreMissing()
+    {
+        // The row interception got to itself. An operator reading this before a game has to learn
+        // three things that are all true at once and easy to state as one false thing: the route
+        // answers, it always refuses, and the reason is a rulebook question rather than a bug or a
+        // backlog item. The half a table CAN buy - sensors on, reach entered, eligibility reported -
+        // is named too, because that half cost somebody a combat action.
+        using var factory = CreateFactory("Development", new Dictionary<string, string?> { ["Features:Dirtside"] = "true" });
+        using var client = factory.CreateClient();
+
+        using var ready = await client.GetAsync("/ready");
+        ready.EnsureSuccessStatusCode();
+        var readyBody = await ready.Content.ReadFromJsonAsync<JsonElement>();
+        var warning = Assert.Single(
+            readyBody.GetProperty("warnings").EnumerateArray().Select(entry => entry.GetString() ?? string.Empty),
+            entry => entry.StartsWith("Dirtside area-defence interception", StringComparison.Ordinal));
+
+        Assert.Contains("always", warning, StringComparison.Ordinal);
+        Assert.Contains("refused", warning, StringComparison.Ordinal);
+        Assert.Contains("/api/dirtside/games/{id}/interceptions", warning, StringComparison.Ordinal);
+        Assert.Contains("areaDefenceReach", warning, StringComparison.Ordinal);
+        Assert.Contains("canIntercept", warning, StringComparison.Ordinal);
+        Assert.Contains("will not invent them", warning, StringComparison.Ordinal);
     }
 
     [Fact]

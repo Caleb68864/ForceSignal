@@ -515,8 +515,22 @@ static string[] ReadDeploymentWarnings(
     {
         warnings.Add(
             "Dirtside ground combat is enabled. Direct fire, close assault, systems-down recovery and the "
-            + "activation sequence are playable; opportunity fire, area-defence interception and indirect "
-            + "fire are not yet reachable from this API.");
+            + "activation sequence are playable; opportunity fire and indirect fire are not yet reachable "
+            + "from this API.");
+
+        // Named apart from the row above because it is a different kind of unfinished. Opportunity
+        // fire and indirect fire are work; interception is a question. Everything this app can build
+        // for it is built and reachable - the sensor gate, the reach on the profile, the eligibility
+        // on every snapshot, and a route that answers - and the four sentences that say what an
+        // interception does have to come off a rulebook, because this app ships no rules of its own
+        // and guessing one would settle real shots on a procedure nobody wrote.
+        warnings.Add(
+            "Dirtside area-defence interception is wired as far as its rules are known and is always "
+            + "refused: POST /api/dirtside/games/{id}/interceptions answers 400 naming what is missing. "
+            + "Switching sensors on and entering areaDefenceReach make an element eligible - the snapshot's "
+            + "canIntercept says so - but when a defender may declare, what is rolled and against what, "
+            + "what a success does to the shot and whether an element may do it twice in a turn are rules "
+            + "nobody has entered, and this app will not invent them.");
 
         // Said out loud because it is the one number in this engine the server invents. Every other
         // number a Dirtside game runs on came off a record card the player filled in; the fallback

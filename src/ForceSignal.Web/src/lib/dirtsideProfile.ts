@@ -33,6 +33,7 @@ export type DirtsideProfileDraft = {
   systemsDownRecoveryDie: string;
   systemsDownRecoveryRoll: string;
   systemsDownRecoveryRollWithBackup: string;
+  areaDefenceReach: string;
 };
 
 /** A form nobody has typed into. */
@@ -44,6 +45,7 @@ export function emptyProfileDraft(): DirtsideProfileDraft {
     systemsDownRecoveryDie: '',
     systemsDownRecoveryRoll: '',
     systemsDownRecoveryRollWithBackup: '',
+    areaDefenceReach: '',
   };
 }
 
@@ -82,10 +84,11 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
   const recoveryDie = dieOf(draft.systemsDownRecoveryDie);
   const recoveryRoll = rollOf(draft.systemsDownRecoveryRoll);
   const recoveryWithBackup = rollOf(draft.systemsDownRecoveryRollWithBackup);
+  const areaDefenceReach = rollOf(draft.areaDefenceReach);
 
   const entered =
     fireControl.length + posture.length + signature.length
-    + (recoveryDie ? 1 : 0) + recoveryRoll + recoveryWithBackup;
+    + (recoveryDie ? 1 : 0) + recoveryRoll + recoveryWithBackup + areaDefenceReach;
   if (entered === 0) {
     return undefined;
   }
@@ -97,6 +100,7 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
     ...(recoveryDie ? { systemsDownRecoveryDie: recoveryDie } : {}),
     systemsDownRecoveryRoll: recoveryRoll,
     systemsDownRecoveryRollWithBackup: recoveryWithBackup,
+    areaDefenceReach,
   };
 }
 
@@ -126,6 +130,10 @@ export function profileSummary(profile: DirtsideRulesProfile | null | undefined)
     profile.signature.length < signatures.length ? 'signature' : null,
     profile.posture.length < postures.length ? 'posture' : null,
     repair === 0 ? 'systems-down repair' : null,
+    // Not a die, and listed here anyway: it is a profile entry a shot never reads but an
+    // interception does, so a table that never enters one meets the refusal at the moment somebody
+    // tries to shoot a missile down rather than at the moment they fire.
+    profile.areaDefenceReach > 0 ? null : 'area-defence reach',
   ].filter((part): part is string => part !== null);
 
   const counted = `${rows} die table row(s) entered, from your own rulebook`;

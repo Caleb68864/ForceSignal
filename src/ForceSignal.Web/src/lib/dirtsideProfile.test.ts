@@ -77,6 +77,23 @@ describe('the die table draft', () => {
     expect(toProfileInput(draft)).toBeUndefined();
   });
 
+  it('sends an area-defence reach on its own, because it is the only number interception has', () => {
+    // The one piece of interception this app can hold. It is sent alone for the same reason a repair
+    // roll is: a table reads its rulebook in whatever order it likes, and demanding the die tables
+    // first would be this app inventing a requirement in place of a number.
+    const draft = emptyProfileDraft();
+    draft.areaDefenceReach = '9';
+
+    expect(toProfileInput(draft)?.areaDefenceReach).toBe(9);
+  });
+
+  it('leaves the reach at nothing when nobody typed one, rather than at a plausible distance', () => {
+    const draft = emptyProfileDraft();
+    draft.systemsDownRecoveryRoll = '6';
+
+    expect(toProfileInput(draft)?.areaDefenceReach).toBe(0);
+  });
+
   it('offers a row for every word the server accepts, and no word it does not', () => {
     // The control that keeps the form and the vocabulary together: the three tables the form draws
     // are exactly the three lists the API parses against, so a rung added to one cannot leave the
@@ -110,6 +127,7 @@ describe('what the table is told about its dice', () => {
     systemsDownRecoveryDie: null,
     systemsDownRecoveryRoll: 0,
     systemsDownRecoveryRollWithBackup: 0,
+    areaDefenceReach: 0,
   };
 
   it('says plainly that nothing has been entered, and what will happen', () => {
@@ -134,10 +152,29 @@ describe('what the table is told about its dice', () => {
       systemsDownRecoveryDie: 'D6',
       systemsDownRecoveryRoll: 6,
       systemsDownRecoveryRollWithBackup: 3,
+      areaDefenceReach: 9,
     });
 
     expect(said).toContain('Every row');
     expect(said).not.toContain('Partly filled in');
+  });
+
+  it('names the area-defence reach as still open, because an interception is what reads it', () => {
+    // No shot ever reads this entry, so a table that skipped it hears nothing until somebody tries
+    // to shoot a missile down - which is the worst moment to find out. It is named on the summary
+    // with the die rows for the same reason they are.
+    const said = profileSummary({
+      fireControl: fireControls.map((key) => ({ key, die: 'D6' })),
+      posture: postures.map((key) => ({ key, die: 'D6' })),
+      signature: signatures.map((key) => ({ key, die: 'D6' })),
+      systemsDownRecoveryDie: 'D6',
+      systemsDownRecoveryRoll: 6,
+      systemsDownRecoveryRollWithBackup: 3,
+      areaDefenceReach: 0,
+    });
+
+    expect(said).toContain('Partly filled in');
+    expect(said).toContain('area-defence reach');
   });
 
   it('does not pretend to know when the server says nothing', () => {
