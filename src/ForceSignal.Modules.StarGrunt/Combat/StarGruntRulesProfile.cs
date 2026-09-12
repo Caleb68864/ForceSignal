@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using ForceSignal.Modules.GroundCombat.Dice;
+using ForceSignal.Modules.GroundCombat.Morale;
 
 namespace ForceSignal.Modules.StarGrunt.Combat;
 
@@ -63,6 +64,16 @@ namespace ForceSignal.Modules.StarGrunt.Combat;
 /// as <c>CoverShift = 1</c>, argued as "the one shift in a close combat this engine owns", and no
 /// guard could see it until the one that moved the range page did.
 /// </param>
+/// <param name="LeadershipValues">
+/// Which numbers count as Leadership Values in this game, or unentered when the players have not
+/// said. Off a third page again, and here for the same reason the melee shift is: the service used
+/// to hold the set as <c>value is >= 1 and &lt;= 3</c> and recite it back at anyone who typed
+/// something else, which is a published page being read out. Per-game rather than per-force, because
+/// one number goes onto one <see cref="ForceSignal.Modules.GroundCombat.Morale.ConfidenceLadder"/>
+/// whichever side carries it, and a rally sums a commander's with a subordinate's - two forces at one
+/// table that disagreed about what a Leadership Value was would be adding numbers off different
+/// scales.
+/// </param>
 public sealed record StarGruntRulesProfile(
     ImmutableDictionary<QualityDie, int> BandInches,
     ImmutableDictionary<int, QualityDie> RangeDice,
@@ -70,7 +81,8 @@ public sealed record StarGruntRulesProfile(
     int? SoftCoverShift = null,
     int? HardCoverShift = null,
     int? InPositionShift = null,
-    int? MeleeCoverShift = null)
+    int? MeleeCoverShift = null,
+    LeadershipRange LeadershipValues = default)
 {
     /// <summary>
     /// A profile with nothing entered. What a game created without one plays on, and what every
@@ -93,7 +105,8 @@ public sealed record StarGruntRulesProfile(
         && SoftCoverShift is null
         && HardCoverShift is null
         && InPositionShift is null
-        && MeleeCoverShift is null;
+        && MeleeCoverShift is null
+        && LeadershipValues.IsBlank;
 
     /// <summary>How wide a band is for troops of this quality, or null when the profile does not say.</summary>
     /// <param name="quality">The firing unit's quality die.</param>
@@ -137,6 +150,7 @@ public sealed record StarGruntRulesProfile(
         && HardCoverShift == other.HardCoverShift
         && InPositionShift == other.InPositionShift
         && MeleeCoverShift == other.MeleeCoverShift
+        && LeadershipValues == other.LeadershipValues
         && Same(BandInches, other.BandInches)
         && Same(RangeDice, other.RangeDice);
 
@@ -147,6 +161,7 @@ public sealed record StarGruntRulesProfile(
         HardCoverShift,
         InPositionShift,
         MeleeCoverShift,
+        LeadershipValues,
         BandInches.Count,
         RangeDice.Count);
 

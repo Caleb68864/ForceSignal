@@ -71,6 +71,11 @@ public sealed record StarGruntRangeDieDto(int BandsOut, int Die);
 /// engine had this as one rung of its own; a melee fought with the defenders in cover now reads it
 /// here, and one fought in the open never asks.
 /// </param>
+/// <param name="LowestLeadershipValue">
+/// The smallest number a record card in this game may carry as a Leadership Value, or null when not
+/// entered. Both ends or neither: one bound on its own is refused rather than half-honoured.
+/// </param>
+/// <param name="HighestLeadershipValue">The largest, or null when not entered.</param>
 public sealed record StarGruntRulesProfileDto(
     IReadOnlyList<StarGruntBandWidthDto>? BandWidths = null,
     IReadOnlyList<StarGruntRangeDieDto>? RangeDice = null,
@@ -78,7 +83,9 @@ public sealed record StarGruntRulesProfileDto(
     int? SoftCoverShift = null,
     int? HardCoverShift = null,
     int? InPositionShift = null,
-    int? MeleeCoverShift = null);
+    int? MeleeCoverShift = null,
+    int? LowestLeadershipValue = null,
+    int? HighestLeadershipValue = null);
 
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>

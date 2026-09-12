@@ -44,10 +44,31 @@ internal static class StarGruntTestProfile
         SoftCoverShift: 2,
         HardCoverShift: 4,
         InPositionShift: 3,
-        MeleeCoverShift: 2);
+        MeleeCoverShift: 2,
+
+        // Invented, and chosen to be the opposite of the bound that used to be written into the
+        // service: under 2 to 5 a card marked 1 is refused and a card marked 4 goes on the table,
+        // which is exactly backwards from a hardcoded 1-to-3. A test that passed against 1 to 3
+        // could not tell a profile being read from a rulebook being recited.
+        LowestLeadershipValue: 2,
+        HighestLeadershipValue: 5);
+
+    /// <summary>The invented table with the Leadership Values taken back out.</summary>
+    /// <remarks>For the refusal that names the entry when nobody has said what the values are.</remarks>
+    internal static StarGruntRulesProfileDto WithNoLeadershipValues { get; } = Invented with
+    {
+        LowestLeadershipValue = null,
+        HighestLeadershipValue = null,
+    };
 
     /// <summary>A create request carrying the invented table and nothing else.</summary>
     /// <param name="name">What to call the game.</param>
     /// <returns>The request.</returns>
     internal static CreateStarGruntGameRequest CreateGame(string name) => new(name, Invented);
+
+    /// <summary>A create request whose profile says nothing about Leadership Values.</summary>
+    /// <param name="name">What to call the game.</param>
+    /// <returns>The request.</returns>
+    internal static CreateStarGruntGameRequest CreateGameWithNoLeadershipValues(string name) =>
+        new(name, WithNoLeadershipValues);
 }
