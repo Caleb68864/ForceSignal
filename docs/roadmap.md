@@ -659,6 +659,101 @@ still opens on `= 2`, which is the exact shape `QualityDie` was fixed for - a st
 property would restore with a rating nobody gave it. Every blob this service has written carries the
 property, so it bites nobody today, and it is left for the owner rather than changed on the way past.
 
+> **The `= 2` is fixed** (2026-09-11, below). The reasoning that left it here was half right: no row
+> this service has written lacks the property, but that is not the same as nothing reaching it, and a
+> row carrying the property as an explicit `null` was skipped outright - the stored game simply gone.
+> The 1 to 3 bound is still open and is now a question put to the owner, not a note.
+
+## Closed 2026-09-11 (the Leadership Value nobody entered)
+
+*Branch `fix/stargrunt-leadership-value`. One default removed; one bound referred to the owner.*
+
+### What the default was, and what it actually reached
+
+`UnitDefinition.LeadershipValue = 2` was the last stored-shape default in the StarGrunt module and
+the same defect `QualityDie` was fixed for: a saved game is JSON, so the initialiser is the contract
+for a document that has no such property. The number matters more than most - it is what **every**
+roll in the game bar a shot is measured against, through `ConfidenceLadder.ScoreToBeat`: nerve,
+reaction, charging, standing to receive a charge, shaking off suppression, and being rallied.
+
+Documents without the property are not hypothetical. Units carried a `LeadershipDie` (a quality die,
+opening on D8) when the model landed in `a132e14`, and `ed7f84e` gave StarGrunt persistence **before**
+`9983db6` replaced the die with a value. So rows written in that window hold no `LeadershipValue`.
+
+- **Where the previous note was right.** Those rows predate `GroundGameRecord`'s format-1 wrapper
+  (`ec18875`), and `Unwrap` skips a row it did not write rather than migrating it, so none of them
+  can still be restored. Every row this service has ever wrapped carries the property.
+- **Where it was wrong.** "No stored row lacks it" is not "nothing reaches it". The wrapper is
+  format-checked; the *document inside it* is an opaque `JsonElement` this service never inspects, so
+  a format-1 row with the property absent restores at leadership 2 today, and one carrying it as an
+  explicit `null` throws out of `Restore`, is caught as a bad save, and **the stored game is gone**.
+  Both are now covered, absent and null, by a hand-written row rather than by one the service wrote.
+
+### The fix is the range page's, not the quality die's
+
+`QualityDie` is `required`, because there is no unentered rung of the ladder to stand on: a save that
+does not say what quality a unit was is not a save of that unit. A Leadership Value has a perfectly
+good unentered state, so refusing the blob would retire a table's game over it.
+
+- [x] **`int?`, and the action is refused by name.** Six commands read it and all six ask first. The
+      refusal names the unit and the entry - *"Alpha Squad's record card does not say what its
+      Leadership Value is, and that is the number this roll is measured against"* - because a refusal
+      a player cannot act on is only a slower way of stopping.
+- [x] **Before anything is spent.** `TakeReactionTest`, `RemoveSuppression` and `Rally` all spend an
+      action before they roll, and in each the refusal lands ahead of the spend. Every other refusal
+      in those commands is something the player could have known from the table; this one is a gap in
+      what they typed and must not cost a unit its turn. `Rally` reads both cards and names whichever
+      one is the gap.
+- [x] **A stored game still opens.** `AGameStoredBeforeLeadershipWasRatedStillOpensAndThenSaysWhatItWants`
+      seeds a format-1 row by hand, with the property absent and with it explicitly null. The game
+      opens, both squads are on the table, the turn begins, and the first nerve test is refused by
+      name. The accept control beside it is a stored game whose cards do say, which still rolls.
+- [x] **The snapshot says so too.** `StarGruntUnitDto.LeadershipValue` is nullable, so a screen sees
+      the gap before somebody rolls rather than being shown a 2. Export writes the gap into the
+      player's own file and import refuses it by name - the round trip armour dice were fixed for.
+- [x] **Left alone on purpose.** `AddStarGruntUnitRequest.LeadershipValue` stays a plain number, so a
+      body that omits it still arrives as a zero and is refused at the door. That guard already
+      worked, and making it nullable would only have reopened it.
+
+Red first: 14 assertions failing on the old tree (12 module, 2 service) beside 9 controls that were
+already green - eight of them accepts, one for each command plus the minimum set, and the ninth the
+add-unit door that has to stay shut - so a guard that refused everything could not have passed for a
+fix. Mutation:
+putting `= 2` back is named by 8 of them - every case where the property is absent from the bytes,
+plus both halves of the rally. The explicit-null cases correctly stay green under that mutation,
+because JSON `null` overrides an initialiser; they are the half `QualityDie`'s shape would not have
+caught either. `EngineDiceContentPolicyTests` counts routes to the dice ladder and was not touched or
+narrowed: a Leadership Value is an `int`, not a rung.
+
+### The 1-to-3 bound: still asymmetric, and it is the owner's call
+
+Checked at `f1fb3ec` rather than assumed, and the earlier note's line numbers have moved:
+`DirtsideGameService.cs:654` (was cited as 461) passes `request.LeadershipValue` straight to the
+platoon with no bound at all, while `StarGruntGameService.cs:617` (was cited as 525-528) refuses
+anything outside 1 to 3. Proved with a throwaway probe rather than by reading: Dirtside accepts 99
+and -4 and stores them verbatim; StarGrunt refuses 4 with *"not one the rules use (1 to 3, 1 best)"*.
+Both feed one `ConfidenceLadder.ScoreToBeat`, which is `leadership + threat` and constrains nothing.
+
+**Not fixed, and deliberately.** The bound is a reading off a published page - this repo already says
+so in as many words in `docs/stargrunt-fidelity-gaps.md:229`, in the contract's own documentation, in
+the web tooltip, and in the refusal message itself, which quotes the range back at the player the way
+*"past the 24 this salvo can reach"* used to. It cannot be harmonised by copying, because the two
+games are different rulebooks: enforcing StarGrunt's three ratings in Dirtside would import one
+game's page into the other, which is worse than the asymmetry. And removing it from StarGrunt is a
+behaviour change, not a cleanup - leadership 0 makes a test at threat 0 auto-pass. **The question,
+precisely:**
+
+> For each game, is the set of Leadership Values a number your rulebook prints, or is it the app's?
+>
+> 1. If the set is the players', it comes off both services onto the rules profile as an entered
+>    range, a value outside it is refused naming that entry, and the two engines then behave alike.
+> 2. If StarGrunt's three ratings are the app's to own and Dirtside's are not, the asymmetry stays
+>    and gets written down as a decision instead of an accident - and the refusal message must stop
+>    quoting "1 to 3" at the player.
+> 3. If it is not a rules number at all but a plausibility floor, say what the floor is - is a
+>    leadership value of 0, or a negative one, something either rulebook can print? - and both
+>    services enforce that same floor and nothing more.
+
 ## Closed 2026-09-11 (the Dirtside die tables, and the icon attribution)
 
 *Two owner decisions, answered and acted on. Branch `fix/dirtside-die-tables`.*
