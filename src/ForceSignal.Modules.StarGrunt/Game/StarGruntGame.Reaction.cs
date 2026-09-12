@@ -85,7 +85,14 @@ public sealed partial record StarGruntGame
                 $"{definition.Name} has already refused that order: it may be asked again next turn.");
         }
 
-        var test = Confidence.React(definition.QualityDie, definition.LeadershipValue, threatLevel, dice);
+        // Before the roll, and so before the refusal below can spend the action on the unit's
+        // behalf: a gap in what the players typed is not the troops declining an order.
+        if (LeadershipBlocker(definition) is { } missing)
+        {
+            return GameOutcome.Refused<StarGruntGame>(missing);
+        }
+
+        var test = Confidence.React(definition.QualityDie, definition.LeadershipValue!.Value, threatLevel, dice);
 
         if (test.Passed)
         {

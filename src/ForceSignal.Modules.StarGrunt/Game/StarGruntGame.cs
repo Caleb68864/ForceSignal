@@ -139,6 +139,31 @@ public sealed partial record StarGruntGame : IStarGruntBoard
     /// </remarks>
     public ReactionOpening? DashOpening(UnitId mover) => null;
 
+    /// <summary>
+    /// Why this unit cannot be rolled for: its card does not say what its Leadership Value is.
+    /// </summary>
+    /// <param name="unit">The unit whose card is being read.</param>
+    /// <returns>The refusal in words, or null when the card does say.</returns>
+    /// <remarks>
+    /// <para>
+    /// Every roll in this game that is not a shot is measured against this number, so six commands
+    /// read it and every one of them asks here first - before a die is thrown and, for the three that
+    /// spend an action before they roll, before the action is spent. A gap in what the players typed
+    /// must not cost a unit its turn: every other refusal in those commands is something the player
+    /// could have known from the table.
+    /// </para>
+    /// <para>
+    /// It names the unit and the entry, for the reason the range table's refusal does: a refusal a
+    /// player cannot act on is only a slower way of stopping.
+    /// </para>
+    /// </remarks>
+    private static string? LeadershipBlocker(UnitDefinition unit) =>
+        unit.LeadershipValue is null
+            ? $"{unit.Name}'s record card does not say what its Leadership Value is, and that is the "
+                + "number this roll is measured against. Enter it on the unit - this app ships no "
+                + "leadership ratings of its own."
+            : null;
+
     /// <summary>Builds the session's sides from the roster, so the two cannot disagree.</summary>
     private static GroundCombatSession SessionForRoster(ImmutableDictionary<UnitId, UnitDefinition> units)
     {

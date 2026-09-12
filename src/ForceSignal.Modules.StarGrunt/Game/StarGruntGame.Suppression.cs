@@ -42,6 +42,13 @@ public sealed partial record StarGruntGame
             return GameOutcome.Refused<StarGruntGame>($"{definition.Name} is not suppressed.");
         }
 
+        // Before the action is spent, below. Trying and failing is how a pinned unit loses its turn,
+        // so a refusal landing after the spend would be indistinguishable from a failed attempt.
+        if (LeadershipBlocker(definition) is { } missing)
+        {
+            return GameOutcome.Refused<StarGruntGame>(missing);
+        }
+
         // Spend the action first. A refusal here - not this unit's activation, no activation open,
         // both actions already spent - means nothing has been rolled and nothing has changed.
         var spent = TakeStep(StarGruntSteps.Simple(StarGruntAction.RemoveSuppression));
@@ -53,7 +60,7 @@ public sealed partial record StarGruntGame
         var relief = Suppression.TryClear(
             status.SuppressionMarkers,
             definition.QualityDie,
-            definition.LeadershipValue,
+            definition.LeadershipValue!.Value,
             dice);
 
         var outcome = relief.Cleared

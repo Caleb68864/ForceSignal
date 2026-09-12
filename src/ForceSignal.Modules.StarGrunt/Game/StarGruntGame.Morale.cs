@@ -47,11 +47,16 @@ public sealed partial record StarGruntGame
         }
 
         var definition = Unit(unit);
+        if (LeadershipBlocker(definition) is { } missing)
+        {
+            return GameOutcome.Refused<StarGruntGame>(missing);
+        }
+
         var status = Status(unit);
         var test = Confidence.Test(
             status.Confidence,
             definition.QualityDie,
-            definition.LeadershipValue,
+            definition.LeadershipValue!.Value,
             threatLevel,
             dice);
 
@@ -103,6 +108,13 @@ public sealed partial record StarGruntGame
         var commander = Unit(rallyingUnit);
         var subordinate = Unit(ralliedUnit);
 
+        // Both halves of the score, so either card can be the gap and the refusal names whichever
+        // one it is. Asked before the commander's action is spent, below.
+        if ((LeadershipBlocker(commander) ?? LeadershipBlocker(subordinate)) is { } either)
+        {
+            return GameOutcome.Refused<StarGruntGame>(either);
+        }
+
         if (commander.Side != subordinate.Side)
         {
             return GameOutcome.Refused<StarGruntGame>($"{commander.Name} does not command {subordinate.Name}.");
@@ -131,7 +143,7 @@ public sealed partial record StarGruntGame
             return spent;
         }
 
-        var scoreToBeat = commander.LeadershipValue + subordinate.LeadershipValue;
+        var scoreToBeat = commander.LeadershipValue!.Value + subordinate.LeadershipValue!.Value;
         var roll = dice.Roll(subordinate.QualityDie);
         var steadied = OpposedRolls.BeatsTarget(roll, scoreToBeat);
         var lifted = steadied
