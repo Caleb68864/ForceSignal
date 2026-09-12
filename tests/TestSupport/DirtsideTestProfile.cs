@@ -46,10 +46,31 @@ internal static class DirtsideTestProfile
         ],
         SystemsDownRecoveryDie: "D8",
         SystemsDownRecoveryRoll: 7,
-        SystemsDownRecoveryRollWithBackup: 4);
+        SystemsDownRecoveryRollWithBackup: 4,
+
+        // Invented like the rest, and in nobody's units. Nothing compares it with a distance,
+        // because what an interception measures its reach against is one of the rules nobody has
+        // written down; entering it is what makes an element eligible to answer.
+        AreaDefenceReach: 9);
+
+    /// <summary>The invented tables with the area-defence reach taken back out.</summary>
+    /// <remarks>
+    /// For the refusal that names the entry. A table that has switched its sensors on but never read
+    /// a reach off their rulebook is the case this app must not fill in for them.
+    /// </remarks>
+    internal static DirtsideRulesProfileDto WithNoAreaDefenceReach { get; } = Invented with
+    {
+        AreaDefenceReach = 0,
+    };
 
     /// <summary>A create request carrying the invented tables and nothing else.</summary>
     /// <param name="name">What to call the game.</param>
     /// <returns>The request.</returns>
     internal static CreateDirtsideGameRequest CreateGame(string name) => new(name, null, Invented);
+
+    /// <summary>A create request whose profile carries everything but the area-defence reach.</summary>
+    /// <param name="name">What to call the game.</param>
+    /// <returns>The request.</returns>
+    internal static CreateDirtsideGameRequest CreateGameWithNoAreaDefenceReach(string name) =>
+        new(name, null, WithNoAreaDefenceReach);
 }

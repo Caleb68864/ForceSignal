@@ -42,6 +42,17 @@ public interface IDirtsideGameService : IGroundGameService
     /// <summary>Switches an element's area-defence sensors on or off.</summary>
     DirtsideSnapshotDto SetAreaDefenceSensors(Guid gameId, DirtsideSensorsRequest request);
 
+    /// <summary>
+    /// Answers an area-defence interception, which this engine always refuses.
+    /// </summary>
+    /// <remarks>
+    /// Never returns a snapshot. The refusal is the whole of it, and it names what is missing: the
+    /// element's own gates first, then the four rules nobody has written down. See
+    /// <c>DirtsideGame.InterceptionProcedureIsNotRecorded</c>.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Always, carrying the refusal.</exception>
+    DirtsideSnapshotDto Intercept(Guid gameId, DirtsideInterceptRequest request);
+
     /// <summary>Fires one element's weapon at one designated element.</summary>
     DirtsideSnapshotDto Fire(Guid gameId, DirtsideFireRequest request);
 
@@ -295,6 +306,16 @@ public sealed class DirtsideGameService : IDirtsideGameService
     {
         ArgumentNullException.ThrowIfNull(request);
         return Command(gameId, game => game.SetAreaDefenceSensors(new ElementId(request.ElementId), request.Live));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto Intercept(Guid gameId, DirtsideInterceptRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return CommandWithHeld(
+            gameId,
+            (game, held) => game.InterceptWithAreaDefence(
+                new UnitId(request.UnitId), new ElementId(request.ElementId), held.Profile));
     }
 
     /// <inheritdoc />
@@ -823,13 +844,14 @@ public sealed class DirtsideGameService : IDirtsideGameService
             hasActivated,
             activation.IsAllowed,
             activation.Reason,
-            [.. platoon.Elements.Select(element => ToElementState(game, status, element, chosen, frameForThisUnit, profile))],
+            [.. platoon.Elements.Select(element => ToElementState(game, platoon.Id, status, element, chosen, frameForThisUnit, profile))],
             platoon.Quality?.ToString(),
             platoon.LeadershipValue);
     }
 
     private static DirtsideElementStateDto ToElementState(
         DirtsideGame game,
+        UnitId unit,
         PlatoonStatus status,
         ElementDefinition element,
         ImmutableHashSet<ElementId> chosen,
@@ -848,6 +870,13 @@ public sealed class DirtsideGameService : IDirtsideGameService
         // Only asked of the platoon whose activation is open: for anybody else the answer is
         // "nothing is activated", which is true and not what a screen wants beside every vehicle.
         var recovery = frame is null ? "Nothing is activated." : game.WhyRecoverSystemsIsRefused(element.Id, profile);
+
+        // Not gated on the open frame, unlike recovery, and that is the rule rather than an
+        // oversight: live sensors are a standing capability bought earlier, so an element is as
+        // eligible to answer on somebody else's activation as on its own - including one where it
+        // has long since gone. Asking "is this element the one that would answer" has an answer at
+        // every moment of the turn.
+        var interception = game.WhyInterceptionIsRefused(unit, element.Id, profile);
 
         // What the tape may measure out to now, rather than what the record card says. A DMG marker
         // halves an element's movement, and the engine had that rule written and tested and applied
@@ -875,7 +904,9 @@ public sealed class DirtsideGameService : IDirtsideGameService
             element.AssaultChits,
             element.KillThreshold,
             recovery is null,
-            recovery);
+            recovery,
+            interception is null,
+            interception);
     }
 
     /// <summary>

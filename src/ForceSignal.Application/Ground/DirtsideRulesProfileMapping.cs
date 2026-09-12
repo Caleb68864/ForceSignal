@@ -59,7 +59,8 @@ internal static class DirtsideRulesProfileMapping
             Rows(dto.Signature, "signature", Signature),
             Die(dto.SystemsDownRecoveryDie),
             AtLeastZero(dto.SystemsDownRecoveryRoll, "systems-down recovery roll"),
-            AtLeastZero(dto.SystemsDownRecoveryRollWithBackup, "systems-down recovery roll with backup systems"));
+            AtLeastZero(dto.SystemsDownRecoveryRollWithBackup, "systems-down recovery roll with backup systems"),
+            AtLeastZero(dto.AreaDefenceReach, "area-defence reach"));
     }
 
     /// <summary>Reports a profile back the way it was entered.</summary>
@@ -88,7 +89,8 @@ internal static class DirtsideRulesProfileMapping
                     row.Key.ToString(CultureInfo.InvariantCulture), row.Die!.ToString()!))],
             profile.SystemsDownRecoveryDie?.ToString(),
             profile.SystemsDownRecoveryRoll,
-            profile.SystemsDownRecoveryRollWithBackup);
+            profile.SystemsDownRecoveryRollWithBackup,
+            profile.AreaDefenceReach);
     }
 
     /// <summary>The die a named key carries, or null when the table has no such row.</summary>

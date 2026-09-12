@@ -335,6 +335,116 @@ public sealed class DirtsideEndpointTests
         return created.GameId;
     }
 
+    [Fact]
+    public async Task AnEligibleInterceptionIsReachableAndIsRefusedWithTheRulesThatAreMissing()
+    {
+        // The route exists in order to refuse, and this is the refusal. Every gate is passed on the
+        // wire - the platoon is on the table, the vehicle is whole, it spent its combat action on
+        // live sensors, and the game's profile carries a reach - and the answer is still a 400,
+        // because what an interception rolls and what a success does to the shot are written in no
+        // rulebook this app has been given.
+        //
+        // The alternative was to leave the feature unreachable, which is what it was: a checkbox on
+        // the roster, a combat action that bought a flag, and nothing at the end of either. A table
+        // that spends an action deserves to be able to find out what it bought.
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await TableWithTwoPlatoons(client);
+
+        await Post(client, $"/api/dirtside/games/{game}/turns", new { });
+        await Post(client, $"/api/dirtside/games/{game}/turns/current/first-activator",
+            new ChooseDirtsideFirstActivatorRequest("blue", TakeIt: true));
+        await Post(client, $"/api/dirtside/games/{game}/activations", new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var sensing = await Post(client, $"/api/dirtside/games/{game}/activations/current/sensors",
+            new DirtsideSensorsRequest("alpha-1", Live: true));
+
+        // Eligibility is a real yes, and it is the half of interception this app can answer.
+        var eligible = Element(sensing!, "alpha", "alpha-1");
+        Assert.True(eligible.AreaDefenceSensorsLive);
+        Assert.True(eligible.CanIntercept);
+        Assert.Null(eligible.WhyItCannotIntercept);
+
+        using var intercepted = await client.PostAsJsonAsync(
+            $"/api/dirtside/games/{game}/interceptions", new DirtsideInterceptRequest("alpha", "alpha-1"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, intercepted.StatusCode);
+        var problem = await intercepted.Content.ReadAsStringAsync();
+
+        // The four sentences, named. A refusal that said only "not implemented" would send the
+        // reader to this repository's backlog; these send them to their own rulebook, which is the
+        // only place the answer exists.
+        Assert.Contains("will not guess", problem, StringComparison.Ordinal);
+        Assert.Contains("when a defender may declare", problem, StringComparison.Ordinal);
+        Assert.Contains("what a success does", problem, StringComparison.Ordinal);
+        Assert.Contains("more than once a turn", problem, StringComparison.Ordinal);
+
+        // And not the sequencing artefact it used to answer with. "No window is waiting for an
+        // answer" reads as "wait, and one will", and none ever will.
+        Assert.DoesNotContain("No window is waiting", problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnInterceptorWhoseTableNeverEnteredAReachIsNotEligibleAndIsToldWhichEntry()
+    {
+        // The content policy, on the one piece of interception that is a number. The reach is the
+        // players' and this app ships none, so a game whose profile does not carry one does not get
+        // a plausible distance - it gets the name of the entry, on the snapshot beside the vehicle
+        // and in the refusal, in the same words.
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+
+        var created = await (await client.PostAsJsonAsync(
+                "/api/dirtside/games", DirtsideTestProfile.CreateGameWithNoAreaDefenceReach("Ridge 9")))
+            .Content.ReadFromJsonAsync<DirtsideGameCreatedResponse>(JsonOptions);
+        Assert.NotNull(created);
+        client.DefaultRequestHeaders.Remove(TokenHeader);
+        client.DefaultRequestHeaders.Add(TokenHeader, created.Token);
+        var game = created.GameId;
+
+        await Post(client, $"/api/dirtside/games/{game}/units", Platoon("alpha", "Alpha Troop", "blue"));
+        await Post(client, $"/api/dirtside/games/{game}/units", Platoon("bravo", "Bravo Troop", "red"));
+        await Post(client, $"/api/dirtside/games/{game}/turns", new { });
+        await Post(client, $"/api/dirtside/games/{game}/turns/current/first-activator",
+            new ChooseDirtsideFirstActivatorRequest("blue", TakeIt: true));
+        await Post(client, $"/api/dirtside/games/{game}/activations", new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var sensing = await Post(client, $"/api/dirtside/games/{game}/activations/current/sensors",
+            new DirtsideSensorsRequest("alpha-1", Live: true));
+
+        var vehicle = Element(sensing!, "alpha", "alpha-1");
+        Assert.True(vehicle.AreaDefenceSensorsLive);
+        Assert.False(vehicle.CanIntercept);
+        Assert.Contains("reach", vehicle.WhyItCannotIntercept!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("rules profile", vehicle.WhyItCannotIntercept, StringComparison.Ordinal);
+
+        using var intercepted = await client.PostAsJsonAsync(
+            $"/api/dirtside/games/{game}/interceptions", new DirtsideInterceptRequest("alpha", "alpha-1"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, intercepted.StatusCode);
+        var problem = await intercepted.Content.ReadAsStringAsync();
+
+        // The most specific true reason, not the deepest one. "Enter your reach" is something the
+        // table can act on now; the four missing rules are not, and leading with them would bury the
+        // one line of this refusal anybody can do anything about.
+        Assert.Contains("how far an area-defence system reaches", problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheAreaDefenceReachComesBackOnTheProfileTheWayItWasEntered()
+    {
+        // The round trip, because a number a table types in and cannot read back is a number they
+        // cannot check - and this one has no other reader that would show it was wrong.
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await Create(client);
+
+        var snapshot = await client.GetFromJsonAsync<DirtsideSnapshotDto>(
+            $"/api/dirtside/games/{game}", JsonOptions);
+
+        Assert.Equal(9, snapshot!.Profile!.AreaDefenceReach);
+    }
+
     private static async Task<Guid> TableWithTwoPlatoons(HttpClient client)
     {
         var game = await Create(client);

@@ -154,13 +154,24 @@ public sealed record DirtsideDieRowDto(string Key, string Die);
 /// <param name="SystemsDownRecoveryDie">The die a crew throws to get a Systems Down marker off.</param>
 /// <param name="SystemsDownRecoveryRoll">The number that throw has to reach without backup systems.</param>
 /// <param name="SystemsDownRecoveryRollWithBackup">The number it has to reach with them.</param>
+/// <param name="AreaDefenceReach">
+/// How far an area-defence system reaches to intercept, in your own distance units.
+/// <para>
+/// The only part of interception this app can hold, because it is the only part that is a number.
+/// What an interception rolls, what it rolls against, what a success does to the incoming shot and
+/// whether an element may do it twice in a turn are rules, and this app ships none - so an
+/// interception is refused whatever is entered here, and says so. Entering this is what makes an
+/// element eligible to answer, which is the half the snapshot can report today.
+/// </para>
+/// </param>
 public sealed record DirtsideRulesProfileDto(
     IReadOnlyList<DirtsideDieRowDto>? FireControl = null,
     IReadOnlyList<DirtsideDieRowDto>? Posture = null,
     IReadOnlyList<DirtsideDieRowDto>? Signature = null,
     string? SystemsDownRecoveryDie = null,
     int SystemsDownRecoveryRoll = 0,
-    int SystemsDownRecoveryRollWithBackup = 0);
+    int SystemsDownRecoveryRollWithBackup = 0,
+    int AreaDefenceReach = 0);
 
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>
@@ -336,6 +347,21 @@ public sealed record DirtsidePassRequest(string Side);
 public sealed record DirtsideRecoverSystemsRequest(string ElementId);
 
 /// <summary>
+/// Answers an area-defence interception with one element's guns.
+/// </summary>
+/// <remarks>
+/// <b>This route always refuses, and it exists in order to refuse.</b> Interception was wired up to
+/// the point where the rules run out: the window, the reaction frame, the cost, the sensor gate and
+/// the reach are all built and all correct, and what an interception <em>does</em> is recorded in no
+/// rulebook this app has been given. The route is here so that the refusal is reachable and says
+/// which four sentences are missing, rather than the feature looking absent while a checkbox, a
+/// combat action and a profile entry all quietly lead nowhere.
+/// </remarks>
+/// <param name="UnitId">The platoon answering.</param>
+/// <param name="ElementId">The element whose sensors would do it.</param>
+public sealed record DirtsideInterceptRequest(string UnitId, string ElementId);
+
+/// <summary>
 /// Orders the activated platoon in against a position, and rolls its nerve to go.
 /// </summary>
 /// <param name="TargetUnitId">The platoon holding the position.</param>
@@ -411,6 +437,17 @@ public sealed record DirtsideAssaultDto(
 /// <param name="KillThreshold">The valid total that removes it in a close assault, or null when its card does not say.</param>
 /// <param name="CanRecoverSystems">True when its crew could try to get a Systems Down marker off right now.</param>
 /// <param name="WhyItCannotRecoverSystems">Why not, in the words the command would refuse with.</param>
+/// <param name="CanIntercept">
+/// True when this element is eligible to answer an area-defence interception: alive, systems up, a
+/// combat action already spent on live sensors, and a reach entered on the game's rules profile.
+/// <para>
+/// Eligibility, not capability. Nothing can resolve an interception in this engine, so the command
+/// refuses even when this is true - what it rolls and what a success does to the shot are rules
+/// nobody has written down. This says which vehicle would answer if it could, which is what a table
+/// that spent a combat action on sensors bought and what a screen needs to show it.
+/// </para>
+/// </param>
+/// <param name="WhyItCannotIntercept">Why not, in the words the command would refuse with.</param>
 /// <remarks>
 /// The move and the combat action are reported separately because they are separate: an element
 /// that has moved may still shoot, and one that has shot may still move. A single "has chosen" flag
@@ -436,7 +473,9 @@ public sealed record DirtsideElementStateDto(
     int? AssaultChits,
     int? KillThreshold,
     bool CanRecoverSystems,
-    string? WhyItCannotRecoverSystems);
+    string? WhyItCannotRecoverSystems,
+    bool CanIntercept,
+    string? WhyItCannotIntercept);
 
 /// <summary>A platoon as the table sees it.</summary>
 /// <param name="Id">The platoon.</param>
