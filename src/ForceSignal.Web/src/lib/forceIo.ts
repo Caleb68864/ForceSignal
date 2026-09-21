@@ -25,6 +25,24 @@ const forceFormatVersion = 1;
 const ladder = [4, 6, 8, 10, 12];
 
 /**
+ * The most figures and weapons one unit may carry, matching `GroundGameGuards` on the server.
+ *
+ * These were `40` and `12`, applied as `.slice()` on the way in, and both were **under** the
+ * server's own `MaxMembersPerUnit` (50) and `MaxWeaponsPerUnit` (40). A legal platoon of 45, or a
+ * support section carrying 20 weapons, was cut down to fit a rule this app made up - silently, in
+ * the player's own roster, on the way into the player's own file. The same defect as the flat
+ * screen cap in `fleetIo`: a number the server owns, written smaller here as a constant.
+ *
+ * Reading them as written and letting the server clamp is not the answer it was there, because
+ * these are not the player's ratings - they are the bound the server refuses past. `RequireAtMost`
+ * throws rather than truncating, so a file over the cap has no silent outcome on the far side to
+ * defer to: it is refused either way, and the only question is whether the player finds out here,
+ * with the unit named, or as a failed post after the import appeared to work.
+ */
+const maxFiguresPerUnit = 50;
+const maxWeaponsPerUnit = 40;
+
+/**
  * The die a file gave, or null when it gave none this app can use.
  *
  * This used to take a fallback rung - 8 for a quality or impact die, 6 for an armour die - so a file
@@ -171,6 +189,10 @@ export function fromForceFile(payload: unknown): ImportedStarGruntForce {
   }
 
   const gaps: string[] = [];
+  // Kept apart from `gaps` because the two are opposite complaints and the fix differs: a gap is
+  // something the file never said and the player must add, an excess is something it said too much
+  // of and the player must cut. Both are reported in one pass, so a file with each is fixed once.
+  const excesses: string[] = [];
 
   const units = raw.units.map((entry, index) => {
     const unit = (entry ?? {}) as Record<string, unknown>;
@@ -195,6 +217,16 @@ export function fromForceFile(payload: unknown): ImportedStarGruntForce {
       missing('lists no figures at all');
     }
 
+    // The other end of the same range. These used to be `.slice()`s further down, which is the one
+    // outcome this importer exists to prevent: the player's own numbers thrown away, unremarked, in
+    // the player's own file. Named here instead, in the player's words, at the server's bound.
+    if (figures.length > maxFiguresPerUnit) {
+      excesses.push(`${name} lists ${figures.length} figures, past the ${maxFiguresPerUnit} a unit can carry`);
+    }
+    if (weapons.length > maxWeaponsPerUnit) {
+      excesses.push(`${name} lists ${weapons.length} weapons, past the ${maxWeaponsPerUnit} a unit can carry`);
+    }
+
     return {
       id: typeof unit.id === 'string' && unit.id ? unit.id : `unit-${index + 1}`,
       name,
@@ -203,7 +235,6 @@ export function fromForceFile(payload: unknown): ImportedStarGruntForce {
       leadershipValue: leadershipValue ?? 0,
       fatigue: fatigueFrom(unit.fatigue),
       figures: figures
-        .slice(0, 40)
         .map((figure, figureIndex) => {
           const armourDie = dieFrom((figure as Record<string, unknown>)?.armourDie);
           if (armourDie === null) {
@@ -213,7 +244,6 @@ export function fromForceFile(payload: unknown): ImportedStarGruntForce {
           return { armourDie: armourDie ?? 0 };
         }),
       weapons: weapons
-        .slice(0, 12)
         .map((weapon, weaponIndex) => {
           const entryWeapon = (weapon ?? {}) as Record<string, unknown>;
           const weaponName = typeof entryWeapon.name === 'string' && entryWeapon.name.trim()
@@ -241,6 +271,14 @@ export function fromForceFile(payload: unknown): ImportedStarGruntForce {
       'That file leaves out dice this app will not choose for you, so nothing has been imported. '
       + 'Put them in the file, or add the units by hand: '
       + `${gaps.join('; ')}.`,
+    );
+  }
+
+  if (excesses.length > 0) {
+    throw new Error(
+      'That file carries more than a unit can hold, so nothing has been imported. The server '
+      + 'refuses these too, so importing them would only move the refusal somewhere with no unit '
+      + `name on it. Split the unit, or cut it down: ${excesses.join('; ')}.`,
     );
   }
 

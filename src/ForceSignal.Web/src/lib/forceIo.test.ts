@@ -334,3 +334,76 @@ describe('dieFrom', () => {
     expect(dieFrom('12')).toBe(12);
   });
 });
+
+/**
+ * The opposite end of the range from the missing-die cases above, and the same principle: a number
+ * the player typed is never quietly thrown away. This used to be two `.slice()`s at 40 figures and
+ * 12 weapons - both under the server's own 50 and 40 - so a legal unit came back smaller than the
+ * file, with nothing said. The round trip could not see it either, because export wrote what the
+ * truncated import had read.
+ */
+describe('a force file carrying more than a unit can hold is refused, not trimmed', () => {
+  function oversized(figures: number, weapons: number) {
+    return {
+      formatVersion: 1,
+      side: 'blue',
+      units: [{
+        id: 'alpha',
+        name: 'Alpha Squad',
+        level: 'Squad',
+        qualityDie: 8,
+        leadershipValue: 2,
+        fatigue: 'Fresh',
+        figures: Array.from({ length: figures }, () => ({ armourDie: 12 })),
+        weapons: Array.from({ length: weapons }, (_, index) => ({
+          name: `Weapon ${index + 1}`,
+          impactDie: 10,
+          isSupport: false,
+          isCloseRange: false,
+          supportFirepowerDie: 6,
+          neverJoinsSquadFire: false,
+        })),
+      }],
+    };
+  }
+
+  it('reads a unit at the server\'s own ceiling, which the old caps refused', () => {
+    const read = fromForceFile(oversized(50, 40));
+
+    expect(read.units[0].figures).toHaveLength(50);
+    expect(read.units[0].weapons).toHaveLength(40);
+  });
+
+  it('keeps the 45 figures and 20 weapons the old caps cut to 40 and 12', () => {
+    const read = fromForceFile(oversized(45, 20));
+
+    expect(read.units[0].figures).toHaveLength(45);
+    expect(read.units[0].weapons).toHaveLength(20);
+  });
+
+  it('refuses a roster past the ceiling by name and count rather than trimming it', () => {
+    expect(() => fromForceFile(oversized(51, 1)))
+      .toThrow(/Alpha Squad lists 51 figures, past the 50/);
+  });
+
+  it('refuses too many weapons the same way', () => {
+    expect(() => fromForceFile(oversized(8, 41)))
+      .toThrow(/Alpha Squad lists 41 weapons, past the 40/);
+  });
+
+  it('imports nothing at all when it refuses, the way a missing die does', () => {
+    expect(() => fromForceFile(oversized(51, 41))).toThrow(/nothing has been imported/);
+  });
+
+  it('names both ends of an over-full unit in one pass, so the file is fixed once', () => {
+    let message = '';
+    try {
+      fromForceFile(oversized(51, 41));
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain('51 figures');
+    expect(message).toContain('41 weapons');
+  });
+});
