@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace ForceSignal.Api.Tests;
 
+[Collection(ProcessEnvironmentTestGroup.Name)]
 public sealed class ApiDocumentationAndReadinessTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
