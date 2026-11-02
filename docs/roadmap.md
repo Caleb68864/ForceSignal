@@ -276,10 +276,11 @@ the roadmap lists only what a table can reach.
 - [x] Immobilised is recorded on the element and refuses a move by name; a shot declares whether the
       element will move over half, is penalised for it, and an undeclared later move is refused
       (gaps 12-13, 2026-08-29).
-- [ ] Confidence tests, Under Fire markers and reaction tests, all built in the module and not yet
-      called by the game outside a close assault's aftermath (gaps 4-6).
-- [ ] Opportunity fire. The window and its cost are built and the board never opens one:
-      `DirtsideGame.OpportunityFireOpening` returns null, so no route can reach it (gap 7).
+- [x] Confidence tests, Under Fire markers and reaction tests reach the game, the API and the screen
+      (gaps 4-6, 2026-11-02). `DirtsideGame.Morale.cs`, `DirtsideGameMoraleTests`, `DirtsideNervePanel`.
+- [x] Opportunity fire (gap 7, 2026-11-02). A move says who can see it, an unactivated enemy named
+      there may give up its activation to fire on the mover or let it go, and the snapshot shows the
+      open window. One judgement is the owner's: see gap 7 in `dirtside-fidelity-gaps.md`.
 - [ ] Area-defence interception (gap 8) - **wired as far as its rules go, 2026-09-11, and the rest
       is the owner's.** The reach is on the rules profile and entered on the create screen,
       eligibility is on every element snapshot, and `POST .../interceptions` answers - always with a
@@ -288,12 +289,21 @@ the roadmap lists only what a table can reach.
       element may do it more than once a turn. `InterceptionOpening` stays null until those arrive,
       because a window that can only be declined is the shape already rejected here. See
       "Interception: reachable, always refused, and still waiting on four sentences".
-- [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10).
-- [ ] Defensive posture declared on the shot (gap 11).
+- [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10). **The firefight
+      itself landed 2026-11-02** - check, per-stand draws, casualties, the mark, a route and a panel,
+      with the Under Fire cost entered on the profile. Still open, and listed under gap 10 in
+      `dirtside-fidelity-gaps.md`: guns on stands, softskins, the rocket, and riders.
+- [x] Defensive posture declared on the shot (gap 11). Already landed 2026-09-11 in `c80e28c`:
+      `FireCommand.TargetPosture` and `DirtsideFireRequest`; this box was simply never ticked.
 - [x] A configurable chit pot, entered on the create screen and carried per game (gap 15,
       2026-09-09). The composition is the players', optional for one release only, and a game
       falling back to the built-in default says so on every snapshot.
-- [ ] A full validity-card editor on the screen (gap 16).
+- [x] A full validity-card editor on the screen (gap 16, 2026-11-02). A row per band with scale and
+      both flags, several weapons per element, elements that differ within a platoon
+      (`DirtsideElementCards.tsx`, `lib/dirtsideCard.ts`). The form it replaced opened on signature 3,
+      armour 3, movement 12 and three chits, which nobody had entered and no guard read; it opens at
+      zero now, `contentPolicy.test.ts` holds it there, and a signature nobody entered is refused by
+      name when the platoon is added rather than thrown on the first shot at it.
 - [ ] Indirect fire (gap 9).
 
 ## Later Production Options
@@ -640,13 +650,22 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
       was told to leave the Dirtside tables alone, and `DirtsideRulesProfile`'s own remarks call
       "a band and a hurried shot move the firer down the ladder" procedure. Whether *how far* is
       procedure too is the owner's call.
-- [ ] **Dirtside's Under Fire rung**, `underFire ? ShiftClosed(quality, -1) : quality` in
-      `InfantryCombat.SolveFireEffectiveness`. No production caller. Recorded, not touched.
+- [x] **Dirtside's Under Fire rung**, `underFire ? ShiftClosed(quality, -1) : quality` in
+      `InfantryCombat.SolveFireEffectiveness`. Closed 2026-11-02: the cost is a parameter,
+      `rungsLostUnderFire`, fed by the firefight from `DirtsideRulesProfile.RungsLostUnderFire`, and
+      the entry moved to `NotARulesDie`. A marked unit's firefight with no entry is refused by name.
 
-`NotARulesDie` now carries five arguments, each for a line that reads only the players' dice and
-rungs; `NotYetThePlayers` carries the two Dirtside entries. **What the guard cannot see** is written on
-it: `QualityDie` is an enum whose values are face counts, and C# lets `die + 2` compile without a
-cast. Nothing does it today; closing it needs a compiler-backed analyser.
+`NotARulesDie` now carries six arguments, each for a line that reads only the players' dice and
+rungs; `NotYetThePlayers` carries the one Dirtside entry. **What the text guard cannot see** was written
+on it: `QualityDie` is an enum whose values are face counts, and C# lets `die + 2` compile without a
+cast.
+
+- [x] **The compiler half of the guard** (2026-11-02). `EngineDiceCompilerGuardTests` compiles both
+      modules from source with Roslyn and refuses arithmetic with a die as an operand, compound
+      assignment and increment, and a conversion between a die and a number whatever the type is
+      called. A test rather than a build analyser, so it sits beside its planted controls. Neither
+      module does any of it. A probe planting `die + 2` in the Dirtside module turned this red with
+      `EngineDiceContentPolicyTests` still green. Still blind to a die boxed into `Convert.ToInt32`.
 
 ### Not dice, and so not covered
 

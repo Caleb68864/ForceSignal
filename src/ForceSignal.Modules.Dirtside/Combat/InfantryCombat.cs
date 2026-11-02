@@ -172,27 +172,34 @@ public static class InfantryCombat
     /// <param name="quality">The unit's quality die.</param>
     /// <param name="leadership">The unit's leadership number.</param>
     /// <param name="eligibleStands">How many stands are in range and able to join a firefight.</param>
-    /// <param name="underFire">True when the unit is carrying an Under Fire marker.</param>
+    /// <param name="rungsLostUnderFire">
+    /// Left out when the unit carries no Under Fire marker. When it does, how many rungs the marker
+    /// costs: the caller's number, off the players' card, the way the rider check and StarGrunt's
+    /// communication die take theirs. This was a literal one rung here.
+    /// </param>
     /// <returns>The die to throw and the numbers to measure it against.</returns>
     /// <remarks>
     /// Nothing special is needed to honour "a unit with the lowest leadership can never be
     /// ineffective". Ineffective means rolling <em>below</em> leadership, and no die can roll below
     /// one, so it falls out of the comparison rather than being a case to remember.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">The leadership or the stand count is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The leadership, the stand count or the cost is negative.</exception>
     public static FireEffectivenessSolution SolveFireEffectiveness(
         QualityDie quality,
         int leadership,
         int eligibleStands,
-        bool underFire = false)
+        int? rungsLostUnderFire = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(leadership);
         ArgumentOutOfRangeException.ThrowIfNegative(eligibleStands);
 
-        // Being under fire costs a step. Closed rather than open: there is no opponent here to hand
-        // the overflow to, so a unit already at the bottom of the ladder simply stays there.
-        var die = underFire ? QualityDice.ShiftClosed(quality, -1) : quality;
-        return new FireEffectivenessSolution(die, leadership, eligibleStands, underFire);
+        var rungs = rungsLostUnderFire ?? 0;
+        ArgumentOutOfRangeException.ThrowIfNegative(rungs, nameof(rungsLostUnderFire));
+
+        // Closed rather than open: there is no opponent here to hand the overflow to, so a unit
+        // already at the bottom of the ladder simply stays there.
+        var die = QualityDice.ShiftClosed(quality, -rungs);
+        return new FireEffectivenessSolution(die, leadership, eligibleStands, rungs > 0);
     }
 
     /// <summary>Rolls the fire-effectiveness check.</summary>

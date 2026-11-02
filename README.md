@@ -27,11 +27,10 @@ Use your own legally obtained rules and fleet data. ForceSignal links outward to
   profile has no entry for a shot **refuses that shot before it is spent, and names the entry**; it
   does not fall back to anything, because a fallback here would be somebody's published table
   wearing a default's clothes. Only what a shot reads has to be there.
-- **Two exceptions, written down rather than left quiet, both in Dirtside.** The firer's die still
-  walks one rung per range band and one more for a hurried shot, and an Under Fire marker still costs
-  one rung on the fire-effectiveness check. They are the same shape StarGrunt's range walk was - the
-  size of a shift written into the engine - and were found when the die guard was widened to see
-  that shape. They are listed by name in `EngineDiceContentPolicyTests.NotYetThePlayers`, a list
+- **One exception, written down rather than left quiet, in Dirtside.** The firer's die still walks
+  one rung per range band and one more for a hurried shot. It is the same shape StarGrunt's range walk
+  was - the size of a shift written into the engine - and was found when the die guard was widened to
+  see that shape. It is listed by name in `EngineDiceContentPolicyTests.NotYetThePlayers`, a list
   kept separate from the not-a-rules-number exemptions precisely so it cannot read as settled.
 - **What the guard covers, and what it does not.** That test counts every way either ground engine's
   code can reach the quality ladder, and each one has to be classified. It does not count numbers

@@ -46,6 +46,7 @@ export type DirtsideRulesProfileInput = {
   areaDefenceReach: number;
   lowestLeadershipValue?: number;
   highestLeadershipValue?: number;
+  rungsLostUnderFire?: number;
 };
 
 /**
@@ -95,9 +96,9 @@ export type DirtsideWeaponInput = {
    * missing; see `intercept` below.
    */
   isInterceptable?: boolean;
-  close: { colours: string };
-  medium: { colours: string };
-  long: { colours: string };
+  close: DirtsideValidityInput;
+  medium: DirtsideValidityInput;
+  long: DirtsideValidityInput;
 };
 
 /**
@@ -155,8 +156,29 @@ export function beginActivation(game: GameHandle, side: string, unitId: string) 
 }
 
 /** Moves one element. How far it went is measured at the table, so it is answered rather than computed. */
-export function moveElement(game: GameHandle, elementId: string, overHalfItsMovement: boolean) {
-  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/moves`, { elementId, overHalfItsMovement }, undefined, gameAuth(game));
+export function moveElement(game: GameHandle, elementId: string, overHalfItsMovement: boolean, seenBy: string[] = []) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/moves`, { elementId, overHalfItsMovement, seenBy }, undefined, gameAuth(game));
+}
+
+/** Fires infantry stands as stands. The stands go in the order the player would have them fire. */
+export function firefight(game: GameHandle, request: {
+  weapon: string;
+  standIds: string[];
+  targetUnitId: string;
+  targetElementId: string;
+  measuredBand: string;
+}) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/firefight`, request, undefined, gameAuth(game));
+}
+
+/** Gives up a platoon's activation to fire on the mover waiting for an answer. */
+export function answerOpportunityFire(game: GameHandle, unitId: string) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/opportunity-fire`, { unitId }, undefined, gameAuth(game));
+}
+
+/** Lets the mover go, keeping the platoon's activation. */
+export function declineOpportunityFire(game: GameHandle, unitId: string) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/opportunity-fire/decline`, { unitId }, undefined, gameAuth(game));
 }
 
 /** Declares that an element is sitting this activation out, and therefore the whole turn. */
@@ -257,6 +279,26 @@ export function followThrough(game: GameHandle, threatLevel: number) {
  */
 export function endActivation(game: GameHandle) {
   return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/activations/current/end`, {}, undefined, gameAuth(game));
+}
+
+/** Tests a platoon's nerve, at the threat level off the player's own table. */
+export function takeConfidenceTest(game: GameHandle, unitId: string, threatLevel: number) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/confidence-tests`, { unitId, threatLevel }, undefined, gameAuth(game));
+}
+
+/** Rolls for the move the activating platoon owes a test for. Failing costs the move, never a level. */
+export function takeReactionTest(game: GameHandle, unitId: string, threatLevel: number) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/reaction-tests`, { unitId, threatLevel }, undefined, gameAuth(game));
+}
+
+/** Declares whether a platoon's next move takes it toward the enemy or out of cover. */
+export function declareAdvance(game: GameHandle, unitId: string, advances: boolean) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/units/advances`, { unitId, advances }, undefined, gameAuth(game));
+}
+
+/** Declares whether a platoon has come out of integrity. */
+export function setDisorganised(game: GameHandle, unitId: string, isDisorganised: boolean) {
+  return post<DirtsideSnapshot>(`/api/dirtside/games/${game.gameId}/units/disorganised`, { unitId, isDisorganised }, undefined, gameAuth(game));
 }
 
 /** Declines to activate anything. */

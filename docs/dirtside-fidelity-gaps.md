@@ -141,7 +141,13 @@ The hole is closed; what remains is callers. Only the assault reads the two numb
 confidence tests, reaction tests and infantry fire-effectiveness check that will read them next are
 gaps 4, 5, 6 and 10, not this one. The screen's field for them is package B.
 
-## Gap 4 - Confidence never changes - OPEN
+## Gap 4 - Confidence never changes - FIXED 2026-11-02
+
+**Fixed** as described below: `DirtsideGame.TakeConfidenceTest` (`Game/DirtsideGame.Morale.cs`),
+`POST .../confidence-tests`, and the Nerve panel. Not an action, no activation needed, the threat level
+is the player's, and a cybertank or a card with no die and leadership is refused before any die moves.
+
+**Was:**
 
 **Severity: high.** `PlatoonStatus.Confidence` (`Game/PlatoonStatus.cs:49`) defaults to the top of
 the ladder and nothing in the game writes it. The effects table is implemented, both columns and
@@ -162,7 +168,14 @@ threat level the player supplies. What the app owns is the procedure and the eff
 test is owed stays the player's call. A cybertank is refused a test rather than passing one, which
 is what its flag already means (`Sequence/DirtsideBoard.cs:20-30`).
 
-## Gap 5 - Under Fire is never placed and never cleared - OPEN
+## Gap 5 - Under Fire is never placed and never cleared - FIXED 2026-11-02
+
+**Fixed.** `Fire` applies `MarksTarget` after the shot. A gun that failed fired on nobody, so it marks
+nobody; a cybertank carries no marker. The clearing half had already landed in `e4d1e06`
+(`EndActivation` calls `After`). The infantry die step this mentions is read by the firefight (gap 10),
+and how many rungs it costs is a profile entry now.
+
+**Was:**
 
 **Severity: high.** `Morale/UnderFire.cs` says when a marker goes on (`MarksTarget`, line 35 - foot
 is marked by being shot at, a vehicle only when something lands), what it costs (`OwesReactionTestToMove`,
@@ -182,7 +195,17 @@ nothing could be unpinned, here nothing is ever pinned.
 kind off the roster and "damaged an element" off the result; `EndActivation` applies `After` to the
 unit whose frame just closed. Both are one line each once gap 4 gives the test somewhere to go.
 
-## Gap 6 - The reaction-test gate stands open, and the declarations it reads have no route - OPEN
+## Gap 6 - The reaction-test gate stands open, and the declarations it reads have no route - FIXED 2026-11-02
+
+**Fixed.** `TakeReactionTest`, `SetNextMoveAdvances` and `SetDisorganised`, with routes
+`POST .../reaction-tests`, `.../units/advances` and `.../units/disorganised`. A test belongs to the
+platoon activating and is refused when nothing is owed. Failing costs the move, never a level.
+
+**One judgement, borrowed rather than found.** A failure bars a second attempt for the rest of that
+activation (`PlatoonStatus.ReactionTestFailed`). That is StarGrunt's shape; `ConfidenceLadder.React`'s
+own remark says only that the unit "may be ordered to try again". The owner may want to say when.
+
+**Was:**
 
 **Severity: medium; depends on gap 4.** `PlatoonStatus` carries `NextMoveAdvancesOnTheEnemy`
 and `ReactionTestCleared` (`Game/PlatoonStatus.cs:64` and `:67`), the policy refuses a move on them
@@ -203,7 +226,20 @@ one-move-one-action shape already allows without a `RefusedOrder` step. Under Fi
 ladder both want the same test and the rule that threats never stack means one roll at the higher
 level clears both (the policy's remark at `:393-396` says so).
 
-## Gap 7 - Opportunity fire never opens a window - OPEN
+## Gap 7 - Opportunity fire never opens a window - FIXED 2026-11-02
+
+**Fixed.** `MoveDirtsideElementRequest.SeenBy` says who can see the mover and the game turns that into
+an opening; `POST .../opportunity-fire` and `.../opportunity-fire/decline` answer it, the shot goes
+through the usual fire route, the end-activation route closes the responder's frame, and
+`DirtsideSnapshotDto.OpportunityWindow` shows it. A responder fires on the mover's platoon and nothing
+else, and may not move in the frame.
+
+**One judgement left for the owner.** A responder's Under Fire marker does not come off when its
+reaction frame closes, because `UnderFire.After` speaks of the unit's *own* activation ending and
+whether spending it on a reaction counts is not written down here. As built, it carries the marker into
+next turn.
+
+**Was:**
 
 **Severity: high.** The policy's half is complete: the window request with eligibility frozen at
 the trigger and no cap (`DirtsideActivationPolicy.cs:207-239`), the cost that spends the firer's
@@ -288,7 +324,37 @@ no deviation, no resolution. The plan's `Support/` layer is `[TODO]` (`ground-co
 the readiness warning names it. Recorded here so the list is complete; it is a subsystem, not a
 wiring job.
 
-## Gap 10 - Infantry fire as vehicles - OPEN
+## Gap 10 - Infantry fire as vehicles - PARTLY FIXED 2026-11-02
+
+**The firefight landed.** `DirtsideGame.Firefight` (`Game/DirtsideGame.Firefight.cs`),
+`POST .../activations/current/firefight` and a panel for an infantry platoon: one check, then one draw
+per stand, never pooled, and any firefight marks the target. An infantry element is still an
+`ElementDefinition`: its draw is the `ChitCount` on the small arms named, its toughness the
+`KillThreshold` it already carries, and its validity the row off that weapon's card at the band
+measured. `DirtsideRulesProfile.RungsLostUnderFire` is the marker's cost, refused by name when needed
+and not entered.
+
+**Three judgements the wiring made, none of them a number.** Every stand named spends its combat action
+whether or not the check lets it draw. If only part of the unit fires, it is the first stands named, so
+the player's choice costs no second round trip. Each winning draw removes one stand, the one aimed at
+first and then the rest in roster order, measured against the threshold of the one aimed at; the log
+names them, as the assault does (gap 1).
+
+**Still open:**
+
+- **Guns on stands.** A vehicle's `Fire` at infantry still takes the two-stage vehicle path. The
+  resolver's remark says it should be a draw with no to-hit roll, at a "situational" count; what that
+  count is read from is not in this repository.
+- **Softskins.** The resolver has them and the roster has no flag saying which vehicles are soft, so a
+  firefight at a vehicle platoon is refused by name.
+- **The anti-vehicle rocket**, which needs a mark on the weapon card and a route.
+- **Riders.** Mounting and dismounting are not written down here, and `ResolveRiders` wants a die and
+  two numbers that would need profile entries. "Transport as a tracked state" is under "Deliberately
+  not built" below, so whether to build it is the owner's.
+- A foot platoon may still use the vehicle `Fire` route. Left alone until guns on stands settles what
+  that route means for infantry.
+
+**As first written:**
 
 **Severity: high for any game with foot troops.** A platoon whose kind is `DismountedInfantry`
 reads the right column of the confidence table, and that is where the difference ends. Its elements
@@ -373,7 +439,9 @@ Worth doing once opportunity fire (gap 7) exists, because a window opening mid-v
 order of declaration and resolution actually matters. Until then the refusal at `:115` keeps the
 cost of a wasted shot real for anyone who declares honestly.
 
-## Gap 15 - The chit pot is not configurable over the wire - OPEN
+## Gap 15 - The chit pot is not configurable over the wire - FIXED 2026-09-09
+
+See "Chit pot: the decision, and what shipped" in `roadmap.md`. **Was:**
 
 **Severity: medium.** `ChitPotComposition` says of itself that it is configuration rather than a
 rule, and that its default special counts are guesswork a player who has counted their own sheet
@@ -389,7 +457,12 @@ counts - set when the game is created or before the first turn, carried in the s
 restore draws from the same pot, and shown on the screen so the table can check it against the
 counters in the box.
 
-## Gap 16 - The screen sends one validity row for all three bands, and one element for all - OPEN
+## Gap 16 - The screen sends one validity row for all three bands, and one element for all - FIXED 2026-11-02
+
+**Fixed** with `DirtsideElementCards.tsx`. Line numbers below are from before it. Colour pairs and the
+empty set are still offered by nothing, which `groundVocabulary.ts` records as a UI decision.
+
+**Was:**
 
 **Severity: medium; a client gap, not an engine one.** The API takes a full card - a row per band
 with colours, value scale, whether specials count and whether the weapon is ineffective

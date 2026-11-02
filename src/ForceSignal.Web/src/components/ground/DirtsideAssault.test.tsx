@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dirtsideGameKey } from '../../constants.ts';
 import type { DirtsideAssaultState, DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
@@ -16,6 +16,14 @@ const mocks = vi.hoisted(() => ({
   resolveAssaultAftermath: vi.fn(),
   followThrough: vi.fn(),
   endActivation: vi.fn(),
+  takeConfidenceTest: vi.fn(),
+  takeReactionTest: vi.fn(),
+  declareAdvance: vi.fn(),
+  setDisorganised: vi.fn(),
+  moveElement: vi.fn(),
+  firefight: vi.fn(),
+  answerOpportunityFire: vi.fn(),
+  declineOpportunityFire: vi.fn(),
 }));
 vi.mock('../../lib/dirtsideApi.ts', () => mocks);
 
@@ -384,5 +392,253 @@ describe('Dirtside add-platoon card numbers', () => {
 
     expect([...leadership.options].map((option) => option.value)).toEqual(['']);
     expect(leadership.disabled).toBe(true);
+  });
+});
+
+// Gap 10. Stands fire as stands, in the order the player ticks them.
+describe('Dirtside firefight panel', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    for (const mock of Object.values(mocks)) {
+      mock.mockReset();
+    }
+  });
+
+  afterEach(cleanup);
+
+  function foot() {
+    const base = snapshotWith();
+    return { ...base, units: base.units.map((unit) => ({ ...unit, kind: 'DismountedInfantry' })) };
+  }
+
+  it('is not offered to vehicles', async () => {
+    await open(snapshotWith());
+
+    expect(screen.queryByRole('group', { name: 'Firefight' })).toBeNull();
+  });
+
+  it('sends the stands in the order they were ticked', async () => {
+    mocks.firefight.mockResolvedValue(foot());
+    await open(foot());
+
+    const panel = within(screen.getByRole('group', { name: 'Firefight' }));
+    fireEvent.click(panel.getByLabelText(alpha.elements[1].name));
+    fireEvent.click(panel.getByLabelText(alpha.elements[0].name));
+    fireEvent.click(panel.getByRole('button', { name: 'Open Firefight' }));
+
+    await waitFor(() => expect(mocks.firefight).toHaveBeenCalled());
+    const sent = mocks.firefight.mock.calls[0][1];
+    expect(sent.standIds).toEqual([alpha.elements[1].id, alpha.elements[0].id]);
+    expect(sent.targetUnitId).toBe('bravo');
+    expect(sent.weapon).toBe(alpha.elements[0].weapons[0]);
+  });
+
+  it('will not open one with nobody ticked', async () => {
+    await open(foot());
+
+    const panel = within(screen.getByRole('group', { name: 'Firefight' }));
+    expect((panel.getByRole('button', { name: 'Open Firefight' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+// Gap 7. Who can see a mover is the table's, so the move says, and the window has to be answerable.
+describe('Dirtside opportunity fire', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    for (const mock of Object.values(mocks)) {
+      mock.mockReset();
+    }
+  });
+
+  afterEach(cleanup);
+
+  it('asks who saw the move, sends it once and does not carry it to the next move', async () => {
+    mocks.moveElement.mockResolvedValue(snapshotWith());
+    await open(snapshotWith());
+
+    const seen = within(screen.getByRole('group', { name: 'Seen by' }));
+    fireEvent.click(seen.getByLabelText('Bravo Troop'));
+    fireEvent.click(screen.getByRole('button', { name: `Move ${alpha.elements[0].name}` }));
+
+    await waitFor(() => expect(mocks.moveElement).toHaveBeenCalledWith(expect.anything(), alpha.elements[0].id, false, ['bravo']));
+    await waitFor(() => expect((seen.getByLabelText('Bravo Troop') as HTMLInputElement).checked).toBe(false));
+  });
+
+  it('sends no watcher when nobody was ticked', async () => {
+    mocks.moveElement.mockResolvedValue(snapshotWith());
+    await open(snapshotWith());
+
+    fireEvent.click(screen.getByRole('button', { name: `Move ${alpha.elements[0].name}` }));
+
+    await waitFor(() => expect(mocks.moveElement).toHaveBeenCalledWith(expect.anything(), alpha.elements[0].id, false, []));
+  });
+
+  it('offers an open window to each platoon yet to answer', async () => {
+    mocks.answerOpportunityFire.mockResolvedValue(snapshotWith());
+    mocks.declineOpportunityFire.mockResolvedValue(snapshotWith());
+    const waiting = { ...snapshotWith(), opportunityWindow: { respondingSide: 'red', yetToAnswer: ['bravo'] } };
+    await open(waiting);
+
+    const window = within(screen.getByRole('group', { name: 'Opportunity fire' }));
+    fireEvent.click(window.getByRole('button', { name: 'Fire with Bravo Troop' }));
+    await waitFor(() => expect(mocks.answerOpportunityFire).toHaveBeenCalledWith(expect.anything(), 'bravo'));
+  });
+
+  it('lets a platoon hold its fire', async () => {
+    mocks.declineOpportunityFire.mockResolvedValue(snapshotWith());
+    await open({ ...snapshotWith(), opportunityWindow: { respondingSide: 'red', yetToAnswer: ['bravo'] } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Let it go Bravo Troop' }));
+
+    await waitFor(() => expect(mocks.declineOpportunityFire).toHaveBeenCalledWith(expect.anything(), 'bravo'));
+  });
+});
+
+// Gaps 4 to 6. The server had nothing to call these with, and neither did the screen.
+describe('Dirtside nerve panel', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    for (const mock of Object.values(mocks)) {
+      mock.mockReset();
+    }
+  });
+
+  afterEach(cleanup);
+
+  it('takes a confidence test at the threat the table typed, which opens at nothing', async () => {
+    mocks.takeConfidenceTest.mockResolvedValue(snapshotWith());
+    await open(snapshotWith());
+
+    const nerve = within(screen.getByLabelText('Nerve'));
+    expect((nerve.getByLabelText('Nerve threat level') as HTMLInputElement).value).toBe('0');
+    fireEvent.change(nerve.getByLabelText('Platoon'), { target: { value: 'bravo' } });
+    fireEvent.change(nerve.getByLabelText('Nerve threat level'), { target: { value: '3' } });
+    fireEvent.click(nerve.getByRole('button', { name: 'Confidence Test' }));
+
+    await waitFor(() => expect(mocks.takeConfidenceTest).toHaveBeenCalledWith(expect.anything(), 'bravo', 3));
+  });
+
+  it('holds the reaction test shut with the server\'s own words until one is owed', async () => {
+    const refused = snapshotWith();
+    refused.units = refused.units.map((unit) => ({ ...unit, canTakeReactionTest: false, whyItCannotTakeReactionTest: 'Nothing to steel itself for.' }));
+    await open(refused);
+
+    const nerve = within(screen.getByLabelText('Nerve'));
+    expect((nerve.getByRole('button', { name: 'Reaction Test' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(nerve.getByText('Nothing to steel itself for.')).toBeTruthy();
+  });
+
+  it('sends what the table declared', async () => {
+    mocks.declareAdvance.mockResolvedValue(snapshotWith());
+    mocks.setDisorganised.mockResolvedValue(snapshotWith());
+    await open(snapshotWith());
+
+    const nerve = within(screen.getByLabelText('Nerve'));
+    fireEvent.click(nerve.getByLabelText('Next move advances'));
+    await waitFor(() => expect(mocks.declareAdvance).toHaveBeenCalledWith(expect.anything(), 'alpha', true));
+
+    fireEvent.click(nerve.getByLabelText('Disorganised'));
+    await waitFor(() => expect(mocks.setDisorganised).toHaveBeenCalledWith(expect.anything(), 'alpha', true));
+  });
+});
+
+// Gap 16. The API has always taken a full card and the screen sent one colour picker's answer for all
+// three bands, which meant a damaged firer's shot, resolved a band worse, read the same row anyway,
+// and the weapon family that scales chit values could not be entered at all.
+describe('Dirtside validity-card editor', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    for (const mock of Object.values(mocks)) {
+      mock.mockReset();
+    }
+  });
+
+  afterEach(cleanup);
+
+  async function added() {
+    fireEvent.click(screen.getByRole('button', { name: 'Add Platoon' }));
+    await waitFor(() => expect(mocks.addPlatoon).toHaveBeenCalled());
+    return mocks.addPlatoon.mock.calls[0][1];
+  }
+
+  it('sends a row of its own for each band', async () => {
+    mocks.addPlatoon.mockResolvedValue(snapshotWith());
+    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+
+    fireEvent.change(screen.getByLabelText('Close colours'), { target: { value: 'Red' } });
+    fireEvent.change(screen.getByLabelText('Close value scale'), { target: { value: 'Doubled' } });
+    fireEvent.change(screen.getByLabelText('Medium colours'), { target: { value: 'Yellow' } });
+    fireEvent.change(screen.getByLabelText('Medium value scale'), { target: { value: 'Halved' } });
+    fireEvent.click(screen.getByLabelText('Medium specials count'));
+    fireEvent.click(screen.getByLabelText('Long ineffective'));
+
+    const weapon = (await added()).elements[0].weapons[0];
+    expect(weapon.close).toEqual({ colours: 'Red', valueScale: 'Doubled', specialsCount: true, isIneffective: false });
+    expect(weapon.medium).toEqual({ colours: 'Yellow', valueScale: 'Halved', specialsCount: false, isIneffective: false });
+    expect(weapon.long).toEqual({ colours: 'All', valueScale: 'FaceValue', specialsCount: true, isIneffective: true });
+  });
+
+  it('carries a second weapon on the same element', async () => {
+    mocks.addPlatoon.mockResolvedValue(snapshotWith());
+    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+
+    fireEvent.change(screen.getByLabelText('Weapon'), { target: { value: 'Main Gun' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add weapon' }));
+    const second = within(screen.getByRole('group', { name: 'Weapon 2 of element card 1' }));
+    fireEvent.change(second.getByLabelText('Weapon'), { target: { value: 'Coax' } });
+    fireEvent.click(second.getByLabelText('Interceptable'));
+
+    const weapons = (await added()).elements[0].weapons;
+    expect(weapons.map((weapon: { name: string }) => weapon.name)).toEqual(['Main Gun', 'Coax']);
+    expect(weapons[0].isInterceptable).toBe(false);
+    expect(weapons[1].isInterceptable).toBe(true);
+  });
+
+  it('puts elements that differ in one platoon', async () => {
+    mocks.addPlatoon.mockResolvedValue(snapshotWith());
+    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+
+    fireEvent.change(screen.getByLabelText('Copies'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Element name'), { target: { value: 'Tank' } });
+    fireEvent.change(screen.getByLabelText('Armour'), { target: { value: '7' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add another kind of element' }));
+    const command = within(screen.getByRole('group', { name: 'Element card 2' }));
+    fireEvent.change(command.getByLabelText('Element name'), { target: { value: 'Command' } });
+    fireEvent.change(command.getByLabelText('Armour'), { target: { value: '4' } });
+    fireEvent.change(command.getByLabelText('Fire control'), { target: { value: 'Superior' } });
+
+    const elements = (await added()).elements;
+    expect(elements.map((element: { name: string }) => element.name)).toEqual(['Tank 1', 'Tank 2', 'Command 1']);
+    expect(elements.map((element: { armourValue: number }) => element.armourValue)).toEqual([7, 7, 4]);
+    expect(elements[2].fireControl).toBe('Superior');
+    expect(new Set(elements.map((element: { id: string }) => element.id)).size).toBe(3);
+  });
+
+  it('takes a card or a weapon back off, and will not take off the last card', async () => {
+    mocks.addPlatoon.mockResolvedValue(snapshotWith());
+    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+
+    expect(screen.queryByRole('button', { name: 'Remove element card 1' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Add another kind of element' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove element card 2' }));
+    expect(screen.queryByRole('group', { name: 'Element card 2' })).toBeNull();
+
+    // An element with no weapons is a command element, so a weapon can come off down to none.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove weapon 1 of element card 1' }));
+
+    const elements = (await added()).elements;
+    expect(elements).toHaveLength(1);
+    expect(elements[0].weapons).toEqual([]);
+  });
+
+  it('opens on no number off anybody\'s card', async () => {
+    mocks.addPlatoon.mockResolvedValue(snapshotWith());
+    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+
+    const [element] = (await added()).elements;
+    expect(element.signature).toBe(0);
+    expect(element.armourValue).toBe(0);
+    expect(element.movement).toBe(0);
+    expect(element.weapons[0].chitCount).toBe(0);
   });
 });

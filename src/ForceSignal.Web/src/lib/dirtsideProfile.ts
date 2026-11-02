@@ -35,6 +35,8 @@ export type DirtsideProfileDraft = {
   systemsDownRecoveryRoll: string;
   systemsDownRecoveryRollWithBackup: string;
   areaDefenceReach: string;
+  /** How many rungs an Under Fire marker costs a fire-effectiveness check. Blank is not entered; 0 is an answer. */
+  rungsLostUnderFire: string;
   /** The smallest number a command marker in this game may carry as a Leadership Value. */
   lowestLeadershipValue: string;
   /** The largest. Both ends or neither - the server refuses half a range where it is entered. */
@@ -51,6 +53,7 @@ export function emptyProfileDraft(): DirtsideProfileDraft {
     systemsDownRecoveryRoll: '',
     systemsDownRecoveryRollWithBackup: '',
     areaDefenceReach: '',
+    rungsLostUnderFire: '',
     lowestLeadershipValue: '',
     highestLeadershipValue: '',
   };
@@ -109,11 +112,13 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
   // dropped: the server refuses it where it was entered, which is where the blank field still is.
   const lowest = enteredNumber(draft.lowestLeadershipValue);
   const highest = enteredNumber(draft.highestLeadershipValue);
+  const rungsLostUnderFire = enteredNumber(draft.rungsLostUnderFire);
 
   const entered =
     fireControl.length + posture.length + signature.length
     + (recoveryDie ? 1 : 0) + recoveryRoll + recoveryWithBackup + areaDefenceReach
-    + (lowest === null ? 0 : 1) + (highest === null ? 0 : 1);
+    + (lowest === null ? 0 : 1) + (highest === null ? 0 : 1)
+    + (rungsLostUnderFire === null ? 0 : 1);
   if (entered === 0) {
     return undefined;
   }
@@ -128,6 +133,7 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
     areaDefenceReach,
     ...(lowest === null ? {} : { lowestLeadershipValue: lowest }),
     ...(highest === null ? {} : { highestLeadershipValue: highest }),
+    ...(rungsLostUnderFire === null ? {} : { rungsLostUnderFire }),
   };
 }
 
