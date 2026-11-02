@@ -4,6 +4,8 @@ import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.
 import * as api from '../../lib/dirtsideApi.ts';
 import type { ChitPotDraft } from '../../lib/chitPot.ts';
 import { chitPotSummary, emptyChitPotDraft, toChitPotInput } from '../../lib/chitPot.ts';
+import type { ElementCard } from '../../lib/dirtsideCard.ts';
+import { newElementCard, toElementInputs } from '../../lib/dirtsideCard.ts';
 import type { DirtsideProfileDraft } from '../../lib/dirtsideProfile.ts';
 import {
   emptyProfileDraft,
@@ -16,7 +18,6 @@ import { wholeNumberFrom } from '../../lib/format.ts';
 import {
   bands,
   chitColours,
-  chitColourSets,
   chitSpecials,
   fireControls,
   postures,
@@ -27,6 +28,9 @@ import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershi
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
+import { DirtsideElementCards } from './DirtsideElementCards.tsx';
+import { DirtsideFirefightPanel } from './DirtsideFirefightPanel.tsx';
+import { DirtsideNervePanel } from './DirtsideNervePanel.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
 function optionalWholeNumber(text: string, min: number, max: number) {
@@ -68,28 +72,16 @@ export function DirtsideView() {
     side: 'blue',
     kind: 'Armour',
     isCybertank: false,
-    elements: 2,
-    fireControl: 'Basic',
-    signature: 3,
-    armourValue: 3,
-    movement: 12,
-    elementName: 'Vehicle',
-    weaponName: 'Main Gun',
-    chitCount: 3,
-    barrels: 1,
-    isFixedMount: false,
-    // Off the card. The engine records it and resolves nothing with it yet; see the note beside
-    // the control.
-    isInterceptable: false,
-    colours: 'All',
-    // Off the command marker and the card. Blank when the card does not say - the platoon then
-    // does everything except assault.
+    // Off the command marker. Blank when the card does not say - the platoon then does everything
+    // except assault.
     qualityDie: '',
     leadershipValue: '',
-    hasBackupSystems: false,
-    assaultChits: '',
-    killThreshold: '',
   });
+  // The elements themselves, per kind. These used to be one set of fields stamped onto every element
+  // and opened on invented numbers; see dirtsideCard.ts.
+  const [cards, setCards] = useState<ElementCard[]>(() => [newElementCard()]);
+  // Who can see the next move, by tape and eyeball. Cleared by the move it was asked about.
+  const [watchers, setWatchers] = useState<string[]>([]);
 
   const [shot, setShot] = useState({
     elementId: '',
@@ -413,6 +405,18 @@ export function DirtsideView() {
               />
             </label>
           </div>
+          <div className="table-fields">
+            <label title="How many rungs an Under Fire marker costs a unit's fire-effectiveness check, off your own rulebook. Zero is an answer; blank is not entered, and a marked unit's firefight is then refused by name.">
+              Rungs lost under fire
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.rungsLostUnderFire}
+                onChange={(event) =>
+                  setProfile({ ...profile, rungsLostUnderFire: event.target.value })}
+              />
+            </label>
+          </div>
           <p className="privacy">
             Which numbers your command markers carry as Leadership Values - both ends, off your own
             rulebook. This app ships none, and a marker cannot carry one until they are entered.
@@ -584,6 +588,44 @@ export function DirtsideView() {
               ? 'Every element has said what it is doing.'
               : `Waiting on: ${stillToChoose.join(', ')}.`}
           </p>
+          {snapshot.opportunityWindow ? (
+            <div role="group" aria-label="Opportunity fire">
+              <p className="constraint-line">
+                A move was seen. Each platoon below may give up its activation to fire on the mover, or
+                let it go. The mover waits for the answers.
+              </p>
+              {snapshot.opportunityWindow.yetToAnswer.map((id) => {
+                const name = snapshot.units.find((unit) => unit.id === id)?.name ?? id;
+                return (
+                  <div key={id} className="table-fields">
+                    <span className="label">{name}</span>
+                    <button type="button" disabled={busy} aria-label={`Fire with ${name}`} onClick={() => void run(() => api.answerOpportunityFire(game, id))}>
+                      Fire
+                    </button>
+                    <button type="button" className="ghost" disabled={busy} aria-label={`Let it go ${name}`} onClick={() => void run(() => api.declineOpportunityFire(game, id))}>
+                      Let It Go
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <fieldset aria-label="Seen by">
+              <legend>The next move is seen by</legend>
+              {enemies.map((unit) => (
+                <label key={unit.id} title="By tape and eyeball. Tick nobody and no window opens.">
+                  {unit.name}
+                  <input
+                    type="checkbox"
+                    checked={watchers.includes(unit.id)}
+                    onChange={(e) => setWatchers(e.target.checked
+                      ? [...watchers, unit.id]
+                      : watchers.filter((id) => id !== unit.id))}
+                  />
+                </label>
+              ))}
+            </fieldset>
+          )}
 
           {activating.elements.filter((element) => !element.isDestroyed).map((element) => (
             <div key={element.id} className="table-fields">
@@ -622,7 +664,12 @@ export function DirtsideView() {
                 title={element.isImmobilised
                   ? 'A Mobility chit took its tracks. It will never move again, though it may still fire.'
                   : element.hasStoodDown ? 'It sat this one out, so it is out for the turn.' : undefined}
-                onClick={() => void run(() => api.moveElement(game, element.id, shot.overHalf))}
+                onClick={() => {
+                  // Only the platoons that could still answer it: this is a question about this move.
+                  const seenBy = watchers.filter((id) => enemies.some((unit) => unit.id === id));
+                  void run(() => api.moveElement(game, element.id, shot.overHalf, seenBy));
+                  setWatchers([]);
+                }}
               >
                 Move
               </button>
@@ -847,9 +894,15 @@ export function DirtsideView() {
             <p className="constraint-line">{snapshot.whyActivationCannotEnd}</p>
           ) : null}
 
+          {activating.kind === 'DismountedInfantry' ? (
+            <DirtsideFirefightPanel game={game} snapshot={snapshot} firing={activating} busy={busy} run={run} />
+          ) : null}
+
           <DirtsideAssaultPanel game={game} snapshot={snapshot} activating={activating} busy={busy} run={run} />
         </div>
       ) : null}
+
+      <DirtsideNervePanel game={game} snapshot={snapshot} busy={busy} run={run} />
 
       <div className="card-module" aria-label="Add platoon">
         <span className="label module-title">Add a platoon</span>
@@ -871,44 +924,13 @@ export function DirtsideView() {
             Cybertank
             <input type="checkbox" checked={platoonForm.isCybertank} onChange={(e) => setPlatoonForm({ ...platoonForm, isCybertank: e.target.checked })} />
           </label>
-          <label>Elements<input type="number" min="1" max="12" value={platoonForm.elements} onChange={(e) => setPlatoonForm({ ...platoonForm, elements: wholeNumberFrom(e.target.value, 1, 1, 12) })} /></label>
-          <label title="Each element is numbered from this, so the log reads 'Alpha Troop&apos;s Vehicle 1'.">Element name<input value={platoonForm.elementName} onChange={(e) => setPlatoonForm({ ...platoonForm, elementName: e.target.value })} /></label>
-          <label>
-            Fire control
-            <select value={platoonForm.fireControl} onChange={(e) => setPlatoonForm({ ...platoonForm, fireControl: e.target.value })}>
-              {fireControls.map((level) => <option key={level} value={level}>{level}</option>)}
-            </select>
-          </label>
-          <label>Signature<input type="number" min="1" max="5" value={platoonForm.signature} onChange={(e) => setPlatoonForm({ ...platoonForm, signature: wholeNumberFrom(e.target.value, 1, 1, 5) })} /></label>
-          <label>Armour<input type="number" min="0" max="30" value={platoonForm.armourValue} onChange={(e) => setPlatoonForm({ ...platoonForm, armourValue: wholeNumberFrom(e.target.value, 0, 0, 30) })} /></label>
-          <label>Movement<input type="number" min="0" max="60" value={platoonForm.movement} onChange={(e) => setPlatoonForm({ ...platoonForm, movement: wholeNumberFrom(e.target.value, 0, 0, 60) })} /></label>
-          <label>Weapon<input value={platoonForm.weaponName} onChange={(e) => setPlatoonForm({ ...platoonForm, weaponName: e.target.value })} /></label>
-          <label title="How many chits each hit draws.">Chits<input type="number" min="0" max="20" value={platoonForm.chitCount} onChange={(e) => setPlatoonForm({ ...platoonForm, chitCount: wholeNumberFrom(e.target.value, 0, 0, 20) })} /></label>
-          <label title="Weapons of the same type in the mount. They fire together, at one target.">Barrels<input type="number" min="1" max="8" value={platoonForm.barrels} onChange={(e) => setPlatoonForm({ ...platoonForm, barrels: wholeNumberFrom(e.target.value, 1, 1, 8) })} /></label>
-          <label title="Aimed by pointing the whole vehicle.">
-            Fixed mount
-            <input type="checkbox" checked={platoonForm.isFixedMount} onChange={(e) => setPlatoonForm({ ...platoonForm, isFixedMount: e.target.checked })} />
-          </label>
-          {/*
-            Recorded off the card, and recorded is all it is. The server has carried this field since
-            Dirtside had an API and no client could send it, so it arrived false for every weapon in
-            every game - a write-only chain with nothing at either end. It reaches the roster now.
-            What it still does not do is decide anything. Interception has no resolution in this
-            engine - no roll, no outcome - and inventing one would be inventing rules. There is a
-            route now, and it exists to refuse and to name the four rules that are missing, which is
-            the honest end of the chain rather than the silent one. See the roadmap entry.
-          */}
-          <label title="True when an area-defence gun could shoot down what this weapon throws. Recorded off your card; interception is refused by this app, which has no rules for resolving one.">
-            Interceptable
-            <input type="checkbox" checked={platoonForm.isInterceptable} onChange={(e) => setPlatoonForm({ ...platoonForm, isInterceptable: e.target.checked })} />
-          </label>
-          <label title="Which chit colours this weapon's hits may count, off your own card.">
-            Chit colours
-            <select value={platoonForm.colours} onChange={(e) => setPlatoonForm({ ...platoonForm, colours: e.target.value })}>
-              {chitColourSets.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
-            </select>
-          </label>
         </div>
+        <span className="label">The element cards, off your own sheets</span>
+        <p className="constraint-line">
+          One card for each kind of element in the platoon. Every number opens at zero, which means
+          nobody has entered it; this app carries no stat blocks.
+        </p>
+        <DirtsideElementCards cards={cards} onChange={setCards} />
         <span className="label">Close assault, off the card</span>
         <p className="constraint-line">
           Leave any of these blank when the card does not give it. The platoon can still move and
@@ -939,27 +961,12 @@ export function DirtsideView() {
               {leadershipValues.map((value) => <option key={value} value={String(value)}>{value}</option>)}
             </select>
           </label>
-          <label title="Bought at design time. Makes a Systems Down marker easier to get off.">
-            Backup systems
-            <input type="checkbox" checked={platoonForm.hasBackupSystems} onChange={(e) => setPlatoonForm({ ...platoonForm, hasBackupSystems: e.target.checked })} />
-          </label>
-          <label title="How many chits each element draws in a close assault, off its card.">
-            Assault chits
-            <input type="number" min="0" max="20" value={platoonForm.assaultChits} onChange={(e) => setPlatoonForm({ ...platoonForm, assaultChits: e.target.value })} />
-          </label>
-          <label title="The valid total that removes an element in a close assault, off its card.">
-            Kill threshold
-            <input type="number" min="0" max="99" value={platoonForm.killThreshold} onChange={(e) => setPlatoonForm({ ...platoonForm, killThreshold: e.target.value })} />
-          </label>
         </div>
         <button
           type="button"
           disabled={busy}
           onClick={() => {
-            const row = { colours: platoonForm.colours };
             const leadershipValue = optionalWholeNumber(platoonForm.leadershipValue, 0, 9);
-            const assaultChits = optionalWholeNumber(platoonForm.assaultChits, 0, 20);
-            const killThreshold = optionalWholeNumber(platoonForm.killThreshold, 0, 99);
             void run(() => api.addPlatoon(game, {
               id: newId(),
               name: platoonForm.name,
@@ -968,27 +975,7 @@ export function DirtsideView() {
               isCybertank: platoonForm.isCybertank,
               ...(platoonForm.qualityDie ? { qualityDie: platoonForm.qualityDie } : {}),
               ...(leadershipValue === undefined ? {} : { leadershipValue }),
-              elements: Array.from({ length: Math.max(1, platoonForm.elements) }, (_, index) => ({
-                id: newId(),
-                name: `${platoonForm.elementName} ${index + 1}`,
-                fireControl: platoonForm.fireControl,
-                signature: platoonForm.signature,
-                armourValue: platoonForm.armourValue,
-                movement: platoonForm.movement,
-                weapons: [{
-                  name: platoonForm.weaponName,
-                  chitCount: platoonForm.chitCount,
-                  barrels: platoonForm.barrels,
-                  isFixedMount: platoonForm.isFixedMount,
-                  isInterceptable: platoonForm.isInterceptable,
-                  close: row,
-                  medium: row,
-                  long: row,
-                }],
-                hasBackupSystems: platoonForm.hasBackupSystems,
-                ...(assaultChits === undefined ? {} : { assaultChits }),
-                ...(killThreshold === undefined ? {} : { killThreshold }),
-              })),
+              elements: toElementInputs(cards, newId),
             }), `${platoonForm.name} joined ${platoonForm.side}.`);
           }}
         >

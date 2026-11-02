@@ -626,6 +626,11 @@ export type DirtsidePlatoonState = {
   // in which case the platoon can do everything except launch or receive an assault.
   qualityDie?: string | null;
   leadershipValue?: number | null;
+  // Declared by the table, so the checkbox shows what was said rather than guessing.
+  nextMoveAdvancesOnTheEnemy?: boolean;
+  reactionTestCleared?: boolean;
+  canTakeReactionTest?: boolean;
+  whyItCannotTakeReactionTest?: string | null;
 };
 
 /** A close assault part-way through being fought, as the table sees it. */
@@ -663,6 +668,8 @@ export type DirtsideSnapshot = {
   // The dice this game is settled with, as the players entered them. Empty tables are a real
   // answer: this app ships no dice, and a game whose rows are missing is told so before it fires.
   profile?: DirtsideRulesProfile | null;
+  // A move waiting on the other side's answer, or null when none is.
+  opportunityWindow?: { respondingSide: string; yetToAnswer: string[] } | null;
 };
 
 /** One row of a die table: a key off the record card, and the die it rolls. */
@@ -690,6 +697,8 @@ export type DirtsideRulesProfile = {
   // confidence ladder, so both read the same entry off their own game's profile.
   lowestLeadershipValue?: number | null;
   highestLeadershipValue?: number | null;
+  // Rungs an Under Fire marker costs a fire-effectiveness check. Null when nobody entered it.
+  rungsLostUnderFire?: number | null;
 };
 
 /** How many chits of one colour and number the pot holds. Counted off the user's own sheet. */

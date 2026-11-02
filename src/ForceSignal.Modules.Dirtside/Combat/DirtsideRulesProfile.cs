@@ -53,6 +53,10 @@ namespace ForceSignal.Modules.Dirtside.Combat;
 /// reading a number off a page cannot be stricter about it than the other, and both feed the one
 /// <see cref="ForceSignal.Modules.GroundCombat.Morale.ConfidenceLadder"/>.
 /// </param>
+/// <param name="RungsLostUnderFire">
+/// How many rungs an Under Fire marker costs a fire-effectiveness check, or null when the players have
+/// not said. Null rather than zero, because no cost at all is an answer a table can give.
+/// </param>
 public sealed record DirtsideRulesProfile(
     ImmutableDictionary<FireControlLevel, QualityDie> FireControlDice,
     ImmutableDictionary<DefensivePosture, QualityDie> PostureDice,
@@ -61,7 +65,8 @@ public sealed record DirtsideRulesProfile(
     int SystemsDownRecoveryRoll = 0,
     int SystemsDownRecoveryRollWithBackup = 0,
     int AreaDefenceReach = 0,
-    LeadershipRange LeadershipValues = default)
+    LeadershipRange LeadershipValues = default,
+    int? RungsLostUnderFire = null)
 {
     /// <summary>
     /// A profile with nothing entered. What a game created without one plays on, and what every
@@ -85,7 +90,8 @@ public sealed record DirtsideRulesProfile(
         && SignatureDice.IsEmpty
         && SystemsDownRecoveryDie is null
         && InterceptionReach is null
-        && LeadershipValues.IsBlank;
+        && LeadershipValues.IsBlank
+        && RungsLostUnderFire is null;
 
     /// <summary>The die a gunnery level rolls, or null when the profile does not say.</summary>
     /// <param name="level">The gunnery level.</param>

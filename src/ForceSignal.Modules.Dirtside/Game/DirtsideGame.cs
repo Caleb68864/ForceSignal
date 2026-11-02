@@ -168,11 +168,20 @@ public sealed partial record DirtsideGame : IDirtsideBoard
 
     /// <inheritdoc />
     /// <remarks>
-    /// Null for now, and that is a slice boundary rather than a rule. Opportunity fire needs a way to
-    /// say who can see the mover, which is tape and eyeball at a real table; until the app can ask,
-    /// nothing is watching and no window opens. The policy already handles a null opening.
+    /// Who can see the mover is tape and eyeball at a real table, so the move itself says, and a move
+    /// that names nobody opens nothing. The point is the origin because this app has no map of a
+    /// Dirtside table: where the mover is when it is fired on is the table's to settle as well.
     /// </remarks>
-    public InterruptOpening? OpportunityFireOpening(UnitId mover, ElementId element) => null;
+    public InterruptOpening? OpportunityFireOpening(UnitId mover, ElementId element) =>
+        WatchersOfThisMove is { IsDefaultOrEmpty: false } watchers
+            ? new InterruptOpening(default, watchers, [])
+            : null;
+
+    /// <summary>
+    /// Who the move being taken was declared to be seen by. Set only for the length of that step, since
+    /// the window it opens is what the session remembers, and never saved.
+    /// </summary>
+    private ImmutableArray<UnitId>? WatchersOfThisMove { get; init; }
 
     /// <inheritdoc />
     /// <remarks>

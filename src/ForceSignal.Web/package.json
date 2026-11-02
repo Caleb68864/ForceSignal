@@ -12,6 +12,14 @@
   "engines": {
     "node": ">=22.4"
   },
+  "//overrides": [
+    "minimatch below 11.0.1 carries GHSA-g3hv-75wg-m249, and the newest eslint and typescript-eslint",
+    "still ask for ^10, so no update of theirs can take the fix; npm audit's own suggestion is to go",
+    "back to eslint 4. Drop this once eslint and typescript-eslint accept minimatch 11 themselves."
+  ],
+  "overrides": {
+    "minimatch": "^11.0.1"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

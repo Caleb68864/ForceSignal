@@ -37,6 +37,27 @@ public interface IDirtsideGameService : IGroundGameService
     /// <summary>Moves one element.</summary>
     DirtsideSnapshotDto MoveElement(Guid gameId, MoveDirtsideElementRequest request);
 
+    /// <summary>Fights a firefight with stands of the platoon acting.</summary>
+    DirtsideSnapshotDto Firefight(Guid gameId, DirtsideFirefightRequest request);
+
+    /// <summary>Gives up a platoon's activation to fire on the mover that opened the window.</summary>
+    DirtsideSnapshotDto AnswerOpportunityFire(Guid gameId, DirtsideOpportunityFireRequest request);
+
+    /// <summary>Lets the mover go, as far as this platoon is concerned.</summary>
+    DirtsideSnapshotDto DeclineOpportunityFire(Guid gameId, DirtsideOpportunityFireRequest request);
+
+    /// <summary>Takes a confidence test at the threat level the player reads off their own table.</summary>
+    DirtsideSnapshotDto TakeConfidenceTest(Guid gameId, DirtsideNerveTestRequest request);
+
+    /// <summary>Takes the reaction test the activating platoon's move is waiting on.</summary>
+    DirtsideSnapshotDto TakeReactionTest(Guid gameId, DirtsideNerveTestRequest request);
+
+    /// <summary>Declares whether a platoon's next move advances on the enemy.</summary>
+    DirtsideSnapshotDto DeclareAdvance(Guid gameId, DirtsideDeclareAdvanceRequest request);
+
+    /// <summary>Declares whether a platoon has come out of integrity.</summary>
+    DirtsideSnapshotDto SetDisorganised(Guid gameId, DirtsideDisorganisedRequest request);
+
     /// <summary>Declares that an element is sitting the turn out.</summary>
     DirtsideSnapshotDto StandDown(Guid gameId, DirtsideStandDownRequest request);
 
@@ -288,11 +309,85 @@ public sealed class DirtsideGameService : IDirtsideGameService
     }
 
     /// <inheritdoc />
+    public DirtsideSnapshotDto TakeConfidenceTest(Guid gameId, DirtsideNerveTestRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.TakeConfidenceTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto TakeReactionTest(Guid gameId, DirtsideNerveTestRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.TakeReactionTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto DeclareAdvance(Guid gameId, DirtsideDeclareAdvanceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.SetNextMoveAdvances(new UnitId(request.UnitId), request.Advances));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto SetDisorganised(Guid gameId, DirtsideDisorganisedRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.SetDisorganised(new UnitId(request.UnitId), request.IsDisorganised));
+    }
+
+    /// <inheritdoc />
     public DirtsideSnapshotDto MoveElement(Guid gameId, MoveDirtsideElementRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         return Command(gameId, game => game.MoveElement(
-            new ElementId(request.ElementId), request.OverHalfItsMovement));
+            new ElementId(request.ElementId),
+            request.OverHalfItsMovement,
+            request.SeenBy?.Select(unit => new UnitId(unit)).ToList()));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto Firefight(Guid gameId, DirtsideFirefightRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        lock (_gate)
+        {
+            var held = Find(gameId);
+            var firing = held.Game.Session.CurrentFrame?.Unit
+                ?? throw new InvalidOperationException("Nothing is activated, so nothing can fire.");
+            GroundGameGuards.RequireAtMost(request.StandIds?.Count ?? 0, GroundGameGuards.MaxMembersPerUnit, "stands");
+
+            var outcome = held.Game.Firefight(
+                new FirefightCommand(
+                    firing,
+                    GroundGameGuards.TruncateOptional(request.Weapon) ?? string.Empty,
+                    [.. (request.StandIds ?? []).Select(stand => new ElementId(stand))],
+                    new UnitId(request.TargetUnitId),
+                    new ElementId(request.TargetElementId),
+                    Band(request.MeasuredBand)),
+                _dice,
+                held.Pot,
+                held.Profile);
+
+            return outcome.IsAllowed
+                ? Store(gameId, outcome.Value!)
+                : throw new InvalidOperationException(outcome.Reason);
+        }
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto AnswerOpportunityFire(Guid gameId, DirtsideOpportunityFireRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.AnswerOpportunityFire(new UnitId(request.UnitId)));
+    }
+
+    /// <inheritdoc />
+    public DirtsideSnapshotDto DeclineOpportunityFire(Guid gameId, DirtsideOpportunityFireRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Command(gameId, game => game.DeclineOpportunityFire(new UnitId(request.UnitId)));
     }
 
     /// <inheritdoc />
@@ -690,6 +785,15 @@ public sealed class DirtsideGameService : IDirtsideGameService
         ArgumentNullException.ThrowIfNull(element);
         GroundGameGuards.RequireAtMost(element.Weapons?.Count ?? 0, GroundGameGuards.MaxWeaponsPerUnit, "weapons");
 
+        // The add-platoon form opens at zero for "nobody has entered it". Past here the shot's
+        // resolver throws on it, so it would be refused as an error on the first shot at this element
+        // rather than by name now. The range is the shape of the die table's keys, not a reading.
+        if (element.Signature is < 1 or > 5)
+        {
+            throw new InvalidOperationException(
+                $"{element.Name} has no signature entered: enter a row of your signature table, from 1 to 5.");
+        }
+
         return new ElementDefinition(
             new ElementId(Required(element.Id, "An element needs an id.")),
             Required(element.Name, "An element needs a name."),
@@ -826,7 +930,12 @@ public sealed class DirtsideGameService : IDirtsideGameService
             // Reported whether or not anything was entered. A blank profile coming back as a blank
             // profile is what lets a screen say "this game has no die tables" before the first shot
             // is refused, rather than after.
-            DirtsideRulesProfileMapping.ToDto(held.Profile));
+            DirtsideRulesProfileMapping.ToDto(held.Profile),
+            game.Session.AwaitingAnswer is { Kind: DirtsideActivationPolicy.OpportunityFireWindow } window
+                ? new DirtsideOpportunityWindowDto(
+                    window.RespondingSide.Value,
+                    [.. window.EligibleResponders.Where(window.MayAnswer).Select(unit => unit.Value)])
+                : null);
     }
 
     private static DirtsideAssaultDto ToAssaultState(DirtsideAssault assault) => new(
@@ -870,7 +979,11 @@ public sealed class DirtsideGameService : IDirtsideGameService
             activation.Reason,
             [.. platoon.Elements.Select(element => ToElementState(game, platoon.Id, status, element, chosen, frameForThisUnit, profile))],
             platoon.Quality?.ToString(),
-            platoon.LeadershipValue);
+            platoon.LeadershipValue,
+            status.NextMoveAdvancesOnTheEnemy,
+            status.ReactionTestCleared,
+            game.WhyReactionTestIsRefused(platoon.Id) is null,
+            game.WhyReactionTestIsRefused(platoon.Id));
     }
 
     private static DirtsideElementStateDto ToElementState(

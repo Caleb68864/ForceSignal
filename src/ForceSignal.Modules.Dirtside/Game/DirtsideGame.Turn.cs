@@ -63,6 +63,10 @@ public sealed partial record DirtsideGame
     /// <summary>Moves one element.</summary>
     /// <param name="element">The element moving.</param>
     /// <param name="overHalfItsMovement">True when the move covers more than half its movement.</param>
+    /// <param name="seenBy">
+    /// The enemy platoons that can see it, by tape and eyeball. Those still to activate get a window to
+    /// give up their activation and fire on it.
+    /// </param>
     /// <returns>The game with the move taken, or why it was refused.</returns>
     /// <remarks>
     /// <para>
@@ -77,25 +81,111 @@ public sealed partial record DirtsideGame
     /// that declared the move and then goes short has only cost itself.
     /// </para>
     /// </remarks>
-    public GameOutcome<DirtsideGame> MoveElement(ElementId element, bool overHalfItsMovement)
+    public GameOutcome<DirtsideGame> MoveElement(
+        ElementId element,
+        bool overHalfItsMovement,
+        IReadOnlyCollection<UnitId>? seenBy = null)
     {
         if (WhyMoveIsRefused(element, overHalfItsMovement) is { } reason)
         {
             return GameOutcome.Refused<DirtsideGame>(reason);
         }
 
-        var moved = TakeStep(DirtsideSteps.Move(element));
+        var unit = Session.CurrentFrame!.Unit;
+        if (WhyWatchersAreRefused(unit, seenBy) is { } badWatcher)
+        {
+            return GameOutcome.Refused<DirtsideGame>(badWatcher);
+        }
+
+        var moved = (this with { WatchersOfThisMove = seenBy is null ? null : [.. seenBy] })
+            .TakeStep(DirtsideSteps.Move(element));
         if (!moved.IsAllowed)
         {
             return moved;
         }
 
-        var unit = Session.CurrentFrame!.Unit;
-        return GameOutcome.Allowed(
-            moved.Value!
-                .WithStatus(unit, status => status.WithElement(
-                    element, current => current with { MovedOverHalf = current.MovedOverHalf || overHalfItsMovement }))
-                .WithLog($"{Describe(unit, element)} moved{(overHalfItsMovement ? ", over half its movement" : string.Empty)}."));
+        var after = (moved.Value! with { WatchersOfThisMove = null })
+            .WithStatus(unit, status => status.WithElement(
+                element, current => current with { MovedOverHalf = current.MovedOverHalf || overHalfItsMovement }))
+            .WithLog($"{Describe(unit, element)} moved{(overHalfItsMovement ? ", over half its movement" : string.Empty)}.");
+
+        return GameOutcome.Allowed(after.Session.AwaitingAnswer is { } window
+            ? after.WithLog(
+                $"{string.Join(", ", window.EligibleResponders.Select(watcher => Unit(watcher).Name))} "
+                + "may give up their activation to fire on it, or let it go.")
+            : after);
+    }
+
+    /// <summary>Answers an open opportunity-fire window by firing, which spends the platoon's activation.</summary>
+    /// <param name="responder">The platoon answering.</param>
+    /// <returns>The game with the responder's frame open, or why it could not be.</returns>
+    /// <remarks>
+    /// The shot itself goes through <see cref="Fire"/> as any other, and the frame closes through
+    /// <see cref="EndActivation"/> after at least one element has fired or stood down. Play then comes
+    /// back to the mover.
+    /// </remarks>
+    public GameOutcome<DirtsideGame> AnswerOpportunityFire(UnitId responder)
+    {
+        if (WhyOpportunityFireIsRefused() is { } reason)
+        {
+            return GameOutcome.Refused<DirtsideGame>(reason);
+        }
+
+        var outcome = Apply(
+            GroundCombatSequence.CanDeclareReaction(Session, responder, DirtsideActivationPolicy.OpportunityFireCost),
+            () => DirtsideTurn.ReactWithOpportunityFire(Session, responder));
+
+        return outcome.IsAllowed
+            ? GameOutcome.Allowed(outcome.Value!.WithLog($"{Unit(responder).Name} gave up its activation to fire on the mover."))
+            : outcome;
+    }
+
+    /// <summary>Lets the mover go, as far as this platoon is concerned.</summary>
+    /// <param name="responder">The platoon declining.</param>
+    /// <returns>The game with the answer recorded, or why it could not be.</returns>
+    public GameOutcome<DirtsideGame> DeclineOpportunityFire(UnitId responder)
+    {
+        if (WhyOpportunityFireIsRefused() is { } reason)
+        {
+            return GameOutcome.Refused<DirtsideGame>(reason);
+        }
+
+        var outcome = Apply(
+            GroundCombatSequence.CanDeclineReaction(Session, responder),
+            () => GroundCombatSequence.DeclineReaction(Session, responder));
+
+        return outcome.IsAllowed
+            ? GameOutcome.Allowed(outcome.Value!.WithLog($"{Unit(responder).Name} held its fire."))
+            : outcome;
+    }
+
+    private string? WhyOpportunityFireIsRefused() =>
+        Session.AwaitingAnswer is { Kind: DirtsideActivationPolicy.OpportunityFireWindow }
+            ? null
+            : "No move is waiting on opportunity fire.";
+
+    /// <summary>What is wrong with the list of who can see a mover, in words.</summary>
+    private string? WhyWatchersAreRefused(UnitId mover, IReadOnlyCollection<UnitId>? seenBy)
+    {
+        foreach (var watcher in seenBy ?? [])
+        {
+            if (!HasUnit(watcher))
+            {
+                return $"There is no platoon called '{watcher}' on the table to see this move.";
+            }
+
+            if (Unit(watcher).Side == Unit(mover).Side)
+            {
+                return $"{Unit(watcher).Name} is on {Unit(mover).Name}'s own side.";
+            }
+
+            if (Status(watcher).IsWipedOut)
+            {
+                return $"{Unit(watcher).Name} has nothing left to see it with.";
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Whether an element could move now, and why not.</summary>
@@ -108,6 +198,11 @@ public sealed partial record DirtsideGame
     /// </remarks>
     public string? WhyMoveIsRefused(ElementId element, bool overHalfItsMovement)
     {
+        if (Session.CurrentFrame is { Kind: FrameKind.Reaction } reacting)
+        {
+            return $"{Unit(reacting.Unit).Name} gave up its activation to fire, and may not move in it.";
+        }
+
         if (Session.CurrentFrame is { Kind: FrameKind.Activation } frame && Unit(frame.Unit).Element(element) is { } definition)
         {
             var status = Status(frame.Unit).Element(element);
@@ -465,7 +560,13 @@ public sealed partial record DirtsideGame
             return ended;
         }
 
-        var closed = ended.Value!;
+        // A refusal and a declaration last the activation they were made in. Not the passed test: the
+        // turn closes that, because an element of this platoon may yet answer an interrupt on it.
+        var closed = ended.Value!.WithStatus(marked, status => status with
+        {
+            ReactionTestFailed = false,
+            NextMoveAdvancesOnTheEnemy = false,
+        });
         var wasMarked = closed.Status(marked).IsUnderFire;
         var stillMarked = UnderFire.After(wasMarked, itsOwnActivationEnded: true);
         if (wasMarked == stillMarked)

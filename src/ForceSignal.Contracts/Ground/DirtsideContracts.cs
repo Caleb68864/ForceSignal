@@ -169,6 +169,9 @@ public sealed record DirtsideDieRowDto(string Key, string Die);
 /// not entered. Both ends or neither: one bound on its own is refused rather than half-honoured.
 /// </param>
 /// <param name="HighestLeadershipValue">The largest, or null when not entered.</param>
+/// <param name="RungsLostUnderFire">
+/// How many rungs an Under Fire marker costs a fire-effectiveness check, or null when not entered.
+/// </param>
 public sealed record DirtsideRulesProfileDto(
     IReadOnlyList<DirtsideDieRowDto>? FireControl = null,
     IReadOnlyList<DirtsideDieRowDto>? Posture = null,
@@ -178,7 +181,8 @@ public sealed record DirtsideRulesProfileDto(
     int SystemsDownRecoveryRollWithBackup = 0,
     int AreaDefenceReach = 0,
     int? LowestLeadershipValue = null,
-    int? HighestLeadershipValue = null);
+    int? HighestLeadershipValue = null,
+    int? RungsLostUnderFire = null);
 
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>
@@ -304,7 +308,36 @@ public sealed record BeginDirtsideActivationRequest(string Side, string UnitId);
 /// True when the move covers more than half its movement, which spoils its shooting. Measured with a
 /// tape at the table, so it is answered rather than computed.
 /// </param>
-public sealed record MoveDirtsideElementRequest(string ElementId, bool OverHalfItsMovement = false);
+/// <param name="SeenBy">
+/// The enemy platoons that can see the move, by tape and eyeball. Those still to activate may give up
+/// their activation to fire on it. Left out, nothing is watching and no window opens.
+/// </param>
+public sealed record MoveDirtsideElementRequest(
+    string ElementId,
+    bool OverHalfItsMovement = false,
+    IReadOnlyList<string>? SeenBy = null);
+
+/// <summary>Fights a firefight with stands of the platoon acting.</summary>
+/// <param name="Weapon">The small arms each stand fires, by the name on its card.</param>
+/// <param name="StandIds">The stands joining in, in the order the player would have them fire.</param>
+/// <param name="TargetUnitId">The infantry platoon being fired on.</param>
+/// <param name="TargetElementId">The stand being fired on.</param>
+/// <param name="MeasuredBand">The band the tape read.</param>
+public sealed record DirtsideFirefightRequest(
+    string Weapon,
+    IReadOnlyList<string> StandIds,
+    string TargetUnitId,
+    string TargetElementId,
+    string MeasuredBand);
+
+/// <summary>Answers an open opportunity-fire window.</summary>
+/// <param name="UnitId">The platoon answering.</param>
+public sealed record DirtsideOpportunityFireRequest(string UnitId);
+
+/// <summary>A move waiting for the other side to fire on it or let it go.</summary>
+/// <param name="RespondingSide">The side answering.</param>
+/// <param name="YetToAnswer">The platoons that may still answer.</param>
+public sealed record DirtsideOpportunityWindowDto(string RespondingSide, IReadOnlyList<string> YetToAnswer);
 
 /// <summary>Declares that an element is sitting this activation out, and therefore the whole turn.</summary>
 /// <param name="ElementId">The element standing down.</param>
@@ -499,6 +532,10 @@ public sealed record DirtsideElementStateDto(
 /// <param name="Elements">What it is made of.</param>
 /// <param name="QualityDie">The die on its command marker, or null when its card does not say.</param>
 /// <param name="LeadershipValue">The number on its command marker, or null when its card does not say.</param>
+/// <param name="NextMoveAdvancesOnTheEnemy">True when the table has declared its next move an advance.</param>
+/// <param name="ReactionTestCleared">True when it has passed the reaction test its move owed.</param>
+/// <param name="CanTakeReactionTest">True when a reaction test may be taken now.</param>
+/// <param name="WhyItCannotTakeReactionTest">Why not, in the words the route refuses with.</param>
 public sealed record DirtsidePlatoonStateDto(
     string Id,
     string Name,
@@ -513,7 +550,26 @@ public sealed record DirtsidePlatoonStateDto(
     string? WhyItCannotActivate,
     IReadOnlyList<DirtsideElementStateDto> Elements,
     string? QualityDie,
-    int? LeadershipValue);
+    int? LeadershipValue,
+    bool NextMoveAdvancesOnTheEnemy = false,
+    bool ReactionTestCleared = false,
+    bool CanTakeReactionTest = false,
+    string? WhyItCannotTakeReactionTest = null);
+
+/// <summary>Takes a confidence test or a reaction test.</summary>
+/// <param name="UnitId">The platoon being tested.</param>
+/// <param name="ThreatLevel">The threat level, off the player's own table.</param>
+public sealed record DirtsideNerveTestRequest(string UnitId, int ThreatLevel);
+
+/// <summary>Declares whether a platoon's next move takes it toward the enemy or out of cover.</summary>
+/// <param name="UnitId">The platoon.</param>
+/// <param name="Advances">True when it does. An eyeball judgement, so it is declared.</param>
+public sealed record DirtsideDeclareAdvanceRequest(string UnitId, bool Advances);
+
+/// <summary>Declares whether a platoon has come out of integrity.</summary>
+/// <param name="UnitId">The platoon.</param>
+/// <param name="IsDisorganised">True when it has. Measured at the table, so it is declared.</param>
+public sealed record DirtsideDisorganisedRequest(string UnitId, bool IsDisorganised);
 
 /// <summary>A whole Dirtside game as the table sees it.</summary>
 /// <param name="GameId">Which game.</param>
@@ -544,6 +600,7 @@ public sealed record DirtsidePlatoonStateDto(
 /// row without going back to whoever started the game, and a table whose shots are being refused
 /// should be able to see that the rows are simply not there.
 /// </param>
+/// <param name="OpportunityWindow">The move waiting on the other side's answer, or null when none is.</param>
 public sealed record DirtsideSnapshotDto(
     Guid GameId,
     string Name,
@@ -560,7 +617,8 @@ public sealed record DirtsideSnapshotDto(
     IReadOnlyList<string> Log,
     int Version,
     DirtsideChitPotDto? ChitPot = null,
-    DirtsideRulesProfileDto? Profile = null);
+    DirtsideRulesProfileDto? Profile = null,
+    DirtsideOpportunityWindowDto? OpportunityWindow = null);
 
 /// <summary>A game that has just been started.</summary>
 /// <param name="GameId">Which game.</param>

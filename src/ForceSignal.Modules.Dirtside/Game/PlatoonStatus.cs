@@ -74,6 +74,9 @@ public sealed record PlatoonStatus
     /// <summary>True when the reaction test the next move needs has been rolled and passed.</summary>
     public bool ReactionTestCleared { get; init; }
 
+    /// <summary>True when it failed that test this activation, and may not be asked again until the next.</summary>
+    public bool ReactionTestFailed { get; init; }
+
     /// <summary>What has happened to each element, by id.</summary>
     /// <remarks>
     /// Not written directly to JSON: a record struct cannot be a property name, so
@@ -150,11 +153,12 @@ public sealed record PlatoonStatus
         && IsDisorganised == other.IsDisorganised
         && NextMoveAdvancesOnTheEnemy == other.NextMoveAdvancesOnTheEnemy
         && ReactionTestCleared == other.ReactionTestCleared
+        && ReactionTestFailed == other.ReactionTestFailed
         && StructuralEquality.Map(Elements, other.Elements);
 
     /// <inheritdoc />
     public override int GetHashCode() =>
         HashCode.Combine(
-            Confidence, IsUnderFire, IsDisorganised, NextMoveAdvancesOnTheEnemy, ReactionTestCleared,
+            Confidence, IsUnderFire, IsDisorganised, NextMoveAdvancesOnTheEnemy, ReactionTestCleared, ReactionTestFailed,
             StructuralEquality.MapHash(Elements));
 }

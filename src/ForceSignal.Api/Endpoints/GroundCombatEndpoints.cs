@@ -500,6 +500,90 @@ public static class GroundCombatEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .RequireGameToken<IDirtsideGameService>();
 
+        app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/firefight", (
+            Guid gameId,
+            DirtsideFirefightRequest request,
+            IDirtsideGameService games) => Results.Ok(games.Firefight(gameId, request)))
+            .WithName("FightDirtsideFirefight")
+            .WithTags("Dirtside")
+            .WithSummary("Fires infantry stands as stands: one check for the unit, then one draw per stand.")
+            .WithDescription("Every stand named spends its combat action. If the check lets only part of the unit fire, those are the first stands named. Chits are never pooled, and any firefight marks the target.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/opportunity-fire", (
+            Guid gameId,
+            DirtsideOpportunityFireRequest request,
+            IDirtsideGameService games) => Results.Ok(games.AnswerOpportunityFire(gameId, request)))
+            .WithName("AnswerDirtsideOpportunityFire")
+            .WithTags("Dirtside")
+            .WithSummary("Gives up a platoon's activation to fire on the mover.")
+            .WithDescription("Opens the responder's frame: fire through the usual route at the mover, then end it. The whole activation goes however little of the platoon fires, and play returns to the mover.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/opportunity-fire/decline", (
+            Guid gameId,
+            DirtsideOpportunityFireRequest request,
+            IDirtsideGameService games) => Results.Ok(games.DeclineOpportunityFire(gameId, request)))
+            .WithName("DeclineDirtsideOpportunityFire")
+            .WithTags("Dirtside")
+            .WithSummary("Lets the mover go, keeping the platoon's activation.")
+            .WithDescription("The move carries on once every eligible platoon has answered.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/confidence-tests", (
+            Guid gameId,
+            DirtsideNerveTestRequest request,
+            IDirtsideGameService games) => Results.Ok(games.TakeConfidenceTest(gameId, request)))
+            .WithName("TakeDirtsideConfidenceTest")
+            .WithTags("Dirtside")
+            .WithSummary("Tests a platoon's nerve the moment something happens to it.")
+            .WithDescription("Not an action and not tied to an activation. When a test is owed is the table's call and the threat level comes off its own table; refused by name for a cybertank or a card that gives no die and leadership.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/reaction-tests", (
+            Guid gameId,
+            DirtsideNerveTestRequest request,
+            IDirtsideGameService games) => Results.Ok(games.TakeReactionTest(gameId, request)))
+            .WithName("TakeDirtsideReactionTest")
+            .WithTags("Dirtside")
+            .WithSummary("Rolls whether the activating platoon has the nerve for the move it owes a test for.")
+            .WithDescription("Failing costs the move and never a confidence level, and bars a second attempt this activation.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/units/advances", (
+            Guid gameId,
+            DirtsideDeclareAdvanceRequest request,
+            IDirtsideGameService games) => Results.Ok(games.DeclareAdvance(gameId, request)))
+            .WithName("DeclareDirtsideAdvance")
+            .WithTags("Dirtside")
+            .WithSummary("Declares whether a platoon's next move takes it toward the enemy or out of cover.")
+            .WithDescription("An eyeball judgement, so it is declared rather than computed. Changing it gives up any nerve already found.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
+        app.MapPost("/api/dirtside/games/{gameId:guid}/units/disorganised", (
+            Guid gameId,
+            DirtsideDisorganisedRequest request,
+            IDirtsideGameService games) => Results.Ok(games.SetDisorganised(gameId, request)))
+            .WithName("SetDirtsideDisorganised")
+            .WithTags("Dirtside")
+            .WithSummary("Declares whether a platoon has come out of integrity.")
+            .WithDescription("Measured at the table, so it is declared rather than computed.")
+            .Produces<DirtsideSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireGameToken<IDirtsideGameService>();
+
         app.MapPost("/api/dirtside/games/{gameId:guid}/activations/current/end", (
             Guid gameId,
             IDirtsideGameService games) => Results.Ok(games.EndActivation(gameId)))

@@ -514,12 +514,12 @@ static string[] ReadDeploymentWarnings(
     if (features.Dirtside)
     {
         warnings.Add(
-            "Dirtside ground combat is enabled. Direct fire, close assault, systems-down recovery and the "
-            + "activation sequence are playable; opportunity fire and indirect fire are not yet reachable "
-            + "from this API.");
+            "Dirtside ground combat is enabled. Direct fire, close assault, opportunity fire, nerve tests, "
+            + "systems-down recovery and the activation sequence are playable; indirect fire is not yet "
+            + "reachable from this API.");
 
-        // Named apart from the row above because it is a different kind of unfinished. Opportunity
-        // fire and indirect fire are work; interception is a question. Everything this app can build
+        // Named apart from the row above because it is a different kind of unfinished. Indirect fire
+        // is work; interception is a question. Everything this app can build
         // for it is built and reachable - the sensor gate, the reach on the profile, the eligibility
         // on every snapshot, and a route that answers - and the four sentences that say what an
         // interception does have to come off a rulebook, because this app ships no rules of its own

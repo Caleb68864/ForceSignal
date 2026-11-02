@@ -61,7 +61,8 @@ internal static class DirtsideRulesProfileMapping
             AtLeastZero(dto.SystemsDownRecoveryRoll, "systems-down recovery roll"),
             AtLeastZero(dto.SystemsDownRecoveryRollWithBackup, "systems-down recovery roll with backup systems"),
             AtLeastZero(dto.AreaDefenceReach, "area-defence reach"),
-            LeadershipRangeMapping.FromDto(dto.LowestLeadershipValue, dto.HighestLeadershipValue));
+            LeadershipRangeMapping.FromDto(dto.LowestLeadershipValue, dto.HighestLeadershipValue),
+            dto.RungsLostUnderFire is { } rungs ? AtLeastZero(rungs, "rungs lost under fire") : null);
     }
 
     /// <summary>Reports a profile back the way it was entered.</summary>
@@ -93,7 +94,8 @@ internal static class DirtsideRulesProfileMapping
             profile.SystemsDownRecoveryRollWithBackup,
             profile.AreaDefenceReach,
             profile.LeadershipValues.Lowest,
-            profile.LeadershipValues.Highest);
+            profile.LeadershipValues.Highest,
+            profile.RungsLostUnderFire);
     }
 
     /// <summary>The die a named key carries, or null when the table has no such row.</summary>

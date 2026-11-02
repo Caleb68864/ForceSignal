@@ -445,6 +445,111 @@ public sealed class DirtsideEndpointTests
         Assert.Equal(9, snapshot!.Profile!.AreaDefenceReach);
     }
 
+    [Fact]
+    public async Task ASignatureNobodyEnteredIsRefusedByNameWhenThePlatoonIsAdded()
+    {
+        // The form opens at zero for "not entered", and past this point the resolver throws on it.
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await Create(client);
+        var platoon = Platoon("alpha", "Alpha Troop", "blue");
+        var blank = platoon with { Elements = [platoon.Elements[0] with { Signature = 0 }] };
+
+        using var response = await client.PostAsJsonAsync($"/api/dirtside/games/{game}/units", blank);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("no signature entered", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheNerveRoutesReachTheGameOverHttp()
+    {
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await TableWithTwoPlatoons(client);
+
+        // A confidence test needs no activation, and the snapshot says it was taken.
+        var tested = await Post(client, $"/api/dirtside/games/{game}/confidence-tests", new DirtsideNerveTestRequest("alpha", 1));
+        Assert.Contains(tested!.Log, entry => entry.Contains("tested its nerve", StringComparison.Ordinal));
+
+        var disorganised = await Post(client, $"/api/dirtside/games/{game}/units/disorganised", new DirtsideDisorganisedRequest("alpha", true));
+        Assert.True(disorganised!.Units.Single(unit => unit.Id == "alpha").IsDisorganised);
+
+        var declared = await Post(client, $"/api/dirtside/games/{game}/units/advances", new DirtsideDeclareAdvanceRequest("bravo", true));
+        Assert.True(declared!.Units.Single(unit => unit.Id == "bravo").NextMoveAdvancesOnTheEnemy);
+
+        // Nothing is owed outside an activation, and the route refuses in the snapshot's words.
+        var bravo = declared.Units.Single(unit => unit.Id == "bravo");
+        Assert.False(bravo.CanTakeReactionTest);
+        using var refused = await client.PostAsJsonAsync($"/api/dirtside/games/{game}/reaction-tests", new DirtsideNerveTestRequest("bravo", 1));
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(bravo.WhyItCannotTakeReactionTest, problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task OpportunityFireCanBeOpenedSeenAndAnsweredOverHttp()
+    {
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await TableWithTwoPlatoons(client);
+        await Post(client, $"/api/dirtside/games/{game}/turns", new { });
+        await Post(client, $"/api/dirtside/games/{game}/turns/current/first-activator", new ChooseDirtsideFirstActivatorRequest("blue", true));
+        await Post(client, $"/api/dirtside/games/{game}/activations", new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var seen = await Post(client, $"/api/dirtside/games/{game}/activations/current/moves",
+            new MoveDirtsideElementRequest("alpha-1", false, ["bravo"]));
+        Assert.Equal("red", seen!.OpportunityWindow!.RespondingSide);
+        Assert.Equal(["bravo"], seen.OpportunityWindow.YetToAnswer);
+
+        var answered = await Post(client, $"/api/dirtside/games/{game}/opportunity-fire", new DirtsideOpportunityFireRequest("bravo"));
+        Assert.Null(answered!.OpportunityWindow);
+        Assert.Equal("bravo", answered.ActivatingUnitId);
+    }
+
+    [Fact]
+    public async Task AFirefightReachesTheGameOverHttpAndTheUnderFireEntryRoundTrips()
+    {
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var request = DirtsideTestProfile.CreateGame("Ridge 9");
+        using var created = await client.PostAsJsonAsync(
+            "/api/dirtside/games",
+            request with { Profile = request.Profile! with { RungsLostUnderFire = 0 } });
+        created.EnsureSuccessStatusCode();
+        var body = await created.Content.ReadFromJsonAsync<JsonElement>();
+        var game = body.GetProperty("gameId").GetGuid();
+        client.DefaultRequestHeaders.Add("X-Game-Token", body.GetProperty("token").GetString());
+        Assert.Equal(0, body.GetProperty("snapshot").GetProperty("profile").GetProperty("rungsLostUnderFire").GetInt32());
+
+        await Post(client, $"/api/dirtside/games/{game}/units", Platoon("alpha", "Alpha Troop", "blue") with { Kind = "DismountedInfantry" });
+        await Post(client, $"/api/dirtside/games/{game}/units", Platoon("bravo", "Bravo Troop", "red") with { Kind = "DismountedInfantry" });
+        await Post(client, $"/api/dirtside/games/{game}/turns", new { });
+        await Post(client, $"/api/dirtside/games/{game}/turns/current/first-activator", new ChooseDirtsideFirstActivatorRequest("blue", true));
+        await Post(client, $"/api/dirtside/games/{game}/activations", new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var fought = await Post(client, $"/api/dirtside/games/{game}/activations/current/firefight",
+            new DirtsideFirefightRequest("Main Gun", ["alpha-1", "alpha-2"], "bravo", "bravo-1", "Close"));
+
+        Assert.Contains(fought!.Log, entry => entry.Contains("opened a firefight", StringComparison.Ordinal));
+        Assert.True(fought.Units.Single(unit => unit.Id == "bravo").IsUnderFire);
+        Assert.True(Element(fought, "alpha", "alpha-2").HasTakenCombatAction);
+    }
+
+    [Fact]
+    public async Task TheNerveRoutesNeedTheGameToken()
+    {
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var game = await Create(client);
+        client.DefaultRequestHeaders.Clear();
+
+        using var response = await client.PostAsJsonAsync($"/api/dirtside/games/{game}/confidence-tests", new DirtsideNerveTestRequest("alpha", 1));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     private static async Task<Guid> TableWithTwoPlatoons(HttpClient client)
     {
         var game = await Create(client);

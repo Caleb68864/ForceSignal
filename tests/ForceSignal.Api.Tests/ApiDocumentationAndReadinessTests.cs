@@ -210,7 +210,7 @@ public sealed class ApiDocumentationAndReadinessTests
 
         Assert.Contains("close assault", warning[..warning.IndexOf(';', StringComparison.Ordinal)], StringComparison.OrdinalIgnoreCase);
         Assert.Contains("systems-down recovery", warning, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("opportunity fire and indirect fire are not yet reachable", warning, StringComparison.Ordinal);
+        Assert.Contains("indirect fire is not yet reachable", warning, StringComparison.Ordinal);
 
         // And it is no longer named on this row at all, rather than named twice in two different
         // tenses - which is how the removed /status route's "playable" came to contradict /ready.

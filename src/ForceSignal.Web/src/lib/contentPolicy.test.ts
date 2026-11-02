@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { defaultShipForm, newOrdnanceDraft } from '../constants.ts';
+import { newElementCard } from './dirtsideCard.ts';
 import { normalizeFleetExportShip } from './fleetIo.ts';
 import { newWeaponMount } from './weapons.ts';
 import { normalizeWeaponMount } from './normalize.ts';
@@ -218,6 +219,26 @@ describe('the StarGrunt screen ships no rules numbers either', () => {
       expect(Object.hasOwn(onTheForms, field)).toBe(true);
       expect(typeof onTheForms[field]).toBe('number');
     }
+  });
+});
+
+describe('a Dirtside element card nobody has read in', () => {
+  // These opened on signature 3, armour 3, movement 12 and three chits, and nothing here looked: the
+  // guard above walks StarGrunt's forms and Dirtside's had never been added to it.
+  it('carries no number off anybody\'s card', () => {
+    const { copies: _copies, weapons, ...element } = newElementCard();
+    const { barrels: _barrels, ...weapon } = weapons[0];
+
+    // Copies and barrels count the things being described, and neither can be nothing.
+    expect(_copies).toBe(1);
+    expect(_barrels).toBe(1);
+
+    const numbers = Object.values({ ...element, ...weapon }).filter((value) => typeof value === 'number');
+    // Reached-the-subject: signature, armour, movement and chits.
+    expect(numbers).toHaveLength(4);
+    expect(numbers.filter((value) => value !== 0)).toEqual([]);
+    expect(element.assaultChits).toBe('');
+    expect(element.killThreshold).toBe('');
   });
 });
 

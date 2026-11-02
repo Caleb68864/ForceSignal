@@ -1,5 +1,6 @@
 using ForceSignal.Modules.Dirtside.Chits;
 using ForceSignal.Modules.Dirtside.Combat;
+using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
@@ -85,6 +86,11 @@ public sealed partial record DirtsideGame
         if (Prepare(command) is not { } shot)
         {
             return GameOutcome.Refused<DirtsideGame>(DescribeBlocker(command));
+        }
+
+        if (WhyAResponderMayNotFireOn(command.Firer, command.Target) is { } wrongTarget)
+        {
+            return GameOutcome.Refused<DirtsideGame>(wrongTarget);
         }
 
         // A row the profile does not carry is refused here rather than inside the resolution, so the
@@ -295,7 +301,23 @@ public sealed partial record DirtsideGame
         }
 
         var onTheMove = command.WillMoveOverHalf ? " Fired on the move: it will cover over half its movement." : string.Empty;
-        return game.WithLog(Describe(firerName, targetName, result) + onTheMove);
+
+        // A gun that failed fired on nobody, so this reads the shots that left it. Foot are marked by
+        // those whatever they did; a crew only by something landing. A cybertank carries no marker.
+        var shotAtThem = result.Hits == 0 || result.Damage.Any(damage => !damage.ShotNeverHappened);
+        var somethingLanded = result.Damage.Any(damage => !damage.ShotNeverHappened
+            && (damage.TargetDestroyed || damage.TargetDamaged));
+        var marked = !target.IsCybertank
+            && !game.Status(command.Target).IsUnderFire
+            && shotAtThem
+            && UnderFire.MarksTarget(target.Kind, somethingLanded);
+        if (marked)
+        {
+            game = game.WithStatus(command.Target, status => status with { IsUnderFire = true });
+        }
+
+        return game.WithLog(
+            Describe(firerName, targetName, result) + onTheMove + (marked ? $" {target.Name} is under fire." : string.Empty));
     }
 
     /// <summary>

@@ -62,16 +62,41 @@ public sealed class InfantryCombatTests
     }
 
     [Fact]
-    public void BeingUnderFireCostsADieStepButNeverFallsOffTheLadder()
+    public void BeingUnderFireCostsTheRungsTheCallerSaysAndNeverFallsOffTheLadder()
     {
+        // Two different costs, because the point is that the size is not the engine's. An invented
+        // pair; a literal here would be read as what the rule is.
         Assert.Equal(
             QualityDie.D8,
-            InfantryCombat.SolveFireEffectiveness(QualityDie.D10, 2, 4, underFire: true).Die);
+            InfantryCombat.SolveFireEffectiveness(QualityDie.D10, 2, 4, rungsLostUnderFire: 1).Die);
+        Assert.Equal(
+            QualityDie.D6,
+            InfantryCombat.SolveFireEffectiveness(QualityDie.D10, 2, 4, rungsLostUnderFire: 2).Die);
 
         // Closed, not open: there is no opponent here to hand the overflow to.
         Assert.Equal(
             QualityDie.D4,
-            InfantryCombat.SolveFireEffectiveness(QualityDie.D4, 2, 4, underFire: true).Die);
+            InfantryCombat.SolveFireEffectiveness(QualityDie.D4, 2, 4, rungsLostUnderFire: 1).Die);
+    }
+
+    [Fact]
+    public void TheSolutionSaysWhetherTheMarkerActuallyCostAnything()
+    {
+        // Zero is an answer: a table whose marker costs no rungs reduces nothing.
+        var free = InfantryCombat.SolveFireEffectiveness(QualityDie.D10, 2, 4, rungsLostUnderFire: 0);
+        Assert.Equal(QualityDie.D10, free.Die);
+        Assert.False(free.WasReducedByUnderFire);
+
+        Assert.True(InfantryCombat.SolveFireEffectiveness(QualityDie.D10, 2, 4, rungsLostUnderFire: 1).WasReducedByUnderFire);
+        Assert.False(InfantryCombat.SolveFireEffectiveness(QualityDie.D10, 2, 4).WasReducedByUnderFire);
+    }
+
+    [Fact]
+    public void ANegativeCostUnderFireIsRefused()
+    {
+        // A negative shift would be a marker that improved the die.
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            InfantryCombat.SolveFireEffectiveness(QualityDie.D8, 2, 4, rungsLostUnderFire: -1));
     }
 
     [Fact]

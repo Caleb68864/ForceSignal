@@ -53,10 +53,10 @@ namespace ForceSignal.Application.Tests;
 /// scanned here. If a rule ever moves down into it, this comment is wrong and the scan should follow.
 /// </para>
 /// <para>
-/// <b>What it cannot see, which is a hole.</b> <c>QualityDie</c> is an enum whose values are face counts, and C# lets an enum take an integer added to it without a
+/// <b>What it cannot see, and what does.</b> <c>QualityDie</c> is an enum whose values are face counts, and C# lets an enum take an integer added to it without a
 /// cast: <c>die + 2</c> is a D10 when <c>die</c> is a D8, and no text scan can tell that expression
-/// from arithmetic on a number without knowing the types. Nothing in either module does it today.
-/// Closing it would need a compiler-backed analyser rather than this file.
+/// from arithmetic on a number without knowing the types. <see cref="EngineDiceCompilerGuardTests"/>
+/// knows them, by compiling both modules.
 /// </para>
 /// </remarks>
 public sealed partial class EngineDiceContentPolicyTests
@@ -168,6 +168,12 @@ public sealed partial class EngineDiceContentPolicyTests
                 (1, "the sender's die is off its record card and the rungs per skipped level are the "
                     + "caller's; that skipping levels makes a message harder, and never impossible, is "
                     + "the procedure"),
+
+            // Was in the other list with a literal one rung; the cost is on the profile now.
+            ["Dirtside/Combat/InfantryCombat.cs:ShiftClosed()"] =
+                (1, "the unit's die is off its command marker and the rungs an Under Fire marker costs "
+                    + "are the players' profile entry; that the marker moves the die down and that the ladder's "
+                    + "bottom holds is the procedure"),
         };
 
     /// <summary>
@@ -203,12 +209,6 @@ public sealed partial class EngineDiceContentPolicyTests
             ["Dirtside/Combat/HitResolution.cs:Shift()"] =
                 (1, "the firer's die walks one rung per range band (the enum values close +1, medium 0, "
                     + "long -1) and one more for moving over half - shift sizes still written in the engine"),
-
-            // `underFire ? ShiftClosed(quality, -1) : quality`: an Under Fire marker costs one rung on
-            // the fire-effectiveness check. No production caller today.
-            ["Dirtside/Combat/InfantryCombat.cs:ShiftClosed()"] =
-                (1, "an Under Fire marker costs one rung on the fire-effectiveness die - a shift size "
-                    + "still written in the engine"),
         };
 
     /// <summary>Both lists together, which is what the scan is actually allowed to find.</summary>
