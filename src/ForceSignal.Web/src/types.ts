@@ -31,7 +31,8 @@ export type Fleet = {
   id: string;
   ownerParticipantId: string;
   name: string;
-  faction?: string;
+  // Null when nobody named one: the server sends the key with no value, not no key.
+  faction?: string | null;
   fleetColor: string;
 };
 export type Ship = {
@@ -76,6 +77,15 @@ export type Ship = {
   workingFireControl: number;
   fighterReach: number;
   repairableSystems: SystemOption[];
+  // How much of each system a needle cut out, rather than ordinary damage. Needled systems are
+  // beyond damage control, which is why the server counts them apart.
+  needledFireControl?: number;
+  needledDrives?: number;
+  needledScreens?: number;
+  needledBays?: number;
+  // The turn a landed fighter group may launch again, and whether its turnaround grounded it.
+  fighterRelaunchTurn?: number;
+  fighterGroundedForGame?: boolean;
 };
 export type WeaponMount = {
   id: string;
@@ -127,6 +137,11 @@ export type MovementResult = {
   endingVelocity: number;
   endingCourse: number;
   segments?: MovementSegment[] | null;
+  // Once movement has resolved: where the ship actually went, start first, with the table edge
+  // already applied. Absent before then, when the result is only the revealed order's plan.
+  path?: TablePoint[] | null;
+  clamped?: boolean;
+  drifted?: boolean;
 };
 /**
  * Where a draft order would take a ship, answered by the server.
@@ -197,6 +212,10 @@ export type FiringResult = {
   weaponKind?: WeaponKind;
   toHitNumber?: number | null;
   isHit?: boolean | null;
+  // The distance the map measured between the ships, beside the range the player declared, and
+  // whether the two disagree by more than a band. The shot stands either way; the table decides.
+  mapRange?: number;
+  rangeDisagreed?: boolean;
 };
 export type MatchLogEntry = {
   sequence: number;

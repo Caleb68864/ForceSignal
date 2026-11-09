@@ -549,12 +549,6 @@ public sealed partial class InMemoryMatchService
             (double)(target.PositionX - attacker.PositionX),
             (double)(target.PositionY - attacker.PositionY));
 
-    private static (decimal X, decimal Y) EstimatePositionFromResult(decimal x, decimal y, MovementResult result, int tableWidth, int tableDepth)
-    {
-        var (path, _) = WalkPath(x, y, result, tableWidth, tableDepth);
-        return (path[^1].X, path[^1].Y);
-    }
-
     /// <summary>
     /// Flies a resolved move leg by leg and records where the ship is at each turn of the helm:
     /// the starting position first, then the end of every segment. Also reports whether the table

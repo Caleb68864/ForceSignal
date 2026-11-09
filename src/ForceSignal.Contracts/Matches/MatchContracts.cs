@@ -515,13 +515,29 @@ public sealed record RevealedOrderDto(
     IReadOnlyList<TurnManeuver>? TurnManeuvers);
 
 /// <summary>Resolved movement result for one ship.</summary>
+/// <param name="ShipId">The ship that moved.</param>
+/// <param name="StartingVelocity">Velocity before the move.</param>
+/// <param name="StartingCourse">Course before the move, on the twelve-point clock.</param>
+/// <param name="EndingVelocity">Velocity after the move.</param>
+/// <param name="EndingCourse">Course after the move.</param>
+/// <param name="Segments">The legs of the move in order, one per change of heading.</param>
+/// <param name="Path">
+/// Where the ship actually went once movement resolved: its starting position, then the end of every
+/// leg, with the table edge already applied. Null before movement has resolved, when the result is
+/// only the revealed order's plan and the ship is still at its start.
+/// </param>
+/// <param name="Clamped">True when the table edge stopped the ship short of its full move.</param>
+/// <param name="Drifted">True when the ship had no order and held its course and speed.</param>
 public sealed record MovementResultDto(
     Guid ShipId,
     int StartingVelocity,
     int StartingCourse,
     int EndingVelocity,
     int EndingCourse,
-    IReadOnlyList<MovementSegment>? Segments);
+    IReadOnlyList<MovementSegment>? Segments,
+    IReadOnlyList<TablePointDto>? Path = null,
+    bool Clamped = false,
+    bool Drifted = false);
 
 /// <summary>Weapon mount profile attached to a ship.</summary>
 /// <param name="Id">Stable mount id.</param>

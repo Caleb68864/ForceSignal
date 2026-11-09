@@ -50,6 +50,13 @@ export function measureCourse(line: { start: TablePoint; end: TablePoint }) {
   return wrapCourse(Math.round(degrees / 30) || 12);
 }
 export function trailPointsForResult(ship: Ship, result: MovementResult): TablePoint[] {
+  // The server's own record of the move as flown. Walking the legs back from the end, below, is
+  // only right when nothing interfered - the table edge stopping a hull short put its start in the
+  // wrong place - and is kept for a result from before movement resolved.
+  if (result.path && result.path.length > 1) {
+    return result.path.map((point) => ({ x: point.x, y: point.y }));
+  }
+
   const end: TablePoint = { x: ship.positionX, y: ship.positionY };
   const segments = result.segments?.length ? result.segments : [{ course: result.endingCourse, distance: result.endingVelocity }];
   const reversed: TablePoint[] = [end];

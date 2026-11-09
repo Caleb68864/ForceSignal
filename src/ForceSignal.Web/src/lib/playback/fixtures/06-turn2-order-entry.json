@@ -1,6 +1,6 @@
 {
-  "matchId": "a9e51ac4-3dc8-4ef4-abe2-2ec4e3f7e507",
-  "joinCode": "RUBY-LOTUS-OSPREY-SIGMA",
+  "matchId": "079745f6-a223-4bae-b5d8-6d3714bd5dfe",
+  "joinCode": "EAGLE-FLARE-FLARE-PULSAR",
   "name": "Playback Fixture",
   "phase": "OrderEntry",
   "turnNumber": 2,
@@ -112,7 +112,7 @@
   "tableDepth": 48,
   "participants": [
     {
-      "id": "e3b25460-66d4-4358-9a00-7aa71a8652cf",
+      "id": "620aeeca-99e4-4c4f-9814-4613aefecad8",
       "displayName": "Blue Admiral",
       "role": "Owner",
       "isReady": true,
@@ -120,7 +120,7 @@
       "ordersComplete": false
     },
     {
-      "id": "319b0f2d-5a70-4e9d-b103-68bc18f394c6",
+      "id": "3004a6a7-0ac3-4a28-8058-0a4114c3581f",
       "displayName": "Red Admiral",
       "role": "Player",
       "isReady": true,
@@ -130,15 +130,15 @@
   ],
   "fleets": [
     {
-      "id": "fb78e61b-1804-400f-a177-87429f27d173",
-      "ownerParticipantId": "e3b25460-66d4-4358-9a00-7aa71a8652cf",
+      "id": "6c9d1873-e2ea-40e0-aeb7-7291d381b3d0",
+      "ownerParticipantId": "620aeeca-99e4-4c4f-9814-4613aefecad8",
       "name": "Blue",
       "faction": null,
       "fleetColor": "#3b82f6"
     },
     {
-      "id": "50ac80c3-e915-4fc5-8ad8-b4a7e42a330a",
-      "ownerParticipantId": "319b0f2d-5a70-4e9d-b103-68bc18f394c6",
+      "id": "b917185a-90b9-48b6-833b-6ab970ca0df6",
+      "ownerParticipantId": "3004a6a7-0ac3-4a28-8058-0a4114c3581f",
       "name": "Red",
       "faction": null,
       "fleetColor": "#ef4444"
@@ -146,8 +146,8 @@
   ],
   "ships": [
     {
-      "id": "71224079-5b17-4941-8eed-804286087a5b",
-      "fleetId": "fb78e61b-1804-400f-a177-87429f27d173",
+      "id": "1eca1d91-12c0-4b52-aa40-211341199c00",
+      "fleetId": "6c9d1873-e2ea-40e0-aeb7-7291d381b3d0",
       "name": "Lance",
       "className": "Cruiser",
       "thrustRating": 6,
@@ -171,7 +171,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "e71a7704-757f-4bbf-8ad3-5843bdb226c5",
+          "id": "ce4c8476-a92d-41fa-86a6-5f73cfb2b0fa",
           "name": "Battery A",
           "attackDice": 6,
           "maxRange": 30,
@@ -190,7 +190,7 @@
           "isNeedleKilled": false
         },
         {
-          "id": "d6b94243-aabd-48dc-851b-dde6f4d4b8c4",
+          "id": "329391f2-a078-4780-945a-83c8f67396ce",
           "name": "Launcher",
           "attackDice": 1,
           "maxRange": 40,
@@ -235,8 +235,8 @@
       "repairableSystems": []
     },
     {
-      "id": "fd7ac68a-42a2-4b89-b70c-d27807d13b60",
-      "fleetId": "fb78e61b-1804-400f-a177-87429f27d173",
+      "id": "377c0921-72a0-421e-831c-0793e16ade92",
+      "fleetId": "6c9d1873-e2ea-40e0-aeb7-7291d381b3d0",
       "name": "Edge Runner",
       "className": "Frigate",
       "thrustRating": 4,
@@ -260,7 +260,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "c1dde2be-57fb-4ee4-8929-3f22ad0ac242",
+          "id": "d24c1c97-b3f3-4f27-a7ce-aa6598866f57",
           "name": "Battery B",
           "attackDice": 2,
           "maxRange": 48,
@@ -305,8 +305,8 @@
       "repairableSystems": []
     },
     {
-      "id": "daf8ca96-ab62-4dbd-a028-450b289e014a",
-      "fleetId": "fb78e61b-1804-400f-a177-87429f27d173",
+      "id": "a76cd708-2c6d-4083-907e-b99075b97980",
+      "fleetId": "6c9d1873-e2ea-40e0-aeb7-7291d381b3d0",
       "name": "Drifter",
       "className": "Escort",
       "thrustRating": 2,
@@ -355,8 +355,8 @@
       "repairableSystems": []
     },
     {
-      "id": "38c0aa2d-ba22-4046-b41d-32a32c2d69de",
-      "fleetId": "fb78e61b-1804-400f-a177-87429f27d173",
+      "id": "3fbf90e5-01a1-4705-9122-b0deffc80ba0",
+      "fleetId": "6c9d1873-e2ea-40e0-aeb7-7291d381b3d0",
       "name": "Hawk Flight",
       "className": "Fighter Group",
       "thrustRating": 6,
@@ -380,7 +380,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "0e46e356-62b0-4173-958b-faebcf7a378b",
+          "id": "bf5f2942-0583-45ed-9374-3be5c1b8bf1d",
           "name": "Fighter Attack",
           "attackDice": 6,
           "maxRange": 6,
@@ -421,8 +421,8 @@
       "repairableSystems": []
     },
     {
-      "id": "001abca3-42a9-4d55-97c4-0cc0228567ad",
-      "fleetId": "50ac80c3-e915-4fc5-8ad8-b4a7e42a330a",
+      "id": "18139e2b-5c22-4cf2-a4f1-9b3ba0c857c7",
+      "fleetId": "b917185a-90b9-48b6-833b-6ab970ca0df6",
       "name": "Bulwark",
       "className": "Cruiser",
       "thrustRating": 4,
@@ -446,7 +446,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "19a1a50d-3dd5-438d-8ddd-d172d927e55d",
+          "id": "aaeeb788-e956-4e2c-adca-50f1537492cb",
           "name": "Battery R",
           "attackDice": 3,
           "maxRange": 30,
@@ -490,16 +490,16 @@
       "fighterReach": 4,
       "repairableSystems": [
         {
-          "key": "mount-19a1a50d-3dd5-438d-8ddd-d172d927e55d",
+          "key": "mount-aaeeb788-e956-4e2c-adca-50f1537492cb",
           "label": "Battery R",
           "kind": "Weapon",
-          "weaponId": "19a1a50d-3dd5-438d-8ddd-d172d927e55d"
+          "weaponId": "aaeeb788-e956-4e2c-adca-50f1537492cb"
         }
       ]
     },
     {
-      "id": "33005788-0341-4db9-ab75-3237be16163d",
-      "fleetId": "50ac80c3-e915-4fc5-8ad8-b4a7e42a330a",
+      "id": "33767486-abef-4ec7-be98-5746f603b111",
+      "fleetId": "b917185a-90b9-48b6-833b-6ab970ca0df6",
       "name": "Picket",
       "className": "Escort",
       "thrustRating": 4,
@@ -546,8 +546,8 @@
       "repairableSystems": []
     },
     {
-      "id": "b135a1fd-cda8-4b61-8052-63d362634d99",
-      "fleetId": "50ac80c3-e915-4fc5-8ad8-b4a7e42a330a",
+      "id": "8aea3c25-1710-4f1f-aced-1ea11f268496",
+      "fleetId": "b917185a-90b9-48b6-833b-6ab970ca0df6",
       "name": "Needler",
       "className": "Destroyer",
       "thrustRating": 4,
@@ -571,7 +571,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "814bf14a-3920-4e96-b48a-0c54615bf661",
+          "id": "bb51547b-335d-4eac-a476-81905dc849df",
           "name": "Needle",
           "attackDice": 1,
           "maxRange": 7,
@@ -616,8 +616,8 @@
       "repairableSystems": []
     },
     {
-      "id": "6e770a64-6898-4b1b-b09d-684b673cf304",
-      "fleetId": "50ac80c3-e915-4fc5-8ad8-b4a7e42a330a",
+      "id": "a5fe3918-e493-430b-ab64-2b31e39e23b9",
+      "fleetId": "b917185a-90b9-48b6-833b-6ab970ca0df6",
       "name": "Wreck",
       "className": "Escort",
       "thrustRating": 4,
@@ -667,57 +667,57 @@
   ],
   "orderStatuses": [
     {
-      "shipId": "71224079-5b17-4941-8eed-804286087a5b",
-      "ownerParticipantId": "e3b25460-66d4-4358-9a00-7aa71a8652cf",
+      "shipId": "1eca1d91-12c0-4b52-aa40-211341199c00",
+      "ownerParticipantId": "620aeeca-99e4-4c4f-9814-4613aefecad8",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "fd7ac68a-42a2-4b89-b70c-d27807d13b60",
-      "ownerParticipantId": "e3b25460-66d4-4358-9a00-7aa71a8652cf",
+      "shipId": "377c0921-72a0-421e-831c-0793e16ade92",
+      "ownerParticipantId": "620aeeca-99e4-4c4f-9814-4613aefecad8",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "daf8ca96-ab62-4dbd-a028-450b289e014a",
-      "ownerParticipantId": "e3b25460-66d4-4358-9a00-7aa71a8652cf",
+      "shipId": "a76cd708-2c6d-4083-907e-b99075b97980",
+      "ownerParticipantId": "620aeeca-99e4-4c4f-9814-4613aefecad8",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "38c0aa2d-ba22-4046-b41d-32a32c2d69de",
-      "ownerParticipantId": "e3b25460-66d4-4358-9a00-7aa71a8652cf",
+      "shipId": "3fbf90e5-01a1-4705-9122-b0deffc80ba0",
+      "ownerParticipantId": "620aeeca-99e4-4c4f-9814-4613aefecad8",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "001abca3-42a9-4d55-97c4-0cc0228567ad",
-      "ownerParticipantId": "319b0f2d-5a70-4e9d-b103-68bc18f394c6",
+      "shipId": "18139e2b-5c22-4cf2-a4f1-9b3ba0c857c7",
+      "ownerParticipantId": "3004a6a7-0ac3-4a28-8058-0a4114c3581f",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "33005788-0341-4db9-ab75-3237be16163d",
-      "ownerParticipantId": "319b0f2d-5a70-4e9d-b103-68bc18f394c6",
+      "shipId": "33767486-abef-4ec7-be98-5746f603b111",
+      "ownerParticipantId": "3004a6a7-0ac3-4a28-8058-0a4114c3581f",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "b135a1fd-cda8-4b61-8052-63d362634d99",
-      "ownerParticipantId": "319b0f2d-5a70-4e9d-b103-68bc18f394c6",
+      "shipId": "8aea3c25-1710-4f1f-aced-1ea11f268496",
+      "ownerParticipantId": "3004a6a7-0ac3-4a28-8058-0a4114c3581f",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "6e770a64-6898-4b1b-b09d-684b673cf304",
-      "ownerParticipantId": "319b0f2d-5a70-4e9d-b103-68bc18f394c6",
+      "shipId": "a5fe3918-e493-430b-ab64-2b31e39e23b9",
+      "ownerParticipantId": "3004a6a7-0ac3-4a28-8058-0a4114c3581f",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
@@ -728,12 +728,12 @@
   "firingResults": [],
   "ordnanceMarkers": [
     {
-      "id": "632bea1d-dfc8-4798-a371-cd9c084c14c3",
-      "ownerParticipantId": "e3b25460-66d4-4358-9a00-7aa71a8652cf",
+      "id": "f5e39648-fe37-46e9-98fe-83e72047849c",
+      "ownerParticipantId": "620aeeca-99e4-4c4f-9814-4613aefecad8",
       "name": "Salvo One",
       "markerType": "Salvo",
-      "sourceShipId": "71224079-5b17-4941-8eed-804286087a5b",
-      "targetShipId": "001abca3-42a9-4d55-97c4-0cc0228567ad",
+      "sourceShipId": "1eca1d91-12c0-4b52-aa40-211341199c00",
+      "targetShipId": "18139e2b-5c22-4cf2-a4f1-9b3ba0c857c7",
       "positionX": 42,
       "positionY": 24,
       "course": 9,
@@ -747,7 +747,7 @@
   "matchLog": [
     {
       "sequence": 1,
-      "timestamp": "2026-11-09T18:32:22.2850796+00:00",
+      "timestamp": "2026-11-09T19:57:16.7946013+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -755,7 +755,7 @@
     },
     {
       "sequence": 2,
-      "timestamp": "2026-11-09T18:32:22.2897875+00:00",
+      "timestamp": "2026-11-09T19:57:16.7988617+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -763,7 +763,7 @@
     },
     {
       "sequence": 3,
-      "timestamp": "2026-11-09T18:32:22.2940766+00:00",
+      "timestamp": "2026-11-09T19:57:16.8030528+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -771,7 +771,7 @@
     },
     {
       "sequence": 4,
-      "timestamp": "2026-11-09T18:32:22.299826+00:00",
+      "timestamp": "2026-11-09T19:57:16.8086177+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -779,7 +779,7 @@
     },
     {
       "sequence": 5,
-      "timestamp": "2026-11-09T18:32:22.3179292+00:00",
+      "timestamp": "2026-11-09T19:57:16.8256208+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -787,7 +787,7 @@
     },
     {
       "sequence": 6,
-      "timestamp": "2026-11-09T18:32:22.3266217+00:00",
+      "timestamp": "2026-11-09T19:57:16.833298+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -795,7 +795,7 @@
     },
     {
       "sequence": 7,
-      "timestamp": "2026-11-09T18:32:22.3267255+00:00",
+      "timestamp": "2026-11-09T19:57:16.8333844+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -803,7 +803,7 @@
     },
     {
       "sequence": 8,
-      "timestamp": "2026-11-09T18:32:22.3278987+00:00",
+      "timestamp": "2026-11-09T19:57:16.8344604+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -811,7 +811,7 @@
     },
     {
       "sequence": 9,
-      "timestamp": "2026-11-09T18:32:22.3279779+00:00",
+      "timestamp": "2026-11-09T19:57:16.8345266+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -819,7 +819,7 @@
     },
     {
       "sequence": 10,
-      "timestamp": "2026-11-09T18:32:22.3280106+00:00",
+      "timestamp": "2026-11-09T19:57:16.8345593+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -827,7 +827,7 @@
     },
     {
       "sequence": 11,
-      "timestamp": "2026-11-09T18:32:22.3299339+00:00",
+      "timestamp": "2026-11-09T19:57:16.8362339+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -835,7 +835,7 @@
     },
     {
       "sequence": 12,
-      "timestamp": "2026-11-09T18:32:22.3300182+00:00",
+      "timestamp": "2026-11-09T19:57:16.8362815+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -843,7 +843,7 @@
     },
     {
       "sequence": 13,
-      "timestamp": "2026-11-09T18:32:22.3338506+00:00",
+      "timestamp": "2026-11-09T19:57:16.8392211+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Phase",
@@ -851,7 +851,7 @@
     },
     {
       "sequence": 14,
-      "timestamp": "2026-11-09T18:32:22.3349063+00:00",
+      "timestamp": "2026-11-09T19:57:16.8401035+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -859,7 +859,7 @@
     },
     {
       "sequence": 15,
-      "timestamp": "2026-11-09T18:32:22.3349167+00:00",
+      "timestamp": "2026-11-09T19:57:16.8401122+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -867,7 +867,7 @@
     },
     {
       "sequence": 16,
-      "timestamp": "2026-11-09T18:32:22.3349189+00:00",
+      "timestamp": "2026-11-09T19:57:16.8401143+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -875,7 +875,7 @@
     },
     {
       "sequence": 17,
-      "timestamp": "2026-11-09T18:32:22.3349211+00:00",
+      "timestamp": "2026-11-09T19:57:16.8401162+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -883,7 +883,7 @@
     },
     {
       "sequence": 18,
-      "timestamp": "2026-11-09T18:32:22.3349255+00:00",
+      "timestamp": "2026-11-09T19:57:16.8401203+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -891,7 +891,7 @@
     },
     {
       "sequence": 19,
-      "timestamp": "2026-11-09T18:32:22.3349279+00:00",
+      "timestamp": "2026-11-09T19:57:16.840122+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -899,7 +899,7 @@
     },
     {
       "sequence": 20,
-      "timestamp": "2026-11-09T18:32:22.3349297+00:00",
+      "timestamp": "2026-11-09T19:57:16.8401237+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -907,7 +907,7 @@
     },
     {
       "sequence": 21,
-      "timestamp": "2026-11-09T18:32:22.3349317+00:00",
+      "timestamp": "2026-11-09T19:57:16.8401255+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -915,7 +915,7 @@
     },
     {
       "sequence": 22,
-      "timestamp": "2026-11-09T18:32:22.4986199+00:00",
+      "timestamp": "2026-11-09T19:57:16.9886582+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Ordnance",
@@ -923,7 +923,7 @@
     },
     {
       "sequence": 23,
-      "timestamp": "2026-11-09T18:32:22.5019154+00:00",
+      "timestamp": "2026-11-09T19:57:16.9921503+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Fighters",
@@ -931,7 +931,7 @@
     },
     {
       "sequence": 24,
-      "timestamp": "2026-11-09T18:32:22.5138703+00:00",
+      "timestamp": "2026-11-09T19:57:17.0047752+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -939,7 +939,7 @@
     },
     {
       "sequence": 25,
-      "timestamp": "2026-11-09T18:32:22.5209124+00:00",
+      "timestamp": "2026-11-09T19:57:17.0117921+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -947,7 +947,7 @@
     },
     {
       "sequence": 26,
-      "timestamp": "2026-11-09T18:32:22.5210342+00:00",
+      "timestamp": "2026-11-09T19:57:17.0119304+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -955,7 +955,7 @@
     },
     {
       "sequence": 27,
-      "timestamp": "2026-11-09T18:32:22.5223872+00:00",
+      "timestamp": "2026-11-09T19:57:17.0133406+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -963,7 +963,7 @@
     },
     {
       "sequence": 28,
-      "timestamp": "2026-11-09T18:32:22.5225067+00:00",
+      "timestamp": "2026-11-09T19:57:17.0134578+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -971,7 +971,7 @@
     },
     {
       "sequence": 29,
-      "timestamp": "2026-11-09T18:32:22.5225691+00:00",
+      "timestamp": "2026-11-09T19:57:17.01352+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -979,7 +979,7 @@
     },
     {
       "sequence": 30,
-      "timestamp": "2026-11-09T18:32:22.5250776+00:00",
+      "timestamp": "2026-11-09T19:57:17.01612+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -987,7 +987,7 @@
     },
     {
       "sequence": 31,
-      "timestamp": "2026-11-09T18:32:22.5251721+00:00",
+      "timestamp": "2026-11-09T19:57:17.016252+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
@@ -995,7 +995,7 @@
     },
     {
       "sequence": 32,
-      "timestamp": "2026-11-09T18:32:22.5251758+00:00",
+      "timestamp": "2026-11-09T19:57:17.0162568+00:00",
       "turnNumber": 1,
       "phase": "OrdersLocked",
       "category": "Phase",
@@ -1003,7 +1003,7 @@
     },
     {
       "sequence": 33,
-      "timestamp": "2026-11-09T18:32:22.5293096+00:00",
+      "timestamp": "2026-11-09T19:57:17.0205772+00:00",
       "turnNumber": 1,
       "phase": "OrdersLocked",
       "category": "Orders",
@@ -1011,7 +1011,7 @@
     },
     {
       "sequence": 34,
-      "timestamp": "2026-11-09T18:32:22.5303683+00:00",
+      "timestamp": "2026-11-09T19:57:17.0217094+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
@@ -1019,7 +1019,7 @@
     },
     {
       "sequence": 35,
-      "timestamp": "2026-11-09T18:32:22.5304319+00:00",
+      "timestamp": "2026-11-09T19:57:17.0217742+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
@@ -1027,7 +1027,7 @@
     },
     {
       "sequence": 36,
-      "timestamp": "2026-11-09T18:32:22.5305613+00:00",
+      "timestamp": "2026-11-09T19:57:17.0219342+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
@@ -1035,7 +1035,7 @@
     },
     {
       "sequence": 37,
-      "timestamp": "2026-11-09T18:32:22.5306486+00:00",
+      "timestamp": "2026-11-09T19:57:17.0220283+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
@@ -1043,7 +1043,7 @@
     },
     {
       "sequence": 38,
-      "timestamp": "2026-11-09T18:32:22.5307105+00:00",
+      "timestamp": "2026-11-09T19:57:17.0220905+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
@@ -1051,7 +1051,7 @@
     },
     {
       "sequence": 39,
-      "timestamp": "2026-11-09T18:32:22.5307114+00:00",
+      "timestamp": "2026-11-09T19:57:17.0220915+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Phase",
@@ -1059,7 +1059,7 @@
     },
     {
       "sequence": 40,
-      "timestamp": "2026-11-09T18:32:22.532679+00:00",
+      "timestamp": "2026-11-09T19:57:17.0241549+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Damage",
@@ -1067,7 +1067,7 @@
     },
     {
       "sequence": 41,
-      "timestamp": "2026-11-09T18:32:22.5422042+00:00",
+      "timestamp": "2026-11-09T19:57:17.0374732+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Movement",
@@ -1075,7 +1075,7 @@
     },
     {
       "sequence": 42,
-      "timestamp": "2026-11-09T18:32:22.5422147+00:00",
+      "timestamp": "2026-11-09T19:57:17.0375257+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Movement",
@@ -1083,7 +1083,7 @@
     },
     {
       "sequence": 43,
-      "timestamp": "2026-11-09T18:32:22.5422197+00:00",
+      "timestamp": "2026-11-09T19:57:17.0375369+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Movement",
@@ -1091,7 +1091,7 @@
     },
     {
       "sequence": 44,
-      "timestamp": "2026-11-09T18:32:22.5422251+00:00",
+      "timestamp": "2026-11-09T19:57:17.0375529+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Movement",
@@ -1099,7 +1099,7 @@
     },
     {
       "sequence": 45,
-      "timestamp": "2026-11-09T18:32:22.5422338+00:00",
+      "timestamp": "2026-11-09T19:57:17.0375721+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Movement",
@@ -1107,7 +1107,7 @@
     },
     {
       "sequence": 46,
-      "timestamp": "2026-11-09T18:32:22.5422356+00:00",
+      "timestamp": "2026-11-09T19:57:17.0375751+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Movement",
@@ -1115,7 +1115,7 @@
     },
     {
       "sequence": 47,
-      "timestamp": "2026-11-09T18:32:22.5428355+00:00",
+      "timestamp": "2026-11-09T19:57:17.0384404+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Movement",
@@ -1123,7 +1123,7 @@
     },
     {
       "sequence": 48,
-      "timestamp": "2026-11-09T18:32:22.5543226+00:00",
+      "timestamp": "2026-11-09T19:57:17.0561994+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Ordnance",
@@ -1131,7 +1131,7 @@
     },
     {
       "sequence": 49,
-      "timestamp": "2026-11-09T18:32:22.5583283+00:00",
+      "timestamp": "2026-11-09T19:57:17.0622497+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Threshold",
@@ -1139,7 +1139,7 @@
     },
     {
       "sequence": 50,
-      "timestamp": "2026-11-09T18:32:22.5583304+00:00",
+      "timestamp": "2026-11-09T19:57:17.0622517+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Phase",
@@ -1147,7 +1147,7 @@
     },
     {
       "sequence": 51,
-      "timestamp": "2026-11-09T18:32:22.565569+00:00",
+      "timestamp": "2026-11-09T19:57:17.0716346+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Initiative",
@@ -1155,7 +1155,7 @@
     },
     {
       "sequence": 52,
-      "timestamp": "2026-11-09T18:32:22.5656505+00:00",
+      "timestamp": "2026-11-09T19:57:17.0717626+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1163,7 +1163,7 @@
     },
     {
       "sequence": 53,
-      "timestamp": "2026-11-09T18:32:22.5656534+00:00",
+      "timestamp": "2026-11-09T19:57:17.0717666+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1171,7 +1171,7 @@
     },
     {
       "sequence": 54,
-      "timestamp": "2026-11-09T18:32:22.5656556+00:00",
+      "timestamp": "2026-11-09T19:57:17.0717698+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1179,7 +1179,7 @@
     },
     {
       "sequence": 55,
-      "timestamp": "2026-11-09T18:32:22.5656576+00:00",
+      "timestamp": "2026-11-09T19:57:17.0717729+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1187,7 +1187,7 @@
     },
     {
       "sequence": 56,
-      "timestamp": "2026-11-09T18:32:22.5656596+00:00",
+      "timestamp": "2026-11-09T19:57:17.071776+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1195,7 +1195,7 @@
     },
     {
       "sequence": 57,
-      "timestamp": "2026-11-09T18:32:22.5656616+00:00",
+      "timestamp": "2026-11-09T19:57:17.0717859+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1203,7 +1203,7 @@
     },
     {
       "sequence": 58,
-      "timestamp": "2026-11-09T18:32:22.5656635+00:00",
+      "timestamp": "2026-11-09T19:57:17.0717892+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1211,7 +1211,7 @@
     },
     {
       "sequence": 59,
-      "timestamp": "2026-11-09T18:32:22.5656656+00:00",
+      "timestamp": "2026-11-09T19:57:17.0717926+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Snapshot",
@@ -1219,7 +1219,7 @@
     },
     {
       "sequence": 60,
-      "timestamp": "2026-11-09T18:32:22.5659989+00:00",
+      "timestamp": "2026-11-09T19:57:17.0721511+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1227,7 +1227,7 @@
     },
     {
       "sequence": 61,
-      "timestamp": "2026-11-09T18:32:22.5660002+00:00",
+      "timestamp": "2026-11-09T19:57:17.0721524+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1235,7 +1235,7 @@
     },
     {
       "sequence": 62,
-      "timestamp": "2026-11-09T18:32:22.5660063+00:00",
+      "timestamp": "2026-11-09T19:57:17.0721535+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1243,7 +1243,7 @@
     },
     {
       "sequence": 63,
-      "timestamp": "2026-11-09T18:32:22.5803228+00:00",
+      "timestamp": "2026-11-09T19:57:17.0894109+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1251,7 +1251,7 @@
     },
     {
       "sequence": 64,
-      "timestamp": "2026-11-09T18:32:22.5851235+00:00",
+      "timestamp": "2026-11-09T19:57:17.0944203+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1259,7 +1259,7 @@
     },
     {
       "sequence": 65,
-      "timestamp": "2026-11-09T18:32:22.5865288+00:00",
+      "timestamp": "2026-11-09T19:57:17.0958552+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1267,7 +1267,7 @@
     },
     {
       "sequence": 66,
-      "timestamp": "2026-11-09T18:32:22.5888913+00:00",
+      "timestamp": "2026-11-09T19:57:17.09824+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Threshold",
@@ -1275,7 +1275,7 @@
     },
     {
       "sequence": 67,
-      "timestamp": "2026-11-09T18:32:22.5911738+00:00",
+      "timestamp": "2026-11-09T19:57:17.1005795+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Initiative",
@@ -1283,7 +1283,7 @@
     },
     {
       "sequence": 68,
-      "timestamp": "2026-11-09T18:32:22.6002677+00:00",
+      "timestamp": "2026-11-09T19:57:17.1100529+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1291,7 +1291,7 @@
     },
     {
       "sequence": 69,
-      "timestamp": "2026-11-09T18:32:22.6004119+00:00",
+      "timestamp": "2026-11-09T19:57:17.1102152+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1299,7 +1299,7 @@
     },
     {
       "sequence": 70,
-      "timestamp": "2026-11-09T18:32:22.6004487+00:00",
+      "timestamp": "2026-11-09T19:57:17.1102534+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Initiative",
@@ -1307,7 +1307,7 @@
     },
     {
       "sequence": 71,
-      "timestamp": "2026-11-09T18:32:22.6012137+00:00",
+      "timestamp": "2026-11-09T19:57:17.1110055+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fighters",
@@ -1315,7 +1315,7 @@
     },
     {
       "sequence": 72,
-      "timestamp": "2026-11-09T18:32:22.6017447+00:00",
+      "timestamp": "2026-11-09T19:57:17.1115714+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "PointDefense",
@@ -1323,7 +1323,7 @@
     },
     {
       "sequence": 73,
-      "timestamp": "2026-11-09T18:32:22.6021865+00:00",
+      "timestamp": "2026-11-09T19:57:17.1120272+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1331,7 +1331,7 @@
     },
     {
       "sequence": 74,
-      "timestamp": "2026-11-09T18:32:22.6022577+00:00",
+      "timestamp": "2026-11-09T19:57:17.1121132+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1339,7 +1339,7 @@
     },
     {
       "sequence": 75,
-      "timestamp": "2026-11-09T18:32:22.6022694+00:00",
+      "timestamp": "2026-11-09T19:57:17.1121266+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Initiative",
@@ -1347,7 +1347,7 @@
     },
     {
       "sequence": 76,
-      "timestamp": "2026-11-09T18:32:22.6023286+00:00",
+      "timestamp": "2026-11-09T19:57:17.1121929+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Fire",
@@ -1355,7 +1355,7 @@
     },
     {
       "sequence": 77,
-      "timestamp": "2026-11-09T18:32:22.6025467+00:00",
+      "timestamp": "2026-11-09T19:57:17.1123592+00:00",
       "turnNumber": 1,
       "phase": "Firing",
       "category": "Initiative",
@@ -1363,7 +1363,7 @@
     },
     {
       "sequence": 78,
-      "timestamp": "2026-11-09T18:32:22.6058696+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158598+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Summary",
@@ -1371,7 +1371,7 @@
     },
     {
       "sequence": 79,
-      "timestamp": "2026-11-09T18:32:22.6058815+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158726+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Summary",
@@ -1379,7 +1379,7 @@
     },
     {
       "sequence": 80,
-      "timestamp": "2026-11-09T18:32:22.6058945+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158879+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1387,7 +1387,7 @@
     },
     {
       "sequence": 81,
-      "timestamp": "2026-11-09T18:32:22.6058968+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158903+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1395,7 +1395,7 @@
     },
     {
       "sequence": 82,
-      "timestamp": "2026-11-09T18:32:22.605899+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158924+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1403,7 +1403,7 @@
     },
     {
       "sequence": 83,
-      "timestamp": "2026-11-09T18:32:22.6059009+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158943+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1411,7 +1411,7 @@
     },
     {
       "sequence": 84,
-      "timestamp": "2026-11-09T18:32:22.605903+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158964+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1419,7 +1419,7 @@
     },
     {
       "sequence": 85,
-      "timestamp": "2026-11-09T18:32:22.6059049+00:00",
+      "timestamp": "2026-11-09T19:57:17.1158983+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1427,7 +1427,7 @@
     },
     {
       "sequence": 86,
-      "timestamp": "2026-11-09T18:32:22.6059068+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159002+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1435,7 +1435,7 @@
     },
     {
       "sequence": 87,
-      "timestamp": "2026-11-09T18:32:22.6059087+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159021+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1443,7 +1443,7 @@
     },
     {
       "sequence": 88,
-      "timestamp": "2026-11-09T18:32:22.6059093+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159026+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Phase",
@@ -1451,7 +1451,7 @@
     },
     {
       "sequence": 89,
-      "timestamp": "2026-11-09T18:32:22.6059113+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159046+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1459,7 +1459,7 @@
     },
     {
       "sequence": 90,
-      "timestamp": "2026-11-09T18:32:22.6059159+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159106+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1467,7 +1467,7 @@
     },
     {
       "sequence": 91,
-      "timestamp": "2026-11-09T18:32:22.6059177+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159123+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1475,7 +1475,7 @@
     },
     {
       "sequence": 92,
-      "timestamp": "2026-11-09T18:32:22.6059194+00:00",
+      "timestamp": "2026-11-09T19:57:17.115914+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1483,7 +1483,7 @@
     },
     {
       "sequence": 93,
-      "timestamp": "2026-11-09T18:32:22.6059213+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159158+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1491,7 +1491,7 @@
     },
     {
       "sequence": 94,
-      "timestamp": "2026-11-09T18:32:22.6059231+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159176+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1499,7 +1499,7 @@
     },
     {
       "sequence": 95,
-      "timestamp": "2026-11-09T18:32:22.6059248+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159193+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1507,7 +1507,7 @@
     },
     {
       "sequence": 96,
-      "timestamp": "2026-11-09T18:32:22.6059266+00:00",
+      "timestamp": "2026-11-09T19:57:17.1159211+00:00",
       "turnNumber": 2,
       "phase": "OrderEntry",
       "category": "Snapshot",

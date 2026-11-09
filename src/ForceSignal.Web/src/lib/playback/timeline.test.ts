@@ -35,7 +35,7 @@ const moves = (snapshot: MatchSnapshot) => buildTurnTimeline(snapshot, snapshot.
 const fires = (snapshot: MatchSnapshot) => buildTurnTimeline(snapshot, snapshot.turnNumber).events.filter((event): event is FireEvent => event.kind === 'fire');
 
 describe('movement events follow the segments exactly', () => {
-  it('has one move per movement result, each leg the course and distance of its segment', () => {
+  it('has one move per movement result, each leg the course of its segment and, unless the edge stopped it, the distance', () => {
     // Reached-the-subject: the fixture really carries multi-leg moves.
     expect(complete.movementResults.length).toBeGreaterThanOrEqual(5);
     expect(complete.movementResults.some((result) => (result.segments?.length ?? 0) > 1)).toBe(true);
@@ -47,13 +47,17 @@ describe('movement events follow the segments exactly', () => {
       const result = complete.movementResults.find((item) => item.shipId === event.shipId);
       const segments = result?.segments ?? [];
       expect(event.legs).toHaveLength(segments.length);
+      // The legs are the server's path as flown, point for point.
+      expect([event.legs[0].from, ...event.legs.map((leg) => leg.to)]).toEqual(result?.path);
       event.legs.forEach((leg, index) => {
-        const radians = segments[index].course * Math.PI / 6;
         expect(leg.course).toBe(segments[index].course);
-        expect(leg.to.x - leg.from.x).toBeCloseTo(Math.sin(radians) * segments[index].distance, 6);
-        expect(leg.to.y - leg.from.y).toBeCloseTo(-Math.cos(radians) * segments[index].distance, 6);
-        if (index > 0) {
-          expect(leg.from).toEqual(event.legs[index - 1].to);
+        const length = Math.hypot(leg.to.x - leg.from.x, leg.to.y - leg.from.y);
+        if (result?.clamped) {
+          // The edge stopped it: never further than ordered.
+          expect(length).toBeLessThanOrEqual(segments[index].distance + 0.001);
+        } else {
+          // The server rounds each step to a thousandth of a unit.
+          expect(length).toBeCloseTo(segments[index].distance, 2);
         }
       });
     }
@@ -66,27 +70,25 @@ describe('movement events follow the segments exactly', () => {
     }
   });
 
-  it('starts the Lance where it was set up, at 18,24', () => {
+  it('starts the Lance exactly where it was set up, at 18,24', () => {
     const lance = moves(complete).find((event) => event.shipId === shipId(complete, 'Lance'));
-    expect(lance?.legs[0].from.x).toBeCloseTo(18, 3);
-    expect(lance?.legs[0].from.y).toBeCloseTo(24, 3);
+    expect(lance?.legs[0].from).toEqual({ x: 18, y: 24 });
   });
 
-  it.fails('starts a hull the table edge stopped where it really started (66,8), not where walking back puts it', () => {
-    // The server clamps at the edge and reports the unclamped distance; nothing on the snapshot
-    // says where the move began. Needs MovementResult.startX/startY (findings, gap M1).
+  it('starts a hull the table edge stopped where it really started (66,8), not where walking back puts it', () => {
+    // Gap M1, closed: the server sends the path as flown, edge and all.
     const runner = moves(complete).find((event) => event.shipId === shipId(complete, 'Edge Runner'));
     expect(runner?.legs[0].from).toEqual({ x: 66, y: 8 });
   });
 
-  it.fails('flies a ship that held course with no order', () => {
-    // A drifting ship moves its full velocity and leaves no movement result (gap M2).
+  it('flies a ship that held course with no order', () => {
+    // Gap M2, closed: a drifting ship has a movement result, marked as drifting.
+    expect(complete.movementResults.find((result) => result.shipId === shipId(complete, 'Drifter'))?.drifted).toBe(true);
     expect(moves(complete).some((event) => event.shipId === shipId(complete, 'Drifter'))).toBe(true);
   });
 
-  it.fails('does not fly a ship whose order was discarded because it was wrecked first', () => {
-    // Its commitment keeps a result for a move it never made, and the Picket - destroyed later, in
-    // firing - looks the same from here (gap M3).
+  it('does not fly a ship whose order was discarded because it was wrecked first', () => {
+    // Gap M3, closed: once movement resolves, a ship whose order was discarded has no result.
     expect(moves(complete).some((event) => event.shipId === shipId(complete, 'Wreck'))).toBe(false);
   });
 });

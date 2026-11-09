@@ -81,9 +81,14 @@ public sealed partial class InMemoryMatchService
         match.Commitments.Values.Where(c => c.IsRevealed && c.RevealedOrder is not null)
             .Select(c => new RevealedOrderDto(c.ShipId, c.RevealedOrder!.VelocityDelta, c.RevealedOrder.TurnSteps, c.RevealedOrder.TurnDirection, c.RevealedOrder.TurnManeuvers))
             .ToArray(),
-        match.Commitments.Values.Where(c => c.Result is not null)
-            .Select(c => new MovementResultDto(c.ShipId, c.Result!.StartingVelocity, c.Result.StartingCourse, c.Result.EndingVelocity, c.Result.EndingCourse, c.Result.Segments))
-            .ToArray(),
+        // Once movement has resolved, the moves as flown; before then, each revealed order's plan.
+        match.ResolvedMoves is { } resolved
+            ? [.. resolved.Select(m => new MovementResultDto(
+                m.ShipId, m.StartingVelocity, m.StartingCourse, m.EndingVelocity, m.EndingCourse, m.Segments,
+                [.. m.Path.Select(point => new TablePointDto(point.X, point.Y))], m.Clamped, m.Drifted))]
+            : match.Commitments.Values.Where(c => c.Result is not null)
+                .Select(c => new MovementResultDto(c.ShipId, c.Result!.StartingVelocity, c.Result.StartingCourse, c.Result.EndingVelocity, c.Result.EndingCourse, c.Result.Segments))
+                .ToArray(),
         match.FiringResults.Select(f => new FiringResultDto(
             f.AttackerShipId,
             f.TargetShipId,

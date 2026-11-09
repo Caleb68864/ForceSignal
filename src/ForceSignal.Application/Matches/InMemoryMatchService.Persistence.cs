@@ -121,7 +121,8 @@ public sealed partial class InMemoryMatchService
             c.ShipId, c.OwnerParticipantId, c.CommitmentHash, c.IsRevealed, c.VerificationFailed, c.RevealedOrder, c.Result))],
         [.. match.FiringResults],
         [.. match.MatchLog.Select(l => new PersistedLogEntry(
-            l.Sequence, l.Timestamp, l.TurnNumber, l.Phase, l.Category, l.Message))]);
+            l.Sequence, l.Timestamp, l.TurnNumber, l.Phase, l.Category, l.Message))],
+        match.ResolvedMoves is { } moves ? [.. moves] : null);
 
     private static PersistedShip ToPersisted(ShipState ship) => new(
         ship.Id, ship.FleetId, ship.Name, ship.ClassName, ship.ThrustRating,
@@ -176,6 +177,8 @@ public sealed partial class InMemoryMatchService
         {
             match.ActivatedShipIds.Add(id);
         }
+
+        match.ResolvedMoves = persisted.ResolvedMoves is { } resolvedMoves ? [.. resolvedMoves] : null;
 
         foreach (var id in persisted.MovedFighterGroupIds)
         {
@@ -313,7 +316,10 @@ public sealed partial class InMemoryMatchService
         IReadOnlyList<PersistedMarker> OrdnanceMarkers,
         IReadOnlyList<PersistedCommitment> Commitments,
         IReadOnlyList<FiringResultState> FiringResults,
-        IReadOnlyList<PersistedLogEntry> MatchLog);
+        IReadOnlyList<PersistedLogEntry> MatchLog,
+        // Absent from a match written before moves were recorded as flown; it then shows the
+        // revealed orders' plans for the rest of that turn, as it always did.
+        IReadOnlyList<ResolvedMoveState>? ResolvedMoves = null);
 
     private sealed record PersistedParticipant(
         Guid Id, string Token, string DisplayName, string Role, bool IsReady, bool IsConnected, bool OrdersComplete);

@@ -4,18 +4,16 @@
  * This is the only place playback learns what happened, and it learns it by reading the snapshot -
  * never by working anything out. Every firing event carries the server's own `FiringResult` object
  * rather than a copy of the fields someone thought the effects would need, so an effect can only
- * ever show a number the server sent. Movement is the one thing drawn from more than a field: the
- * path is the server's segments walked back from where the ship now stands, which is exactly what
- * the resolved-trail overlay has always drawn (`trailPointsForResult`).
+ * ever show a number the server sent. Movement is the server's path as flown - drifting ships
+ * included, edge-clamped hulls from their real start - through `trailPointsForResult`, the same
+ * points the resolved-trail overlay draws.
  *
  * Pure and deterministic: the same snapshot gives the same timeline on every device, because the
  * order is the order of the arrays the server sent and nothing here reads a clock or a die.
  *
- * What it cannot show is listed in docs/visuals/findings-2026-11-09.md: a ship that drifted with no
- * order has no movement result, a ship wrecked before movement keeps one for a move it never made,
- * a hull stopped by the table edge is walked back from the wrong start, and salvo strikes, point
- * defence and threshold checks reach the client only as log sentences. The tests pin each of those
- * as a known failure, so the day the server sends them the tests say so.
+ * What it cannot show yet is listed in docs/visuals/findings-2026-11-09.md: salvo strikes, point
+ * defence and threshold checks reach the client only as log sentences. The tests pin that as a
+ * known failure, so the day the server sends them the tests say so.
  */
 
 import { trailPointsForResult } from '../mapGeometry.ts';

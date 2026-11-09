@@ -75,6 +75,13 @@ public sealed partial class InMemoryMatchService
         public List<OrdnanceMarkerState> OrdnanceMarkers { get; } = [];
         public Dictionary<Guid, OrderCommitmentState> Commitments { get; } = [];
         public List<FiringResultState> FiringResults { get; } = [];
+
+        /// <summary>
+        /// Every ship's move as it was actually flown this turn, set when movement resolves and
+        /// cleared when the turn ends. Null until then, which is how the snapshot tells "nothing has
+        /// moved yet" from "nothing moved".
+        /// </summary>
+        public List<ResolvedMoveState>? ResolvedMoves { get; set; }
         public List<MatchLogEntryState> MatchLog { get; } = [];
         public long Version { get; private set; } = 1;
 
@@ -320,4 +327,26 @@ public sealed partial class InMemoryMatchService
         MovementOrder? RevealedOrder,
         MovementResult? Result);
     private sealed record DamageSnapshot(int Hull, int Armor, int FireControl, int Drive, int Weapons);
+
+    /// <summary>
+    /// One ship's resolved move: the order's plan, the path the table allowed, and how it came about.
+    /// </summary>
+    /// <remarks>
+    /// Kept beside the commitment rather than in it because two kinds of mover have no commitment
+    /// worth the name - a ship with no order drifts, and its move still has to be shown - and one
+    /// commitment has no move: a ship wrecked before movement keeps its revealed order but never flies.
+    /// </remarks>
+    private sealed record ResolvedMoveState(
+        Guid ShipId,
+        int StartingVelocity,
+        int StartingCourse,
+        int EndingVelocity,
+        int EndingCourse,
+        IReadOnlyList<MovementSegment> Segments,
+        IReadOnlyList<ResolvedPoint> Path,
+        bool Clamped,
+        bool Drifted);
+
+    /// <summary>A place on the table a resolved move passed through.</summary>
+    private sealed record ResolvedPoint(decimal X, decimal Y);
 }

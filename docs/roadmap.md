@@ -91,11 +91,11 @@ test it is measured by; the four `it.fails` cases in `src/lib/playback/timeline.
 server gaps, pinned. Not a port: the canvas sits under the existing React map behind
 `?renderer=pixi`, and the server stays the only thing that resolves anything.
 
-- [ ] Movement results carry their start point (edge-clamped hulls are drawn from the wrong place today).
-- [ ] Every ship that moved has a record; a ship wrecked before movement does not.
+- [x] Movement results carry the path as flown, edge and all (`MovementResult.path`, `clamped`).
+- [x] Every ship that moved has a record (drifters marked `drifted`); a ship wrecked before movement does not.
 - [ ] Ordered `turnEvents` on the snapshot: salvo, point defence, thresholds, fighter flights, destruction.
 - [ ] Keep last turn's events through the turn advance, so it can be replayed.
-- [ ] Close the wire/type drift (`mapRange`, `rangeDisagreed`, six ship fields, nullable `faction`).
+- [x] Close the wire/type drift (`mapRange`, `rangeDisagreed`, six ship fields, nullable `faction`); held by `wireContract.test.ts`.
 - [ ] Canvas renderer as a per-device setting with DOM fallback when WebGL fails.
 - [ ] Pan cost: stop re-rendering every ship button per pointer move.
 - [ ] FX for the new event kinds, through the registry and its guard.
