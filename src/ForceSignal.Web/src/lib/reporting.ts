@@ -55,7 +55,7 @@ export function matchLogToMarkdown(snapshot: MatchSnapshot) {
     `Table: ${snapshot.tableWidth} x ${snapshot.tableDepth} inches`,
     `Turn: ${snapshot.turnNumber}`,
     `Phase: ${formatPhase(snapshot.phase)}`,
-    `Profile: ${formatRulesProfile(snapshot.rulesProfileKey)}`,
+    `Profile: ${formatRulesProfile(snapshot.rules)}`,
     '',
     '## Fleets',
     ...snapshot.fleets.map((fleet) => {

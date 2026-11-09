@@ -357,3 +357,145 @@ describe('the realtime link chip', () => {
     await screen.findByText('Link live');
   });
 });
+
+describe('the next-step banner', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    hub.notify = undefined;
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  // The refusal used to land in a muted line at the top of the board while the commands sit at the
+  // bottom of the sidebar, styled exactly like a success - so a refusal looked like nothing at all.
+  it('shows a refused command as an alert in the banner, not as a quiet success', async () => {
+    post.mockImplementation((path) => (path.endsWith('/table')
+      ? Promise.reject(new Error('Only the owner can change the table.'))
+      : Promise.resolve(session('ALPHA'))));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Created room ALPHA.');
+
+    // Table settings live in the setup section, which opens once the match is known to be in setup.
+    await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Fleet setup'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Set Table' }));
+    const banner = await screen.findByTestId('next-step');
+    const alert = await waitFor(() => {
+      const found = banner.querySelector('[role="alert"]');
+      expect(found?.textContent).toContain('Only the owner can change the table.');
+      return found;
+    });
+    expect(alert?.className).toContain('error');
+  });
+
+  it('says what this player should do next and who the table is waiting on', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const ordering: MatchSnapshot = {
+      ...snapshot('ALPHA', 1),
+      phase: 'OrderEntry',
+      participants: [
+        { id: 'participant-ALPHA', displayName: 'Blue', role: 'Owner', isReady: true, isConnected: true, ordersComplete: true },
+        { id: 'participant-RED', displayName: 'Red', role: 'Player', isReady: true, isConnected: true, ordersComplete: false },
+      ],
+    };
+    get.mockResolvedValue(ordering);
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+
+    const banner = await screen.findByTestId('next-step');
+    await waitFor(() => {
+      expect(banner.textContent).toContain('Order entry · Turn 1');
+      expect(banner.textContent).toContain('Your orders are in.');
+      expect(banner.textContent).toContain('Waiting for Red to finish plotting.');
+    });
+  });
+
+  it('clears a message from an earlier phase once the match moves on', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Created room ALPHA.');
+    const notify = await subscribedHandler();
+    // The setup snapshot has to have landed first, or the screen never sees a phase change at all -
+    // only a first snapshot that is already in order entry.
+    await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Fleet setup'));
+
+    // Time passes at the table before the phase turns over.
+    const later = Date.now() + 60_000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    get.mockResolvedValue({ ...snapshot('ALPHA', 2), phase: 'OrderEntry' });
+    notify('match-ALPHA', 2, 'PhaseChanged');
+
+    await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Order entry'));
+    // The clear is a state update from an effect, so it lands a render after the phase does.
+    await waitFor(() => expect(screen.queryByText('Created room ALPHA.')).toBeNull());
+  });
+
+  // A fresh match used to offer Ready, the checklist said "Clear to proceed", and the server then
+  // refused it off-screen. Now the button says why it cannot be pressed.
+  it('does not offer Ready on a fresh match, and says why', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+
+    const ready = await screen.findByRole('button', { name: 'Ready' });
+    expect((ready as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Needs a rules profile first.')).toBeTruthy();
+    // And the commands that mean nothing yet are not on offer at all.
+    expect(screen.queryByRole('button', { name: 'Lock Fleet Orders' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reveal Fleet Orders' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Advance Turn' })).toBeNull();
+  });
+});
+
+describe('joining by invite link', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    window.history.replaceState(null, '', '/');
+    vi.unstubAllGlobals();
+  });
+
+  it('arrives with the room code already filled in', async () => {
+    window.history.replaceState(null, '', '/?join=pivot-violet-seven-indigo');
+    await import('./main.tsx');
+
+    const code = await screen.findByLabelText('Room code');
+    expect((code as HTMLInputElement).value).toBe('PIVOT-VIOLET-SEVEN-INDIGO');
+  });
+
+  it('says what to check when the code is wrong, as an alert beside the field', async () => {
+    const { ApiRequestError } = await import('./lib/api.ts');
+    post.mockRejectedValue(new ApiRequestError('Match was not found.', 404));
+    await import('./main.tsx');
+
+    fireEvent.change(await screen.findByLabelText('Room code'), { target: { value: 'PIVOT-VIOLET' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Join Match' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('There is no room PIVOT-VIOLET');
+    expect(alert.textContent).toContain('four words');
+  });
+});

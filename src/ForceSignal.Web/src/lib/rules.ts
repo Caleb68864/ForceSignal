@@ -10,7 +10,8 @@
 import { arcAbbreviations, arcLabels, firableArcs } from '../constants.ts';
 import { distanceBetweenShips } from './geometry.ts';
 import { normalizeOrdnanceStatus, normalizeShipIconKey } from './normalize.ts';
-import type { DamageState, FiringArc, FiringDraft, FiringSolution, MatchSnapshot, RulesProfile, Ship, ShipForm } from '../types.ts';
+import { gapsIn } from './rulesProfile.ts';
+import { blankRulesProfile, type DamageState, type FiringArc, type FiringDraft, type FiringSolution, type MatchSnapshot, type RulesProfile, type Ship, type ShipForm } from '../types.ts';
 
 export function arcLabel(arc: FiringArc) {
   return arcLabels[arc] ?? arc;
@@ -248,13 +249,32 @@ export function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set
   const statuses = new Map(snapshot.orderStatuses.map((status) => [status.shipId, status]));
   const missingPositions = liveShips.filter((ship) => ship.positionX < 0 || ship.positionY < 0 || ship.positionX > snapshot.tableWidth || ship.positionY > snapshot.tableDepth);
 
+  // Setup used to have no items at all, so a match with no rules profile, no ships and nobody to
+  // play read "Clear to proceed" while the server refused every step forward.
+  if (snapshot.phase === 'FleetSetup') {
+    if (gapsIn(snapshot.rules ?? blankRulesProfile).length > 0) {
+      items.push({ id: 'rules', text: 'No rules profile yet: the host enters it under Rules profile', severity: 'blocker' });
+    }
+
+    if (ownedLiveShips.length === 0) {
+      items.push({ id: 'fleet', text: 'You have no ships yet: add them under Fleet setup', severity: 'blocker' });
+    }
+
+    if (snapshot.participants.length < 2) {
+      items.push({ id: 'opponent', text: 'Nobody else has joined: share the room code', severity: 'blocker' });
+    }
+  }
+
+  // Only this player's ships, and a warning rather than a blocker: an unplotted ship is allowed and
+  // simply holds course, and the opponent's unlocked ships were never this player's to act on.
   if (snapshot.phase === 'OrderEntry') {
-    const unlocked = liveShips.filter((ship) => !statuses.get(ship.id)?.isCommitted);
     const friendlyUnlocked = ownedLiveShips.filter((ship) => !statuses.get(ship.id)?.isCommitted);
     items.push({
       id: 'orders',
-      text: unlocked.length === 0 ? 'All live ships have locked orders' : `${unlocked.length} live ship${unlocked.length === 1 ? '' : 's'} missing orders`,
-      severity: unlocked.length === 0 ? 'ok' : friendlyUnlocked.length > 0 ? 'blocker' : 'warning',
+      text: friendlyUnlocked.length === 0
+        ? 'All your ships have locked orders'
+        : `${friendlyUnlocked.length} of your ships ${friendlyUnlocked.length === 1 ? 'has' : 'have'} no order yet and will hold course and speed`,
+      severity: friendlyUnlocked.length === 0 ? 'ok' : 'warning',
     });
   }
 

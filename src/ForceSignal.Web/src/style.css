@@ -3109,3 +3109,220 @@ small,
     white-space: nowrap;
   }
 }
+
+/* The next-step banner: where the match is, what to do, and what just happened. Sticky so it is
+   in view wherever the page is scrolled; on a phone it sits at the bottom, under the thumb. */
+.next-step {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel)), var(--bg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.next-step.your-move {
+  border-color: var(--amber);
+}
+
+.next-step-guide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.next-step-guide strong {
+  font-size: 1rem;
+}
+
+.next-step.your-move .next-step-guide strong {
+  color: var(--amber);
+}
+
+.next-step-waiting {
+  color: var(--muted);
+}
+
+.next-step-notice:empty {
+  display: none;
+}
+
+.next-step-notice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-left: 3px solid var(--line-hot);
+  background: rgba(71, 241, 255, 0.06);
+}
+
+.next-step-notice.success {
+  border-left-color: var(--green);
+}
+
+.next-step-notice.error {
+  border-left-color: var(--red);
+  background: rgba(255, 95, 114, 0.12);
+  color: #ffd2d8;
+}
+
+.next-step-notice button {
+  min-height: 0;
+  padding: 0 8px;
+}
+
+.auth-status.error {
+  color: #ffd2d8;
+}
+
+@media (max-width: 720px) {
+  .next-step {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    margin: 0;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    font-size: 0.9rem;
+  }
+
+  .next-step-guide strong {
+    font-size: 0.92rem;
+  }
+
+  /* Room for the fixed banner, so it never sits over the last control on the page. */
+  .shell:has(> .next-step) {
+    padding-bottom: 150px;
+  }
+}
+
+.command-blocker {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.map-status-badges .hull {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* What the last shot did, in the firing panel beside the Fire button. */
+.shot-result {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  background: rgba(1, 9, 12, 0.6);
+}
+
+.shot-result.landed {
+  border-left-color: var(--amber);
+}
+
+.shot-result strong {
+  font-size: 1rem;
+}
+
+.shot-dice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.shot-dice .die {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid var(--line-hot);
+  font-weight: 900;
+}
+
+.shot-note {
+  color: var(--muted);
+}
+
+.invite-link {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.next-step-action {
+  margin-left: auto;
+}
+
+.room-chip {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+/* Phone layout. The page ran to six to twelve thousand pixels: every ship card at full height,
+   the map's controls a screen tall before the map, and the commands at the very bottom. */
+@media (max-width: 720px) {
+  .next-step-guide {
+    align-items: center;
+  }
+
+  .next-step-action {
+    flex: 1 0 100%;
+    min-height: 44px;
+    margin-left: 0;
+  }
+
+  /* A ship that is not the one being worked on shows its name and state; Focus opens it. */
+  .ship-card.compact > :not(.ship-header):not(.ship-alerts):not(.card-actions) {
+    display: none;
+  }
+
+  /* The map's controls in two short rows: the contact picker, then the buttons. Pinch zooms, so
+     the zoom slider and its percentage give their row back to the map. */
+  .map-controls {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .map-controls input[type="range"],
+  .map-controls > span {
+    display: none;
+  }
+
+  .map-controls button {
+    min-height: 44px;
+    padding-inline: 2px;
+    font-size: 0.66rem;
+  }
+}
+
+.setup-details > summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: var(--line-hot);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.setup-details[open] > summary {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 720px) {
+  .topbar-status {
+    flex-wrap: wrap;
+  }
+}

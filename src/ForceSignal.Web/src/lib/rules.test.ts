@@ -174,11 +174,22 @@ describe('captureDamageState', () => {
 describe('buildPreTurnChecklist', () => {
   const find = (items: ReturnType<typeof buildPreTurnChecklist>, id: string) => items.find((item) => item.id === id);
 
-  it('blocks on unlocked friendly orders and only warns on the opponent', () => {
+  it('warns about this player\'s own unplotted ships and leaves the opponent\'s alone', () => {
     const board = snapshot({ ships: [ship({ id: 'mine' }), ship({ id: 'theirs', fleetId: 'red' })] });
 
-    expect(find(buildPreTurnChecklist(board, new Set(['mine'])), 'orders')?.severity).toBe('blocker');
-    expect(find(buildPreTurnChecklist(board, new Set()), 'orders')?.severity).toBe('warning');
+    // A warning, not a blocker: an unplotted ship is allowed and holds course.
+    expect(find(buildPreTurnChecklist(board, new Set(['mine'])), 'orders')).toMatchObject({
+      severity: 'warning',
+      text: '1 of your ships has no order yet and will hold course and speed',
+    });
+    // The opponent's unlocked ship is not this player's to act on.
+    expect(find(buildPreTurnChecklist(board, new Set()), 'orders')?.severity).toBe('ok');
+  });
+
+  it('does not call a fresh match clear to proceed', () => {
+    const board = snapshot({ phase: 'FleetSetup', ships: [] });
+    const blockers = buildPreTurnChecklist(board, new Set()).filter((item) => item.severity === 'blocker').map((item) => item.id);
+    expect(blockers).toEqual(expect.arrayContaining(['rules', 'fleet']));
   });
 
   it('is clear once every live ship has locked', () => {
