@@ -57,7 +57,7 @@ import type {
 import { blankRulesProfile } from './types.ts';
 import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
 import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
-import { NextStepBanner, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
+import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { gapsIn } from './lib/rulesProfile.ts';
 
@@ -1315,6 +1315,29 @@ function App() {
     reportError(error);
   }
 
+  // On a phone the tabs sit well above the map, and switching to it left the table below the fold
+  // under the banner. Bring the map up to the top of the screen when it is chosen.
+  const previousViewRef = useRef(activeView);
+  useEffect(() => {
+    if (previousViewRef.current !== activeView && activeView === 'map' && window.matchMedia?.('(max-width: 720px)').matches) {
+      document.querySelector('.play-map-view')?.scrollIntoView?.({ block: 'start' });
+    }
+
+    previousViewRef.current = activeView;
+  }, [activeView]);
+
+  // The primary match command, repeated in the banner. On a phone the sidebar that holds the
+  // commands is thousands of pixels down the page; the banner is always on screen.
+  const bannerAction: BannerAction | null = commands.ready === 'primary'
+    ? { label: 'Ready', onClick: () => run(markReady), disabled: busy }
+    : commands.lock === 'primary'
+      ? { label: 'Lock Fleet Orders', onClick: () => run(lockOwnedOrders), disabled: busy }
+      : commands.reveal === 'primary'
+        ? { label: 'Reveal Fleet Orders', onClick: () => run(revealOwnedOrders), disabled: busy }
+        : commands.advance === 'primary'
+          ? { label: 'Advance Turn', onClick: () => run(advanceTurn), disabled: busy }
+          : null;
+
   // A message is about the phase it was said in. Once the match moves on it is old news, and a
   // "Ship added to fleet." still showing in the firing phase reads as something that just happened.
   // The exception is the message from the action that moved the phase on - "Locked 2 orders" lands
@@ -1363,6 +1386,16 @@ function App() {
                   ? `${formatPhase(snapshot.phase)} · Turn ${snapshot.turnNumber}${snapshot.tableWidth ? ` · ${snapshot.tableWidth}x${snapshot.tableDepth}` : ''}`
                   : 'No match'}
           </strong>
+          {session && gameMode === 'fullthrust' && !publicMode ? (
+            // The room code lives at the foot of the sidebar, which on a phone is the foot of a very
+            // long page. This keeps it one tap from anywhere.
+            <button
+              className="ghost room-chip"
+              type="button"
+              aria-label={`Room ${snapshot?.joinCode ?? session.joinCode}: show the code and invite link`}
+              onClick={() => document.querySelector('.room-code')?.scrollIntoView({ block: 'center' })}
+            >Room {snapshot?.joinCode ?? session.joinCode}</button>
+          ) : null}
           {session && gameMode === 'fullthrust' ? (
             <span className={`link-state ${connectionState}`} title={`Realtime link ${connectionState}`}>
               {connectionState === 'live' ? 'Link live' : connectionState === 'reconnecting' ? 'Reconnecting' : 'Link lost'}
@@ -1397,6 +1430,7 @@ function App() {
           step={snapshot ? nextStep(snapshot, session.participantId) : null}
           notice={notice}
           onDismiss={dismissNotice}
+          action={bannerAction}
         />
       ) : null}
 
@@ -1501,50 +1535,56 @@ function App() {
               <span className="label">You</span>
               <p>{me?.displayName ?? displayName} · {me?.role ?? 'Player'}</p>
             </div>
-            <div className="table-setup">
-              <span className="label">Table</span>
-              <div className="table-fields">
-                <label>
-                  Width
-                  <input type="number" min="24" max="144" value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: wholeNumberFrom(event.target.value, 24, 24, 144) })} />
-                </label>
-                <label>
-                  Depth
-                  <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
-                </label>
-              </div>
-              <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
-            </div>
-            <RulesProfileEditor
-              value={snapshot?.rules ?? blankRulesProfile}
-              editable={snapshot?.phase === 'FleetSetup'}
-              onApply={(rules) => {
-                if (snapshot?.phase === 'FleetSetup') {
-                  run(() => updateRulesProfile(rules));
-                }
-              }}
-            />
-            <div className="table-setup">
-              <span className="label">Points per player</span>
-              <div className="table-fields">
-                <label>
-                  Limit
-                  <input
-                    type="number"
-                    min="0"
-                    max="99999"
-                    value={pointsLimitForm}
-                    onChange={(event) => setPointsLimitForm(event.target.value)}
-                  />
-                </label>
-                <div className="points-readout">
-                  <strong>{shipsPoints(ownedShips)}</strong>
-                  <small>{(snapshot?.pointsLimit ?? 0) > 0 ? `of ${snapshot?.pointsLimit}` : 'no limit'}</small>
+            {/* Table, rules and points are settled in fleet setup. After that they are a long way
+                to scroll past on a phone to reach the commands, so they fold away - still there to
+                read, and open again on a tap. Keyed on the phase so it opens itself for setup. */}
+            <details className="setup-details" key={snapshot?.phase === 'FleetSetup' ? 'setup' : 'play'} open={snapshot?.phase === 'FleetSetup'}>
+              <summary>Table, rules and points</summary>
+              <div className="table-setup">
+                <span className="label">Table</span>
+                <div className="table-fields">
+                  <label>
+                    Width
+                    <input type="number" min="24" max="144" value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: wholeNumberFrom(event.target.value, 24, 24, 144) })} />
+                  </label>
+                  <label>
+                    Depth
+                    <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
+                  </label>
                 </div>
+                <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
               </div>
-              <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button>
-              <p className="privacy">0 means unlimited. Only the owner can change it, which is how both sides agree to a mismatch.</p>
-            </div>
+              <RulesProfileEditor
+                value={snapshot?.rules ?? blankRulesProfile}
+                editable={snapshot?.phase === 'FleetSetup'}
+                onApply={(rules) => {
+                  if (snapshot?.phase === 'FleetSetup') {
+                    run(() => updateRulesProfile(rules));
+                  }
+                }}
+              />
+              <div className="table-setup">
+                <span className="label">Points per player</span>
+                <div className="table-fields">
+                  <label>
+                    Limit
+                    <input
+                      type="number"
+                      min="0"
+                      max="99999"
+                      value={pointsLimitForm}
+                      onChange={(event) => setPointsLimitForm(event.target.value)}
+                    />
+                  </label>
+                  <div className="points-readout">
+                    <strong>{shipsPoints(ownedShips)}</strong>
+                    <small>{(snapshot?.pointsLimit ?? 0) > 0 ? `of ${snapshot?.pointsLimit}` : 'no limit'}</small>
+                  </div>
+                </div>
+                <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button>
+                <p className="privacy">0 means unlimited. Only the owner can change it, which is how both sides agree to a mismatch.</p>
+              </div>
+            </details>
             <div className="side-actions">
               <span className="label">Match commands</span>
               {/* Only what this phase and this seat allow, with the one thing to press now as the

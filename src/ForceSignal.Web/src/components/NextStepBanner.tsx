@@ -17,7 +17,10 @@ export type Notice = { text: string; tone: NoticeTone; key: number; at: number }
 
 const successLingerMs = 8000;
 
-export function NextStepBanner({ step, notice, onDismiss }: { step: NextStep | null; notice: Notice; onDismiss: () => void }) {
+/** The one match command to press now, carried in the banner so it is always under the thumb. */
+export type BannerAction = { label: string; onClick: () => void; disabled: boolean };
+
+export function NextStepBanner({ step, notice, onDismiss, action }: { step: NextStep | null; notice: Notice; onDismiss: () => void; action?: BannerAction | null }) {
   useEffect(() => {
     if (!notice.text || notice.tone === 'error') {
       return undefined;
@@ -34,6 +37,9 @@ export function NextStepBanner({ step, notice, onDismiss }: { step: NextStep | n
           <span className="label">{step.heading}</span>
           {step.you ? <strong>{step.you}</strong> : null}
           {step.waiting ? <span className="next-step-waiting">{step.waiting}</span> : null}
+          {action ? (
+            <button type="button" className="next-step-action" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>
+          ) : null}
         </div>
       ) : null}
       {/* Always mounted, so a screen reader is already listening when the first message lands. */}

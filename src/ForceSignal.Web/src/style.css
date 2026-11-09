@@ -3260,3 +3260,69 @@ small,
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+.next-step-action {
+  margin-left: auto;
+}
+
+.room-chip {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+/* Phone layout. The page ran to six to twelve thousand pixels: every ship card at full height,
+   the map's controls a screen tall before the map, and the commands at the very bottom. */
+@media (max-width: 720px) {
+  .next-step-guide {
+    align-items: center;
+  }
+
+  .next-step-action {
+    flex: 1 0 100%;
+    min-height: 44px;
+    margin-left: 0;
+  }
+
+  /* A ship that is not the one being worked on shows its name and state; Focus opens it. */
+  .ship-card.compact > :not(.ship-header):not(.ship-alerts):not(.card-actions) {
+    display: none;
+  }
+
+  /* The map's controls in two short rows: the contact picker, then the buttons. Pinch zooms, so
+     the zoom slider and its percentage give their row back to the map. */
+  .map-controls {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .map-controls input[type="range"],
+  .map-controls > span {
+    display: none;
+  }
+
+  .map-controls button {
+    min-height: 44px;
+    padding-inline: 2px;
+    font-size: 0.66rem;
+  }
+}
+
+.setup-details > summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: var(--line-hot);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.setup-details[open] > summary {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 720px) {
+  .topbar-status {
+    flex-wrap: wrap;
+  }
+}

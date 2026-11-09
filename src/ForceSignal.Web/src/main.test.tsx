@@ -386,6 +386,8 @@ describe('the next-step banner', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
     await screen.findByText('Created room ALPHA.');
 
+    // Table settings live in the setup section, which opens once the match is known to be in setup.
+    await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Fleet setup'));
     fireEvent.click(await screen.findByRole('button', { name: 'Set Table' }));
     const banner = await screen.findByTestId('next-step');
     const alert = await waitFor(() => {
