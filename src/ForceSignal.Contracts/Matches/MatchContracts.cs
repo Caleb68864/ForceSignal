@@ -478,6 +478,7 @@ public sealed record MatchSnapshotDto(
 /// <param name="HullApplied">Hull boxes crossed off.</param>
 /// <param name="Row">For a threshold check, the hull row completed.</param>
 /// <param name="LostSystems">Systems knocked out, by name.</param>
+/// <param name="MarkerStatus">For ordnance, the marker's status after the event: Active or Expired.</param>
 public sealed record TurnEventDto(
     long Sequence,
     int TurnNumber,
@@ -498,7 +499,8 @@ public sealed record TurnEventDto(
     int? ArmorApplied = null,
     int? HullApplied = null,
     int? Row = null,
-    IReadOnlyList<string>? LostSystems = null);
+    IReadOnlyList<string>? LostSystems = null,
+    string? MarkerStatus = null);
 
 /// <summary>The kinds of <see cref="TurnEventDto"/>, and the fields each one fills.</summary>
 public static class TurnEventKinds
@@ -530,9 +532,15 @@ public static class TurnEventKinds
     /// <summary>A ship was destroyed: target, to. Its sequence is the log entry of the event that did it.</summary>
     public const string ShipDestroyed = "ShipDestroyed";
 
+    /// <summary>An ordnance marker was placed: marker, actor (launcher), target, from (launcher), to (marker), marker status.</summary>
+    public const string OrdnanceLaunched = "OrdnanceLaunched";
+
+    /// <summary>An ordnance marker flew at the end of the turn: marker, from, to, marker status (Expired when its endurance ran out).</summary>
+    public const string OrdnanceMoved = "OrdnanceMoved";
+
     /// <summary>Every kind, for a client's guard that it can show each one.</summary>
     public static IReadOnlyList<string> All { get; } =
-        [FighterFlew, MovementResolved, SalvoStruck, SalvoWasted, PointDefenseFired, FighterStrikeStopped, WeaponFired, ThresholdChecked, ShipDestroyed];
+        [FighterFlew, MovementResolved, SalvoStruck, SalvoWasted, PointDefenseFired, FighterStrikeStopped, WeaponFired, ThresholdChecked, ShipDestroyed, OrdnanceLaunched, OrdnanceMoved];
 }
 
 /// <summary>

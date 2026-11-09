@@ -1,6 +1,6 @@
 {
-  "matchId": "4bf847b8-dd2e-4a91-8fbe-7cb796ae94e0",
-  "joinCode": "PIVOT-TOPAZ-JUNO-BEACON",
+  "matchId": "02382103-4479-4565-8479-8e50d2aeec98",
+  "joinCode": "LOTUS-FALCON-LANCE-MERIDIAN",
   "name": "Playback Fixture",
   "phase": "OrderEntry",
   "turnNumber": 1,
@@ -112,7 +112,7 @@
   "tableDepth": 48,
   "participants": [
     {
-      "id": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "id": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "displayName": "Blue Admiral",
       "role": "Owner",
       "isReady": true,
@@ -120,7 +120,7 @@
       "ordersComplete": false
     },
     {
-      "id": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "id": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "displayName": "Red Admiral",
       "role": "Player",
       "isReady": true,
@@ -130,15 +130,15 @@
   ],
   "fleets": [
     {
-      "id": "2967ed50-144b-425f-9486-43042ebaaac5",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "id": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "name": "Blue",
       "faction": null,
       "fleetColor": "#3b82f6"
     },
     {
-      "id": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "id": "b6314155-8090-48da-a667-297459ff8860",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "name": "Red",
       "faction": null,
       "fleetColor": "#ef4444"
@@ -146,8 +146,8 @@
   ],
   "ships": [
     {
-      "id": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Lance",
       "className": "Cruiser",
       "thrustRating": 6,
@@ -171,7 +171,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "aeabe1fd-79c2-4724-b8d2-407e0adcf289",
+          "id": "1f49b5d2-33d3-463f-945d-0ed5c4292188",
           "name": "Battery A",
           "attackDice": 6,
           "maxRange": 30,
@@ -190,7 +190,7 @@
           "isNeedleKilled": false
         },
         {
-          "id": "63f02493-d152-404e-b781-740a5034d184",
+          "id": "957ea561-c1d5-4985-8b36-f47ca50fdcb9",
           "name": "Launcher",
           "attackDice": 1,
           "maxRange": 40,
@@ -235,8 +235,8 @@
       "repairableSystems": []
     },
     {
-      "id": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "a36af3dc-44b9-4715-97e6-b118cd1f7d7d",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Edge Runner",
       "className": "Frigate",
       "thrustRating": 4,
@@ -260,7 +260,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "9342eb7d-0ec1-4680-89c5-df88f91d83eb",
+          "id": "2b7e71c4-2149-470b-8229-50788054a09d",
           "name": "Battery B",
           "attackDice": 2,
           "maxRange": 48,
@@ -305,8 +305,8 @@
       "repairableSystems": []
     },
     {
-      "id": "8b99f8aa-750f-4db6-8dfe-534b05144978",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "081ae75e-9015-46d5-b8b3-a50d00e298df",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Drifter",
       "className": "Escort",
       "thrustRating": 2,
@@ -355,8 +355,8 @@
       "repairableSystems": []
     },
     {
-      "id": "c35365a7-fbc7-499a-8a1b-65e2c9cd73e2",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "404f4b33-db1c-431d-80eb-a189a8fd8eb6",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Hawk Flight",
       "className": "Fighter Group",
       "thrustRating": 6,
@@ -380,7 +380,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "b13a44fe-dc8f-4c94-a705-be8294135811",
+          "id": "9bc5364d-ec41-4ec2-95ba-7198d3030411",
           "name": "Fighter Attack",
           "attackDice": 6,
           "maxRange": 6,
@@ -421,8 +421,8 @@
       "repairableSystems": []
     },
     {
-      "id": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Bulwark",
       "className": "Cruiser",
       "thrustRating": 4,
@@ -446,7 +446,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "31e4d2f6-082e-4871-be0e-3996e8f5de46",
+          "id": "5d855780-3b62-49c1-be7d-bb21c592c7ab",
           "name": "Battery R",
           "attackDice": 3,
           "maxRange": 30,
@@ -491,8 +491,8 @@
       "repairableSystems": []
     },
     {
-      "id": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "9884d7af-1d28-44f9-9055-dee96d453f5a",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Picket",
       "className": "Escort",
       "thrustRating": 4,
@@ -539,8 +539,8 @@
       "repairableSystems": []
     },
     {
-      "id": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "f0f2775c-a269-49cf-a09b-5d7a8105a78b",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Needler",
       "className": "Destroyer",
       "thrustRating": 4,
@@ -564,7 +564,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "b1d3cba0-222b-4891-a1e7-41d872ffd4a1",
+          "id": "f49ace08-8096-4049-b390-3342780ffe21",
           "name": "Needle",
           "attackDice": 1,
           "maxRange": 7,
@@ -609,8 +609,8 @@
       "repairableSystems": []
     },
     {
-      "id": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "5851e981-a2ad-43fa-a85c-30292e690575",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Wreck",
       "className": "Escort",
       "thrustRating": 4,
@@ -660,57 +660,57 @@
   ],
   "orderStatuses": [
     {
-      "shipId": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "a36af3dc-44b9-4715-97e6-b118cd1f7d7d",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "8b99f8aa-750f-4db6-8dfe-534b05144978",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "081ae75e-9015-46d5-b8b3-a50d00e298df",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "c35365a7-fbc7-499a-8a1b-65e2c9cd73e2",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "404f4b33-db1c-431d-80eb-a189a8fd8eb6",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "9884d7af-1d28-44f9-9055-dee96d453f5a",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "f0f2775c-a269-49cf-a09b-5d7a8105a78b",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "5851e981-a2ad-43fa-a85c-30292e690575",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
@@ -723,7 +723,7 @@
   "matchLog": [
     {
       "sequence": 1,
-      "timestamp": "2026-11-09T20:05:45.255502+00:00",
+      "timestamp": "2026-11-09T21:43:54.2728346+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -731,7 +731,7 @@
     },
     {
       "sequence": 2,
-      "timestamp": "2026-11-09T20:05:45.2594452+00:00",
+      "timestamp": "2026-11-09T21:43:54.2770029+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -739,7 +739,7 @@
     },
     {
       "sequence": 3,
-      "timestamp": "2026-11-09T20:05:45.263705+00:00",
+      "timestamp": "2026-11-09T21:43:54.2811615+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -747,7 +747,7 @@
     },
     {
       "sequence": 4,
-      "timestamp": "2026-11-09T20:05:45.2708959+00:00",
+      "timestamp": "2026-11-09T21:43:54.2883725+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -755,7 +755,7 @@
     },
     {
       "sequence": 5,
-      "timestamp": "2026-11-09T20:05:45.2885538+00:00",
+      "timestamp": "2026-11-09T21:43:54.3059744+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -763,7 +763,7 @@
     },
     {
       "sequence": 6,
-      "timestamp": "2026-11-09T20:05:45.2965265+00:00",
+      "timestamp": "2026-11-09T21:43:54.3138306+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -771,7 +771,7 @@
     },
     {
       "sequence": 7,
-      "timestamp": "2026-11-09T20:05:45.2966308+00:00",
+      "timestamp": "2026-11-09T21:43:54.3139478+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -779,7 +779,7 @@
     },
     {
       "sequence": 8,
-      "timestamp": "2026-11-09T20:05:45.2977335+00:00",
+      "timestamp": "2026-11-09T21:43:54.3150904+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -787,7 +787,7 @@
     },
     {
       "sequence": 9,
-      "timestamp": "2026-11-09T20:05:45.2978191+00:00",
+      "timestamp": "2026-11-09T21:43:54.3151658+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -795,7 +795,7 @@
     },
     {
       "sequence": 10,
-      "timestamp": "2026-11-09T20:05:45.2978543+00:00",
+      "timestamp": "2026-11-09T21:43:54.3152006+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -803,7 +803,7 @@
     },
     {
       "sequence": 11,
-      "timestamp": "2026-11-09T20:05:45.2995121+00:00",
+      "timestamp": "2026-11-09T21:43:54.3167615+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -811,7 +811,7 @@
     },
     {
       "sequence": 12,
-      "timestamp": "2026-11-09T20:05:45.2995589+00:00",
+      "timestamp": "2026-11-09T21:43:54.3168063+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -819,7 +819,7 @@
     },
     {
       "sequence": 13,
-      "timestamp": "2026-11-09T20:05:45.3027019+00:00",
+      "timestamp": "2026-11-09T21:43:54.3197755+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Phase",
@@ -827,7 +827,7 @@
     },
     {
       "sequence": 14,
-      "timestamp": "2026-11-09T20:05:45.303567+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206556+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -835,7 +835,7 @@
     },
     {
       "sequence": 15,
-      "timestamp": "2026-11-09T20:05:45.3035751+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206651+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -843,7 +843,7 @@
     },
     {
       "sequence": 16,
-      "timestamp": "2026-11-09T20:05:45.3035773+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206673+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -851,7 +851,7 @@
     },
     {
       "sequence": 17,
-      "timestamp": "2026-11-09T20:05:45.3035792+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206692+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -859,7 +859,7 @@
     },
     {
       "sequence": 18,
-      "timestamp": "2026-11-09T20:05:45.3035872+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206765+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -867,7 +867,7 @@
     },
     {
       "sequence": 19,
-      "timestamp": "2026-11-09T20:05:45.3035891+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206784+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -875,7 +875,7 @@
     },
     {
       "sequence": 20,
-      "timestamp": "2026-11-09T20:05:45.3035908+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206803+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -883,7 +883,7 @@
     },
     {
       "sequence": 21,
-      "timestamp": "2026-11-09T20:05:45.3035926+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206822+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",

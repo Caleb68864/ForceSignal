@@ -385,6 +385,7 @@ public sealed partial class InMemoryMatchService
         public int? HullApplied { get; init; }
         public int? Row { get; init; }
         public IReadOnlyList<string>? LostSystems { get; init; }
+        public string? MarkerStatus { get; init; }
     }
 
     /// <summary>A finished turn's moves, shots and events, kept for one more turn.</summary>

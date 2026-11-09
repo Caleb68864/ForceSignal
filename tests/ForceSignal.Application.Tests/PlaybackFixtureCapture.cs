@@ -89,6 +89,10 @@ public sealed class PlaybackFixtureCapture
         service.CreateOrdnanceMarker(owner.MatchId, new CreateOrdnanceMarkerRequest(
             owner.ParticipantToken, "Salvo One", "Salvo", lance, bulwark, 42, 24, Course: 9, Speed: 0, EnduranceRemaining: 1, AttackDice: 0, MaxRange: 24));
 
+        // A drone that flies at the end of the turn, so the next turn's record carries its move.
+        service.CreateOrdnanceMarker(owner.MatchId, new CreateOrdnanceMarkerRequest(
+            owner.ParticipantToken, "Drone", "Drone", lance, null, 8, 40, Course: 3, Speed: 6, EnduranceRemaining: 2, AttackDice: 0, MaxRange: 0));
+
         // The flight flies before movement resolves and leaves no movement record behind.
         service.MoveFighterGroup(owner.MatchId, new MoveFighterGroupRequest(owner.ParticipantToken, hawk, 38, 26));
 

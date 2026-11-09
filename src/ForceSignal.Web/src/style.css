@@ -3437,3 +3437,20 @@ small,
     font-size: 0.66rem;
   }
 }
+
+/* Ordnance glides to where the server moved it rather than jumping there - on both maps. Positions
+   are percentages of the table, so a pan or zoom changes nothing here and never animates. */
+.ordnance-marker {
+  transition: left 900ms ease-in-out, top 900ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ordnance-marker {
+    transition: none;
+  }
+}
+
+/* While a turn plays on the animated map, the canvas draws the ordnance where the playback has it. */
+.table-map.pixi-renderer[data-playback="running"] .ordnance-marker {
+  opacity: 0;
+}

@@ -147,7 +147,7 @@ public sealed partial class InMemoryMatchService
         e.Sequence, e.TurnNumber, e.Kind, e.ActorShipId, e.TargetShipId, e.MarkerId, e.FiringResultIndex,
         e.From is { } from ? ToDto(from) : null,
         e.To is { } to ? ToDto(to) : null,
-        e.Rolls, e.Kills, e.Launched, e.Arriving, e.Surviving, e.DamageRolls, e.Damage, e.ArmorApplied, e.HullApplied, e.Row, e.LostSystems);
+        e.Rolls, e.Kills, e.Launched, e.Arriving, e.Surviving, e.DamageRolls, e.Damage, e.ArmorApplied, e.HullApplied, e.Row, e.LostSystems, e.MarkerStatus);
     /// <summary>Rows this match's layer draws for one ship's damage track.</summary>
     private static int RowCountFor(MatchState match, ShipState ship) =>
         FullThrustLightThresholdRules.RowCountFor(match.Rules, ShipClassBands.FromIconKey(ship.IconKey));

@@ -55,7 +55,7 @@ const movementKeys: Keys<MovementResult> = {
 const turnEventKeys: Keys<TurnEvent> = {
   sequence: true, turnNumber: true, kind: true, actorShipId: true, targetShipId: true, markerId: true, firingResultIndex: true,
   from: true, to: true, rolls: true, kills: true, launched: true, arriving: true, surviving: true, damageRolls: true, damage: true,
-  armorApplied: true, hullApplied: true, row: true, lostSystems: true,
+  armorApplied: true, hullApplied: true, row: true, lostSystems: true, markerStatus: true,
 };
 const lastTurnKeys: Keys<LastTurn> = { turnNumber: true, movementResults: true, firingResults: true, events: true };
 
