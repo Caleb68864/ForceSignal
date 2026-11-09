@@ -119,6 +119,21 @@ export const helpSteps: HelpStep[] = [
     ],
     images: [{ src: 'help/11-next-turn.png', alt: 'The top bar showing order entry for the next turn' }],
   },
+  {
+    id: 'words',
+    title: 'Words the app uses',
+    body: [
+      'mu: measurement units, whatever your table measures in (inches, centimetres, squares).',
+      'Course: a clock face. Ships turn a clock point at a time to port (left) or starboard (right).',
+      'Thrust: what a ship can spend each turn on changing speed and turning. Speed change is how much faster or slower it will go.',
+      'Arcs: where a weapon can point. F is fore, FS and FP are fore starboard and fore port, AS and AP are aft starboard and aft port.',
+      'Fire control (firecon): how many targets a ship can engage in a turn.',
+      'Screens: shields that make beam hits count for less.',
+      'Threshold check: when a ship loses a row of hull boxes it rolls to see which systems fail. The results are in the Log.',
+      'Initiative: who fires next. The sides take turns, one ship at a time.',
+    ],
+    images: [],
+  },
 ];
 
 /**

@@ -96,7 +96,7 @@ export function PlayMap({
   const [measureMode, setMeasureMode] = useState(false);
   const [inspectorMode, setInspectorMode] = useState<'status' | 'helm' | 'fire' | 'ops'>('status');
   const [measureLine, setMeasureLine] = useState<{ start: TablePoint; end: TablePoint } | null>(null);
-  const [mapNotice, setMapNotice] = useState('Pan ready');
+  const [mapNotice, setMapNotice] = useState('Tap a ship to select it. Drag the table to pan; pinch or scroll to zoom.');
   const [hoveredShipId, setHoveredShipId] = useState<string | null>(null);
   const selectedDraft = selectedShip ? draftFor(selectedShip.id, drafts) : null;
   const selectedFiringDraft = selectedShip ? firingDraftFor(selectedShip, snapshot.ships, firingDrafts, ownedShipIds) : null;

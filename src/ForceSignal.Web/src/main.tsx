@@ -12,7 +12,7 @@ import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
 import { fleetExportToCsv, normalizeSavedFleets, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
 import { clampDraftForShip, createDraftOrder, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, resetOrderDraft, toOrder, totalTurnSteps, turnManeuversForDraft, turnPatchFromManeuvers, usableThrust } from './lib/movement.ts';
 import { activeViewKey, defaultShipForm, displayNameKey, draftsKey, fleetLibraryKey, gameModeKey, officialRulesUrl, sessionKey, snapshotBackupKey } from './constants.ts';
-import { downloadText, formatLogTime, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
+import { describeActivity, downloadText, formatLogTime, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
 import {
   ApiRequestError,
   apiBaseUrl,
@@ -315,12 +315,12 @@ function App() {
       })
       .build();
 
-    connection.on('MatchSnapshotChanged', (matchId: string, version: number, reason: string) => {
+    connection.on('MatchSnapshotChanged', (matchId: string, _version: number, reason: string) => {
       if (matchId === session.matchId) {
         // Background traffic goes to the activity line, never to the message line. Writing it to
         // the message line overwrote whatever error the player was reading, so a failed action
         // vanished a fraction of a second later and left no evidence it had happened at all.
-        setActivity(`${reason} · v${version}`);
+        setActivity(describeActivity(reason));
         loadSnapshot(session.matchId).catch((error: unknown) => handleSessionError(error, true));
       }
     });
@@ -1590,7 +1590,7 @@ function App() {
             <div className="section-head">
               <div>
                 <span className="label">Profile</span>
-                <h2>{formatRulesProfile(snapshot?.rulesProfileKey)}</h2>
+                <h2>{formatRulesProfile(snapshot?.rules)}</h2>
                 <small className="profile-note">Bring your own legally obtained rules. No official rules text or fleet lists are bundled.</small>
               </div>
               {snapshot ? (
@@ -1901,7 +1901,7 @@ function App() {
                             <button className="ghost" type="button" onClick={() => applyOrderToOwnedFleet(ship.id)}>Copy Fleet</button>
                           </div>
                           <label>
-                            Velocity
+                            Speed change
                             <input
                               type="number"
                               value={draft.velocityDelta}
