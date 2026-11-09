@@ -28,4 +28,14 @@ internal static partial class ServerLog
         Level = LogLevel.Error,
         Message = "Could not open the {Engine} store at {Path}; this engine is running in memory and nothing it holds will survive a restart")]
     public static partial void StoreUnavailable(ILogger logger, Exception exception, string engine, string path);
+
+    /// <summary>An open store's write failed: readiness now reports this engine as in-memory.</summary>
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "The {Engine} store stopped writing; /ready now reports it in-memory until a write succeeds")]
+    public static partial void StoreStoppedWriting(ILogger logger, string engine);
+
+    /// <summary>A store that had failed wrote successfully again.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The {Engine} store is writing again; /ready reports it durable")]
+    public static partial void StoreWritingAgain(ILogger logger, string engine);
 }

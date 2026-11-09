@@ -29,7 +29,12 @@ namespace ForceSignal.Api;
 /// <param name="inner">The store doing the work.</param>
 /// <param name="report">Where readiness reads each engine's state from.</param>
 /// <param name="engine">The engine, named as readiness reports it.</param>
-internal sealed class ReportingMatchStore(IMatchStore inner, MatchStoreReport report, string engine) : IMatchStore
+/// <param name="logger">
+/// Where each change is written down. Readiness changed silently: the per-request 503 lines said a
+/// write failed, but nothing said when the engine stopped being durable or - the line anyone
+/// debugging a session most needs - that it had started writing again.
+/// </param>
+internal sealed class ReportingMatchStore(IMatchStore inner, MatchStoreReport report, string engine, ILogger? logger = null) : IMatchStore
 {
     private readonly Lock _gate = new();
 
@@ -83,6 +88,20 @@ internal sealed class ReportingMatchStore(IMatchStore inner, MatchStoreReport re
             }
 
             _durable = Record(report, engine, durable);
+        }
+
+        if (logger is null)
+        {
+            return;
+        }
+
+        if (durable)
+        {
+            ServerLog.StoreWritingAgain(logger, engine);
+        }
+        else
+        {
+            ServerLog.StoreStoppedWriting(logger, engine);
         }
     }
 

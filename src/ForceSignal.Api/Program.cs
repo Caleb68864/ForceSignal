@@ -417,7 +417,11 @@ static IMatchStore OpenMatchStore(IServiceProvider services, string engine, stri
         // revisited - so a volume unmounted mid-session or a disk that filled produced a 503 per
         // request while /ready went on saying "sqlite". The wrapper records the opening state and
         // then keeps it honest; see ReportingMatchStore.
-        return new ReportingMatchStore(new SqliteMatchStore(path, tableName), report, engine);
+        return new ReportingMatchStore(
+            new SqliteMatchStore(path, tableName),
+            report,
+            engine,
+            services.GetRequiredService<ILoggerFactory>().CreateLogger("ForceSignal.Api.Persistence"));
     }
     catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or ArgumentException)
     {

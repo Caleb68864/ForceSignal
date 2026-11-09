@@ -53,8 +53,33 @@ out of scope (indirect fire was in progress on another branch).
       id the server's hub log lines carry - so the two devices' consoles and the server log can be
       lined up after a two-device session.
 
+- [x] **A store stopping and starting again went unlogged.** `ReportingMatchStore` flipped
+      `/ready` between durable and in-memory silently; each failing request logged its own 503, but
+      nothing said when the engine stopped being durable, and nothing at all said it recovered. It
+      now logs each transition once (error when it stops, warning when it writes again)
+      (`ReadinessStaysCurrentTests.TheStoreGoingAndComingBack_IsLoggedOnceEachWay`; before the fix
+      this test does not compile, since the wrapper took no logger).
+
 ### Found and left
 
+- [ ] **A failed `/api/features` read hides the optional engines without a word.**
+      `main.tsx` (`readFeatures().catch(...)`) turns any failure - including a server that is simply
+      down at page load - into "StarGrunt and Dirtside are off", and never retries. Safe, but it
+      reports a configuration the server does not have. Wants at least an activity-line note, and a
+      re-read after the realtime link comes up.
+- [ ] **Presence is only as fresh as SignalR's server timeout.** A device that vanishes without
+      closing (phone locked, wifi dropped) stays "connected" on the other device until the server
+      timeout (30 s default) fires. Not wrong, but the chip on the other device has no age. Worth a
+      "last seen" if two-device testing finds it confusing.
+- [ ] **`IsConnected` is still persisted** in `PersistedParticipant` though it is ignored on load (a
+      restart starts every seat at zero connections, correctly). Dead field on the wire format;
+      leave it until the persisted shape next changes, so old rows keep deserializing.
+- [ ] **No end-to-end hub test.** `MatchHubPresenceTests` drives the hub with fakes. A
+      `WebApplicationFactory` test with `Microsoft.AspNetCore.SignalR.Client` over the test server
+      would cover the real reconnect ordering; the package is not referenced by the test project
+      yet.
+- [ ] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
+      (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
 ## Closed from the 2026-09-08 audit
 
 Seven findings, on `fix/audit-2026-09-08`. Every one carries a test that was

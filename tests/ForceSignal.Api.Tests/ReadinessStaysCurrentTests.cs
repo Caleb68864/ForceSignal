@@ -116,6 +116,30 @@ public sealed class ReadinessStaysCurrentTests
         return await ready.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    [Fact]
+    public void TheStoreGoingAndComingBack_IsLoggedOnceEachWay()
+    {
+        // Readiness flipped silently. Each failed request logged its own 503, but nothing said when
+        // the engine stopped being durable, and nothing at all said it had recovered - so an
+        // operator reading the log after a session could not tell whether the games after the
+        // outage were written down.
+        var store = new FailingStore();
+        var logger = new MatchHubPresenceTests.CapturingLogger();
+        var watched = new ReportingMatchStore(store, new MatchStoreReport(), "Full Thrust", logger);
+
+        store.Working = false;
+        Assert.Throws<IOException>(() => watched.Save(Guid.NewGuid(), "{}"));
+        Assert.Throws<IOException>(() => watched.Save(Guid.NewGuid(), "{}"));
+        store.Working = true;
+        watched.Save(Guid.NewGuid(), "{}");
+        watched.Save(Guid.NewGuid(), "{}");
+
+        Assert.Collection(
+            logger.Entries,
+            stopped => Assert.Contains("stopped writing", stopped.Message, StringComparison.Ordinal),
+            again => Assert.Contains("writing again", again.Message, StringComparison.Ordinal));
+    }
+
     /// <summary>A host whose Full Thrust store is the double, watched exactly as a real one is.</summary>
     private static WebApplicationFactory<Program> WithStore(IMatchStore store) =>
         Factory(new Dictionary<string, string?>
