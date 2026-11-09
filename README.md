@@ -93,8 +93,8 @@ still says they are not.
   option before a single test runs, and `engines` in `package.json` only *warns* at install. CI pins 22.
 - **PowerShell 7 (`pwsh`)** for the two scripts written in it, `scripts/verify.ps1` and
   `scripts/docker-smoke.ps1`. It is not Windows-only: on Linux or macOS install `pwsh` and invoke the
-  scripts as `pwsh ./scripts/verify.ps1`, which is exactly what CI does on its Ubuntu runner. Nothing
-  else in the repository needs it - every other command below runs in bash or zsh as written.
+  scripts as `pwsh ./scripts/verify.ps1`, which is exactly what CI does on its Ubuntu runner. Without
+  it, `scripts/verify.sh` runs the same gate in bash; only its Docker smoke test still needs `pwsh`.
 - **Python 3.12 with Playwright**, only for `scripts/two-player-smoke.py`.
 
 Run the API:
@@ -168,27 +168,38 @@ The API fails fast outside Development unless `Cors:AllowedOrigins` is configure
 ## Verification
 
 ```sh
-pwsh ./scripts/verify.ps1
+pwsh ./scripts/verify.ps1      # or, without PowerShell:
+./scripts/verify.sh
 ```
 
-This is the whole gate CI runs, and it needs `pwsh` (see Prerequisites). To check a single side, the
+This is the whole gate CI runs (CI runs the PowerShell one; the bash one takes the same steps in the
+same order, and a step added to one belongs in the other). To check a single side, the
 `dotnet test` and `npm test` commands under Local Development are the same steps it takes.
 
-Pass `-IncludeDocker` when Docker is running to build the images, start the compose stack, and run `scripts/docker-smoke.ps1`. CI passes it, because the smoke test holds the only assertions that read a running stack rather than a config file: that the configured database actually opened, so a restart resumes the game, and that nginx assembled the security headers onto every response including `/health`.
+Pass `-IncludeTwoPlayer` (`--include-two-player`) to also play a turn on two browser devices before
+pushing: it starts the API and the web dev server on 8080 and 6297 as CI does, runs
+`scripts/two-player-smoke.py`, and stops both. It needs Python Playwright (`pip install playwright`,
+then `playwright install chromium`, or point `CHROMIUM_PATH` at an installed Chromium). CI runs the
+same script in its own `two-player` job, so a change to the screens that breaks it would otherwise
+only show up after the push.
+
+Pass `-IncludeDocker` (`--include-docker`) when Docker is running to build the images, start the compose stack, and run `scripts/docker-smoke.ps1`. CI passes it, because the smoke test holds the only assertions that read a running stack rather than a config file: that the configured database actually opened, so a restart resumes the game, and that nginx assembled the security headers onto every response including `/health`.
 
 `scripts/check-deployment-config.py` runs first and needs no Docker. It holds `.env.example`, `docker-compose.yml`, `vite.config.ts`, `launchSettings.json` and `nginx.conf` to each other, which is where the disagreements that still build and still test green live. `scripts/check-ground-vocabulary.py` runs next and holds the web client's copy of the ground-combat vocabularies to the contracts assembly's.
 
-`scripts/two-player-smoke.py` plays a whole turn through two browsers on two seats - the only check that hidden orders lock and reveal independently on separate devices, and that a phase turning over on one reaches the other without a reload. CI runs it as its own job. To run it yourself, start the API on 8080 and the web dev server against it, then run the script with Playwright installed:
+`scripts/two-player-smoke.py` plays a whole turn through two browsers on two seats - the only check that hidden orders lock and reveal independently on separate devices, and that a phase turning over on one reaches the other without a reload. CI runs it as its own job. To run it by hand, start the API on 8080 and the web dev server against it, then run the script with Playwright installed:
 
 ```sh
-ASPNETCORE_URLS=http://localhost:8080 dotnet run --project src/ForceSignal.Api --no-launch-profile
+ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:8080 dotnet run --project src/ForceSignal.Api --no-launch-profile
 VITE_API_BASE_URL=http://localhost:8080 npm run dev --prefix src/ForceSignal.Web
 python scripts/two-player-smoke.py
 ```
 
 Each of the first two stays in the foreground, so give each its own terminal, and stop both when the
 script finishes. In PowerShell the environment variables are set as
-`$env:ASPNETCORE_URLS = "http://localhost:8080"` before the command instead.
+`$env:ASPNETCORE_URLS = "http://localhost:8080"` before the command instead. Development matters:
+outside it the API refuses to start without `Cors:AllowedOrigins` configured. Or let
+`verify -IncludeTwoPlayer` do all three.
 
 ## API Documentation
 
