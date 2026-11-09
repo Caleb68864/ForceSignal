@@ -450,7 +450,7 @@ public sealed partial class InMemoryMatchService
             }
 
             var token = seat.Claim();
-            seat.IsConnected = false;
+            seat.Connections = 0;
             // The seat keeps the name it was saved with unless the claiming device offers one. The
             // contract always said it could; the service used to take the field and drop it.
             seat.DisplayName = NormalizeText(request.DisplayName, seat.DisplayName);

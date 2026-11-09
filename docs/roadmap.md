@@ -21,6 +21,31 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Hardening pass 2026-11-09 (`harden/2026-11-09`)
+
+Code quality and debuggability across the hub, presence and the web client's link state. Every fix
+carries a test confirmed to fail before it. Dirtside combat and fire resolution were deliberately
+out of scope (indirect fire was in progress on another branch).
+
+### Closed
+
+- [x] **Presence said "disconnected" for a player who was online.** `IsConnected` was one flag per
+      seat, set by whichever connection spoke last. A SignalR reconnect opens the new connection
+      before the server drops the old one (at its timeout, up to 30 s later), so the late
+      `OnDisconnectedAsync` marked the reconnected player gone on the other device, and nothing set
+      it back until the next reconnect. Presence is now a per-seat connection count; only the first
+      in and the last out are news (`InMemoryMatchServicePresenceTests`).
+- [x] **A connection that joined twice held its seat "connected" forever.** With counted presence,
+      a repeat `JoinMatchGroup` on the same connection would have counted twice; joining a different
+      seat on the same connection never released the first. The hub now treats the same seat as a
+      retry and releases a different one first (`MatchHubPresenceTests`).
+- [x] **The hub logged nothing, and dropped the disconnect exception.** Joins, refusals (bad token)
+      and drops are now logged with the connection id and match id - never the token - and a
+      transport failure is logged with its exception instead of being discarded
+      (`MatchHubPresenceTests.ARefusedJoinAndADroppedConnection_AreBothLogged`).
+
+### Found and left
+
 ## Closed from the 2026-09-08 audit
 
 Seven findings, on `fix/audit-2026-09-08`. Every one carries a test that was

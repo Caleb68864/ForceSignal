@@ -350,12 +350,28 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             }
 
             var participant = match.Participants.SingleOrDefault(p => p.IsClaimed && TokensMatch(p.Token, participantToken));
-            if (participant is null || participant.IsConnected == isConnected)
+            if (participant is null)
             {
                 return null;
             }
 
-            participant.IsConnected = isConnected;
+            // Counted per connection, and only the edges are news: the first connection in and the
+            // last one out. Anything between changes nothing the other device can see.
+            var wasConnected = participant.IsConnected;
+            if (isConnected)
+            {
+                participant.Connections++;
+            }
+            else if (participant.Connections > 0)
+            {
+                participant.Connections--;
+            }
+
+            if (participant.IsConnected == wasConnected)
+            {
+                return null;
+            }
+
             match.AddLog("Session", match.Phase.ToString(), $"{participant.DisplayName} {(isConnected ? "connected" : "disconnected")}.");
             match.Touch("ParticipantConnectionChanged");
             return ToSnapshot(match);

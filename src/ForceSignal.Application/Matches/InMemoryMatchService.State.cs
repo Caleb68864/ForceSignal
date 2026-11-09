@@ -145,8 +145,16 @@ public sealed partial class InMemoryMatchService
         public required string DisplayName { get; set; }
         public required string Role { get; init; }
         public bool IsReady { get; set; }
-        // False until a realtime hub connection joins the match group for this token.
-        public bool IsConnected { get; set; }
+        // How many realtime hub connections are following the match under this token right now.
+        // A count rather than a flag: a SignalR reconnect opens the new connection before the
+        // server has noticed the old one is gone (the old one is only dropped at its timeout, up to
+        // thirty seconds later), and a second tab on the same device is a second connection. With
+        // a flag the late disconnect of the old connection marked a player who was plainly online
+        // as "disconnected" on the other device, and nothing ever set it back.
+        public int Connections { get; set; }
+
+        // True while at least one hub connection is following the match for this token.
+        public bool IsConnected => Connections > 0;
 
         /// <summary>True once this participant says its plotting is done for the turn.</summary>
         public bool OrdersComplete { get; set; }
