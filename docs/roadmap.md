@@ -84,6 +84,24 @@ out of scope (indirect fire was in progress on another branch).
       copy passed the one run tried under the same load. Worth a per-file `testTimeout` if CI is slow.
 - [ ] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
       (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
+## Map visuals and turn playback (`spike/pixi-map`, 2026-11-09)
+
+Data first: [docs/visuals/findings-2026-11-09.md](visuals/findings-2026-11-09.md). Every item has a
+test it is measured by; the four `it.fails` cases in `src/lib/playback/timeline.test.ts` are the
+server gaps, pinned. Not a port: the canvas sits under the existing React map behind
+`?renderer=pixi`, and the server stays the only thing that resolves anything.
+
+- [ ] Movement results carry their start point (edge-clamped hulls are drawn from the wrong place today).
+- [ ] Every ship that moved has a record; a ship wrecked before movement does not.
+- [ ] Ordered `turnEvents` on the snapshot: salvo, point defence, thresholds, fighter flights, destruction.
+- [ ] Keep last turn's events through the turn advance, so it can be replayed.
+- [ ] Close the wire/type drift (`mapRange`, `rangeDisagreed`, six ship fields, nullable `faction`).
+- [ ] Canvas renderer as a per-device setting with DOM fallback when WebGL fails.
+- [ ] Pan cost: stop re-rendering every ship button per pointer move.
+- [ ] FX for the new event kinds, through the registry and its guard.
+- [ ] Playback captions for every event kind, numbers only from the record.
+- [ ] Bundle budget check: Pixi chunk ≤ 160 kB gzip, main chunk growth ≤ 2 kB.
+
 ## Closed from the 2026-09-08 audit
 
 Seven findings, on `fix/audit-2026-09-08`. Every one carries a test that was
