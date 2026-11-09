@@ -78,6 +78,10 @@ out of scope (indirect fire was in progress on another branch).
       `WebApplicationFactory` test with `Microsoft.AspNetCore.SignalR.Client` over the test server
       would cover the real reconnect ordering; the package is not referenced by the test project
       yet.
+- [ ] **The first two `main.test.tsx` tests can time out under heavy machine load.** With load
+      average ~60 they hit vitest's 5 s default (each re-imports `main.tsx` after
+      `vi.resetModules()`); in isolation and on a rerun they pass (337/337). Master's
+      copy passed the one run tried under the same load. Worth a per-file `testTimeout` if CI is slow.
 - [ ] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
       (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
 ## Closed from the 2026-09-08 audit
