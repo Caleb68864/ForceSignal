@@ -357,3 +357,84 @@ describe('the realtime link chip', () => {
     await screen.findByText('Link live');
   });
 });
+
+describe('the next-step banner', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    hub.notify = undefined;
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  // The refusal used to land in a muted line at the top of the board while Ready sits at the bottom
+  // of the sidebar, styled exactly like a success - so a refused Ready looked like nothing at all.
+  it('shows a refused command as an alert in the banner, not as a quiet success', async () => {
+    post.mockImplementation((path) => (path.endsWith('/ready')
+      ? Promise.reject(new Error('Set a rules profile before readying up.'))
+      : Promise.resolve(session('ALPHA'))));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Created room ALPHA.');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ready' }));
+    const banner = await screen.findByTestId('next-step');
+    const alert = await waitFor(() => {
+      const found = banner.querySelector('[role="alert"]');
+      expect(found?.textContent).toContain('Set a rules profile before readying up.');
+      return found;
+    });
+    expect(alert?.className).toContain('error');
+  });
+
+  it('says what this player should do next and who the table is waiting on', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const ordering: MatchSnapshot = {
+      ...snapshot('ALPHA', 1),
+      phase: 'OrderEntry',
+      participants: [
+        { id: 'participant-ALPHA', displayName: 'Blue', role: 'Owner', isReady: true, isConnected: true, ordersComplete: true },
+        { id: 'participant-RED', displayName: 'Red', role: 'Player', isReady: true, isConnected: true, ordersComplete: false },
+      ],
+    };
+    get.mockResolvedValue(ordering);
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+
+    const banner = await screen.findByTestId('next-step');
+    await waitFor(() => {
+      expect(banner.textContent).toContain('Order entry · Turn 1');
+      expect(banner.textContent).toContain('Your orders are in.');
+      expect(banner.textContent).toContain('Waiting for Red to finish plotting.');
+    });
+  });
+
+  it('clears a message from an earlier phase once the match moves on', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Created room ALPHA.');
+    const notify = await subscribedHandler();
+
+    // Time passes at the table before the phase turns over.
+    const later = Date.now() + 60_000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    get.mockResolvedValue({ ...snapshot('ALPHA', 2), phase: 'OrderEntry' });
+    notify('match-ALPHA', 2, 'PhaseChanged');
+
+    await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Order entry'));
+    expect(screen.queryByText('Created room ALPHA.')).toBeNull();
+  });
+});

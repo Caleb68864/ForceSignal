@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as signalR from '@microsoft/signalr';
 import './style.css';
@@ -57,6 +57,8 @@ import type {
 import { blankRulesProfile } from './types.ts';
 import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
 import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
+import { NextStepBanner, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
+import { nextStep } from './lib/nextStep.ts';
 import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
@@ -81,7 +83,15 @@ function App() {
   const [gameMode, setGameMode] = useState<GameMode>(() => readStored(gameModeKey, normalizeGameMode) ?? 'fullthrust');
   const [features, setFeatures] = useState<FeatureFlags>({ starGrunt: false, dirtside: false });
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
-  const [message, setMessage] = useState('Ready.');
+  // What the app last told this player, and whether it was a refusal. Shown in the sticky
+  // next-step banner so it lands where the player is looking, not at the top of a long page.
+  const [notice, setNotice] = useState<Notice>({ text: 'Ready.', tone: 'info', key: 0, at: 0 });
+  const message = notice.text;
+  const setMessage = useCallback((text: string, tone: NoticeTone = 'success') => {
+    setNotice((current) => ({ text, tone, key: current.key + 1, at: Date.now() }));
+  }, []);
+  const reportError = useCallback((error: unknown) => showError((text) => setMessage(text, 'error'))(error), [setMessage]);
+  const dismissNotice = useCallback(() => setNotice((current) => ({ ...current, text: '' })), []);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
   // What the other player is doing, kept apart from what the app is telling *you*. Background
   // traffic used to share one line with error messages and simply overwrote them.
@@ -110,7 +120,7 @@ function App() {
     busyRef.current = true;
     setBusy(true);
     work()
-      .catch(showError(setMessage))
+      .catch(reportError)
       .finally(() => {
         busyRef.current = false;
         setBusy(false);
@@ -367,7 +377,7 @@ function App() {
       .catch((error) => {
         console.warn('[ForceSignal] realtime link failed to start', error);
         setConnectionState('offline');
-        showError(setMessage)(error);
+        reportError(error);
       });
 
     return () => {
@@ -444,7 +454,7 @@ function App() {
       const identity = await get<MatchIdentity>(`/api/matches/by-code/${encodeURIComponent(joinCode)}`);
       if (!identity.hasUnclaimedSeats) {
         // Someone took the last seat between the join attempt and this lookup.
-        setMessage(`Every seat in ${identity.joinCode} has been claimed. Ask the host to restore the backup again if you need a seat.`);
+        setMessage(`Every seat in ${identity.joinCode} has been claimed. Ask the host to restore the backup again if you need a seat.`, 'error');
         return;
       }
 
@@ -553,13 +563,13 @@ function App() {
   function exportOwnedFleet(format: 'json' | 'csv') {
     const fleet = activeFleet;
     if (!fleet) {
-      setMessage('Create a fleet before exporting.');
+      setMessage('Create a fleet before exporting.', 'error');
       return;
     }
 
     const exportData = toFleetExport(fleet, ownedShips.filter((ship) => ship.fleetId === fleet.id));
     if (exportData.ships.length === 0) {
-      setMessage('Add at least one ship before exporting.');
+      setMessage('Add at least one ship before exporting.', 'error');
       return;
     }
 
@@ -722,7 +732,7 @@ function App() {
 
     const draft = drafts[ship.id];
     if (!draft) {
-      setMessage(`${ship.name} has no local order draft to reveal. Re-lock its order from this device first.`);
+      setMessage(`${ship.name} has no local order draft to reveal. Re-lock its order from this device first.`, 'error');
       return;
     }
 
@@ -851,14 +861,14 @@ function App() {
 
   async function undoLastDamage() {
     if (!damageUndo || !snapshot) {
-      setMessage('No damage change to undo.');
+      setMessage('No damage change to undo.', 'error');
       return;
     }
 
     const ship = snapshot.ships.find((item) => item.id === damageUndo.shipId);
     if (!ship) {
       setDamageUndo(null);
-      setMessage('Undo target is no longer available.');
+      setMessage('Undo target is no longer available.', 'error');
       return;
     }
 
@@ -1112,13 +1122,13 @@ function App() {
 
   function saveActiveFleetToLibrary() {
     if (!activeFleet) {
-      setMessage('Create a fleet before saving it to the library.');
+      setMessage('Create a fleet before saving it to the library.', 'error');
       return;
     }
 
     const exportData = toFleetExport(activeFleet, ownedShips.filter((ship) => ship.fleetId === activeFleet.id));
     if (exportData.ships.length === 0) {
-      setMessage('Add at least one ship before saving this fleet.');
+      setMessage('Add at least one ship before saving this fleet.', 'error');
       return;
     }
 
@@ -1175,7 +1185,7 @@ function App() {
 
   function exportSnapshotBackup() {
     if (!snapshot) {
-      setMessage('No match snapshot to save.');
+      setMessage('No match snapshot to save.', 'error');
       return;
     }
 
@@ -1274,7 +1284,7 @@ function App() {
   function handleSessionError(error: unknown, background = false) {
     if (error instanceof ApiRequestError && (error.status === 404 || error.status === 403)) {
       clearSession();
-      setMessage('Match session expired. Create or join a room again.');
+      setMessage('Match session expired. Create or join a room again.', 'error');
       return;
     }
 
@@ -1283,8 +1293,24 @@ function App() {
       return;
     }
 
-    showError(setMessage)(error);
+    reportError(error);
   }
+
+  // A message is about the phase it was said in. Once the match moves on it is old news, and a
+  // "Ship added to fleet." still showing in the firing phase reads as something that just happened.
+  // The exception is the message from the action that moved the phase on - "Locked 2 orders" lands
+  // in the same moment as the phase it caused - so only one said before the change is cleared.
+  const phaseKey = snapshot ? `${snapshot.matchId}:${snapshot.turnNumber}:${snapshot.phase}` : '';
+  const shownPhaseRef = useRef(phaseKey);
+  const noticeAtRef = useRef(notice.at);
+  noticeAtRef.current = notice.at;
+  useEffect(() => {
+    if (shownPhaseRef.current && phaseKey && shownPhaseRef.current !== phaseKey && Date.now() - noticeAtRef.current > 1500) {
+      dismissNotice();
+    }
+
+    shownPhaseRef.current = phaseKey;
+  }, [phaseKey, dismissNotice]);
 
   return (
     <main className={publicMode ? 'shell public-mode' : 'shell'}>
@@ -1347,6 +1373,13 @@ function App() {
           ) : null}
         </div>
       </section>
+      {gameMode === 'fullthrust' && session && !publicMode ? (
+        <NextStepBanner
+          step={snapshot ? nextStep(snapshot, session.participantId) : null}
+          notice={notice}
+          onDismiss={dismissNotice}
+        />
+      ) : null}
 
       <section className="legal-notice" aria-label="Unofficial companion notice">
         <div>
@@ -1391,7 +1424,7 @@ function App() {
             <h2>{pendingRestore.joinCode}</h2>
             <p className="privacy">{pendingRestore.note} Pick the admiral you were playing - fleets follow the seat.</p>
           </div>
-          <p className="auth-status">{message}</p>
+          <p className="auth-status" role={notice.tone === 'error' ? 'alert' : 'status'}>{message}</p>
           {pendingRestore.seats.map((seat) => (
             <button
               key={seat.participantId}
@@ -1421,7 +1454,7 @@ function App() {
             One player creates a match and reads out the room code; the other joins with it.{' '}
             <button className="link-button" type="button" onClick={() => setHelpOpen(true)}>New here? How to play</button>
           </p>
-          <p className="auth-status auth-wide">{message}</p>
+          <p className={`auth-status auth-wide ${notice.tone}`} role={notice.tone === 'error' ? 'alert' : 'status'}>{message}</p>
           <button className="ghost auth-wide" type="button" onClick={() => setMessage(exportLastDeviceBackup())}>Export Last Device Backup</button>
           <button className="ghost auth-wide" type="button" onClick={() => restoreInputRef.current?.click()}>Restore Match From Backup</button>
           <input
@@ -1536,7 +1569,6 @@ function App() {
                   <span>{snapshot.movementResults.length} resolved</span>
                 </div>
               ) : null}
-              <p aria-live="polite">{message}</p>
               {activity ? <p className="activity-line" aria-live="polite">{activity}</p> : null}
               {storageWarning ? (
                 // Losing the order keys means a locked order can never be revealed, which stops the
@@ -2117,7 +2149,7 @@ function App() {
     // each of them: a locked order edited by any route is an order that cannot be revealed, and the
     // loss is silent - the plot is simply gone at reveal, and the ship drifts.
     if (orderIsLocked(shipId)) {
-      setMessage('That order is locked. Reveal it, or advance the turn, before plotting again.');
+      setMessage('That order is locked. Reveal it, or advance the turn, before plotting again.', 'error');
       return;
     }
 
