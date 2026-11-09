@@ -7,7 +7,7 @@
  * PlayMap owns the viewport and the pointer handling; everything else here draws one layer.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { CommittedNumber } from '../../components/CommittedNumber.tsx';
 import { ShipIcon } from '../../components/ShipCard.tsx';
 import { fighterStatuses, firableArcs, newOrdnanceDraft } from '../../constants.ts';
@@ -22,6 +22,37 @@ import { useFiringSolution } from '../../lib/useFiringSolution.ts';
 import { OrderPreviewNotice } from '../OrderPreviewNotice.tsx';
 import { lastShotBy, ShotResultCard } from '../ShotResultCard.tsx';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, RulesProfile, Ship, TablePoint, FiringSolution } from '../../types.ts';
+
+// The animated map: a canvas under these same DOM controls that plays each resolved turn. Its own
+// chunk, so a device that leaves it off downloads none of it.
+const PixiTableLayer = lazy(() => import('./pixi/PixiTableLayer.tsx'));
+
+const animatedMapKey = 'forcesignal.animatedMap';
+
+/**
+ * Whether this device draws the animated map. A per-device choice kept in storage; `?renderer=`
+ * in the address overrides it, which is how the browser checks and the bench pick a renderer.
+ */
+function animatedMapChosen(): boolean {
+  try {
+    const forced = new URLSearchParams(window.location.search).get('renderer');
+    if (forced === 'pixi' || forced === 'dom') {
+      return forced === 'pixi';
+    }
+
+    return localStorage.getItem(animatedMapKey) === 'on';
+  } catch {
+    return false;
+  }
+}
+
+function rememberAnimatedMap(on: boolean) {
+  try {
+    localStorage.setItem(animatedMapKey, on ? 'on' : 'off');
+  } catch {
+    // A private window: the choice holds for this visit.
+  }
+}
 
 export function PlayMap({
   snapshot,
@@ -72,6 +103,8 @@ export function PlayMap({
     ?? snapshot.ships.find((ship) => ownedShipIds.has(ship.id) && !ship.isDestroyed)
     ?? snapshot.ships[0];
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const [usePixi, setUsePixi] = useState(animatedMapChosen);
+  const [mapElement, setMapElement] = useState<HTMLDivElement | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -374,6 +407,17 @@ export function PlayMap({
           <h3>{snapshot.tableWidth} x {snapshot.tableDepth} table</h3>
         </div>
         <p aria-live="polite">{mapNotice}</p>
+        <label className="map-animated-toggle">
+          <input
+            type="checkbox"
+            checked={usePixi}
+            onChange={(event) => {
+              setUsePixi(event.target.checked);
+              rememberAnimatedMap(event.target.checked);
+            }}
+          />
+          Animated map
+        </label>
       </div>
       <div className="map-controls" aria-label="Map controls">
         <label className="map-contact-select">
@@ -413,11 +457,14 @@ export function PlayMap({
         <span>{Math.round(viewport.scale * 100)}%</span>
       </div>
       <div
-        ref={tableRef}
+        ref={(element) => {
+          tableRef.current = element;
+          setMapElement(element);
+        }}
         tabIndex={0}
         role="application"
         aria-label="Tactical play map. Use arrow keys to pan, plus and minus to zoom, and Home to fit."
-        className={isPanning ? 'table-map panning' : 'table-map'}
+        className={['table-map', isPanning ? 'panning' : '', usePixi ? 'pixi-renderer' : ''].filter(Boolean).join(' ')}
         style={{ aspectRatio: `${snapshot.tableWidth} / ${snapshot.tableDepth}` }}
         onKeyDown={(event) => {
           const panStep = event.shiftKey ? 96 : 32;
@@ -601,6 +648,20 @@ export function PlayMap({
           setIsPanning(false);
         }}
       >
+        {usePixi ? (
+          <Suspense fallback={null}>
+            <PixiTableLayer
+              snapshot={snapshot}
+              viewport={viewport}
+              focusedShipId={selectedShip?.id}
+              mapElement={mapElement}
+              onUnavailable={() => {
+                setUsePixi(false);
+                setMapNotice('The animated map cannot run on this device, so the classic map is showing.');
+              }}
+            />
+          </Suspense>
+        ) : null}
         <div
           className="table-map-content"
           style={{
@@ -632,10 +693,12 @@ export function PlayMap({
               tableDepth={snapshot.tableDepth}
             />
           ) : null}
-          <ResolvedMovementTrailOverlay
-            snapshot={snapshot}
-            focusedShipId={selectedShip?.id}
-          />
+          {usePixi ? null : (
+            <ResolvedMovementTrailOverlay
+              snapshot={snapshot}
+              focusedShipId={selectedShip?.id}
+            />
+          )}
           {orderPreview && inspectorMode === 'helm' ? (
             <MovementPreviewOverlay
               preview={orderPreview}

@@ -96,10 +96,10 @@ server gaps, pinned. Not a port: the canvas sits under the existing React map be
 - [x] Ordered `turnEvents` on the snapshot: salvo, point defence, thresholds, fighter flights, destruction; each tied to its log entry.
 - [x] Keep last turn whole (`lastTurn`: moves, shots, events) through the turn advance, so it can be replayed.
 - [x] Close the wire/type drift (`mapRange`, `rangeDisagreed`, six ship fields, nullable `faction`); held by `wireContract.test.ts`.
-- [ ] Canvas renderer as a per-device setting with DOM fallback when WebGL fails.
+- [x] Animated map as a per-device setting ("Animated map"), falling back to the classic map when the canvas cannot start. Without WebGL Pixi draws on a 2D canvas instead, so the fallback is for a device that cannot draw at all.
 - [ ] Pan cost: stop re-rendering every ship button per pointer move.
-- [ ] FX for the new event kinds, through the registry and its guard.
-- [ ] Playback captions for every event kind, numbers only from the record.
+- [x] FX for the new event kinds (salvo, point defence, threshold flare, explosion on any kill, fighter flight), through the registry and its guard.
+- [x] Playback captions for every event kind, numbers only from the record (`captions.test.ts`); last turn can be replayed from the bar.
 - [ ] Bundle budget check: Pixi chunk ≤ 160 kB gzip, main chunk growth ≤ 2 kB.
 
 ## Closed from the 2026-09-08 audit

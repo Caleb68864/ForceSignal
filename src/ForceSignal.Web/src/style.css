@@ -3326,3 +3326,83 @@ small,
     flex-wrap: wrap;
   }
 }
+
+/* The animated map: a canvas under the DOM content. Ship buttons stay for taps, focus and screen
+   readers, but stop drawing a hull; the canvas draws it. */
+.pixi-map-host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pixi-map-host canvas {
+  display: block;
+}
+
+.table-map.pixi-renderer .table-map-content {
+  z-index: 1;
+}
+
+.table-map.pixi-renderer .map-ship {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.table-map.pixi-renderer .map-ship .ship-icon-shell {
+  visibility: hidden;
+}
+
+.table-map.pixi-renderer .map-ship:focus-visible {
+  border-color: var(--amber);
+}
+
+.table-map.pixi-renderer[data-playback="running"] .map-ship > strong,
+.table-map.pixi-renderer[data-playback="running"] .map-ship > em,
+.table-map.pixi-renderer[data-playback="running"] .map-status-badges {
+  opacity: 0;
+}
+
+.map-playback-bar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 8;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: rgba(1, 9, 12, 0.86);
+  font-size: 0.8rem;
+}
+
+.map-playback-bar p {
+  flex: 1 1 12rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.map-effects-toggle {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-playback-bar button:nth-of-type(2) {
+    display: none;
+  }
+}
+
+.map-animated-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
