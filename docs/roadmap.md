@@ -88,8 +88,8 @@ out of scope (indirect fire was in progress on another branch).
 
 Data first: [docs/visuals/findings-2026-11-09.md](visuals/findings-2026-11-09.md). Every item has a
 test it is measured by; the four `it.fails` cases in `src/lib/playback/timeline.test.ts` are the
-server gaps, pinned. Not a port: the canvas sits under the existing React map behind
-`?renderer=pixi`, and the server stays the only thing that resolves anything.
+server gaps, pinned (all four now closed). Not a port: the canvas sits under the existing React
+map as the per-device "Animated map", and the server stays the only thing that resolves anything.
 
 - [x] Movement results carry the path as flown, edge and all (`MovementResult.path`, `clamped`).
 - [x] Every ship that moved has a record (drifters marked `drifted`); a ship wrecked before movement does not.
@@ -100,7 +100,7 @@ server gaps, pinned. Not a port: the canvas sits under the existing React map be
 - [x] Pan cost: a drag or wheel zoom moves the table live and renders once at the end. React commit time over the scripted pan at 60 ships fell to 8-23% of before (desktop and throttled phone, both renderers; `docs/visuals/measurements/pan-*.json`). Not met: phone p95 frame ≤ 20 ms - what remains is paint on a 4x-throttled CPU.
 - [x] FX for the new event kinds (salvo, point defence, threshold flare, explosion on any kill, fighter flight), through the registry and its guard.
 - [x] Playback captions for every event kind, numbers only from the record (`captions.test.ts`); last turn can be replayed from the bar.
-- [ ] Bundle budget check: Pixi chunk ≤ 160 kB gzip, main chunk growth ≤ 2 kB.
+- [x] Bundle budget check (`npm run check:bundle`, in `scripts/verify.ps1` after the build): entry chunk ≤ 145 kB gzip (137 today), everything loaded later ≤ 160 kB (151 today), and no animated-map code in the entry chunk.
 
 ## Closed from the 2026-09-08 audit
 

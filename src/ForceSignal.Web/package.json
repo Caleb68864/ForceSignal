@@ -26,7 +26,8 @@
     "preview": "vite preview",
     "test": "tsc --noEmit && eslint . && vitest run",
     "lint": "eslint .",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "check:bundle": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",
