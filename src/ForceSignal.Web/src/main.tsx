@@ -56,6 +56,8 @@ import type {
   } from './types.ts';
 import { blankRulesProfile } from './types.ts';
 import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
+import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
+import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
   const [displayName, setDisplayName] = useState(() => stringFrom(readJson(displayNameKey), 'Admiral'));
@@ -72,6 +74,7 @@ function App() {
   const [mapFocusShipId, setMapFocusShipId] = useState<string | null>(null);
   const [shipCardMode, setShipCardMode] = useState<'helm' | 'fire' | 'damage'>('helm');
   const [publicMode, setPublicMode] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   // Which game this device is running. StarGrunt is a separate game rather than a view of a match -
   // no room code, no seats - so it is a mode, not a tab. Offered only when the server has it on.
   // Read back from storage so a refresh mid-game lands on the same engine.
@@ -1285,12 +1288,25 @@ function App() {
 
   return (
     <main className={publicMode ? 'shell public-mode' : 'shell'}>
+      {helpOpen ? (
+        <HelpGuide
+          currentStepId={helpStepFor(gameMode === 'fullthrust' && snapshot ? {
+            phase: snapshot.phase,
+            rulesPlayable: gapsIn(snapshot.rules ?? blankRulesProfile).length === 0,
+            shipCount: snapshot.ships.length,
+          } : null)}
+          onClose={() => setHelpOpen(false)}
+        />
+      ) : null}
       <section className="topbar">
         <div>
           <h1>ForceSignal</h1>
           <p>Space fleet tabletop companion for synchronized orders and battle records.</p>
         </div>
         <div className="topbar-status">
+          {!publicMode ? (
+            <button className="ghost help-open" type="button" aria-haspopup="dialog" onClick={() => setHelpOpen(true)}>How to play</button>
+          ) : null}
           {/* The phase and the link chip describe the Full Thrust match; under a ground engine they
               would be describing a screen that is not showing. */}
           <strong>
@@ -1401,7 +1417,10 @@ function App() {
             <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
           </label>
           <button onClick={() => run(joinMatch)} disabled={busy}>Join Match</button>
-          <p className="privacy auth-wide">One player creates a match and reads out the room code; the other joins with it.</p>
+          <p className="privacy auth-wide">
+            One player creates a match and reads out the room code; the other joins with it.{' '}
+            <button className="link-button" type="button" onClick={() => setHelpOpen(true)}>New here? How to play</button>
+          </p>
           <p className="auth-status auth-wide">{message}</p>
           <button className="ghost auth-wide" type="button" onClick={() => setMessage(exportLastDeviceBackup())}>Export Last Device Backup</button>
           <button className="ghost auth-wide" type="button" onClick={() => restoreInputRef.current?.click()}>Restore Match From Backup</button>
