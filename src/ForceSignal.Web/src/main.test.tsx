@@ -22,7 +22,11 @@ vi.mock('./lib/starGruntApi.ts', () => ({
 // The hub is a live connection to a server that is not there. The screen only needs it to build,
 // start and accept a subscription. The `MatchSnapshotChanged` handler is kept so a test can deliver
 // a push the way the server would; the rest is inert.
-const hub: { notify?: (matchId: string, version: number, reason: string) => void } = {};
+const hub: {
+  notify?: (matchId: string, version: number, reason: string) => void;
+  reconnected?: (connectionId?: string) => void;
+  invoke?: (method: string, ...args: unknown[]) => Promise<unknown>;
+} = {};
 
 vi.mock('@microsoft/signalr', () => {
   class HubConnectionBuilder {
@@ -37,10 +41,12 @@ vi.mock('@microsoft/signalr', () => {
         },
         onreconnecting: () => undefined,
         onclose: () => undefined,
-        onreconnected: () => undefined,
+        onreconnected: (handler: (connectionId?: string) => void) => {
+          hub.reconnected = handler;
+        },
         start: () => Promise.resolve(),
         stop: () => Promise.resolve(),
-        invoke: () => Promise.resolve(),
+        invoke: (method: string, ...args: unknown[]) => (hub.invoke ? hub.invoke(method, ...args) : Promise.resolve()),
       };
     }
   }
@@ -284,5 +290,70 @@ describe('a background refresh that fails', () => {
     notify('match-ALPHA', 2, 'ShipMoved');
 
     await screen.findByText('Match session expired. Create or join a room again.');
+  });
+});
+
+describe('the realtime link chip', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    hub.notify = undefined;
+    hub.reconnected = undefined;
+    hub.invoke = undefined;
+    vi.resetModules();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // The chip said "Link live" the moment the transport came back, before the server had put the
+  // new connection into the match's group. When that rejoin was refused the chip went on saying
+  // live for a link that would never deliver another push - the board quietly stopped following
+  // the opponent while telling the player it was.
+  it('does not say live after a reconnect whose rejoin was refused', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Link live');
+    await waitFor(() => expect(hub.reconnected).toBeDefined());
+
+    hub.invoke = () => Promise.reject(new Error('A valid participant token is required to follow this match.'));
+    hub.reconnected?.('connection-2');
+
+    await screen.findByText(/Could not rejoin the live feed/);
+    expect(screen.queryByText('Link live')).toBeNull();
+    expect(screen.getByText('Link lost')).toBeTruthy();
+  });
+
+  it('says live once the rejoin after a reconnect succeeds', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    await screen.findByText('Link live');
+    await waitFor(() => expect(hub.reconnected).toBeDefined());
+
+    let finishRejoin: () => void = () => undefined;
+    hub.invoke = () => new Promise((resolve) => {
+      finishRejoin = () => resolve(undefined);
+    });
+    hub.reconnected?.('connection-2');
+
+    // Until the server answers the rejoin, the link is not live yet.
+    await screen.findByText('Reconnecting');
+    finishRejoin();
+    await screen.findByText('Link live');
   });
 });

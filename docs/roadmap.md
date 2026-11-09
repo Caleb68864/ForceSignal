@@ -43,6 +43,15 @@ out of scope (indirect fire was in progress on another branch).
       and drops are now logged with the connection id and match id - never the token - and a
       transport failure is logged with its exception instead of being discarded
       (`MatchHubPresenceTests.ARefusedJoinAndADroppedConnection_AreBothLogged`).
+- [x] **"Link live" was shown before the link was.** `main.tsx` set the chip to live as soon as the
+      transport (re)connected, before `JoinMatchGroup` had answered. After a reconnect whose rejoin
+      was refused, the chip said live for a link that would never deliver another push. Live now
+      waits for the join on start and on every reconnect; a refused rejoin shows "Link lost"
+      (`main.test.tsx`, "the realtime link chip").
+- [x] **The client's realtime link left no trace.** Start, reconnecting, rejoin, failure and close
+      now write `[ForceSignal]` console lines carrying the SignalR connection id, which is the same
+      id the server's hub log lines carry - so the two devices' consoles and the server log can be
+      lined up after a two-device session.
 
 ### Found and left
 

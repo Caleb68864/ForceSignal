@@ -314,18 +314,38 @@ function App() {
 
     const joinGroup = () => connection.invoke('JoinMatchGroup', session.matchId, session.participantToken);
 
-    connection.onreconnecting(() => setConnectionState('reconnecting'));
-    connection.onclose(() => setConnectionState('offline'));
+    // The console lines below are the client's half of a two-device game: each one carries the
+    // connection id the server logs against, so the two can be lined up after the fact.
+    connection.onreconnecting((error) => {
+      console.warn('[ForceSignal] realtime link reconnecting', connection.connectionId, error);
+      setConnectionState('reconnecting');
+    });
+    connection.onclose((error) => {
+      console.warn('[ForceSignal] realtime link closed', error);
+      setConnectionState('offline');
+    });
 
     // Automatic reconnect creates a new connection id, so group membership has to be re-established
     // or the client silently stops receiving snapshot notifications after any network blip.
-    connection.onreconnected(() => {
-      setConnectionState('live');
+    connection.onreconnected((connectionId) => {
+      // "Link live" waits for the rejoin. Saying it as soon as the transport came back said the
+      // board was following the match while the server had not yet put this connection in the
+      // match's group - and if the rejoin failed, the chip said live for a link that would never
+      // deliver another push.
+      setConnectionState('reconnecting');
       // Background, both of them: nobody asked for this reconnect, so a failure here reports beside
       // the connection chip rather than over whatever the player is reading. The expired-session
       // case still takes the message line, because that is the session ending rather than a report.
-      joinGroup().catch((error: unknown) =>
-        setActivity(`Could not rejoin the live feed: ${error instanceof Error ? error.message : String(error)}`));
+      joinGroup()
+        .then(() => {
+          console.info('[ForceSignal] realtime link rejoined', connectionId);
+          setConnectionState('live');
+        })
+        .catch((error: unknown) => {
+          console.warn('[ForceSignal] could not rejoin the live feed', connectionId, error);
+          setConnectionState('offline');
+          setActivity(`Could not rejoin the live feed: ${error instanceof Error ? error.message : String(error)}`);
+        });
       // Resync independently of the rejoin: if the match is gone (for example the API restarted
       // and dropped in-memory state) this is what surfaces the expired session.
       loadSnapshot(session.matchId).catch((error: unknown) => handleSessionError(error, true));
@@ -333,11 +353,16 @@ function App() {
 
     const started = connection
       .start()
+      // Live once the server has accepted this seat into the match's group, not once the socket
+      // opened: a refused join (a stale token, a match the server no longer has) is a link that
+      // will never deliver a push.
+      .then(() => joinGroup())
       .then(() => {
+        console.info('[ForceSignal] realtime link live', connection.connectionId);
         setConnectionState('live');
-        return joinGroup();
       })
       .catch((error) => {
+        console.warn('[ForceSignal] realtime link failed to start', error);
         setConnectionState('offline');
         showError(setMessage)(error);
       });
