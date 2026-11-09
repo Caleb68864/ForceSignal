@@ -44,6 +44,7 @@ export default function PixiTableLayer({
   focusedShipId,
   mapElement,
   onUnavailable,
+  viewportPreviewRef,
 }: {
   snapshot: MatchSnapshot;
   viewport: MapViewport;
@@ -51,6 +52,8 @@ export default function PixiTableLayer({
   mapElement: HTMLElement | null;
   /** Called when this device cannot run the canvas, so the map can fall back to drawing in the DOM. */
   onUnavailable?: () => void;
+  /** Filled with a function the map calls on every move of a drag, before the viewport is committed. */
+  viewportPreviewRef?: { current: ((next: MapViewport) => void) | null };
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<TableScene | null>(null);
@@ -119,6 +122,18 @@ export default function PixiTableLayer({
       sceneRef.current?.setViewport(viewport);
     }
   }, [ready, viewport]);
+
+  // A drag moves the canvas directly, frame by frame, without waiting for the map to re-render.
+  useEffect(() => {
+    if (!ready || !viewportPreviewRef) {
+      return undefined;
+    }
+
+    viewportPreviewRef.current = (next) => sceneRef.current?.setViewport(next);
+    return () => {
+      viewportPreviewRef.current = null;
+    };
+  }, [ready, viewportPreviewRef]);
 
   // Start playing whatever is new: the whole turn when it first resolves, only the fresh steps after.
   useEffect(() => {

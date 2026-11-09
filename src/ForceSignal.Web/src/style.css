@@ -3406,3 +3406,34 @@ small,
   font-size: 0.78rem;
   white-space: nowrap;
 }
+
+/* On a phone the map is a few hundred pixels tall, and a wrapping playback bar covered the middle
+   of it. One short line along the bottom edge instead; the caption gives way first. */
+@media (max-width: 720px) {
+  .map-playback-bar {
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 3px 6px;
+    font-size: 0.7rem;
+  }
+
+  .map-playback-bar > .label {
+    display: none;
+  }
+
+  .map-playback-bar p {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .map-playback-bar button {
+    min-height: 32px;
+    padding-inline: 6px;
+    font-size: 0.66rem;
+  }
+}

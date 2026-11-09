@@ -80,9 +80,25 @@ async function measureOnce(renderer, ships, profile) {
     ? await frameStats(page, () => page.waitForFunction(() => document.querySelector('.table-map')?.dataset.playback === 'idle', null, { timeout: 12_000 }).catch(() => undefined))
     : null;
 
+  // Start the drag on open table: on a phone the map is small, and its middle can be a ship (which
+  // a press selects rather than pans) or the playback bar.
   const map = await page.locator('.table-map').boundingBox();
-  const cx = map.x + map.width / 2;
-  const cy = map.y + map.height / 2;
+  const start = await page.evaluate(({ x, y, width, height }) => {
+    for (let row = 1; row < 10; row += 1) {
+      for (let column = 1; column < 10; column += 1) {
+        const px = x + (width * column) / 10;
+        const py = y + (height * row) / 10;
+        const hit = document.elementFromPoint(px, py);
+        if (hit && (hit.classList.contains('table-map') || hit.classList.contains('table-map-content'))) {
+          return { x: px, y: py };
+        }
+      }
+    }
+
+    return { x: x + width / 2, y: y + height / 2 };
+  }, map);
+  const cx = start.x;
+  const cy = start.y;
   const panZoom = await frameStats(page, async () => {
     await page.mouse.move(cx, cy);
     await page.mouse.down();
