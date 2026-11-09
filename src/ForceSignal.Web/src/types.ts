@@ -223,7 +223,7 @@ export type FiringResult = {
  * battle-log entry that describes it.
  */
 export type TurnEventKind = 'FighterFlew' | 'MovementResolved' | 'SalvoStruck' | 'SalvoWasted' | 'PointDefenseFired'
-  | 'FighterStrikeStopped' | 'WeaponFired' | 'ThresholdChecked' | 'ShipDestroyed';
+  | 'FighterStrikeStopped' | 'WeaponFired' | 'ThresholdChecked' | 'ShipDestroyed' | 'OrdnanceLaunched' | 'OrdnanceMoved';
 export type TurnEvent = {
   sequence: number;
   turnNumber: number;
@@ -245,6 +245,8 @@ export type TurnEvent = {
   hullApplied?: number | null;
   row?: number | null;
   lostSystems?: string[] | null;
+  // For ordnance: the marker's status after the event, Active or Expired.
+  markerStatus?: string | null;
 };
 /** The turn just finished, kept through the turn advance so it can be played again. */
 export type LastTurn = {

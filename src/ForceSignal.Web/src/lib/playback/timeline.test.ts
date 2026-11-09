@@ -229,11 +229,17 @@ describe('empty and partial turns', () => {
     expect(JSON.stringify(full.slice(0, mid.length))).toBe(JSON.stringify(mid));
   });
 
-  it('replays the previous turn from the next one, exactly as it played', () => {
+  it('replays the previous turn from the next one, exactly as it played, then its ordnance flying', () => {
     const next = load(turnTwo);
     expect(next.firingResults).toHaveLength(0);
     expect(next.lastTurn?.turnNumber).toBe(1);
-    expect(buildTurnTimeline(next, 1)).toEqual(buildTurnTimeline(complete, 1));
+    const played = buildTurnTimeline(complete, 1).events;
+    const replay = buildTurnTimeline(next, 1).events;
+    expect(replay.slice(0, played.length)).toEqual(played);
+    // Ordnance flies as the turn ends, after the last shot, so only the replay has it.
+    const ending = replay.slice(played.length);
+    expect(ending.length).toBeGreaterThan(0);
+    expect(ending.every((event) => event.kind === 'ordnance-moved')).toBe(true);
   });
 
   it('says any turn older than that is unavailable', () => {

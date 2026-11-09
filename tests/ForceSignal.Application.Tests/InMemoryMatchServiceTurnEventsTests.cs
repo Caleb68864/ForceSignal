@@ -53,6 +53,8 @@ public sealed class InMemoryMatchServiceTurnEventsTests
             [TurnEventKinds.WeaponFired] = ["Fire"],
             [TurnEventKinds.ThresholdChecked] = ["Threshold"],
             [TurnEventKinds.ShipDestroyed] = ["Fire", "Ordnance"],
+            [TurnEventKinds.OrdnanceLaunched] = ["Ordnance"],
+            [TurnEventKinds.OrdnanceMoved] = ["Ordnance"],
         };
 
         Assert.NotEmpty(turn.TurnEvents!);
@@ -128,6 +130,52 @@ public sealed class InMemoryMatchServiceTurnEventsTests
         var reloadedNext = new InMemoryMatchService(null, store, loadPersisted: true).GetSnapshot(table.MatchId);
         Assert.Equal(Describe(next.LastTurn!.Events), Describe(reloadedNext.LastTurn!.Events));
         Assert.Equal(next.LastTurn.FiringResults.Count, reloadedNext.LastTurn.FiringResults.Count);
+    }
+
+    [Fact]
+    public void OrdnanceIsRecordedAsItIsLaunchedAndAsItFliesAtTheEndOfTheTurn()
+    {
+        var table = Table.Build();
+        Guid Launch(string name, decimal x, decimal y, int speed, int endurance) =>
+            table.Service.CreateOrdnanceMarker(table.MatchId, new CreateOrdnanceMarkerRequest(
+                table.OwnerToken, name, "Drone", table.LanceId, null, x, y, Course: 3, Speed: speed, EnduranceRemaining: endurance))
+                .OrdnanceMarkers.Single(m => m.Name == name).Id;
+
+        var cruising = Launch("Cruising", 10, 10, 6, 3);
+        var spent = Launch("Spent", 10, 20, 4, 1);
+        var parked = Launch("Parked", 10, 30, 0, 3);
+        var turn = table.PlayTurn();
+
+        // Each launch is in this turn's list, where it was placed.
+        var launches = turn.TurnEvents!.Where(e => e.Kind == TurnEventKinds.OrdnanceLaunched).ToList();
+        Assert.Contains(launches, e => e.MarkerId == cruising && e.To == new TablePointDto(10, 10) && e.ActorShipId == table.LanceId);
+        Assert.DoesNotContain(turn.TurnEvents!, e => e.Kind == TurnEventKinds.OrdnanceMoved);
+
+        var next = table.Service.AdvanceTurn(table.MatchId, table.OwnerToken);
+
+        // The moves happened at the end of turn one, so they are in its record, not turn two's.
+        Assert.Empty(next.TurnEvents!);
+        var moves = next.LastTurn!.Events.Where(e => e.Kind == TurnEventKinds.OrdnanceMoved).ToList();
+        var cruise = Assert.Single(moves, e => e.MarkerId == cruising);
+        Assert.Equal(new TablePointDto(10, 10), cruise.From);
+        Assert.Equal(new TablePointDto(16, 10), cruise.To);
+        Assert.Equal("Active", cruise.MarkerStatus);
+        Assert.Equal("Expired", Assert.Single(moves, e => e.MarkerId == spent).MarkerStatus);
+        // A marker that held its place and is still live has nothing to show.
+        Assert.DoesNotContain(moves, e => e.MarkerId == parked);
+
+        // And each move has its sentence, logged in the turn it belongs to.
+        foreach (var move in moves)
+        {
+            var entry = next.MatchLog.Single(log => log.Sequence == move.Sequence);
+            Assert.Equal("Ordnance", entry.Category);
+            Assert.Equal(1, entry.TurnNumber);
+            Assert.Equal(1, move.TurnNumber);
+        }
+
+        // The marker itself is where its last move put it.
+        var marker = next.OrdnanceMarkers.Single(m => m.Id == cruising);
+        Assert.Equal((16m, 10m), (marker.PositionX, marker.PositionY));
     }
 
     private static string Describe(IEnumerable<TurnEventDto> events) =>

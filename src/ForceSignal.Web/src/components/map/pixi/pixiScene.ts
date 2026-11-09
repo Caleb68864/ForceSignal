@@ -24,6 +24,11 @@ export type SceneInput = {
   frame: PlaybackFrame;
   /** Ships the timeline will blow up later in the playback, still drawn whole until then. */
   pendingKills: Set<string>;
+  /**
+   * True while a turn plays. The ordnance markers are DOM buttons the rest of the time; while a turn
+   * plays those step aside and the canvas draws every marker where the playback has it.
+   */
+  playing: boolean;
   focusedShipId?: string;
 };
 
@@ -33,6 +38,7 @@ export class TableScene {
   private readonly stars = new Graphics();
   private readonly trails = new Graphics();
   private readonly ships = new Graphics();
+  private readonly ordnance = new Graphics();
   private readonly fx = new Graphics();
   private size: ContentSize = { width: 1, height: 1 };
   private viewport: MapViewport = { scale: 1, x: 0, y: 0 };
@@ -58,7 +64,7 @@ export class TableScene {
     this.seed = hash(seedText);
     this.app.canvas.classList.add('pixi-map-canvas');
     host.appendChild(this.app.canvas);
-    this.world.addChild(this.stars, this.trails, this.ships, this.fx);
+    this.world.addChild(this.stars, this.trails, this.ordnance, this.ships, this.fx);
     this.app.stage.addChild(this.world);
     // Rendered on demand: the map is still most of the time, and a ticker running at 60 Hz over an
     // idle table is a phone battery spent on nothing.
@@ -126,6 +132,14 @@ export class TableScene {
       const course = pose?.course ?? ship.currentCourse;
       const dead = ship.isDestroyed && !input.pendingKills.has(ship.id);
       drawHull(this.ships, point, course, px, dead ? 0x55606a : color, dead, ship.id === input.focusedShipId);
+    }
+
+    this.ordnance.clear();
+    if (input.playing) {
+      for (const marker of input.snapshot.ordnanceMarkers) {
+        const point = at(input.frame.markers.get(marker.id) ?? { x: marker.positionX, y: marker.positionY });
+        drawMarker(this.ordnance, point, marker.course, px, marker.status === 'Active');
+      }
     }
 
     this.fx.clear();
@@ -222,6 +236,10 @@ export class TableScene {
           // The group itself is moving (its pose comes from the playback); a faint line shows where to.
           g.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ width: 1 * px, color, alpha: 0.35 * (1 - progress) });
           break;
+        case 'glide':
+          // The marker is moving (its position comes from the playback); a fading wake behind it.
+          g.moveTo(from.x, from.y).lineTo(lerp(from, to, progress).x, lerp(from, to, progress).y).stroke({ width: 1.5 * px, color, alpha: 0.4 * (1 - progress * 0.5) });
+          break;
         case 'none':
           break;
       }
@@ -274,6 +292,15 @@ export class TableScene {
       // Not initialised yet; init sees the flag and tears itself down.
     }
   }
+}
+
+/** An ordnance marker: a small diamond with a tick along its course, dimmed once it is spent. */
+function drawMarker(g: Graphics, at: TablePoint, course: number, px: number, live: boolean) {
+  const angle = (courseAngle(course) * Math.PI) / 180;
+  const color = live ? 0xf5c766 : 0x9aa6b2;
+  const size = 7 * px;
+  g.poly([at.x, at.y - size, at.x + size, at.y, at.x, at.y + size, at.x - size, at.y]).fill({ color, alpha: live ? 0.9 : 0.4 });
+  g.moveTo(at.x, at.y).lineTo(at.x + Math.sin(angle) * size * 2, at.y - Math.cos(angle) * size * 2).stroke({ width: 1.5 * px, color, alpha: live ? 0.9 : 0.4 });
 }
 
 /** A placeholder hull: an arrowhead pointing along the course, the same size at every zoom. */

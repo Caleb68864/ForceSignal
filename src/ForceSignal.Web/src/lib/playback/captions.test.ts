@@ -38,7 +38,7 @@ function captionNumbers(caption: string): number[] {
 describe('playback captions', () => {
   it('have one for every step of a real turn, and none is empty', () => {
     // Reached-the-subject: the turn really has every kind of step in it.
-    expect(new Set(steps.map((step) => step.kind))).toEqual(new Set(['flight', 'salvo', 'threshold', 'fire', 'destroyed', 'point-defence']));
+    expect(new Set(steps.map((step) => step.kind))).toEqual(new Set(['ordnance-launched', 'flight', 'salvo', 'threshold', 'fire', 'destroyed', 'point-defence']));
     for (const step of steps) {
       expect(captionFor(step, snapshot).length, step.kind).toBeGreaterThan(5);
     }
@@ -58,6 +58,18 @@ describe('playback captions', () => {
         expect(caption).toContain(`${step.event.arriving} of ${step.event.launched}`);
       }
     }
+  });
+
+  it('say who launched ordnance, and when a marker runs out', () => {
+    const launches = steps.filter((step) => step.kind === 'ordnance-launched').map((step) => captionFor(step, snapshot));
+    expect(launches).toContain('Lance launches Drone');
+    const drone = snapshot.ordnanceMarkers.find((marker) => marker.name === 'Drone');
+    const move = (markerStatus: string): ReportedEvent => ({
+      kind: 'ordnance-moved', step: 0, from: { x: 0, y: 0 }, to: { x: 1, y: 0 },
+      event: { sequence: 1, turnNumber: 1, kind: 'OrdnanceMoved', markerId: drone?.id, markerStatus },
+    });
+    expect(captionFor(move('Active'), snapshot)).toBe('Drone moves');
+    expect(captionFor(move('Expired'), snapshot)).toBe('Drone moves and runs out of endurance');
   });
 
   it('name the systems a threshold check took', () => {

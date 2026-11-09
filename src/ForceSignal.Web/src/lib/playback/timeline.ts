@@ -56,7 +56,7 @@ export type FireEvent = {
 
 /** Something the server's event list reports beyond moves and shots, carried as it was sent. */
 export type ReportedEvent = {
-  kind: 'flight' | 'salvo' | 'salvo-wasted' | 'point-defence' | 'strike-stopped' | 'threshold' | 'destroyed';
+  kind: 'flight' | 'salvo' | 'salvo-wasted' | 'point-defence' | 'strike-stopped' | 'threshold' | 'destroyed' | 'ordnance-launched' | 'ordnance-moved';
   step: number;
   /** The server's record, untouched. */
   event: TurnEvent;
@@ -94,6 +94,8 @@ export const reportedKinds: Partial<Record<TurnEvent['kind'], ReportedEvent['kin
   FighterStrikeStopped: 'strike-stopped',
   ThresholdChecked: 'threshold',
   ShipDestroyed: 'destroyed',
+  OrdnanceLaunched: 'ordnance-launched',
+  OrdnanceMoved: 'ordnance-moved',
 };
 
 export function buildTurnTimeline(snapshot: MatchSnapshot, turnNumber: number): TurnTimeline {

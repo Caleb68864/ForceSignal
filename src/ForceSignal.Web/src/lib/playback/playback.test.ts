@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import firingComplete from './fixtures/05-turn1-firing-complete.json' with { type: 'json' };
+import turnTwo from './fixtures/06-turn2-order-entry.json' with { type: 'json' };
 import { normalizeMatchSnapshot } from '../normalize.ts';
 import { frameAt, schedulePlayback, startTimeAfter } from './playback.ts';
 import { buildTurnTimeline } from './timeline.ts';
@@ -33,6 +34,39 @@ describe('with reduced motion', () => {
         expect(frame.poses.get(shipId)).toEqual(pose);
       }
     }
+  });
+});
+
+describe('ordnance flying at the end of the turn', () => {
+  const next = normalizeMatchSnapshot(structuredClone(turnTwo) as unknown as MatchSnapshot);
+  const replay = schedulePlayback(buildTurnTimeline(next, 1), { reducedMotion: false });
+  const glide = replay.steps.find((step) => step.event.kind === 'ordnance-moved');
+
+  it('glides each marker from where it was to where the server moved it', () => {
+    expect(glide).toBeDefined();
+    if (!glide || glide.event.kind !== 'ordnance-moved') {
+      return;
+    }
+
+    const markerId = glide.event.event.markerId ?? '';
+    expect(frameAt(replay, 0).markers.get(markerId)).toEqual(glide.event.from);
+    const midway = frameAt(replay, (glide.start + glide.impactAt) / 2).markers.get(markerId);
+    expect(midway?.x).toBeGreaterThan(glide.event.from.x);
+    expect(midway?.x).toBeLessThan(glide.event.to.x);
+    expect(frameAt(replay, replay.duration).markers.get(markerId)).toEqual(glide.event.to);
+    // And where it ends is where the snapshot has the marker now.
+    const marker = next.ordnanceMarkers.find((item) => item.id === markerId);
+    expect({ x: marker?.positionX, y: marker?.positionY }).toEqual(glide.event.to);
+  });
+
+  it('is at its end at once with reduced motion', () => {
+    const still = schedulePlayback(buildTurnTimeline(next, 1), { reducedMotion: true });
+    const step = still.steps.find((item) => item.event.kind === 'ordnance-moved');
+    if (!step || step.event.kind !== 'ordnance-moved') {
+      throw new Error('no ordnance move in the replay');
+    }
+
+    expect(frameAt(still, 0).markers.get(step.event.event.markerId ?? '')).toEqual(step.event.to);
   });
 });
 

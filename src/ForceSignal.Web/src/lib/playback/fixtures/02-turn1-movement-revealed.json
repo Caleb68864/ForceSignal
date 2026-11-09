@@ -1,6 +1,6 @@
 {
-  "matchId": "4bf847b8-dd2e-4a91-8fbe-7cb796ae94e0",
-  "joinCode": "PIVOT-TOPAZ-JUNO-BEACON",
+  "matchId": "02382103-4479-4565-8479-8e50d2aeec98",
+  "joinCode": "LOTUS-FALCON-LANCE-MERIDIAN",
   "name": "Playback Fixture",
   "phase": "Movement",
   "turnNumber": 1,
@@ -112,7 +112,7 @@
   "tableDepth": 48,
   "participants": [
     {
-      "id": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "id": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "displayName": "Blue Admiral",
       "role": "Owner",
       "isReady": true,
@@ -120,7 +120,7 @@
       "ordersComplete": true
     },
     {
-      "id": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "id": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "displayName": "Red Admiral",
       "role": "Player",
       "isReady": true,
@@ -130,15 +130,15 @@
   ],
   "fleets": [
     {
-      "id": "2967ed50-144b-425f-9486-43042ebaaac5",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "id": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "name": "Blue",
       "faction": null,
       "fleetColor": "#3b82f6"
     },
     {
-      "id": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "id": "b6314155-8090-48da-a667-297459ff8860",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "name": "Red",
       "faction": null,
       "fleetColor": "#ef4444"
@@ -146,8 +146,8 @@
   ],
   "ships": [
     {
-      "id": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Lance",
       "className": "Cruiser",
       "thrustRating": 6,
@@ -171,7 +171,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "aeabe1fd-79c2-4724-b8d2-407e0adcf289",
+          "id": "1f49b5d2-33d3-463f-945d-0ed5c4292188",
           "name": "Battery A",
           "attackDice": 6,
           "maxRange": 30,
@@ -190,7 +190,7 @@
           "isNeedleKilled": false
         },
         {
-          "id": "63f02493-d152-404e-b781-740a5034d184",
+          "id": "957ea561-c1d5-4985-8b36-f47ca50fdcb9",
           "name": "Launcher",
           "attackDice": 1,
           "maxRange": 40,
@@ -235,8 +235,8 @@
       "repairableSystems": []
     },
     {
-      "id": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "a36af3dc-44b9-4715-97e6-b118cd1f7d7d",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Edge Runner",
       "className": "Frigate",
       "thrustRating": 4,
@@ -260,7 +260,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "9342eb7d-0ec1-4680-89c5-df88f91d83eb",
+          "id": "2b7e71c4-2149-470b-8229-50788054a09d",
           "name": "Battery B",
           "attackDice": 2,
           "maxRange": 48,
@@ -305,8 +305,8 @@
       "repairableSystems": []
     },
     {
-      "id": "8b99f8aa-750f-4db6-8dfe-534b05144978",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "081ae75e-9015-46d5-b8b3-a50d00e298df",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Drifter",
       "className": "Escort",
       "thrustRating": 2,
@@ -355,8 +355,8 @@
       "repairableSystems": []
     },
     {
-      "id": "c35365a7-fbc7-499a-8a1b-65e2c9cd73e2",
-      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "id": "404f4b33-db1c-431d-80eb-a189a8fd8eb6",
+      "fleetId": "e82e6a66-25d2-4af8-b2db-3d7b85f8260d",
       "name": "Hawk Flight",
       "className": "Fighter Group",
       "thrustRating": 6,
@@ -380,7 +380,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "b13a44fe-dc8f-4c94-a705-be8294135811",
+          "id": "9bc5364d-ec41-4ec2-95ba-7198d3030411",
           "name": "Fighter Attack",
           "attackDice": 6,
           "maxRange": 6,
@@ -421,8 +421,8 @@
       "repairableSystems": []
     },
     {
-      "id": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Bulwark",
       "className": "Cruiser",
       "thrustRating": 4,
@@ -446,7 +446,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "31e4d2f6-082e-4871-be0e-3996e8f5de46",
+          "id": "5d855780-3b62-49c1-be7d-bb21c592c7ab",
           "name": "Battery R",
           "attackDice": 3,
           "maxRange": 30,
@@ -491,8 +491,8 @@
       "repairableSystems": []
     },
     {
-      "id": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "9884d7af-1d28-44f9-9055-dee96d453f5a",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Picket",
       "className": "Escort",
       "thrustRating": 4,
@@ -539,8 +539,8 @@
       "repairableSystems": []
     },
     {
-      "id": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "f0f2775c-a269-49cf-a09b-5d7a8105a78b",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Needler",
       "className": "Destroyer",
       "thrustRating": 4,
@@ -564,7 +564,7 @@
       "screenDamage": 0,
       "weapons": [
         {
-          "id": "b1d3cba0-222b-4891-a1e7-41d872ffd4a1",
+          "id": "f49ace08-8096-4049-b390-3342780ffe21",
           "name": "Needle",
           "attackDice": 1,
           "maxRange": 7,
@@ -609,8 +609,8 @@
       "repairableSystems": []
     },
     {
-      "id": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
-      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "id": "5851e981-a2ad-43fa-a85c-30292e690575",
+      "fleetId": "b6314155-8090-48da-a667-297459ff8860",
       "name": "Wreck",
       "className": "Escort",
       "thrustRating": 4,
@@ -660,57 +660,57 @@
   ],
   "orderStatuses": [
     {
-      "shipId": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": true,
       "isRevealed": true,
       "verificationFailed": false
     },
     {
-      "shipId": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "a36af3dc-44b9-4715-97e6-b118cd1f7d7d",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": true,
       "isRevealed": true,
       "verificationFailed": false
     },
     {
-      "shipId": "8b99f8aa-750f-4db6-8dfe-534b05144978",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "081ae75e-9015-46d5-b8b3-a50d00e298df",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "c35365a7-fbc7-499a-8a1b-65e2c9cd73e2",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "shipId": "404f4b33-db1c-431d-80eb-a189a8fd8eb6",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "isCommitted": false,
       "isRevealed": false,
       "verificationFailed": false
     },
     {
-      "shipId": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": true,
       "isRevealed": true,
       "verificationFailed": false
     },
     {
-      "shipId": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "9884d7af-1d28-44f9-9055-dee96d453f5a",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": true,
       "isRevealed": true,
       "verificationFailed": false
     },
     {
-      "shipId": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "f0f2775c-a269-49cf-a09b-5d7a8105a78b",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": true,
       "isRevealed": true,
       "verificationFailed": false
     },
     {
-      "shipId": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
-      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "shipId": "5851e981-a2ad-43fa-a85c-30292e690575",
+      "ownerParticipantId": "35699a0c-d7de-4f9b-ab7a-a009f2e8bf4b",
       "isCommitted": true,
       "isRevealed": true,
       "verificationFailed": false
@@ -718,7 +718,7 @@
   ],
   "revealedOrders": [
     {
-      "shipId": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
+      "shipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
       "velocityDelta": 0,
       "turnSteps": 2,
       "turnDirection": "None",
@@ -734,35 +734,35 @@
       ]
     },
     {
-      "shipId": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
+      "shipId": "a36af3dc-44b9-4715-97e6-b118cd1f7d7d",
       "velocityDelta": 0,
       "turnSteps": 0,
       "turnDirection": "None",
       "turnManeuvers": null
     },
     {
-      "shipId": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
+      "shipId": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
       "velocityDelta": 0,
       "turnSteps": 0,
       "turnDirection": "None",
       "turnManeuvers": null
     },
     {
-      "shipId": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
+      "shipId": "9884d7af-1d28-44f9-9055-dee96d453f5a",
       "velocityDelta": 0,
       "turnSteps": 1,
       "turnDirection": "Port",
       "turnManeuvers": null
     },
     {
-      "shipId": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
+      "shipId": "f0f2775c-a269-49cf-a09b-5d7a8105a78b",
       "velocityDelta": -2,
       "turnSteps": 0,
       "turnDirection": "None",
       "turnManeuvers": null
     },
     {
-      "shipId": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
+      "shipId": "5851e981-a2ad-43fa-a85c-30292e690575",
       "velocityDelta": 0,
       "turnSteps": 0,
       "turnDirection": "None",
@@ -771,7 +771,7 @@
   ],
   "movementResults": [
     {
-      "shipId": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
+      "shipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
       "startingVelocity": 6,
       "startingCourse": 3,
       "endingVelocity": 6,
@@ -795,7 +795,7 @@
       "drifted": false
     },
     {
-      "shipId": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
+      "shipId": "a36af3dc-44b9-4715-97e6-b118cd1f7d7d",
       "startingVelocity": 8,
       "startingCourse": 3,
       "endingVelocity": 8,
@@ -811,7 +811,7 @@
       "drifted": false
     },
     {
-      "shipId": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
+      "shipId": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
       "startingVelocity": 4,
       "startingCourse": 9,
       "endingVelocity": 4,
@@ -827,7 +827,7 @@
       "drifted": false
     },
     {
-      "shipId": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
+      "shipId": "9884d7af-1d28-44f9-9055-dee96d453f5a",
       "startingVelocity": 2,
       "startingCourse": 9,
       "endingVelocity": 2,
@@ -847,7 +847,7 @@
       "drifted": false
     },
     {
-      "shipId": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
+      "shipId": "f0f2775c-a269-49cf-a09b-5d7a8105a78b",
       "startingVelocity": 3,
       "startingCourse": 9,
       "endingVelocity": 1,
@@ -863,7 +863,7 @@
       "drifted": false
     },
     {
-      "shipId": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
+      "shipId": "5851e981-a2ad-43fa-a85c-30292e690575",
       "startingVelocity": 4,
       "startingCourse": 9,
       "endingVelocity": 4,
@@ -882,12 +882,12 @@
   "firingResults": [],
   "ordnanceMarkers": [
     {
-      "id": "13be90fc-4718-44e4-a7ad-cf459cdef4f7",
-      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "id": "0fec5d82-7938-4fd7-959a-2f644c2b1dcc",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
       "name": "Salvo One",
       "markerType": "Salvo",
-      "sourceShipId": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
-      "targetShipId": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
+      "sourceShipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "targetShipId": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
       "positionX": 42,
       "positionY": 24,
       "course": 9,
@@ -896,12 +896,28 @@
       "attackDice": 0,
       "maxRange": 24,
       "status": "Active"
+    },
+    {
+      "id": "9477139a-b440-4077-9afe-9716b1c93b53",
+      "ownerParticipantId": "da780a07-adce-4663-b5f9-a59b3b6db8c7",
+      "name": "Drone",
+      "markerType": "Drone",
+      "sourceShipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "targetShipId": null,
+      "positionX": 8,
+      "positionY": 40,
+      "course": 3,
+      "speed": 6,
+      "enduranceRemaining": 2,
+      "attackDice": 0,
+      "maxRange": 0,
+      "status": "Active"
     }
   ],
   "matchLog": [
     {
       "sequence": 1,
-      "timestamp": "2026-11-09T20:05:45.255502+00:00",
+      "timestamp": "2026-11-09T21:43:54.2728346+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -909,7 +925,7 @@
     },
     {
       "sequence": 2,
-      "timestamp": "2026-11-09T20:05:45.2594452+00:00",
+      "timestamp": "2026-11-09T21:43:54.2770029+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -917,7 +933,7 @@
     },
     {
       "sequence": 3,
-      "timestamp": "2026-11-09T20:05:45.263705+00:00",
+      "timestamp": "2026-11-09T21:43:54.2811615+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -925,7 +941,7 @@
     },
     {
       "sequence": 4,
-      "timestamp": "2026-11-09T20:05:45.2708959+00:00",
+      "timestamp": "2026-11-09T21:43:54.2883725+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -933,7 +949,7 @@
     },
     {
       "sequence": 5,
-      "timestamp": "2026-11-09T20:05:45.2885538+00:00",
+      "timestamp": "2026-11-09T21:43:54.3059744+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -941,7 +957,7 @@
     },
     {
       "sequence": 6,
-      "timestamp": "2026-11-09T20:05:45.2965265+00:00",
+      "timestamp": "2026-11-09T21:43:54.3138306+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -949,7 +965,7 @@
     },
     {
       "sequence": 7,
-      "timestamp": "2026-11-09T20:05:45.2966308+00:00",
+      "timestamp": "2026-11-09T21:43:54.3139478+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -957,7 +973,7 @@
     },
     {
       "sequence": 8,
-      "timestamp": "2026-11-09T20:05:45.2977335+00:00",
+      "timestamp": "2026-11-09T21:43:54.3150904+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -965,7 +981,7 @@
     },
     {
       "sequence": 9,
-      "timestamp": "2026-11-09T20:05:45.2978191+00:00",
+      "timestamp": "2026-11-09T21:43:54.3151658+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -973,7 +989,7 @@
     },
     {
       "sequence": 10,
-      "timestamp": "2026-11-09T20:05:45.2978543+00:00",
+      "timestamp": "2026-11-09T21:43:54.3152006+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -981,7 +997,7 @@
     },
     {
       "sequence": 11,
-      "timestamp": "2026-11-09T20:05:45.2995121+00:00",
+      "timestamp": "2026-11-09T21:43:54.3167615+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -989,7 +1005,7 @@
     },
     {
       "sequence": 12,
-      "timestamp": "2026-11-09T20:05:45.2995589+00:00",
+      "timestamp": "2026-11-09T21:43:54.3168063+00:00",
       "turnNumber": 1,
       "phase": "FleetSetup",
       "category": "Setup",
@@ -997,7 +1013,7 @@
     },
     {
       "sequence": 13,
-      "timestamp": "2026-11-09T20:05:45.3027019+00:00",
+      "timestamp": "2026-11-09T21:43:54.3197755+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Phase",
@@ -1005,7 +1021,7 @@
     },
     {
       "sequence": 14,
-      "timestamp": "2026-11-09T20:05:45.303567+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206556+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1013,7 +1029,7 @@
     },
     {
       "sequence": 15,
-      "timestamp": "2026-11-09T20:05:45.3035751+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206651+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1021,7 +1037,7 @@
     },
     {
       "sequence": 16,
-      "timestamp": "2026-11-09T20:05:45.3035773+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206673+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1029,7 +1045,7 @@
     },
     {
       "sequence": 17,
-      "timestamp": "2026-11-09T20:05:45.3035792+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206692+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1037,7 +1053,7 @@
     },
     {
       "sequence": 18,
-      "timestamp": "2026-11-09T20:05:45.3035872+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206765+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1045,7 +1061,7 @@
     },
     {
       "sequence": 19,
-      "timestamp": "2026-11-09T20:05:45.3035891+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206784+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1053,7 +1069,7 @@
     },
     {
       "sequence": 20,
-      "timestamp": "2026-11-09T20:05:45.3035908+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206803+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1061,7 +1077,7 @@
     },
     {
       "sequence": 21,
-      "timestamp": "2026-11-09T20:05:45.3035926+00:00",
+      "timestamp": "2026-11-09T21:43:54.3206822+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Snapshot",
@@ -1069,7 +1085,7 @@
     },
     {
       "sequence": 22,
-      "timestamp": "2026-11-09T20:05:45.4601814+00:00",
+      "timestamp": "2026-11-09T21:43:54.4863084+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Ordnance",
@@ -1077,143 +1093,151 @@
     },
     {
       "sequence": 23,
-      "timestamp": "2026-11-09T20:05:45.463628+00:00",
+      "timestamp": "2026-11-09T21:43:54.4895287+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Ordnance",
+      "message": "Drone Drone marker launched at 8,40, C3/V6, no target."
+    },
+    {
+      "sequence": 24,
+      "timestamp": "2026-11-09T21:43:54.492314+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Fighters",
       "message": "Hawk Flight [Blue, Blue Admiral] flew 10.8 from 28,30 to 38,26, now facing course 2."
     },
     {
-      "sequence": 24,
-      "timestamp": "2026-11-09T20:05:45.4778799+00:00",
+      "sequence": 25,
+      "timestamp": "2026-11-09T21:43:54.5047727+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Lance [Blue, Blue Admiral] locked a hidden movement order."
     },
     {
-      "sequence": 25,
-      "timestamp": "2026-11-09T20:05:45.4848589+00:00",
+      "sequence": 26,
+      "timestamp": "2026-11-09T21:43:54.512202+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Edge Runner [Blue, Blue Admiral] locked a hidden movement order."
     },
     {
-      "sequence": 26,
-      "timestamp": "2026-11-09T20:05:45.4849716+00:00",
+      "sequence": 27,
+      "timestamp": "2026-11-09T21:43:54.5123336+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Bulwark [Red, Red Admiral] locked a hidden movement order."
     },
     {
-      "sequence": 27,
-      "timestamp": "2026-11-09T20:05:45.4862774+00:00",
+      "sequence": 28,
+      "timestamp": "2026-11-09T21:43:54.5139593+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Picket [Red, Red Admiral] locked a hidden movement order."
     },
     {
-      "sequence": 28,
-      "timestamp": "2026-11-09T20:05:45.4864026+00:00",
+      "sequence": 29,
+      "timestamp": "2026-11-09T21:43:54.5141063+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Needler [Red, Red Admiral] locked a hidden movement order."
     },
     {
-      "sequence": 29,
-      "timestamp": "2026-11-09T20:05:45.4864694+00:00",
+      "sequence": 30,
+      "timestamp": "2026-11-09T21:43:54.5141729+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Wreck [Red, Red Admiral] locked a hidden movement order."
     },
     {
-      "sequence": 30,
-      "timestamp": "2026-11-09T20:05:45.4890324+00:00",
+      "sequence": 31,
+      "timestamp": "2026-11-09T21:43:54.5173003+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Blue Admiral finished plotting. 1 ship holds course and speed."
     },
     {
-      "sequence": 31,
-      "timestamp": "2026-11-09T20:05:45.489142+00:00",
+      "sequence": 32,
+      "timestamp": "2026-11-09T21:43:54.5174614+00:00",
       "turnNumber": 1,
       "phase": "OrderEntry",
       "category": "Orders",
       "message": "Red Admiral finished plotting."
     },
     {
-      "sequence": 32,
-      "timestamp": "2026-11-09T20:05:45.4891457+00:00",
+      "sequence": 33,
+      "timestamp": "2026-11-09T21:43:54.5174654+00:00",
       "turnNumber": 1,
       "phase": "OrdersLocked",
       "category": "Phase",
       "message": "All movement orders locked."
     },
     {
-      "sequence": 33,
-      "timestamp": "2026-11-09T20:05:45.493287+00:00",
+      "sequence": 34,
+      "timestamp": "2026-11-09T21:43:54.5222961+00:00",
       "turnNumber": 1,
       "phase": "OrdersLocked",
       "category": "Orders",
       "message": "Lance [Blue, Blue Admiral] revealed dV 0, helm S1, P1."
     },
     {
-      "sequence": 34,
-      "timestamp": "2026-11-09T20:05:45.494379+00:00",
+      "sequence": 35,
+      "timestamp": "2026-11-09T21:43:54.5235672+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
       "message": "Edge Runner [Blue, Blue Admiral] revealed dV 0, helm no turn."
     },
     {
-      "sequence": 35,
-      "timestamp": "2026-11-09T20:05:45.494445+00:00",
+      "sequence": 36,
+      "timestamp": "2026-11-09T21:43:54.523656+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
       "message": "Bulwark [Red, Red Admiral] revealed dV 0, helm no turn."
     },
     {
-      "sequence": 36,
-      "timestamp": "2026-11-09T20:05:45.4945626+00:00",
+      "sequence": 37,
+      "timestamp": "2026-11-09T21:43:54.5237982+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
       "message": "Picket [Red, Red Admiral] revealed dV 0, helm P1."
     },
     {
-      "sequence": 37,
-      "timestamp": "2026-11-09T20:05:45.4947268+00:00",
+      "sequence": 38,
+      "timestamp": "2026-11-09T21:43:54.5238895+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
       "message": "Needler [Red, Red Admiral] revealed dV -2, helm no turn."
     },
     {
-      "sequence": 38,
-      "timestamp": "2026-11-09T20:05:45.494816+00:00",
+      "sequence": 39,
+      "timestamp": "2026-11-09T21:43:54.5239539+00:00",
       "turnNumber": 1,
       "phase": "Reveal",
       "category": "Orders",
       "message": "Wreck [Red, Red Admiral] revealed dV 0, helm no turn."
     },
     {
-      "sequence": 39,
-      "timestamp": "2026-11-09T20:05:45.494817+00:00",
+      "sequence": 40,
+      "timestamp": "2026-11-09T21:43:54.5239549+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Phase",
       "message": "All movement orders revealed."
     },
     {
-      "sequence": 40,
-      "timestamp": "2026-11-09T20:05:45.4968196+00:00",
+      "sequence": 41,
+      "timestamp": "2026-11-09T21:43:54.5259803+00:00",
       "turnNumber": 1,
       "phase": "Movement",
       "category": "Damage",
@@ -1223,14 +1247,72 @@
   "firingShipId": null,
   "firingParticipantId": null,
   "activatedShipIds": [],
-  "version": 31,
+  "version": 32,
   "pointsLimit": 0,
   "turnEvents": [
     {
+      "sequence": 22,
+      "turnNumber": 1,
+      "kind": "OrdnanceLaunched",
+      "actorShipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "targetShipId": "d6186dc0-8c14-4399-adf9-2d1efcb6ee21",
+      "markerId": "0fec5d82-7938-4fd7-959a-2f644c2b1dcc",
+      "firingResultIndex": null,
+      "from": {
+        "x": 18,
+        "y": 24
+      },
+      "to": {
+        "x": 42,
+        "y": 24
+      },
+      "rolls": null,
+      "kills": null,
+      "launched": null,
+      "arriving": null,
+      "surviving": null,
+      "damageRolls": null,
+      "damage": null,
+      "armorApplied": null,
+      "hullApplied": null,
+      "row": null,
+      "lostSystems": null,
+      "markerStatus": "Active"
+    },
+    {
       "sequence": 23,
       "turnNumber": 1,
+      "kind": "OrdnanceLaunched",
+      "actorShipId": "e2612f27-93a6-4439-82b2-724d541b81e4",
+      "targetShipId": null,
+      "markerId": "9477139a-b440-4077-9afe-9716b1c93b53",
+      "firingResultIndex": null,
+      "from": {
+        "x": 18,
+        "y": 24
+      },
+      "to": {
+        "x": 8,
+        "y": 40
+      },
+      "rolls": null,
+      "kills": null,
+      "launched": null,
+      "arriving": null,
+      "surviving": null,
+      "damageRolls": null,
+      "damage": null,
+      "armorApplied": null,
+      "hullApplied": null,
+      "row": null,
+      "lostSystems": null,
+      "markerStatus": "Active"
+    },
+    {
+      "sequence": 24,
+      "turnNumber": 1,
       "kind": "FighterFlew",
-      "actorShipId": "c35365a7-fbc7-499a-8a1b-65e2c9cd73e2",
+      "actorShipId": "404f4b33-db1c-431d-80eb-a189a8fd8eb6",
       "targetShipId": null,
       "markerId": null,
       "firingResultIndex": null,
@@ -1252,7 +1334,8 @@
       "armorApplied": null,
       "hullApplied": null,
       "row": null,
-      "lostSystems": null
+      "lostSystems": null,
+      "markerStatus": null
     }
   ],
   "lastTurn": null

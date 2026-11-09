@@ -14,7 +14,7 @@
 
 import type { FireEvent, FxKey, ReportedEvent } from './timeline.ts';
 
-export type TravelStyle = 'beam' | 'projectile' | 'needle' | 'swarm' | 'flash' | 'salvo' | 'tracer' | 'flight' | 'none';
+export type TravelStyle = 'beam' | 'projectile' | 'needle' | 'swarm' | 'flash' | 'salvo' | 'tracer' | 'flight' | 'glide' | 'none';
 
 export type FxSpec = {
   travel: TravelStyle;
@@ -68,6 +68,9 @@ export const reportedFx: Record<ReportedEvent['kind'], FxSpec> = {
   'strike-stopped': { travel: 'none', travelMs: 1, color: 0x9aa6b2, label: 'Strike stopped' },
   threshold: { travel: 'none', travelMs: 1, color: 0xffd27a, label: 'Threshold check' },
   destroyed: { travel: 'none', travelMs: 1, color: 0xff7a2f, label: 'Destroyed' },
+  'ordnance-launched': { travel: 'projectile', travelMs: 500, color: 0xf5c766, label: 'Ordnance launched' },
+  // The marker itself travels: its position comes from the playback, this draws its wake.
+  'ordnance-moved': { travel: 'glide', travelMs: 900, color: 0xf5c766, label: 'Ordnance moves' },
 };
 
 /** The impact for a reported event, read off the server's record as `impactsFor` reads a shot. */
@@ -85,6 +88,10 @@ export function impactsForReported(event: ReportedEvent): ImpactKind[] {
     case 'strike-stopped':
       return ['miss'];
     case 'flight':
+    case 'ordnance-launched':
       return [];
+    case 'ordnance-moved':
+      // Out of endurance: it fizzles where it stopped.
+      return event.event.markerStatus === 'Expired' ? ['miss'] : [];
   }
 }

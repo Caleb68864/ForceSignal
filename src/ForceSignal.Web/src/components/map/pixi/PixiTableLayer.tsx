@@ -204,7 +204,7 @@ export default function PixiTableLayer({
     }
 
     const current = frameAt(schedule, time ?? schedule.duration);
-    sceneRef.current?.draw({ snapshot, moves, frame: current, pendingKills: pendingKills(schedule, current.settled, time !== null), focusedShipId });
+    sceneRef.current?.draw({ snapshot, moves, frame: current, pendingKills: pendingKills(schedule, current.settled, time !== null), focusedShipId, playing: time !== null });
   }, [ready, snapshot, moves, schedule, time, focusedShipId]);
 
   const movesRunning = playing && time !== null && time >= schedule.moveStart && time < schedule.moveEnd;

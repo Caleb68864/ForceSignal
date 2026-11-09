@@ -9,8 +9,10 @@
 import type { FireEvent, ReportedEvent } from './timeline.ts';
 import type { MatchSnapshot } from '../../types.ts';
 
-export function captionFor(step: FireEvent | ReportedEvent, snapshot: Pick<MatchSnapshot, 'ships'>): string {
+export function captionFor(step: FireEvent | ReportedEvent, snapshot: Pick<MatchSnapshot, 'ships' | 'ordnanceMarkers'>): string {
   const name = (id?: string | null) => snapshot.ships.find((ship) => ship.id === id)?.name ?? 'Unknown';
+  // A marker removed since keeps its event; it is just called what it was.
+  const marker = (id?: string | null) => snapshot.ordnanceMarkers.find((item) => item.id === id)?.name ?? 'Ordnance';
 
   if (step.kind === 'fire') {
     const { result } = step;
@@ -45,5 +47,9 @@ export function captionFor(step: FireEvent | ReportedEvent, snapshot: Pick<Match
     }
     case 'destroyed':
       return `${name(event.targetShipId)} destroyed`;
+    case 'ordnance-launched':
+      return event.actorShipId ? `${name(event.actorShipId)} launches ${marker(event.markerId)}` : `${marker(event.markerId)} placed`;
+    case 'ordnance-moved':
+      return `${marker(event.markerId)} moves${event.markerStatus === 'Expired' ? ' and runs out of endurance' : ''}`;
   }
 }

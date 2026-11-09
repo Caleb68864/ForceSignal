@@ -39,6 +39,8 @@ export type ActiveFx = {
 export type PlaybackFrame = {
   /** Only ships that move or fly this turn; everyone else stands where the snapshot has them. */
   poses: Map<string, ShipPose>;
+  /** Only ordnance markers that move this turn, by marker id; the rest stand where the snapshot has them. */
+  markers: Map<string, TablePoint>;
   active: ActiveFx[];
   /** Steps whose impact has played, so their result can be shown as settled. */
   settled: number;
@@ -116,8 +118,15 @@ export function frameAt(schedule: PlaybackSchedule, time: number): PlaybackFrame
   }
 
   const active: ActiveFx[] = [];
+  const markers = new Map<string, TablePoint>();
   let settled = 0;
   for (const step of schedule.steps) {
+    if (step.event.kind === 'ordnance-moved' && step.event.event.markerId) {
+      // A marker sits at the start of its move until its turn comes, then glides to the end of it.
+      const along = schedule.duration === 0 || t >= step.impactAt ? 1 : t <= step.start ? 0 : (t - step.start) / (step.impactAt - step.start);
+      markers.set(step.event.event.markerId, lerp(step.event.from, step.event.to, easeInOut(along)));
+    }
+
     if (step.event.kind === 'flight' && step.event.event.actorShipId) {
       // A flight is a move of its own: the group crosses during its travel and stays where it landed.
       const along = schedule.duration === 0 || t >= step.impactAt ? 1 : t <= step.start ? 0 : (t - step.start) / (step.impactAt - step.start);
@@ -134,7 +143,7 @@ export function frameAt(schedule: PlaybackSchedule, time: number): PlaybackFrame
     }
   }
 
-  return { poses, active, settled, done: t >= schedule.duration };
+  return { poses, markers, active, settled, done: t >= schedule.duration };
 }
 
 /** A ship's place part-way along its legs, measured by distance so a long leg takes longer. */

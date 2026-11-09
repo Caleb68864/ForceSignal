@@ -839,6 +839,15 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             _markerToMatch[marker.Id] = match.Id;
             var targetNote = target is null ? "no target" : $"targeting {target.Name}";
             match.AddLog("Ordnance", match.Phase.ToString(), $"{marker.Name} {marker.MarkerType} marker launched at {marker.PositionX:0.#},{marker.PositionY:0.#}, C{marker.Course}/V{marker.Speed}, {targetNote}.");
+            match.AddEvent(new TurnEventState(TurnEventKinds.OrdnanceLaunched)
+            {
+                MarkerId = marker.Id,
+                ActorShipId = marker.SourceShipId,
+                TargetShipId = marker.TargetShipId,
+                From = source is null ? null : new ResolvedPoint(source.PositionX, source.PositionY),
+                To = new ResolvedPoint(marker.PositionX, marker.PositionY),
+                MarkerStatus = marker.Status,
+            });
             match.Touch("OrdnanceMarkerCreated");
             return ToSnapshot(match);
         }
@@ -1601,6 +1610,10 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             {
                 ResolvePendingThresholds(match);
 
+                // Ordnance flies at the end of the turn it was in, so its moves belong to that turn's
+                // record - they used to happen after the turn number had already ticked over.
+                AdvanceOrdnanceMarkers(match);
+
                 // The turn just played is kept whole for one more turn, so a device can play it
                 // again - its moves, its shots and everything else - after the board has moved on.
                 match.LastTurn = new LastTurnState(match.TurnNumber, match.ResolvedMoves ?? [], [.. match.FiringResults], [.. match.TurnEvents]);
@@ -1620,7 +1633,6 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 {
                     plotter.OrdersComplete = false;
                 }
-                AdvanceOrdnanceMarkers(match);
                 AddFleetSummary(match, "End of firing phase");
                 AddShipStateSnapshot(match, "End of turn");
                 match.AddLog("Phase", match.Phase.ToString(), $"Turn {match.TurnNumber} order entry opened.");
@@ -2071,17 +2083,41 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             $"{DescribeShip(match, ship)} spent a turn of endurance in combat: {ship.FighterEnduranceUsed}/{ship.FighterEnduranceMax} used.");
     }
 
+    /// <summary>
+    /// Flies every active marker its speed along its course, spends a turn of its endurance, and
+    /// records each move as it is made, so a device can show the marker travel rather than jump.
+    /// </summary>
     private static void AdvanceOrdnanceMarkers(MatchState match)
     {
         foreach (var marker in match.OrdnanceMarkers.Where(o => o.Status == "Active").ToArray())
         {
+            var fromX = marker.PositionX;
+            var fromY = marker.PositionY;
             (marker.PositionX, marker.PositionY) = EstimatePosition(marker.PositionX, marker.PositionY, marker.Speed, marker.Course, match.TableWidth, match.TableDepth);
             marker.EnduranceRemaining = Math.Max(0, marker.EnduranceRemaining - 1);
+            var moved = marker.PositionX != fromX || marker.PositionY != fromY;
             if (marker.EnduranceRemaining == 0)
             {
                 marker.Status = "Expired";
                 match.AddLog("Ordnance", match.Phase.ToString(), $"{marker.Name} marker expired at {marker.PositionX:0.#},{marker.PositionY:0.#}.");
             }
+            else if (moved)
+            {
+                match.AddLog("Ordnance", match.Phase.ToString(), $"{marker.Name} marker moved from {fromX:0.#},{fromY:0.#} to {marker.PositionX:0.#},{marker.PositionY:0.#}, endurance {marker.EnduranceRemaining}.");
+            }
+            else
+            {
+                // Held its place and is still live: nothing to show, so nothing recorded.
+                continue;
+            }
+
+            match.AddEvent(new TurnEventState(TurnEventKinds.OrdnanceMoved)
+            {
+                MarkerId = marker.Id,
+                From = new ResolvedPoint(fromX, fromY),
+                To = new ResolvedPoint(marker.PositionX, marker.PositionY),
+                MarkerStatus = marker.Status,
+            });
         }
     }
 
