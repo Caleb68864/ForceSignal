@@ -93,8 +93,8 @@ server gaps, pinned. Not a port: the canvas sits under the existing React map be
 
 - [x] Movement results carry the path as flown, edge and all (`MovementResult.path`, `clamped`).
 - [x] Every ship that moved has a record (drifters marked `drifted`); a ship wrecked before movement does not.
-- [ ] Ordered `turnEvents` on the snapshot: salvo, point defence, thresholds, fighter flights, destruction.
-- [ ] Keep last turn's events through the turn advance, so it can be replayed.
+- [x] Ordered `turnEvents` on the snapshot: salvo, point defence, thresholds, fighter flights, destruction; each tied to its log entry.
+- [x] Keep last turn whole (`lastTurn`: moves, shots, events) through the turn advance, so it can be replayed.
 - [x] Close the wire/type drift (`mapRange`, `rangeDisagreed`, six ship fields, nullable `faction`); held by `wireContract.test.ts`.
 - [ ] Canvas renderer as a per-device setting with DOM fallback when WebGL fails.
 - [ ] Pan cost: stop re-rendering every ship button per pointer move.

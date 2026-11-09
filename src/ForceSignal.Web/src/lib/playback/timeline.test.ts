@@ -94,11 +94,38 @@ describe('movement events follow the segments exactly', () => {
 });
 
 describe('firing events keep the server order', () => {
-  it('lists the shots in exactly the order of snapshot.firingResults', () => {
+  it('lists the shots in exactly the order of snapshot.firingResults, one step each', () => {
     const events = fires(complete);
     expect(events.length).toBeGreaterThanOrEqual(4);
     expect(events.map((event) => event.resultIndex)).toEqual(complete.firingResults.map((_, index) => index));
-    expect(events.map((event) => event.step)).toEqual(events.map((_, index) => index + 1));
+    const steps = events.map((event) => event.step);
+    expect(steps).toEqual([...steps].sort((a, b) => a - b));
+    expect(new Set(steps).size).toBe(steps.length);
+  });
+
+  it('places everything else where the server resolved it', () => {
+    // Reached-the-subject: the capture came from a server that sends the list.
+    expect(complete.turnEvents?.length).toBeGreaterThan(5);
+    const kinds = buildTurnTimeline(complete, 1).events.map((event) => event.kind);
+    const first = (kind: string) => kinds.indexOf(kind as never);
+    // The flight before the moves; the salvo after them and before any shot; point defence
+    // straight before the fighter strike it met; the kill straight after the shot that did it.
+    expect(first('flight')).toBeLessThan(first('move'));
+    expect(first('move')).toBeLessThan(first('salvo'));
+    expect(first('salvo')).toBeLessThan(first('fire'));
+    const timeline = buildTurnTimeline(complete, 1).events;
+    const defence = timeline.findIndex((event) => event.kind === 'point-defence');
+    const strike = timeline[defence + 1];
+    expect(strike.kind === 'fire' && strike.fx).toBe('FighterStrike');
+    const kill = timeline.findIndex((event) => event.kind === 'destroyed');
+    const killer = timeline[kill - 1];
+    expect(killer.kind).toBe('fire');
+    expect(killer.kind === 'fire' && killer.result.targetShipId).toBe(shipId(complete, 'Picket'));
+  });
+
+  it('carries the systems a threshold check took, as the server named them', () => {
+    const checks = buildTurnTimeline(complete, 1).events.filter((event) => event.kind === 'threshold');
+    expect(checks.flatMap((event) => (event.kind === 'threshold' ? event.event.lostSystems ?? [] : []))).toContain('Battery R');
   });
 
   it('puts every move before every shot', () => {
@@ -132,16 +159,24 @@ describe('every FiringResult produces exactly one event, and nothing is invented
     expect(fires(complete).map((event) => event.fx)).toEqual(expect.arrayContaining(['Beam', 'PulseTorpedo', 'NeedleBeam', 'FighterStrike']));
   });
 
-  it('hangs the kill on the shot that holed the destroyed Picket, and on nothing else', () => {
-    const picket = shipId(complete, 'Picket');
-    const kills = fires(complete).filter((event) => event.destroysTarget);
-    expect(kills).toHaveLength(1);
-    expect(kills[0].result.targetShipId).toBe(picket);
+  it('shows the kill as its own event, for the Picket and nothing else', () => {
+    const kills = buildTurnTimeline(complete, 1).events.filter((event) => event.kind === 'destroyed');
+    expect(kills.map((event) => event.kind === 'destroyed' && event.event.targetShipId)).toEqual([shipId(complete, 'Picket')]);
+    // With the server's list the shot does not also claim it.
+    expect(fires(complete).some((event) => event.destroysTarget)).toBe(false);
   });
 
-  it.fails('shows the salvo that struck the Bulwark at the end of movement', () => {
-    // Reported only as a log sentence (gap F1).
-    expect(buildTurnTimeline(complete, complete.turnNumber).events.some((event) => event.kind !== 'move' && event.kind !== 'fire')).toBe(true);
+  it('shows the salvo that struck the Bulwark at the end of movement (gap F1, closed)', () => {
+    const salvo = buildTurnTimeline(complete, 1).events.find((event) => event.kind === 'salvo');
+    expect(salvo?.kind === 'salvo' && salvo.event.targetShipId).toBe(shipId(complete, 'Bulwark'));
+  });
+
+  it('falls back to moves then shots, with an attributed kill, for a snapshot with no event list', () => {
+    const older = { ...complete, turnEvents: undefined };
+    const events = buildTurnTimeline(older, 1).events;
+    expect(events.every((event) => event.kind === 'move' || event.kind === 'fire')).toBe(true);
+    const kills = events.filter((event) => event.kind === 'fire' && event.destroysTarget);
+    expect(kills.map((event) => event.kind === 'fire' && event.result.targetShipId)).toEqual([shipId(complete, 'Picket')]);
   });
 });
 
@@ -177,10 +212,13 @@ describe('empty and partial turns', () => {
     expect(buildTurnTimeline(revealed, 1)).toEqual({ turnNumber: 1, status: 'awaiting-movement', events: [] });
   });
 
-  it('has the moves and no shots when firing has only just opened', () => {
+  it('has the moves, and what came with them, but no shots when firing has only just opened', () => {
     const opened = buildTurnTimeline(load(firingOpened), 1);
     expect(opened.status).toBe('resolved');
-    expect(opened.events.every((event) => event.kind === 'move')).toBe(true);
+    expect(opened.events.some((event) => event.kind === 'move')).toBe(true);
+    expect(opened.events.some((event) => event.kind === 'fire')).toBe(false);
+    // The flight before the moves and the salvo at their end have already happened.
+    expect(opened.events.map((event) => event.kind)).toEqual(expect.arrayContaining(['flight', 'salvo']));
   });
 
   it('grows by appending as shots land, never reordering what was already there', () => {
@@ -191,10 +229,15 @@ describe('empty and partial turns', () => {
     expect(JSON.stringify(full.slice(0, mid.length))).toBe(JSON.stringify(mid));
   });
 
-  it('says a past turn is unavailable, because the server cleared it', () => {
+  it('replays the previous turn from the next one, exactly as it played', () => {
     const next = load(turnTwo);
     expect(next.firingResults).toHaveLength(0);
-    expect(buildTurnTimeline(next, 1)).toEqual({ turnNumber: 1, status: 'unavailable', events: [] });
+    expect(next.lastTurn?.turnNumber).toBe(1);
+    expect(buildTurnTimeline(next, 1)).toEqual(buildTurnTimeline(complete, 1));
+  });
+
+  it('says any turn older than that is unavailable', () => {
+    expect(buildTurnTimeline(load(turnTwo), 0)).toEqual({ turnNumber: 0, status: 'unavailable', events: [] });
   });
 
   it('keeps a shot whose ship has left the table rather than deciding it never happened', () => {

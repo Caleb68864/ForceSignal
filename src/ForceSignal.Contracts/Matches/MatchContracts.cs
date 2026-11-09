@@ -438,7 +438,115 @@ public sealed record MatchSnapshotDto(
     Guid? FiringParticipantId,
     IReadOnlyList<Guid> ActivatedShipIds,
     long Version,
-    int PointsLimit);
+    int PointsLimit,
+    IReadOnlyList<TurnEventDto>? TurnEvents = null,
+    LastTurnDto? LastTurn = null);
+
+/// <summary>
+/// One thing that happened this turn, in the order the server resolved it, for turn playback.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Movement and weapon fire already have their own records (<see cref="MovementResultDto"/>,
+/// <see cref="FiringResultDto"/>); these are what else happened and when. Several outcomes reached a
+/// client only as a sentence in the battle log - a salvo strike, point defence, a threshold check
+/// and the systems it took - and nothing placed them among the shots. The list's order is the order
+/// they were resolved in; <c>Sequence</c> is the battle-log entry that describes the event.
+/// </para>
+/// <para>
+/// One flat shape rather than one per kind, so it serialises the same way to every client. Which
+/// optional fields an event fills is set by its <c>Kind</c>, listed in <see cref="TurnEventKinds"/>.
+/// </para>
+/// </remarks>
+/// <param name="Sequence">The battle-log entry that describes this event.</param>
+/// <param name="TurnNumber">The turn it happened in.</param>
+/// <param name="Kind">What happened; one of <see cref="TurnEventKinds"/>.</param>
+/// <param name="ActorShipId">The ship that acted: the shooter, the defender, the flight that flew.</param>
+/// <param name="TargetShipId">The ship it acted on.</param>
+/// <param name="MarkerId">The ordnance marker involved, for a salvo.</param>
+/// <param name="FiringResultIndex">For a shot, its index in the turn's firing results.</param>
+/// <param name="From">Where the actor was: a shooter's position as it fired, a flight's start.</param>
+/// <param name="To">Where it acted on: the target's position as it was hit, a flight's end.</param>
+/// <param name="Rolls">The dice: point defence's, or a threshold check's.</param>
+/// <param name="Kills">Fighters or missiles point defence shot down.</param>
+/// <param name="Launched">Missiles in a salvo.</param>
+/// <param name="Arriving">Missiles that arrived on target.</param>
+/// <param name="Surviving">Missiles that got through point defence.</param>
+/// <param name="DamageRolls">A salvo's damage dice.</param>
+/// <param name="Damage">Damage scored.</param>
+/// <param name="ArmorApplied">Armour boxes crossed off.</param>
+/// <param name="HullApplied">Hull boxes crossed off.</param>
+/// <param name="Row">For a threshold check, the hull row completed.</param>
+/// <param name="LostSystems">Systems knocked out, by name.</param>
+public sealed record TurnEventDto(
+    long Sequence,
+    int TurnNumber,
+    string Kind,
+    Guid? ActorShipId = null,
+    Guid? TargetShipId = null,
+    Guid? MarkerId = null,
+    int? FiringResultIndex = null,
+    TablePointDto? From = null,
+    TablePointDto? To = null,
+    IReadOnlyList<int>? Rolls = null,
+    int? Kills = null,
+    int? Launched = null,
+    int? Arriving = null,
+    int? Surviving = null,
+    IReadOnlyList<int>? DamageRolls = null,
+    int? Damage = null,
+    int? ArmorApplied = null,
+    int? HullApplied = null,
+    int? Row = null,
+    IReadOnlyList<string>? LostSystems = null);
+
+/// <summary>The kinds of <see cref="TurnEventDto"/>, and the fields each one fills.</summary>
+public static class TurnEventKinds
+{
+    /// <summary>A fighter group flew: actor, from, to.</summary>
+    public const string FighterFlew = "FighterFlew";
+
+    /// <summary>Every ship moved at once; the moves are the turn's movement results.</summary>
+    public const string MovementResolved = "MovementResolved";
+
+    /// <summary>A salvo struck: marker, target, to, launched, arriving, rolls (point defence), kills, surviving, damage rolls, damage, armour, hull.</summary>
+    public const string SalvoStruck = "SalvoStruck";
+
+    /// <summary>A salvo found nothing in reach: marker.</summary>
+    public const string SalvoWasted = "SalvoWasted";
+
+    /// <summary>Point defence fired at a fighter strike: actor (defender), target (flight), rolls, kills.</summary>
+    public const string PointDefenseFired = "PointDefenseFired";
+
+    /// <summary>A fighter strike was wiped out before it could attack: actor (flight), target.</summary>
+    public const string FighterStrikeStopped = "FighterStrikeStopped";
+
+    /// <summary>A weapon fired: actor, target, firing result index, from, to, and lost systems for a needle that took one.</summary>
+    public const string WeaponFired = "WeaponFired";
+
+    /// <summary>A threshold check rolled: target, row, rolls, lost systems.</summary>
+    public const string ThresholdChecked = "ThresholdChecked";
+
+    /// <summary>A ship was destroyed: target, to. Its sequence is the log entry of the event that did it.</summary>
+    public const string ShipDestroyed = "ShipDestroyed";
+
+    /// <summary>Every kind, for a client's guard that it can show each one.</summary>
+    public static IReadOnlyList<string> All { get; } =
+        [FighterFlew, MovementResolved, SalvoStruck, SalvoWasted, PointDefenseFired, FighterStrikeStopped, WeaponFired, ThresholdChecked, ShipDestroyed];
+}
+
+/// <summary>
+/// The turn just finished, kept through the turn advance so it can be played again.
+/// </summary>
+/// <param name="TurnNumber">The turn this was.</param>
+/// <param name="MovementResults">Its moves as flown.</param>
+/// <param name="FiringResults">Its shots.</param>
+/// <param name="Events">Everything else, in order.</param>
+public sealed record LastTurnDto(
+    int TurnNumber,
+    IReadOnlyList<MovementResultDto> MovementResults,
+    IReadOnlyList<FiringResultDto> FiringResults,
+    IReadOnlyList<TurnEventDto> Events);
 
 /// <summary>Participant display and readiness state.</summary>
 public sealed record ParticipantDto(Guid Id, string DisplayName, string Role, bool IsReady, bool IsConnected, bool OrdersComplete);

@@ -12,9 +12,9 @@
  * folder refuses arithmetic on a result field.
  */
 
-import type { FireEvent, FxKey } from './timeline.ts';
+import type { FireEvent, FxKey, ReportedEvent } from './timeline.ts';
 
-export type TravelStyle = 'beam' | 'projectile' | 'needle' | 'swarm' | 'flash';
+export type TravelStyle = 'beam' | 'projectile' | 'needle' | 'swarm' | 'flash' | 'salvo' | 'tracer' | 'flight' | 'none';
 
 export type FxSpec = {
   travel: TravelStyle;
@@ -34,9 +34,9 @@ export const fxRegistry: Record<FxKey, FxSpec> = {
   Unknown: { travel: 'flash', travelMs: 300, color: 0xffffff, label: 'Attack' },
 };
 
-export type ImpactKind = 'shimmer' | 'sparks' | 'explosion' | 'miss';
+export type ImpactKind = 'shimmer' | 'sparks' | 'explosion' | 'miss' | 'intercept' | 'flare';
 
-export const impactMs: Record<ImpactKind, number> = { shimmer: 520, sparks: 480, explosion: 1100, miss: 360 };
+export const impactMs: Record<ImpactKind, number> = { shimmer: 520, sparks: 480, explosion: 1100, miss: 360, intercept: 420, flare: 640 };
 
 export function impactsFor(event: FireEvent): ImpactKind[] {
   const { result } = event;
@@ -54,4 +54,37 @@ export function impactsFor(event: FireEvent): ImpactKind[] {
   }
 
   return impacts.length > 0 ? impacts : ['miss'];
+}
+
+/**
+ * The effect for each kind of event the server's list reports beyond moves and shots. Keyed on the
+ * timeline's kinds, which the guard test holds against the server's `TurnEventKinds`.
+ */
+export const reportedFx: Record<ReportedEvent['kind'], FxSpec> = {
+  flight: { travel: 'flight', travelMs: 900, color: 0xf5c766, label: 'Fighters fly' },
+  salvo: { travel: 'salvo', travelMs: 1000, color: 0xff8f5a, label: 'Salvo' },
+  'salvo-wasted': { travel: 'none', travelMs: 1, color: 0x9aa6b2, label: 'Salvo wasted' },
+  'point-defence': { travel: 'tracer', travelMs: 500, color: 0x9fffd0, label: 'Point defence' },
+  'strike-stopped': { travel: 'none', travelMs: 1, color: 0x9aa6b2, label: 'Strike stopped' },
+  threshold: { travel: 'none', travelMs: 1, color: 0xffd27a, label: 'Threshold check' },
+  destroyed: { travel: 'none', travelMs: 1, color: 0xff7a2f, label: 'Destroyed' },
+};
+
+/** The impact for a reported event, read off the server's record as `impactsFor` reads a shot. */
+export function impactsForReported(event: ReportedEvent): ImpactKind[] {
+  switch (event.kind) {
+    case 'salvo':
+      return (event.event.armorApplied ?? 0) > 0 || (event.event.hullApplied ?? 0) > 0 ? ['sparks'] : ['miss'];
+    case 'point-defence':
+      return ['intercept'];
+    case 'threshold':
+      return ['flare'];
+    case 'destroyed':
+      return ['explosion'];
+    case 'salvo-wasted':
+    case 'strike-stopped':
+      return ['miss'];
+    case 'flight':
+      return [];
+  }
 }

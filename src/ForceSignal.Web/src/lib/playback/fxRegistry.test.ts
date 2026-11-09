@@ -9,9 +9,23 @@
 
 import { describe, expect, it } from 'vitest';
 import { weaponKinds } from '../../constants.ts';
-import { fxRegistry, impactsFor } from './fxRegistry.ts';
+import { fxRegistry, impactsFor, reportedFx } from './fxRegistry.ts';
+import { reportedKinds } from './timeline.ts';
 import type { FireEvent } from './timeline.ts';
 import type { FiringResult } from '../../types.ts';
+
+const contractSources = import.meta.glob('../../../../ForceSignal.Contracts/Matches/MatchContracts.cs', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+/** The event kinds the server can send, read off `TurnEventKinds` in the contracts. */
+function serverEventKinds(): string[] {
+  const text = Object.values(contractSources)[0] ?? '';
+  const body = /public static class TurnEventKinds\s*\{([\s\S]*?)\n\}/.exec(text)?.[1] ?? '';
+  return [...body.matchAll(/public const string (\w+) = "(\w+)";/g)].map((match) => match[2]);
+}
 
 const serverSources = import.meta.glob('../../../../ForceSignal.Domain/Rules/CombatContracts.cs', {
   query: '?raw',
@@ -72,5 +86,25 @@ describe('the impact read off a result', () => {
   it('does not spark on damage the server rolled but did not apply', () => {
     // `damage` is what the dice scored; only the applied fields say a box was crossed off.
     expect(impactsFor(event({ damage: 4 }))).toEqual(['miss']);
+  });
+});
+
+describe('every kind of turn event has a place and an effect', () => {
+  it('shows every kind the server can send', () => {
+    // Reached-the-subject: the glob found the contracts and the reader found the kinds.
+    const kinds = serverEventKinds();
+    expect(kinds).toEqual(expect.arrayContaining(['SalvoStruck', 'ThresholdChecked', 'ShipDestroyed']));
+
+    // The moves and the shots have records of their own; every other kind is a reported event.
+    const shownElsewhere = ['MovementResolved', 'WeaponFired'];
+    const unplaced = kinds.filter((kind) => !shownElsewhere.includes(kind) && !(kind in reportedKinds));
+    expect(unplaced, 'add the kind to reportedKinds in timeline.ts').toEqual([]);
+  });
+
+  it('has an effect for every reported kind', () => {
+    for (const kind of Object.values(reportedKinds)) {
+      expect(reportedFx[kind], kind).toBeDefined();
+      expect(reportedFx[kind].label).not.toBe('');
+    }
   });
 });

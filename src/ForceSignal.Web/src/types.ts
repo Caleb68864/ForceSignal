@@ -217,6 +217,42 @@ export type FiringResult = {
   mapRange?: number;
   rangeDisagreed?: boolean;
 };
+/**
+ * One thing that happened this turn, in the order the server resolved it. Which optional fields an
+ * event fills is set by its kind; see `TurnEventKinds` in MatchContracts.cs. `sequence` is the
+ * battle-log entry that describes it.
+ */
+export type TurnEventKind = 'FighterFlew' | 'MovementResolved' | 'SalvoStruck' | 'SalvoWasted' | 'PointDefenseFired'
+  | 'FighterStrikeStopped' | 'WeaponFired' | 'ThresholdChecked' | 'ShipDestroyed';
+export type TurnEvent = {
+  sequence: number;
+  turnNumber: number;
+  kind: TurnEventKind;
+  actorShipId?: string | null;
+  targetShipId?: string | null;
+  markerId?: string | null;
+  firingResultIndex?: number | null;
+  from?: TablePoint | null;
+  to?: TablePoint | null;
+  rolls?: number[] | null;
+  kills?: number | null;
+  launched?: number | null;
+  arriving?: number | null;
+  surviving?: number | null;
+  damageRolls?: number[] | null;
+  damage?: number | null;
+  armorApplied?: number | null;
+  hullApplied?: number | null;
+  row?: number | null;
+  lostSystems?: string[] | null;
+};
+/** The turn just finished, kept through the turn advance so it can be played again. */
+export type LastTurn = {
+  turnNumber: number;
+  movementResults: MovementResult[];
+  firingResults: FiringResult[];
+  events: TurnEvent[];
+};
 export type MatchLogEntry = {
   sequence: number;
   timestamp: string;
@@ -252,6 +288,9 @@ export type MatchSnapshot = {
   // Whose turn it is to pick a ship and fire it, and which ships have already had their turn.
   firingParticipantId?: string | null;
   activatedShipIds?: string[];
+  // This turn's events in resolution order, and the previous turn kept whole for replay.
+  turnEvents?: TurnEvent[] | null;
+  lastTurn?: LastTurn | null;
 };
 export type Session = {
   matchId: string;

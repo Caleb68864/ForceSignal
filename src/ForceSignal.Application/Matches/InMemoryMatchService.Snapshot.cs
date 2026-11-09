@@ -83,34 +83,11 @@ public sealed partial class InMemoryMatchService
             .ToArray(),
         // Once movement has resolved, the moves as flown; before then, each revealed order's plan.
         match.ResolvedMoves is { } resolved
-            ? [.. resolved.Select(m => new MovementResultDto(
-                m.ShipId, m.StartingVelocity, m.StartingCourse, m.EndingVelocity, m.EndingCourse, m.Segments,
-                [.. m.Path.Select(point => new TablePointDto(point.X, point.Y))], m.Clamped, m.Drifted))]
+            ? [.. resolved.Select(ToDto)]
             : match.Commitments.Values.Where(c => c.Result is not null)
                 .Select(c => new MovementResultDto(c.ShipId, c.Result!.StartingVelocity, c.Result.StartingCourse, c.Result.EndingVelocity, c.Result.EndingCourse, c.Result.Segments))
                 .ToArray(),
-        match.FiringResults.Select(f => new FiringResultDto(
-            f.AttackerShipId,
-            f.TargetShipId,
-            f.WeaponId,
-            f.WeaponName,
-            f.TurnNumber,
-            f.Range,
-            f.RangeBand,
-            f.Arc,
-            f.RawDice,
-            f.RangePenalty,
-            f.ScreenReduction,
-            f.SystemPenalty,
-            f.Damage,
-            f.ArmorDamageApplied,
-            f.HullDamageApplied,
-            f.DiceRolls,
-            f.WeaponKind,
-            f.ToHitNumber,
-            f.IsHit,
-            f.MapRange,
-            f.RangeDisagreed)).ToArray(),
+        [.. match.FiringResults.Select(ToDto)],
         match.OrdnanceMarkers.Select(o => new OrdnanceMarkerDto(
             o.Id,
             o.OwnerParticipantId,
@@ -131,7 +108,46 @@ public sealed partial class InMemoryMatchService
         match.FiringParticipantId,
         [.. match.ActivatedShipIds],
         match.Version,
-        match.PointsLimit);
+        match.PointsLimit,
+        [.. match.TurnEvents.Select(ToDto)],
+        match.LastTurn is { } last
+            ? new LastTurnDto(last.TurnNumber, [.. last.Moves.Select(ToDto)], [.. last.FiringResults.Select(ToDto)], [.. last.Events.Select(ToDto)])
+            : null);
+
+    private static MovementResultDto ToDto(ResolvedMoveState m) => new(
+        m.ShipId, m.StartingVelocity, m.StartingCourse, m.EndingVelocity, m.EndingCourse, m.Segments,
+        [.. m.Path.Select(ToDto)], m.Clamped, m.Drifted);
+
+    private static TablePointDto ToDto(ResolvedPoint point) => new(point.X, point.Y);
+
+    private static FiringResultDto ToDto(FiringResultState f) => new(
+            f.AttackerShipId,
+            f.TargetShipId,
+            f.WeaponId,
+            f.WeaponName,
+            f.TurnNumber,
+            f.Range,
+            f.RangeBand,
+            f.Arc,
+            f.RawDice,
+            f.RangePenalty,
+            f.ScreenReduction,
+            f.SystemPenalty,
+            f.Damage,
+            f.ArmorDamageApplied,
+            f.HullDamageApplied,
+            f.DiceRolls,
+            f.WeaponKind,
+            f.ToHitNumber,
+            f.IsHit,
+            f.MapRange,
+            f.RangeDisagreed);
+
+    private static TurnEventDto ToDto(TurnEventState e) => new(
+        e.Sequence, e.TurnNumber, e.Kind, e.ActorShipId, e.TargetShipId, e.MarkerId, e.FiringResultIndex,
+        e.From is { } from ? ToDto(from) : null,
+        e.To is { } to ? ToDto(to) : null,
+        e.Rolls, e.Kills, e.Launched, e.Arriving, e.Surviving, e.DamageRolls, e.Damage, e.ArmorApplied, e.HullApplied, e.Row, e.LostSystems);
     /// <summary>Rows this match's layer draws for one ship's damage track.</summary>
     private static int RowCountFor(MatchState match, ShipState ship) =>
         FullThrustLightThresholdRules.RowCountFor(match.Rules, ShipClassBands.FromIconKey(ship.IconKey));

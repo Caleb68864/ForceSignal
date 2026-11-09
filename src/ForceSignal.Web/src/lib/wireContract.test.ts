@@ -13,7 +13,8 @@
 
 import { describe, expect, it } from 'vitest';
 import wire from './playback/fixtures/05-turn1-firing-complete.json' with { type: 'json' };
-import type { FiringResult, Fleet, MatchLogEntry, MatchSnapshot, MovementResult, OrderStatus, OrdnanceMarker, Participant, RevealedOrder, Ship, WeaponMount } from '../types.ts';
+import type { FiringResult, Fleet, LastTurn, MatchLogEntry, MatchSnapshot, MovementResult, OrderStatus, OrdnanceMarker, Participant, RevealedOrder, Ship, TurnEvent, WeaponMount } from '../types.ts';
+import nextTurn from './playback/fixtures/06-turn2-order-entry.json' with { type: 'json' };
 
 type Keys<T> = Record<keyof T, true>;
 
@@ -21,7 +22,7 @@ const snapshotKeys: Keys<MatchSnapshot> = {
   matchId: true, joinCode: true, name: true, phase: true, turnNumber: true, rulesProfileKey: true, tableWidth: true, tableDepth: true,
   participants: true, fleets: true, ships: true, orderStatuses: true, revealedOrders: true, movementResults: true, firingResults: true,
   ordnanceMarkers: true, matchLog: true, version: true, pointsLimit: true, rules: true, firingShipId: true, firingParticipantId: true,
-  activatedShipIds: true,
+  activatedShipIds: true, turnEvents: true, lastTurn: true,
 };
 
 const shipKeys: Keys<Ship> = {
@@ -50,6 +51,13 @@ const movementKeys: Keys<MovementResult> = {
   shipId: true, startingVelocity: true, startingCourse: true, endingVelocity: true, endingCourse: true, segments: true,
   path: true, clamped: true, drifted: true,
 };
+
+const turnEventKeys: Keys<TurnEvent> = {
+  sequence: true, turnNumber: true, kind: true, actorShipId: true, targetShipId: true, markerId: true, firingResultIndex: true,
+  from: true, to: true, rolls: true, kills: true, launched: true, arriving: true, surviving: true, damageRolls: true, damage: true,
+  armorApplied: true, hullApplied: true, row: true, lostSystems: true,
+};
+const lastTurnKeys: Keys<LastTurn> = { turnNumber: true, movementResults: true, firingResults: true, events: true };
 
 const fleetKeys: Keys<Fleet> = { id: true, ownerParticipantId: true, name: true, faction: true, fleetColor: true };
 const participantKeys: Keys<Participant> = { id: true, displayName: true, role: true, isReady: true, isConnected: true, ordersComplete: true };
@@ -80,7 +88,7 @@ describe('the wire snapshot against types.ts', () => {
 
   it('declares every field of every object the server sent', () => {
     // Reached-the-subject: the capture really has every kind of object in it.
-    for (const list of ['ships', 'fleets', 'participants', 'orderStatuses', 'revealedOrders', 'movementResults', 'firingResults', 'ordnanceMarkers', 'matchLog']) {
+    for (const list of ['ships', 'fleets', 'participants', 'orderStatuses', 'revealedOrders', 'movementResults', 'firingResults', 'ordnanceMarkers', 'matchLog', 'turnEvents']) {
       expect(snapshot[list]?.length, list).toBeGreaterThan(0);
     }
 
@@ -96,9 +104,12 @@ describe('the wire snapshot against types.ts', () => {
       revealedOrder: undeclared(snapshot.revealedOrders, revealedKeys),
       ordnanceMarker: undeclared(snapshot.ordnanceMarkers, markerKeys),
       logEntry: undeclared(snapshot.matchLog, logKeys),
+      turnEvent: undeclared(snapshot.turnEvents, turnEventKeys),
+      lastTurn: undeclared([nextTurn.lastTurn], lastTurnKeys),
+      lastTurnEvent: undeclared(nextTurn.lastTurn.events, turnEventKeys),
     }).toEqual({
       snapshot: [], ship: [], weapon: [], firingResult: [], movementResult: [], fleet: [], participant: [],
-      orderStatus: [], revealedOrder: [], ordnanceMarker: [], logEntry: [],
+      orderStatus: [], revealedOrder: [], ordnanceMarker: [], logEntry: [], turnEvent: [], lastTurn: [], lastTurnEvent: [],
     });
   });
 

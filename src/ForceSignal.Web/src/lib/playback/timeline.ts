@@ -2,23 +2,24 @@
  * One resolved turn, as a list of things to show in the order the server did them.
  *
  * This is the only place playback learns what happened, and it learns it by reading the snapshot -
- * never by working anything out. Every firing event carries the server's own `FiringResult` object
- * rather than a copy of the fields someone thought the effects would need, so an effect can only
- * ever show a number the server sent. Movement is the server's path as flown - drifting ships
- * included, edge-clamped hulls from their real start - through `trailPointsForResult`, the same
- * points the resolved-trail overlay draws.
+ * never by working anything out. Every event carries the server's own record (the `FiringResult`,
+ * the `TurnEvent`) rather than a copy of the fields someone thought the effects would need, so an
+ * effect can only ever show a number the server sent. Movement is the server's path as flown -
+ * drifting ships included, edge-clamped hulls from their real start - through
+ * `trailPointsForResult`, the same points the resolved-trail overlay draws.
+ *
+ * The order is the server's `turnEvents` list where there is one: fighter flights, then every
+ * ship's move at once, then salvos, point defence, shots, threshold checks and kills, each where it
+ * was resolved. A snapshot without that list (an older server, a restored backup) falls back to
+ * moves then shots, which is all such a snapshot can say.
  *
  * Pure and deterministic: the same snapshot gives the same timeline on every device, because the
  * order is the order of the arrays the server sent and nothing here reads a clock or a die.
- *
- * What it cannot show yet is listed in docs/visuals/findings-2026-11-09.md: salvo strikes, point
- * defence and threshold checks reach the client only as log sentences. The tests pin that as a
- * known failure, so the day the server sends them the tests say so.
  */
 
 import { trailPointsForResult } from '../mapGeometry.ts';
 import { normalizeShipIconKey } from '../normalize.ts';
-import type { FiringResult, MatchSnapshot, MovementSegment, Ship, TablePoint, WeaponKind } from '../../types.ts';
+import type { FiringResult, MatchSnapshot, MovementResult, MovementSegment, Ship, TablePoint, TurnEvent, WeaponKind } from '../../types.ts';
 
 /** How an attack travels and lands. A fighter strike is reported as a beam, so it is told apart by the attacker. */
 export type FxKey = WeaponKind | 'FighterStrike' | 'Unknown';
@@ -27,8 +28,8 @@ export type MoveLeg = { from: TablePoint; to: TablePoint; course: number };
 
 export type MoveEvent = {
   kind: 'move';
-  /** Every move in a turn is simultaneous, so they all share the first step. */
-  step: 0;
+  /** Every move in a turn is simultaneous, so they all share one step. */
+  step: number;
   shipId: string;
   startCourse: number;
   endCourse: number;
@@ -37,9 +38,8 @@ export type MoveEvent = {
 
 export type FireEvent = {
   kind: 'fire';
-  /** One-based, in the order the server resolved the shots. */
   step: number;
-  /** Where the result sits in `snapshot.firingResults`. */
+  /** Where the result sits in the turn's firing results. */
   resultIndex: number;
   /** The server's record, untouched. */
   result: FiringResult;
@@ -47,16 +47,24 @@ export type FireEvent = {
   from: TablePoint;
   to: TablePoint;
   /**
-   * True on the last shot that put hull damage on a ship the snapshot now calls destroyed.
-   *
-   * An attribution, not a verdict: `isDestroyed` is the server's, and this only says which of its
-   * shots to hang the explosion on. A ship finished by a salvo or a threshold check has no such shot
-   * and gets no explosion, which is one of the gaps a server-side event list closes.
+   * True on a shot whose kill is shown as part of the shot. Only without an event list, where it is
+   * an attribution: the last shot that put hull damage on a ship the snapshot calls destroyed. With
+   * one, the kill is its own `destroyed` event straight after, whatever caused it.
    */
   destroysTarget: boolean;
 };
 
-export type TimelineEvent = MoveEvent | FireEvent;
+/** Something the server's event list reports beyond moves and shots, carried as it was sent. */
+export type ReportedEvent = {
+  kind: 'flight' | 'salvo' | 'salvo-wasted' | 'point-defence' | 'strike-stopped' | 'threshold' | 'destroyed';
+  step: number;
+  /** The server's record, untouched. */
+  event: TurnEvent;
+  from: TablePoint;
+  to: TablePoint;
+};
+
+export type TimelineEvent = MoveEvent | FireEvent | ReportedEvent;
 
 export type TimelineStatus =
   /** The turn's moves are flown and its shots so far are listed. */
@@ -65,7 +73,7 @@ export type TimelineStatus =
   | 'awaiting-movement'
   /** Nothing has resolved this turn yet. */
   | 'empty'
-  /** Not the turn the snapshot is on. The server clears a turn's results when the next one opens. */
+  /** Neither the snapshot's turn nor the one kept from before it. */
   | 'unavailable';
 
 export type TurnTimeline = {
@@ -74,42 +82,156 @@ export type TurnTimeline = {
   events: TimelineEvent[];
 };
 
+/**
+ * How each kind of server event shows on the timeline: a reported event of its own, or (for the
+ * two not listed) the moves and the shots, which have records of their own.
+ */
+export const reportedKinds: Partial<Record<TurnEvent['kind'], ReportedEvent['kind']>> = {
+  FighterFlew: 'flight',
+  SalvoStruck: 'salvo',
+  SalvoWasted: 'salvo-wasted',
+  PointDefenseFired: 'point-defence',
+  FighterStrikeStopped: 'strike-stopped',
+  ThresholdChecked: 'threshold',
+  ShipDestroyed: 'destroyed',
+};
+
 export function buildTurnTimeline(snapshot: MatchSnapshot, turnNumber: number): TurnTimeline {
-  if (turnNumber !== snapshot.turnNumber) {
-    return { turnNumber, status: 'unavailable', events: [] };
-  }
-
-  // Before the turn advances out of Movement the results are already on the snapshot but the ships
-  // are still where they started, and walking the segments back from there would fly them in from
-  // somewhere they never were.
-  if (snapshot.phase !== 'Firing') {
-    return { turnNumber, status: snapshot.movementResults.length > 0 ? 'awaiting-movement' : 'empty', events: [] };
-  }
-
   const ships = new Map(snapshot.ships.map((ship) => [ship.id, ship]));
-  const events: TimelineEvent[] = [];
 
-  for (const result of snapshot.movementResults) {
-    const ship = ships.get(result.shipId);
-    if (!ship) {
+  if (turnNumber === snapshot.turnNumber) {
+    // Before the turn advances out of Movement the results are already on the snapshot but the ships
+    // are still where they started, and drawing them would fly them in from somewhere they never were.
+    if (snapshot.phase !== 'Firing') {
+      return { turnNumber, status: snapshot.movementResults.length > 0 ? 'awaiting-movement' : 'empty', events: [] };
+    }
+
+    return assemble(turnNumber, ships, snapshot.movementResults, snapshot.firingResults, snapshot.turnEvents ?? null);
+  }
+
+  const last = snapshot.lastTurn;
+  if (last && last.turnNumber === turnNumber) {
+    return assemble(turnNumber, ships, last.movementResults, last.firingResults, last.events);
+  }
+
+  return { turnNumber, status: 'unavailable', events: [] };
+}
+
+function assemble(
+  turnNumber: number,
+  ships: Map<string, Ship>,
+  movementResults: MovementResult[],
+  firingResults: FiringResult[],
+  turnEvents: TurnEvent[] | null,
+): TurnTimeline {
+  const shots = firingResults.map((result, resultIndex) => ({ result, resultIndex })).filter(({ result }) => result.turnNumber === turnNumber);
+  const events: TimelineEvent[] = [];
+  let step = 0;
+
+  const addMoves = () => {
+    for (const result of movementResults) {
+      const move = moveFor(result, ships.get(result.shipId), step);
+      if (move) {
+        events.push(move);
+      }
+    }
+
+    step += 1;
+  };
+
+  if (!turnEvents) {
+    addMoves();
+    const finalBlow = attributedKills(shots, ships);
+    for (const { result, resultIndex } of shots) {
+      events.push(fireFor(result, resultIndex, ships, step, finalBlow.get(result.targetShipId) === resultIndex, null));
+      step += 1;
+    }
+
+    return { turnNumber, status: events.length > 0 ? 'resolved' : 'empty', events };
+  }
+
+  let movesPlaced = false;
+  for (const turnEvent of turnEvents) {
+    if (turnEvent.turnNumber !== turnNumber) {
       continue;
     }
 
-    const points = trailPointsForResult(ship, result);
-    const segments: MovementSegment[] = result.segments?.length ? result.segments : [{ course: result.endingCourse, distance: result.endingVelocity }];
-    events.push({
-      kind: 'move',
-      step: 0,
-      shipId: ship.id,
-      startCourse: result.startingCourse,
-      endCourse: result.endingCourse,
-      legs: segments.map((segment, index) => ({ from: points[index], to: points[index + 1], course: segment.course })),
-    });
+    if (turnEvent.kind === 'MovementResolved') {
+      addMoves();
+      movesPlaced = true;
+      continue;
+    }
+
+    if (turnEvent.kind === 'WeaponFired') {
+      const shot = shots.find(({ resultIndex }) => resultIndex === turnEvent.firingResultIndex);
+      if (shot) {
+        events.push(fireFor(shot.result, shot.resultIndex, ships, step, false, turnEvent));
+        step += 1;
+      }
+
+      continue;
+    }
+
+    const kind = reportedKinds[turnEvent.kind];
+    if (kind) {
+      events.push({
+        kind,
+        step,
+        event: turnEvent,
+        from: turnEvent.from ?? positionOf(ships.get(turnEvent.actorShipId ?? '')),
+        to: turnEvent.to ?? positionOf(ships.get(turnEvent.targetShipId ?? '')),
+      });
+      step += 1;
+    }
   }
 
-  const shots = snapshot.firingResults
-    .map((result, resultIndex) => ({ result, resultIndex }))
-    .filter(({ result }) => result.turnNumber === turnNumber);
+  // A list from a turn whose movement predates the marker still shows its moves, first.
+  if (!movesPlaced && movementResults.length > 0) {
+    const moves = movementResults.map((result) => moveFor(result, ships.get(result.shipId), 0)).filter((move): move is MoveEvent => move !== null);
+    for (const event of events) {
+      event.step += 1;
+    }
+
+    events.unshift(...moves);
+  }
+
+  return { turnNumber, status: events.length > 0 ? 'resolved' : 'empty', events };
+}
+
+function moveFor(result: MovementResult, ship: Ship | undefined, step: number): MoveEvent | null {
+  // The server's path needs no ship; walking back from the end does.
+  if (!ship && !(result.path && result.path.length > 1)) {
+    return null;
+  }
+
+  const points = trailPointsForResult(ship ?? ({ positionX: 0, positionY: 0 } as Ship), result);
+  const segments: MovementSegment[] = result.segments?.length ? result.segments : [{ course: result.endingCourse, distance: result.endingVelocity }];
+  return {
+    kind: 'move',
+    step,
+    shipId: result.shipId,
+    startCourse: result.startingCourse,
+    endCourse: result.endingCourse,
+    legs: segments.slice(0, points.length - 1).map((segment, index) => ({ from: points[index], to: points[index + 1], course: segment.course })),
+  };
+}
+
+function fireFor(result: FiringResult, resultIndex: number, ships: Map<string, Ship>, step: number, destroysTarget: boolean, turnEvent: TurnEvent | null): FireEvent {
+  const attacker = ships.get(result.attackerShipId);
+  return {
+    kind: 'fire',
+    step,
+    resultIndex,
+    result,
+    fx: fxKeyFor(result, attacker),
+    // Where the ships were as the shot was taken, when the server says; otherwise where they are now.
+    from: turnEvent?.from ?? positionOf(attacker),
+    to: turnEvent?.to ?? positionOf(ships.get(result.targetShipId)),
+    destroysTarget,
+  };
+}
+
+function attributedKills(shots: { result: FiringResult; resultIndex: number }[], ships: Map<string, Ship>): Map<string, number> {
   const finalBlow = new Map<string, number>();
   for (const { result, resultIndex } of shots) {
     if (result.hullDamageApplied > 0 && ships.get(result.targetShipId)?.isDestroyed) {
@@ -117,22 +239,7 @@ export function buildTurnTimeline(snapshot: MatchSnapshot, turnNumber: number): 
     }
   }
 
-  shots.forEach(({ result, resultIndex }, order) => {
-    const attacker = ships.get(result.attackerShipId);
-    const target = ships.get(result.targetShipId);
-    events.push({
-      kind: 'fire',
-      step: order + 1,
-      resultIndex,
-      result,
-      fx: fxKeyFor(result, attacker),
-      from: positionOf(attacker),
-      to: positionOf(target),
-      destroysTarget: finalBlow.get(result.targetShipId) === resultIndex,
-    });
-  });
-
-  return { turnNumber, status: events.length > 0 ? 'resolved' : 'empty', events };
+  return finalBlow;
 }
 
 function fxKeyFor(result: FiringResult, attacker: Ship | undefined): FxKey {

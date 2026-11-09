@@ -9,93 +9,128 @@
  * no effects running: the result arrives at once, which is what the preference asks for.
  */
 
-import { fxRegistry, impactMs, impactsFor, type FxSpec, type ImpactKind } from './fxRegistry.ts';
-import type { FireEvent, MoveEvent, TurnTimeline } from './timeline.ts';
+import { fxRegistry, impactMs, impactsFor, impactsForReported, reportedFx, type FxSpec, type ImpactKind } from './fxRegistry.ts';
+import type { FireEvent, MoveEvent, ReportedEvent, TurnTimeline } from './timeline.ts';
 import type { TablePoint } from '../../types.ts';
 
 export type PlaybackOptions = { reducedMotion: boolean; moveMs?: number; gapMs?: number };
 
-export type ScheduledFire = { event: FireEvent; start: number; impactAt: number; end: number; spec: FxSpec; impacts: ImpactKind[] };
+/** A shot or a reported event, with when it travels and when it lands. */
+export type ScheduledStep = { event: FireEvent | ReportedEvent; start: number; impactAt: number; end: number; spec: FxSpec; impacts: ImpactKind[] };
 
 export type PlaybackSchedule = {
   moves: MoveEvent[];
+  moveStart: number;
   moveEnd: number;
-  fires: ScheduledFire[];
+  /** Everything but the moves, one at a time, in the server's order. */
+  steps: ScheduledStep[];
   duration: number;
 };
 
 export type ShipPose = { x: number; y: number; course: number };
 
 export type ActiveFx = {
-  fire: ScheduledFire;
+  step: ScheduledStep;
   phase: 'travel' | 'impact';
   /** 0 to 1 through the phase. */
   progress: number;
 };
 
 export type PlaybackFrame = {
-  /** Only ships with a move this turn; everyone else stands where the snapshot has them. */
+  /** Only ships that move or fly this turn; everyone else stands where the snapshot has them. */
   poses: Map<string, ShipPose>;
   active: ActiveFx[];
-  /** Shots whose impact has played, so their result can be shown as settled. */
+  /** Steps whose impact has played, so their result can be shown as settled. */
   settled: number;
   done: boolean;
 };
 
 export function schedulePlayback(timeline: TurnTimeline, options: PlaybackOptions): PlaybackSchedule {
   const moves = timeline.events.filter((event): event is MoveEvent => event.kind === 'move');
-  const shots = timeline.events.filter((event): event is FireEvent => event.kind === 'fire');
+  const others = timeline.events.filter((event): event is FireEvent | ReportedEvent => event.kind !== 'move');
+  const specFor = (event: FireEvent | ReportedEvent) => (event.kind === 'fire' ? fxRegistry[event.fx] : reportedFx[event.kind]);
+  const impactsOf = (event: FireEvent | ReportedEvent) => (event.kind === 'fire' ? impactsFor(event) : impactsForReported(event));
+
   if (options.reducedMotion) {
     return {
       moves,
+      moveStart: 0,
       moveEnd: 0,
-      fires: shots.map((event) => ({ event, start: 0, impactAt: 0, end: 0, spec: fxRegistry[event.fx], impacts: impactsFor(event) })),
+      steps: others.map((event) => ({ event, start: 0, impactAt: 0, end: 0, spec: specFor(event), impacts: impactsOf(event) })),
       duration: 0,
     };
   }
 
   const gap = options.gapMs ?? 180;
-  const moveEnd = moves.length > 0 ? options.moveMs ?? 1600 : 0;
-  let cursor = moveEnd;
-  const fires = shots.map((event) => {
-    const spec = fxRegistry[event.fx];
-    const impacts = impactsFor(event);
+  const moveMs = options.moveMs ?? 1600;
+  const moveStep = moves[0]?.step;
+  let cursor = 0;
+  let moveStart = 0;
+  let moveEnd = 0;
+  let movesScheduled = moves.length === 0;
+  const steps: ScheduledStep[] = [];
+
+  for (const event of others) {
+    // The moves play at their place in the order, which is after any fighter flights.
+    if (!movesScheduled && moveStep !== undefined && event.step > moveStep) {
+      moveStart = cursor;
+      moveEnd = cursor + moveMs;
+      cursor = moveEnd;
+      movesScheduled = true;
+    }
+
+    const spec = specFor(event);
+    const impacts = impactsOf(event);
     const start = cursor + gap;
     const impactAt = start + spec.travelMs;
-    const end = impactAt + Math.max(...impacts.map((impact) => impactMs[impact]));
+    const end = impactAt + Math.max(0, ...impacts.map((impact) => impactMs[impact]));
     cursor = end;
-    return { event, start, impactAt, end, spec, impacts };
-  });
+    steps.push({ event, start, impactAt, end, spec, impacts });
+  }
 
-  return { moves, moveEnd, fires, duration: cursor };
+  if (!movesScheduled) {
+    moveStart = cursor;
+    moveEnd = cursor + moveMs;
+    cursor = moveEnd;
+  }
+
+  return { moves, moveStart, moveEnd, steps, duration: cursor };
 }
 
-/** Where the schedule should start to show only shots after the first `alreadySeen` of them. */
+/** Where the schedule should start to show only the steps after the first `alreadySeen` of them. */
 export function startTimeAfter(schedule: PlaybackSchedule, alreadySeen: number): number {
   if (alreadySeen <= 0) {
     return 0;
   }
 
-  return schedule.fires[alreadySeen]?.start ?? schedule.duration;
+  return schedule.steps[alreadySeen]?.start ?? schedule.duration;
 }
 
 export function frameAt(schedule: PlaybackSchedule, time: number): PlaybackFrame {
   const t = Math.max(0, Math.min(time, schedule.duration));
-  const moveProgress = schedule.moveEnd === 0 ? 1 : t / schedule.moveEnd;
+  const span = schedule.moveEnd - schedule.moveStart;
+  const moveProgress = span <= 0 ? (t >= schedule.moveEnd ? 1 : 0) : Math.min(1, Math.max(0, (t - schedule.moveStart) / span));
   const poses = new Map<string, ShipPose>();
   for (const move of schedule.moves) {
-    poses.set(move.shipId, poseAlong(move, easeInOut(Math.min(1, moveProgress))));
+    poses.set(move.shipId, poseAlong(move, schedule.duration === 0 ? 1 : easeInOut(moveProgress)));
   }
 
   const active: ActiveFx[] = [];
   let settled = 0;
-  for (const fire of schedule.fires) {
-    if (schedule.duration === 0 || t >= fire.end) {
+  for (const step of schedule.steps) {
+    if (step.event.kind === 'flight' && step.event.event.actorShipId) {
+      // A flight is a move of its own: the group crosses during its travel and stays where it landed.
+      const along = schedule.duration === 0 || t >= step.impactAt ? 1 : t <= step.start ? 0 : (t - step.start) / (step.impactAt - step.start);
+      const at = lerp(step.event.from, step.event.to, easeInOut(along));
+      poses.set(step.event.event.actorShipId, { ...at, course: headingOf(step.event.from, step.event.to) });
+    }
+
+    if (schedule.duration === 0 || t >= step.end) {
       settled += 1;
-    } else if (t >= fire.impactAt) {
-      active.push({ fire, phase: 'impact', progress: (t - fire.impactAt) / (fire.end - fire.impactAt) });
-    } else if (t >= fire.start) {
-      active.push({ fire, phase: 'travel', progress: (t - fire.start) / (fire.impactAt - fire.start) });
+    } else if (t >= step.impactAt) {
+      active.push({ step, phase: 'impact', progress: (t - step.impactAt) / Math.max(1, step.end - step.impactAt) });
+    } else if (t >= step.start) {
+      active.push({ step, phase: 'travel', progress: (t - step.start) / Math.max(1, step.impactAt - step.start) });
     }
   }
 
@@ -127,6 +162,12 @@ function poseAlong(move: MoveEvent, progress: number): ShipPose {
   }
 
   return { ...move.legs[move.legs.length - 1].to, course: move.endCourse };
+}
+
+/** The clock heading from one point to another, as a group flying it faces (the server turns it the same way). */
+function headingOf(from: TablePoint, to: TablePoint): number {
+  const degrees = (Math.atan2(to.x - from.x, -(to.y - from.y)) * 180 / Math.PI + 360) % 360;
+  return Math.round(degrees / 30) || 12;
 }
 
 function lerp(from: TablePoint, to: TablePoint, amount: number): TablePoint {

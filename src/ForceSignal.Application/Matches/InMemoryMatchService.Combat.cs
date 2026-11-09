@@ -68,6 +68,7 @@ public sealed partial class InMemoryMatchService
                 if (SurvivingFighters(attacker) == 0)
                 {
                     match.AddLog("Fire", match.Phase.ToString(), $"{DescribeShip(match, attacker)} was wiped out by point defence before it could attack.");
+                    match.AddEvent(new TurnEventState(TurnEventKinds.FighterStrikeStopped) { ActorShipId = attacker.Id, TargetShipId = target.Id });
                     match.Touch("FighterStrikeStopped");
                     return ToSnapshot(match);
                 }
@@ -177,6 +178,16 @@ public sealed partial class InMemoryMatchService
                 "Fire",
                 match.Phase.ToString(),
                 $"{DescribeShip(match, attacker)} fired {weapon.Name} at {DescribeShip(match, target)} through {FiringArcs.Describe(targetArc)} arc at range {request.Range} ({firingResult.RangeBand}): {rollNote}{screenNote}{armorNote} for {result.Damage} damage ({armorApplied} armor, {hullApplied} hull). Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.{destroyedNote}{ammoNote}");
+            match.AddEvent(new TurnEventState(TurnEventKinds.WeaponFired)
+            {
+                ActorShipId = attacker.Id,
+                TargetShipId = target.Id,
+                FiringResultIndex = match.FiringResults.Count - 1,
+                From = new ResolvedPoint(attacker.PositionX, attacker.PositionY),
+                To = new ResolvedPoint(target.PositionX, target.PositionY),
+                LostSystems = needleTarget is not null && result.IsHit == true ? [needleTarget.Name] : null,
+            });
+            NoteDestruction(match, target, wasDestroyed);
             if (rangeDisagreed)
             {
                 match.AddLog(
@@ -297,6 +308,30 @@ public sealed partial class InMemoryMatchService
             "Threshold",
             match.Phase.ToString(),
             $"{DescribeShip(match, target)} completed hull row {rowsAfter} of {rows.Count}: {rowNote}, systems lost on {result.LostOn} or less, {rollNote}. {lossNote}.");
+        match.AddEvent(new TurnEventState(TurnEventKinds.ThresholdChecked)
+        {
+            TargetShipId = target.Id,
+            To = new ResolvedPoint(target.PositionX, target.PositionY),
+            Row = rowsAfter,
+            Rolls = [.. result.Rolls.Select(roll => roll.Die)],
+            LostSystems = [.. result.Lost.Select(system => system.Name)],
+        });
+    }
+
+    /// <summary>
+    /// Records a ship's destruction against the event that caused it, if that event is what
+    /// finished it. Written straight after the cause's own event, so it shares that log entry.
+    /// </summary>
+    private static void NoteDestruction(MatchState match, ShipState ship, bool wasDestroyedBefore)
+    {
+        if (!wasDestroyedBefore && IsDestroyed(ship))
+        {
+            match.AddEvent(new TurnEventState(TurnEventKinds.ShipDestroyed)
+            {
+                TargetShipId = ship.Id,
+                To = new ResolvedPoint(ship.PositionX, ship.PositionY),
+            });
+        }
     }
     /// <summary>
     /// Every system icon still working on a ship, one entry per die the threshold check will roll.
@@ -449,6 +484,7 @@ public sealed partial class InMemoryMatchService
         }
 
         var incoming = SurvivingFighters(fighters);
+        var wasWipedOut = IsDestroyed(fighters);
         var defense = _pointDefenseRules.Resolve(target.PointDefenseSystems, incoming, match.Rules);
         if (defense.Kills > 0)
         {
@@ -460,6 +496,16 @@ public sealed partial class InMemoryMatchService
             "PointDefense",
             match.Phase.ToString(),
             $"{DescribeShip(match, target)} point defence fired at {DescribeShip(match, fighters)} at range {range}: rolled {string.Join(",", defense.Rolls)} and shot down {defense.Kills} of {incoming} fighter(s).{overkillNote}");
+        match.AddEvent(new TurnEventState(TurnEventKinds.PointDefenseFired)
+        {
+            ActorShipId = target.Id,
+            TargetShipId = fighters.Id,
+            From = new ResolvedPoint(target.PositionX, target.PositionY),
+            To = new ResolvedPoint(fighters.PositionX, fighters.PositionY),
+            Rolls = [.. defense.Rolls],
+            Kills = defense.Kills,
+        });
+        NoteDestruction(match, fighters, wasWipedOut);
     }
     /// <summary>
     /// Resolves every salvo counter on the table now that the ships have finished moving. A salvo
@@ -486,12 +532,18 @@ public sealed partial class InMemoryMatchService
                     "Ordnance",
                     match.Phase.ToString(),
                     $"{marker.Name} found nothing within {_salvoRules.AttackRadiusFor(match.Rules)} of its point of aim and was wasted.");
+                match.AddEvent(new TurnEventState(TurnEventKinds.SalvoWasted)
+                {
+                    MarkerId = marker.Id,
+                    To = new ResolvedPoint(marker.PositionX, marker.PositionY),
+                });
                 continue;
             }
 
             var attack = _salvoRules.Resolve(target.PointDefenseSystems, match.Rules);
             var damageBefore = CaptureDamage(target);
             var hullBefore = target.HullDamage;
+            var wasDestroyed = IsDestroyed(target);
             var (armorApplied, hullApplied) = ApplyMissileDamage(target, attack.Damage);
             marker.Status = "Resolved";
 
@@ -502,6 +554,23 @@ public sealed partial class InMemoryMatchService
                 "Ordnance",
                 match.Phase.ToString(),
                 $"{marker.Name} struck {DescribeShip(match, target)}: {attack.MissilesArriving} of {attack.MissilesLaunched} missiles arrived on a {attack.ArrivalRoll}.{defenseNote} {attack.MissilesSurviving} got through rolling {(attack.DamageRolls.Count == 0 ? "nothing" : string.Join(",", attack.DamageRolls))} for {attack.Damage} damage ({armorApplied} armor, {hullApplied} hull), ignoring screens. Target delta: {DescribeDamageDelta(damageBefore, CaptureDamage(target))}.");
+            match.AddEvent(new TurnEventState(TurnEventKinds.SalvoStruck)
+            {
+                MarkerId = marker.Id,
+                TargetShipId = target.Id,
+                From = new ResolvedPoint(marker.PositionX, marker.PositionY),
+                To = new ResolvedPoint(target.PositionX, target.PositionY),
+                Launched = attack.MissilesLaunched,
+                Arriving = attack.MissilesArriving,
+                Rolls = [.. attack.PointDefense.Rolls],
+                Kills = attack.PointDefense.Kills,
+                Surviving = attack.MissilesSurviving,
+                DamageRolls = [.. attack.DamageRolls],
+                Damage = attack.Damage,
+                ArmorApplied = armorApplied,
+                HullApplied = hullApplied,
+            });
+            NoteDestruction(match, target, wasDestroyed);
 
             // A salvo can finish a hull row like any other damage, so the check is owed at once -
             // there is no firing ship whose volley could still be open.

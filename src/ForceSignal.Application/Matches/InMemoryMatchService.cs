@@ -1133,6 +1133,12 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 "Fighters",
                 match.Phase.ToString(),
                 $"{DescribeShip(match, group)} flew {distance:0.#} from {startingX:0.#},{startingY:0.#} to {destinationX:0.#},{destinationY:0.#}, now facing course {group.CurrentCourse}.{PositionEdgeNote(group, match)}");
+            match.AddEvent(new TurnEventState(TurnEventKinds.FighterFlew)
+            {
+                ActorShipId = group.Id,
+                From = new ResolvedPoint(startingX, startingY),
+                To = new ResolvedPoint(destinationX, destinationY),
+            });
             match.Touch("FighterGroupMoved");
             return ToSnapshot(match);
         }
@@ -1594,6 +1600,11 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             if (match.Phase == MatchPhase.Firing)
             {
                 ResolvePendingThresholds(match);
+
+                // The turn just played is kept whole for one more turn, so a device can play it
+                // again - its moves, its shots and everything else - after the board has moved on.
+                match.LastTurn = new LastTurnState(match.TurnNumber, match.ResolvedMoves ?? [], [.. match.FiringResults], [.. match.TurnEvents]);
+                match.TurnEvents.Clear();
                 match.FiringParticipantId = null;
                 match.ActivatedShipIds.Clear();
                 match.TurnNumber++;
@@ -1685,6 +1696,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             }
 
             match.ResolvedMoves = resolvedMoves;
+            match.AddEvent(new TurnEventState(TurnEventKinds.MovementResolved));
 
             // Salvo missiles strike at the end of movement, before anyone opens fire.
             ResolveSalvoMissiles(match);
