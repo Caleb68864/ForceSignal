@@ -324,6 +324,13 @@ no deviation, no resolution. The plan's `Support/` layer is `[TODO]` (`ground-co
 the readiness warning names it. Recorded here so the list is complete; it is a subsystem, not a
 wiring job.
 
+**Revisited 2026-11-09 and not started: blocked on rules.** No procedure or number for indirect fire
+is written anywhere in this repository, and the digest this audit was written against is not on the
+machine. The six open questions - who fires and how it is called, when it lands, accuracy and
+deviation, effect, costs, and whether area defence answers it - are listed under gap 9 in
+`roadmap.md`. Wiring `ObserveForIndirectFire` alone was rejected: an action that costs a combat
+action and buys nothing is the gap 8 defect again.
+
 ## Gap 10 - Infantry fire as vehicles - PARTLY FIXED 2026-11-02
 
 **The firefight landed.** `DirtsideGame.Firefight` (`Game/DirtsideGame.Firefight.cs`),

@@ -60,6 +60,65 @@ public sealed class HitResolutionTests
         Assert.Equal(QualityDie.D6, moving.FirerDie);
     }
 
+    [Theory]
+    // An invented walk, unlike the built-in one in every rung, so a pass means the entry was read.
+    [InlineData(WeaponRangeBand.Close, false, QualityDie.D12)] // D8 up two
+    [InlineData(WeaponRangeBand.Medium, false, QualityDie.D8)]
+    [InlineData(WeaponRangeBand.Long, false, QualityDie.D8)] // long costs nothing on this walk
+    [InlineData(WeaponRangeBand.Medium, true, QualityDie.D4)] // D8 down two
+    [InlineData(WeaponRangeBand.Close, true, QualityDie.D8)]
+    public void AnEnteredFirerWalkIsReadRatherThanTheBuiltInOne(
+        WeaponRangeBand band,
+        bool movedOverHalf,
+        QualityDie expected)
+    {
+        var profile = TestDieTables.Invented with { FirerWalk = new FirerWalk(2, 0, 2) };
+
+        var solution = HitResolution.Solve(
+            profile, FireControlLevel.Enhanced, band, targetSignature: 3, firerMovedOverHalf: movedOverHalf);
+
+        Assert.True(solution.CanFire);
+        Assert.Equal(expected, solution.FirerDie);
+        Assert.False(profile.PlaysTheBuiltInFirerWalk);
+    }
+
+    [Fact]
+    public void AProfileWithNoFirerWalkPlaysTheBuiltInOneAndSaysSo()
+    {
+        // Stored games predate the entry and their profile cannot be edited, so the fallback is
+        // reported rather than refused. The walk it falls back to is the one this app always played.
+        Assert.Null(TestDieTables.Invented.FirerWalk);
+        Assert.True(TestDieTables.Invented.PlaysTheBuiltInFirerWalk);
+        Assert.Equal(new FirerWalk(1, 1, 1), TestDieTables.Invented.FirerWalkOrBuiltIn);
+        Assert.Equal(1, FirerWalk.BuiltIn.Steps(WeaponRangeBand.Close, firerMovedOverHalf: false));
+        Assert.Equal(-2, FirerWalk.BuiltIn.Steps(WeaponRangeBand.Long, firerMovedOverHalf: true));
+    }
+
+    [Fact]
+    public void AnEnteredWalkCanRunTheBottomSightOffTheLadderToo()
+    {
+        var profile = TestDieTables.Invented with { FirerWalk = new FirerWalk(1, 0, 1) };
+
+        // Basic is the bottom rung: on this walk a long shot is free, and a hurried one is not.
+        Assert.True(HitResolution.Solve(profile, FireControlLevel.Basic, WeaponRangeBand.Long, 3).CanFire);
+        var hurried = HitResolution.Solve(
+            profile, FireControlLevel.Basic, WeaponRangeBand.Long, 3, firerMovedOverHalf: true);
+        Assert.False(hurried.CanFire);
+        Assert.False(hurried.IsMissingFromProfile);
+    }
+
+    [Fact]
+    public void TheFirerWalkIsPartOfTheProfilesEquality()
+    {
+        // The hand-written equality used to leave out RungsLostUnderFire; both entries count now.
+        var walked = TestDieTables.Invented with { FirerWalk = new FirerWalk(2, 0, 2) };
+        var marked = TestDieTables.Invented with { RungsLostUnderFire = 3 };
+
+        Assert.NotEqual(TestDieTables.Invented, walked);
+        Assert.NotEqual(TestDieTables.Invented, marked);
+        Assert.Equal(walked, TestDieTables.Invented with { FirerWalk = new FirerWalk(2, 0, 2) });
+    }
+
     [Fact]
     public void ASightAtTheBottomOfTheLadderCannotTakeALongShotOnTheMoveAtAll()
     {

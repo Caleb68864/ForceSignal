@@ -57,6 +57,11 @@ namespace ForceSignal.Modules.Dirtside.Combat;
 /// How many rungs an Under Fire marker costs a fire-effectiveness check, or null when the players have
 /// not said. Null rather than zero, because no cost at all is an answer a table can give.
 /// </param>
+/// <param name="FirerWalk">
+/// How far the firer's die moves for the range band and for a hurried shot, or null when the players
+/// have not said - in which case the walk this app has always played is used and
+/// <see cref="PlaysTheBuiltInFirerWalk"/> says so. See <see cref="Combat.FirerWalk"/>.
+/// </param>
 public sealed record DirtsideRulesProfile(
     ImmutableDictionary<FireControlLevel, QualityDie> FireControlDice,
     ImmutableDictionary<DefensivePosture, QualityDie> PostureDice,
@@ -66,7 +71,8 @@ public sealed record DirtsideRulesProfile(
     int SystemsDownRecoveryRollWithBackup = 0,
     int AreaDefenceReach = 0,
     LeadershipRange LeadershipValues = default,
-    int? RungsLostUnderFire = null)
+    int? RungsLostUnderFire = null,
+    FirerWalk? FirerWalk = null)
 {
     /// <summary>
     /// A profile with nothing entered. What a game created without one plays on, and what every
@@ -91,7 +97,20 @@ public sealed record DirtsideRulesProfile(
         && SystemsDownRecoveryDie is null
         && InterceptionReach is null
         && LeadershipValues.IsBlank
-        && RungsLostUnderFire is null;
+        && RungsLostUnderFire is null
+        && FirerWalk is null;
+
+    /// <summary>
+    /// The walk a shot is solved with: the players' entry, or <see cref="Combat.FirerWalk.BuiltIn"/>
+    /// when they have not made one.
+    /// </summary>
+    public FirerWalk FirerWalkOrBuiltIn => FirerWalk ?? Combat.FirerWalk.BuiltIn;
+
+    /// <summary>
+    /// True when the players have not entered a firer walk, so every shot in this game walks the app's
+    /// own rungs. Reported rather than refused - see <see cref="Combat.FirerWalk"/> for why.
+    /// </summary>
+    public bool PlaysTheBuiltInFirerWalk => FirerWalk is null;
 
     /// <summary>The die a gunnery level rolls, or null when the profile does not say.</summary>
     /// <param name="level">The gunnery level.</param>
@@ -167,6 +186,8 @@ public sealed record DirtsideRulesProfile(
         && SystemsDownRecoveryRollWithBackup == other.SystemsDownRecoveryRollWithBackup
         && AreaDefenceReach == other.AreaDefenceReach
         && LeadershipValues == other.LeadershipValues
+        && RungsLostUnderFire == other.RungsLostUnderFire
+        && FirerWalk == other.FirerWalk
         && Same(FireControlDice, other.FireControlDice)
         && Same(PostureDice, other.PostureDice)
         && Same(SignatureDice, other.SignatureDice);
@@ -180,6 +201,8 @@ public sealed record DirtsideRulesProfile(
         hash.Add(SystemsDownRecoveryRollWithBackup);
         hash.Add(AreaDefenceReach);
         hash.Add(LeadershipValues);
+        hash.Add(RungsLostUnderFire);
+        hash.Add(FirerWalk);
         hash.Add(FireControlDice.Count);
         hash.Add(PostureDice.Count);
         hash.Add(SignatureDice.Count);
@@ -192,4 +215,55 @@ public sealed record DirtsideRulesProfile(
         where TKey : notnull =>
         left.Count == right.Count
         && left.All(entry => right.TryGetValue(entry.Key, out var die) && die == entry.Value);
+}
+
+/// <summary>
+/// How many rungs the firer's die moves from the die its sight rolls at medium range: up for a close
+/// shot, down for a long one, and down again for a firer that moved over half.
+/// </summary>
+/// <param name="RungsUpAtClose">Rungs the die moves up for a shot in the close band.</param>
+/// <param name="RungsDownAtLong">Rungs the die moves down for a shot in the long band.</param>
+/// <param name="RungsDownMovingOverHalf">Rungs it moves down for a firer that moved over half.</param>
+/// <remarks>
+/// <para>
+/// This used to be <c>(int)band + (firerMovedOverHalf ? -1 : 0)</c> in <see cref="HitResolution"/>:
+/// the <see cref="WeaponRangeBand"/> enum's values <em>were</em> the table. The procedure - the band
+/// and a hurried shot move the die, and running off the bottom is no shot - stays the engine's; how
+/// far it moves is a number, and numbers are the players'.
+/// </para>
+/// <para>
+/// <b>Optional, with a reported fallback, rather than refused when missing.</b> A game's profile is
+/// fixed when it is created and no route edits it, so refusing a close or long shot on a profile with
+/// no walk would strand every stored game's direct fire with nothing the table could type to fix it.
+/// That is the chit pot's trade (gap 15): a game without the entry plays <see cref="BuiltIn"/> and the
+/// snapshot's profile says so. Whether the fallback should become a refusal is the owner's call and is
+/// recorded in the roadmap.
+/// </para>
+/// </remarks>
+public sealed record FirerWalk(int RungsUpAtClose, int RungsDownAtLong, int RungsDownMovingOverHalf)
+{
+    /// <summary>
+    /// The walk this app played before the entry existed: one rung per band and one for a hurried
+    /// shot. Kept so that games created without an entry play on exactly as they always have.
+    /// </summary>
+    public static FirerWalk BuiltIn { get; } = new(1, 1, 1);
+
+    /// <summary>The signed rungs a shot moves the firer's die.</summary>
+    /// <param name="band">The range band the shot falls in.</param>
+    /// <param name="firerMovedOverHalf">Whether the firer moved, or will move, over half.</param>
+    /// <returns>Positive moves the die up the ladder, negative down.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The band is not one this engine knows.</exception>
+    public int Steps(WeaponRangeBand band, bool firerMovedOverHalf)
+    {
+        var forBand = band switch
+        {
+            WeaponRangeBand.Close => RungsUpAtClose,
+            WeaponRangeBand.Medium => 0,
+            WeaponRangeBand.Long => -RungsDownAtLong,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(band), band, $"No firer walk is defined for range band {band}."),
+        };
+
+        return forBand - (firerMovedOverHalf ? RungsDownMovingOverHalf : 0);
+    }
 }

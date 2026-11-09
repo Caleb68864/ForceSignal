@@ -196,7 +196,9 @@ public static class HitResolution
             return ShotSolution.NotOnTheProfile(Missing($"the die a {posture} target rolls"));
         }
 
-        var steps = (int)band + (firerMovedOverHalf ? -1 : 0);
+        // How far the band and a hurried shot move the die is the players' entry when they made one,
+        // and the walk this app always played when they did not (see FirerWalk.BuiltIn).
+        var steps = profile.FirerWalkOrBuiltIn.Steps(band, firerMovedOverHalf);
         var shifted = QualityDice.Shift(baseDie, steps);
         if (shifted.Overflow < 0)
         {

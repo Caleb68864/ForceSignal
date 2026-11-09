@@ -304,7 +304,32 @@ the roadmap lists only what a table can reach.
       armour 3, movement 12 and three chits, which nobody had entered and no guard read; it opens at
       zero now, `contentPolicy.test.ts` holds it there, and a signature nobody entered is refused by
       name when the platoon is added rather than thrown on the first shot at it.
-- [ ] Indirect fire (gap 9).
+- [ ] Indirect fire (gap 9). **Blocked on rules, 2026-11-09 - nothing built.** Searched before
+      starting: `docs/` (all of it, including `plans/`, `converge/`, the profile template), `vault/`,
+      every source and test file, and the machine for the `Notes/Ground Zero Games/Dirtside II`
+      digest the gap audit was written against (not present). The repo holds exactly one piece of
+      indirect fire: `DirtsideAction.ObserveForIndirectFire` (`Sequence/DirtsideAction.cs:29`), which
+      `DirtsideSteps.Act` accepts and nothing calls. No procedure and no number for any of it is
+      written down anywhere. Wiring the observe action alone was considered and rejected: it would
+      spend a combat action for nothing, which is the "Sensors On" defect gap 8 already paid for.
+      Open questions, each the owner's (rulebook) - none may be guessed:
+      1. **Who fires and how it is called**: which elements are artillery (a card flag, a weapon
+         kind?), whether an observer is required, and what links an observer to a battery (same
+         platoon, command chain, a declared assignment).
+      2. **When it lands**: the same activation, end of turn, or a following turn - the plan's
+         "deferred artillery queue" (`ground-combat-plan.md`, `Support/`) implies delay, but by how
+         much is not written down. This decides whether a mission is stored state on `DirtsideGame`
+         (and so a `GroundGameRecord` shape change - which must stay additive, because a mismatched
+         `FormatVersion` is skipped, not migrated).
+      3. **Accuracy and deviation**: what is rolled to land on target, against what, and how far and
+         which way a miss drifts (a number and a procedure, both missing).
+      4. **Effect**: what a landed round does - the plan says artillery multiplies chits by tube
+         (`ground-combat-plan.md:260`), but not the base count, the validity row it draws against,
+         or how an area round picks the elements it hits.
+      5. **Costs**: what observing and firing each cost in actions, and whether a battery may fire
+         and move in one activation.
+      6. **Counter-battery and interception**: whether area defence (gap 8) may answer an
+         artillery round - which also sits behind gap 8's four sentences.
 
 ## Later Production Options
 
@@ -646,10 +671,28 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
       the cost per level is a parameter - the precedent Dirtside's rider check set.
 - [ ] **Dirtside's firer walk**, `(int)band + (firerMovedOverHalf ? -1 : 0)`: the `WeaponRangeBand`
       enum values *are* the table - close +1, medium 0, long -1 - and a hurried shot costs one more.
-      The same shape StarGrunt's walk was. **Recorded in `NotYetThePlayers`, not touched**: this pass
-      was told to leave the Dirtside tables alone, and `DirtsideRulesProfile`'s own remarks call
-      "a band and a hurried shot move the firer down the ladder" procedure. Whether *how far* is
-      procedure too is the owner's call.
+      The same shape StarGrunt's walk was. **Partly done 2026-11-09 (engine and wire; not the
+      screen).** The walk is an entry now: `DirtsideRulesProfile.FirerWalk` (`Combat/FirerWalk`:
+      rungs up at close, down at long, down for moving over half), read by `HitResolution.Solve`
+      through `FirerWalk.Steps`, so the enum's values no longer carry it. On the wire as the optional
+      `DirtsideRulesProfileDto.FirerWalk` (`DirtsideFirerWalkDto`), mapped both ways, a negative rung
+      refused by name, zero allowed. Tests: `HitResolutionTests` (`AnEnteredFirerWalkIsRead...`,
+      `...PlaysTheBuiltInOneAndSaysSo`, `...BottomSightOffTheLadderToo`). **A missing entry falls
+      back to `FirerWalk.BuiltIn` (1, 1, 1) and is reported, not refused**: no route edits a game's
+      profile, so a refusal would strand every stored game's close and long shots. Additive and
+      optional, so no `GroundGameRecord.FormatVersion` change and no stored game is retired. Still
+      in `NotYetThePlayers` (reason reworded) because the fallback is this app's number. Left open:
+      - [ ] The create screen has no field for it (`lib/dirtsideProfile.ts`, `DirtsideView.tsx`,
+            `types.ts`, `lib/dirtsideApi.ts`), so today only an API client can enter one.
+      - [ ] The snapshot reports the fallback only by a null `firerWalk` on the profile; the
+            screen should say "playing the built-in firer walk" the way the default chit pot is
+            reported (`DirtsideGameService.cs:1059`).
+      - [ ] No mapping round-trip / negative-rung test in the Application or API test projects yet.
+      - [ ] Owner's call: whether the fallback becomes a refusal once profiles can be edited, which
+            is what takes this off `NotYetThePlayers`.
+- [x] **`DirtsideRulesProfile` equality ignored `RungsLostUnderFire`** (found 2026-11-09): the
+      hand-written `Equals`/`GetHashCode` skipped it, so two profiles differing only there compared
+      equal. Fixed with the firer walk; `HitResolutionTests.TheFirerWalkIsPartOfTheProfilesEquality`.
 - [x] **Dirtside's Under Fire rung**, `underFire ? ShiftClosed(quality, -1) : quality` in
       `InfantryCombat.SolveFireEffectiveness`. Closed 2026-11-02: the cost is a parameter,
       `rungsLostUnderFire`, fed by the firefight from `DirtsideRulesProfile.RungsLostUnderFire`, and

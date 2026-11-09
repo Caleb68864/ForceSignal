@@ -172,6 +172,10 @@ public sealed record DirtsideDieRowDto(string Key, string Die);
 /// <param name="RungsLostUnderFire">
 /// How many rungs an Under Fire marker costs a fire-effectiveness check, or null when not entered.
 /// </param>
+/// <param name="FirerWalk">
+/// How far the firer's die moves for a close shot, a long shot and a hurried shot, or null when not
+/// entered. See <see cref="DirtsideFirerWalkDto"/>.
+/// </param>
 public sealed record DirtsideRulesProfileDto(
     IReadOnlyList<DirtsideDieRowDto>? FireControl = null,
     IReadOnlyList<DirtsideDieRowDto>? Posture = null,
@@ -182,7 +186,18 @@ public sealed record DirtsideRulesProfileDto(
     int AreaDefenceReach = 0,
     int? LowestLeadershipValue = null,
     int? HighestLeadershipValue = null,
-    int? RungsLostUnderFire = null);
+    int? RungsLostUnderFire = null,
+    DirtsideFirerWalkDto? FirerWalk = null);
+
+/// <summary>
+/// How far the firer's die moves from the die its sight rolls at medium range. Optional on the
+/// profile: a game without it plays the walk this app always played - one rung for each - and says so
+/// by leaving the entry null when the profile is read back, rather than refusing the shot.
+/// </summary>
+/// <param name="RungsUpAtClose">Rungs up for a shot in the close band.</param>
+/// <param name="RungsDownAtLong">Rungs down for a shot in the long band.</param>
+/// <param name="RungsDownMovingOverHalf">Rungs down for a firer that moved, or will move, over half.</param>
+public sealed record DirtsideFirerWalkDto(int RungsUpAtClose, int RungsDownAtLong, int RungsDownMovingOverHalf);
 
 /// <summary>Starts a new game.</summary>
 /// <param name="Name">What to call it.</param>
