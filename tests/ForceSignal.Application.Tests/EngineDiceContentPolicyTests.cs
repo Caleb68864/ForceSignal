@@ -202,13 +202,16 @@ public sealed partial class EngineDiceContentPolicyTests
             // level) moved out in the same pass. Dirtside was out of scope for it - its die tables
             // were settled the pass before - so these two are recorded rather than touched.
             //
-            // `(int)band + (firerMovedOverHalf ? -1 : 0)`: the WeaponRangeBand enum's values ARE the
-            // table - close +1, medium 0, long -1 - so the firer's die walks one rung per band, and a
-            // hurried shot costs one more. The player enters the medium-range die; the walk from it is
-            // still this app's.
+            // Was `(int)band + (firerMovedOverHalf ? -1 : 0)`, the enum's values being the table. Since
+            // 2026-11-09 the walk is `DirtsideRulesProfile.FirerWalk`, entered by the players - but a
+            // profile without one falls back to `FirerWalk.BuiltIn` (1, 1, 1), because stored games'
+            // profiles cannot be edited and refusing their shots would strand them. Still here, then,
+            // because the fallback is still this app's number; it comes off this list when the owner
+            // decides the fallback becomes a refusal (roadmap, "Dirtside's firer walk").
             ["Dirtside/Combat/HitResolution.cs:Shift()"] =
-                (1, "the firer's die walks one rung per range band (the enum values close +1, medium 0, "
-                    + "long -1) and one more for moving over half - shift sizes still written in the engine"),
+                (1, "the firer's walk is the players' FirerWalk entry when made, but a profile without one "
+                    + "falls back to the built-in one rung per band and per hurried shot - a shift size "
+                    + "still written in the engine"),
         };
 
     /// <summary>Both lists together, which is what the scan is actually allowed to find.</summary>

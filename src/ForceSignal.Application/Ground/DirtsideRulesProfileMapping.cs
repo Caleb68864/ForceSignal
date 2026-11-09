@@ -62,7 +62,8 @@ internal static class DirtsideRulesProfileMapping
             AtLeastZero(dto.SystemsDownRecoveryRollWithBackup, "systems-down recovery roll with backup systems"),
             AtLeastZero(dto.AreaDefenceReach, "area-defence reach"),
             LeadershipRangeMapping.FromDto(dto.LowestLeadershipValue, dto.HighestLeadershipValue),
-            dto.RungsLostUnderFire is { } rungs ? AtLeastZero(rungs, "rungs lost under fire") : null);
+            dto.RungsLostUnderFire is { } rungs ? AtLeastZero(rungs, "rungs lost under fire") : null,
+            dto.FirerWalk is { } walk ? FirerWalkFromDto(walk) : null);
     }
 
     /// <summary>Reports a profile back the way it was entered.</summary>
@@ -95,7 +96,10 @@ internal static class DirtsideRulesProfileMapping
             profile.AreaDefenceReach,
             profile.LeadershipValues.Lowest,
             profile.LeadershipValues.Highest,
-            profile.RungsLostUnderFire);
+            profile.RungsLostUnderFire,
+            profile.FirerWalk is { } walk
+                ? new DirtsideFirerWalkDto(walk.RungsUpAtClose, walk.RungsDownAtLong, walk.RungsDownMovingOverHalf)
+                : null);
     }
 
     /// <summary>The die a named key carries, or null when the table has no such row.</summary>
@@ -178,6 +182,17 @@ internal static class DirtsideRulesProfileMapping
     /// number nobody could have read off a card, so it is refused rather than clamped. Clamping would
     /// turn a typo into a rule.
     /// </remarks>
+    /// <summary>Reads the firer walk, refusing a negative rung by name.</summary>
+    /// <remarks>
+    /// Zero is a real answer - a table may play that a hurried shot costs nothing - so only a negative
+    /// is refused: a negative "rungs up at close" would be a second, hidden way of writing "down".
+    /// </remarks>
+    private static FirerWalk FirerWalkFromDto(DirtsideFirerWalkDto walk) =>
+        new(
+            AtLeastZero(walk.RungsUpAtClose, "firer walk's rungs up at close range"),
+            AtLeastZero(walk.RungsDownAtLong, "firer walk's rungs down at long range"),
+            AtLeastZero(walk.RungsDownMovingOverHalf, "firer walk's rungs down for moving over half"));
+
     private static int AtLeastZero(int value, string what) =>
         value >= 0 ? value : throw new InvalidOperationException($"The {what} cannot be {value}.");
 }

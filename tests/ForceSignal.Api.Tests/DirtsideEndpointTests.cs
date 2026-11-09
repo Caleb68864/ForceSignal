@@ -446,6 +446,32 @@ public sealed class DirtsideEndpointTests
     }
 
     [Fact]
+    public async Task TheFirerWalkRoundTripsAndANegativeRungIsRefused()
+    {
+        using var factory = CreateFactory(dirtside: true);
+        using var client = factory.CreateClient();
+        var request = DirtsideTestProfile.CreateGame("Ridge 9");
+
+        // Left out, the profile reads back with no walk - which is how a game says it plays the
+        // built-in one.
+        var plain = await (await client.PostAsJsonAsync("/api/dirtside/games", request))
+            .Content.ReadFromJsonAsync<DirtsideGameCreatedResponse>(JsonOptions);
+        Assert.Null(plain!.Snapshot.Profile!.FirerWalk);
+
+        var walked = await (await client.PostAsJsonAsync(
+                "/api/dirtside/games",
+                request with { Profile = request.Profile! with { FirerWalk = new DirtsideFirerWalkDto(2, 0, 3) } }))
+            .Content.ReadFromJsonAsync<DirtsideGameCreatedResponse>(JsonOptions);
+        Assert.Equal(new DirtsideFirerWalkDto(2, 0, 3), walked!.Snapshot.Profile!.FirerWalk);
+
+        using var refused = await client.PostAsJsonAsync(
+            "/api/dirtside/games",
+            request with { Profile = request.Profile! with { FirerWalk = new DirtsideFirerWalkDto(1, -1, 1) } });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("rungs down at long range", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ASignatureNobodyEnteredIsRefusedByNameWhenThePlatoonIsAdded()
     {
         // The form opens at zero for "not entered", and past this point the resolver throws on it.
