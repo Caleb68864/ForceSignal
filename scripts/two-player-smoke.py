@@ -116,13 +116,29 @@ with sync_playwright() as pw:
             problems.append("blue took the declaration back and the screen still says it stands")
         print("blue reopened plotting")
 
-    # Each side locks and reveals its own orders, from its own device and its own keys.
+    # Both devices say what to do next, in view, without anyone reading the log.
+    for page, who in ((blue, "blue"), (red, "red")):
+        if not page.locator("[data-testid=next-step]").is_visible():
+            problems.append(f"{who} has no next-step banner in order entry")
+
+    # Each side locks and reveals its own orders, from its own device and its own keys. Reveal is
+    # only offered to a side with sealed orders: here nobody plotted, so both fleets hold course, the
+    # match goes straight to movement, and there is nothing to reveal.
     for page, who in ((blue, "blue"), (red, "red")):
         page.click("button:has-text('Lock Fleet Orders')")
         page.wait_for_timeout(800)
     for page, who in ((blue, "blue"), (red, "red")):
-        page.click("button:has-text('Reveal Fleet Orders')")
-        page.wait_for_timeout(800)
+        reveal = page.locator("button:has-text('Reveal Fleet Orders')")
+        if reveal.count() > 0:
+            reveal.first.click()
+            page.wait_for_timeout(800)
+    phase = blue.inner_text("main >> css=strong >> nth=0")
+    print(f"orders in: {phase}")
+    if "MOVEMENT" not in phase.upper():
+        problems.append(f"expected movement once both fleets were in, got {phase!r}")
+    # Advance Turn is the host's alone; the guest is told who to wait for instead.
+    if red.locator(".side-actions button:has-text('Advance Turn')").count() != 0:
+        problems.append("red was offered Advance Turn, which only the host may press")
 
     blue.click("button:has-text('Advance Turn')")
     blue.wait_for_timeout(1200)
@@ -137,9 +153,22 @@ with sync_playwright() as pw:
     if "FIRING" not in red_phase.upper():
         problems.append(f"red did not see the firing phase: {red_phase!r}")
 
+    # Nobody has fired, so ending the firing phase now would take both ships' shots. The host is
+    # asked first, with the ships named, and here goes ahead.
+    warnings: list[str] = []
+
+    def accept_warning(dialog):
+        warnings.append(dialog.message)
+        dialog.accept()
+
+    blue.on("dialog", accept_warning)
     blue.click("button:has-text('Advance Turn')")
     blue.wait_for_timeout(1200)
+    if not any("Not yet fired" in message and "Valiant" in message for message in warnings):
+        problems.append(f"ending firing with ships still to fire gave no warning naming them: {warnings!r}")
     print(f"turn closed: {blue.inner_text('main >> css=strong >> nth=0')}")
+    if "ORDER ENTRY" not in blue.inner_text("main >> css=strong >> nth=0").upper():
+        problems.append("the host's Advance Turn did not open the next turn")
     red.wait_for_timeout(600)
     print(f"red sees:    {red.inner_text('main >> css=strong >> nth=0')}")
 
