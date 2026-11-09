@@ -6,9 +6,11 @@ turning over live on both. Everything else is verified in isolation; this is the
 pieces fit together the way a table uses them.
 
 Run it against a dev pair - the API on 8080 and the web dev server on 6297 - with playwright
-installed. It exits non-zero on the first thing that did not happen.
+installed (scripts/verify.ps1 -IncludeTwoPlayer or scripts/verify.sh --include-two-player start
+both for you). It exits non-zero on the first thing that did not happen.
 """
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -63,7 +65,9 @@ profile_file = Path(tempfile.gettempdir()) / "forcesignal-smoke-profile.json"
 profile_file.write_text(json.dumps(SMOKE_PROFILE), encoding="utf-8")
 
 with sync_playwright() as pw:
-    browser = pw.chromium.launch()
+    # CHROMIUM_PATH runs it against an installed Chromium instead of one `playwright install`
+    # downloaded, as the web project's own browser checks do.
+    browser = pw.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
     # Separate contexts: separate localStorage, which is where the order keys live.
     blue_ctx, red_ctx = browser.new_context(), browser.new_context()
     blue, red = blue_ctx.new_page(), red_ctx.new_page()

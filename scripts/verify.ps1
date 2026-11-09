@@ -1,5 +1,8 @@
 param(
-    [switch]$IncludeDocker
+    [switch]$IncludeDocker,
+    # Plays a turn on two browser devices against a running API and dev server, as CI's two-player
+    # job does. Needs Python Playwright: pip install playwright; playwright install chromium.
+    [switch]$IncludeTwoPlayer
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +32,34 @@ function Invoke-Step {
     Write-Host ""
     Write-Host "==> $Name"
     & $Command
+}
+
+# True when something answers an HTTP GET at the address with a success status.
+function Test-Answers {
+    param([string]$Url)
+    try {
+        $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 2
+        return $response.StatusCode -eq 200
+    }
+    catch {
+        return $false
+    }
+}
+
+# True when something is already listening on the port. A plain connect attempt rather than
+# Get-NetTCPConnection, which exists only on Windows.
+function Test-PortInUse {
+    param([int]$Port)
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        return $client.ConnectAsync("127.0.0.1", $Port).Wait(300) -and $client.Connected
+    }
+    catch {
+        return $false
+    }
+    finally {
+        $client.Dispose()
+    }
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -137,6 +168,95 @@ try {
         finally {
             Pop-Location
         }
+    }
+
+    # The one check that drives two devices through a whole turn. It used to run only in CI's
+    # two-player job, so a change to the screens could pass everything here and still turn that job
+    # red after the push - which is how a Reveal button that stopped being offered went unnoticed.
+    # Opt-in because it needs Python Playwright and two free ports; CI runs it in its own job.
+    if ($IncludeTwoPlayer) {
+        Invoke-Step "Two-device smoke test" {
+            $python = if ($IsWindows) { "python" } else { "python3" }
+            & $python -c "import playwright" 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Python Playwright is not installed. Run: pip install playwright; playwright install chromium"
+            }
+
+            # The script and the web app are both built against these two addresses, as in CI.
+            foreach ($port in 8080, 6297) {
+                $listening = Test-PortInUse -Port $port
+                if ($listening) {
+                    throw "Port $port is already in use. Stop whatever is listening there and run again."
+                }
+            }
+
+            $logs = Join-Path ([System.IO.Path]::GetTempPath()) "forcesignal-two-player"
+            New-Item -ItemType Directory -Force -Path $logs | Out-Null
+            $npm = if ($IsWindows) { "npm.cmd" } else { "npm" }
+            $saved = @{
+                ASPNETCORE_ENVIRONMENT = $env:ASPNETCORE_ENVIRONMENT
+                ASPNETCORE_URLS = $env:ASPNETCORE_URLS
+                VITE_API_BASE_URL = $env:VITE_API_BASE_URL
+            }
+            $api = $null
+            $web = $null
+            try {
+                # Development so CORS lets the dev server in without an origin being configured;
+                # --no-launch-profile keeps launchSettings.json from moving it back to 5225.
+                $env:ASPNETCORE_ENVIRONMENT = "Development"
+                $env:ASPNETCORE_URLS = "http://localhost:8080"
+                $api = Start-Process dotnet -ArgumentList "run", "--project", "src/ForceSignal.Api", "--no-launch-profile" `
+                    -RedirectStandardOutput (Join-Path $logs "api.log") -RedirectStandardError (Join-Path $logs "api.err.log") -PassThru -NoNewWindow
+                $env:VITE_API_BASE_URL = "http://localhost:8080"
+                $web = Start-Process $npm -ArgumentList "run", "dev" -WorkingDirectory "src/ForceSignal.Web" `
+                    -RedirectStandardOutput (Join-Path $logs "web.log") -RedirectStandardError (Join-Path $logs "web.err.log") -PassThru -NoNewWindow
+
+                # Polled rather than slept, as in CI: a fixed wait is too short on a slow machine.
+                $up = $false
+                for ($attempt = 0; $attempt -lt 90 -and -not $up; $attempt++) {
+                    Start-Sleep -Seconds 1
+                    $up = (Test-Answers "http://localhost:8080/health") -and (Test-Answers "http://localhost:6297")
+                }
+
+                if (-not $up) {
+                    throw "The API or the web dev server did not answer within 90 seconds."
+                }
+
+                Invoke-Native $python (Join-Path $PSScriptRoot "two-player-smoke.py")
+            }
+            catch {
+                foreach ($name in "api.log", "api.err.log", "web.log", "web.err.log") {
+                    $path = Join-Path $logs $name
+                    if (Test-Path $path) {
+                        Write-Host "--- $name ---"
+                        Get-Content $path -Tail 60 | Write-Host
+                    }
+                }
+
+                throw
+            }
+            finally {
+                # Whole trees: `dotnet run` and `npm run dev` each start the real server as a child,
+                # and stopping only the parent would leave it holding the port for the next run.
+                foreach ($process in $api, $web) {
+                    if ($process -and -not $process.HasExited) {
+                        $process.Kill($true)
+                        $process.WaitForExit(10000) | Out-Null
+                    }
+                }
+
+                foreach ($name in $saved.Keys) {
+                    Set-Item -Path "env:$name" -Value $saved[$name] -ErrorAction SilentlyContinue
+                    if ($null -eq $saved[$name]) {
+                        Remove-Item -Path "env:$name" -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+    }
+    else {
+        Write-Host ""
+        Write-Host "==> Skipping the two-device smoke test. Pass -IncludeTwoPlayer to run it (needs Python Playwright)."
     }
 
     Invoke-Step "Validate Docker Compose configuration" {
