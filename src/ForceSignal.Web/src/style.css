@@ -3251,3 +3251,12 @@ small,
 .shot-note {
   color: var(--muted);
 }
+
+.invite-link {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}

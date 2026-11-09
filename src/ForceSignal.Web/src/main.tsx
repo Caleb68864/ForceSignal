@@ -63,7 +63,14 @@ import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
   const [displayName, setDisplayName] = useState(() => stringFrom(readJson(displayNameKey), 'Admiral'));
-  const [joinCode, setJoinCode] = useState('');
+  // An invite link (RoomCode's ?join=) arrives with the room code already in it.
+  const [joinCode, setJoinCode] = useState(() => {
+    try {
+      return (new URLSearchParams(window.location.search).get('join') ?? '').toUpperCase();
+    } catch {
+      return '';
+    }
+  });
   const [session, setSession] = useState<Session | null>(() => readStored(sessionKey, normalizeSession));
   const [snapshot, setSnapshotState] = useState<MatchSnapshot | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftOrder>>(() => readStored(draftsKey, readDrafts) ?? {});
@@ -448,7 +455,16 @@ function App() {
       clearLocalMatchState();
       setSession(response);
       setMessage(`Joined room ${response.joinCode}.`);
+      // The invite has been used; a refresh should not offer to join again.
+      if (window.location.search.includes('join=')) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     } catch (error) {
+      // "Match was not found." told a player with a mistyped code nothing about what to fix.
+      if (error instanceof ApiRequestError && error.status === 404) {
+        throw new Error(`There is no room ${joinCode || 'with that code'}. Check the room code with the host: it is four words, like PIVOT-VIOLET-SEVEN-INDIGO.`, { cause: error });
+      }
+
       // A restored room refuses ordinary joins until every seat is claimed.
       if (!(error instanceof ApiRequestError) || !error.message.toLowerCase().includes('claim')) {
         throw error;

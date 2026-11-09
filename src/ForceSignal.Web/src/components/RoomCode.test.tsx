@@ -45,3 +45,37 @@ describe('RoomCode', () => {
     expect(await screen.findByText('Selected - press copy')).toBeTruthy();
   });
 });
+
+describe('the invite link', () => {
+  afterEach(() => {
+    cleanup();
+    setClipboard(undefined);
+    Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
+  });
+
+  it('opens the app with the room code filled in', async () => {
+    const { inviteLink } = await import('./RoomCode.tsx');
+    expect(inviteLink('PIVOT-VIOLET', { origin: 'http://table.local:6297', pathname: '/' })).toBe('http://table.local:6297/?join=PIVOT-VIOLET');
+  });
+
+  it('goes through the phone\'s share sheet when there is one', async () => {
+    const share = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+    render(<RoomCode code="ABCD" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share invite link' }));
+
+    await vi.waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: expect.stringContaining('?join=ABCD') })));
+  });
+
+  it('copies the link where there is no share sheet', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    setClipboard({ writeText });
+    render(<RoomCode code="ABCD" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share invite link' }));
+
+    expect(await screen.findByText('Invite link copied')).toBeTruthy();
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('?join=ABCD'));
+  });
+});

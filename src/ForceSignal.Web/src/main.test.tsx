@@ -427,6 +427,9 @@ describe('the next-step banner', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
     await screen.findByText('Created room ALPHA.');
     const notify = await subscribedHandler();
+    // The setup snapshot has to have landed first, or the screen never sees a phase change at all -
+    // only a first snapshot that is already in order entry.
+    await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Fleet setup'));
 
     // Time passes at the table before the phase turns over.
     const later = Date.now() + 60_000;
@@ -435,7 +438,8 @@ describe('the next-step banner', () => {
     notify('match-ALPHA', 2, 'PhaseChanged');
 
     await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Order entry'));
-    expect(screen.queryByText('Created room ALPHA.')).toBeNull();
+    // The clear is a state update from an effect, so it lands a render after the phase does.
+    await waitFor(() => expect(screen.queryByText('Created room ALPHA.')).toBeNull());
   });
 
   // A fresh match used to offer Ready, the checklist said "Clear to proceed", and the server then
@@ -454,5 +458,42 @@ describe('the next-step banner', () => {
     expect(screen.queryByRole('button', { name: 'Lock Fleet Orders' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Reveal Fleet Orders' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Advance Turn' })).toBeNull();
+  });
+});
+
+describe('joining by invite link', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    window.history.replaceState(null, '', '/');
+    vi.unstubAllGlobals();
+  });
+
+  it('arrives with the room code already filled in', async () => {
+    window.history.replaceState(null, '', '/?join=pivot-violet-seven-indigo');
+    await import('./main.tsx');
+
+    const code = await screen.findByLabelText('Room code');
+    expect((code as HTMLInputElement).value).toBe('PIVOT-VIOLET-SEVEN-INDIGO');
+  });
+
+  it('says what to check when the code is wrong, as an alert beside the field', async () => {
+    const { ApiRequestError } = await import('./lib/api.ts');
+    post.mockRejectedValue(new ApiRequestError('Match was not found.', 404));
+    await import('./main.tsx');
+
+    fireEvent.change(await screen.findByLabelText('Room code'), { target: { value: 'PIVOT-VIOLET' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Join Match' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('There is no room PIVOT-VIOLET');
+    expect(alert.textContent).toContain('four words');
   });
 });
