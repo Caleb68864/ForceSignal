@@ -687,7 +687,8 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
       - [ ] The snapshot reports the fallback only by a null `firerWalk` on the profile; the
             screen should say "playing the built-in firer walk" the way the default chit pot is
             reported (`DirtsideGameService.cs:1059`).
-      - [ ] No mapping round-trip / negative-rung test in the Application or API test projects yet.
+      - [x] Mapping round-trip and negative-rung refusal over HTTP:
+            `DirtsideEndpointTests.TheFirerWalkRoundTripsAndANegativeRungIsRefused`.
       - [ ] Owner's call: whether the fallback becomes a refusal once profiles can be edited, which
             is what takes this off `NotYetThePlayers`.
 - [x] **`DirtsideRulesProfile` equality ignored `RungsLostUnderFire`** (found 2026-11-09): the
