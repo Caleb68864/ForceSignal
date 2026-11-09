@@ -31,7 +31,8 @@ export type Fleet = {
   id: string;
   ownerParticipantId: string;
   name: string;
-  faction?: string;
+  // Null when nobody named one: the server sends the key with no value, not no key.
+  faction?: string | null;
   fleetColor: string;
 };
 export type Ship = {
@@ -76,6 +77,15 @@ export type Ship = {
   workingFireControl: number;
   fighterReach: number;
   repairableSystems: SystemOption[];
+  // How much of each system a needle cut out, rather than ordinary damage. Needled systems are
+  // beyond damage control, which is why the server counts them apart.
+  needledFireControl?: number;
+  needledDrives?: number;
+  needledScreens?: number;
+  needledBays?: number;
+  // The turn a landed fighter group may launch again, and whether its turnaround grounded it.
+  fighterRelaunchTurn?: number;
+  fighterGroundedForGame?: boolean;
 };
 export type WeaponMount = {
   id: string;
@@ -127,6 +137,11 @@ export type MovementResult = {
   endingVelocity: number;
   endingCourse: number;
   segments?: MovementSegment[] | null;
+  // Once movement has resolved: where the ship actually went, start first, with the table edge
+  // already applied. Absent before then, when the result is only the revealed order's plan.
+  path?: TablePoint[] | null;
+  clamped?: boolean;
+  drifted?: boolean;
 };
 /**
  * Where a draft order would take a ship, answered by the server.
@@ -197,6 +212,46 @@ export type FiringResult = {
   weaponKind?: WeaponKind;
   toHitNumber?: number | null;
   isHit?: boolean | null;
+  // The distance the map measured between the ships, beside the range the player declared, and
+  // whether the two disagree by more than a band. The shot stands either way; the table decides.
+  mapRange?: number;
+  rangeDisagreed?: boolean;
+};
+/**
+ * One thing that happened this turn, in the order the server resolved it. Which optional fields an
+ * event fills is set by its kind; see `TurnEventKinds` in MatchContracts.cs. `sequence` is the
+ * battle-log entry that describes it.
+ */
+export type TurnEventKind = 'FighterFlew' | 'MovementResolved' | 'SalvoStruck' | 'SalvoWasted' | 'PointDefenseFired'
+  | 'FighterStrikeStopped' | 'WeaponFired' | 'ThresholdChecked' | 'ShipDestroyed';
+export type TurnEvent = {
+  sequence: number;
+  turnNumber: number;
+  kind: TurnEventKind;
+  actorShipId?: string | null;
+  targetShipId?: string | null;
+  markerId?: string | null;
+  firingResultIndex?: number | null;
+  from?: TablePoint | null;
+  to?: TablePoint | null;
+  rolls?: number[] | null;
+  kills?: number | null;
+  launched?: number | null;
+  arriving?: number | null;
+  surviving?: number | null;
+  damageRolls?: number[] | null;
+  damage?: number | null;
+  armorApplied?: number | null;
+  hullApplied?: number | null;
+  row?: number | null;
+  lostSystems?: string[] | null;
+};
+/** The turn just finished, kept through the turn advance so it can be played again. */
+export type LastTurn = {
+  turnNumber: number;
+  movementResults: MovementResult[];
+  firingResults: FiringResult[];
+  events: TurnEvent[];
 };
 export type MatchLogEntry = {
   sequence: number;
@@ -233,6 +288,9 @@ export type MatchSnapshot = {
   // Whose turn it is to pick a ship and fire it, and which ships have already had their turn.
   firingParticipantId?: string | null;
   activatedShipIds?: string[];
+  // This turn's events in resolution order, and the previous turn kept whole for replay.
+  turnEvents?: TurnEvent[] | null;
+  lastTurn?: LastTurn | null;
 };
 export type Session = {
   matchId: string;

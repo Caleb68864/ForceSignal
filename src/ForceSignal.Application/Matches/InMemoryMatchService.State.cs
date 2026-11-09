@@ -75,6 +75,19 @@ public sealed partial class InMemoryMatchService
         public List<OrdnanceMarkerState> OrdnanceMarkers { get; } = [];
         public Dictionary<Guid, OrderCommitmentState> Commitments { get; } = [];
         public List<FiringResultState> FiringResults { get; } = [];
+
+        /// <summary>
+        /// Every ship's move as it was actually flown this turn, set when movement resolves and
+        /// cleared when the turn ends. Null until then, which is how the snapshot tells "nothing has
+        /// moved yet" from "nothing moved".
+        /// </summary>
+        public List<ResolvedMoveState>? ResolvedMoves { get; set; }
+
+        /// <summary>What else happened this turn, in the order it was resolved. Cleared with the turn.</summary>
+        public List<TurnEventState> TurnEvents { get; } = [];
+
+        /// <summary>The turn just finished, kept so it can be played again. Null before the first one ends.</summary>
+        public LastTurnState? LastTurn { get; set; }
         public List<MatchLogEntryState> MatchLog { get; } = [];
         public long Version { get; private set; } = 1;
 
@@ -116,6 +129,13 @@ public sealed partial class InMemoryMatchService
             MatchLog.Add(new MatchLogEntryState(_nextLogSequence++, DateTimeOffset.UtcNow, TurnNumber, phase, category, message));
             TrimLog();
         }
+
+        /// <summary>
+        /// Records a turn event against the log entry just written for it, so every event has its
+        /// sentence. Called straight after the <see cref="AddLog"/> that describes it.
+        /// </summary>
+        public void AddEvent(TurnEventState turnEvent) =>
+            TurnEvents.Add(turnEvent with { Sequence = _nextLogSequence - 1, TurnNumber = TurnNumber });
 
         public void AddRestoredLog(MatchLogEntryState entry)
         {
@@ -320,4 +340,57 @@ public sealed partial class InMemoryMatchService
         MovementOrder? RevealedOrder,
         MovementResult? Result);
     private sealed record DamageSnapshot(int Hull, int Armor, int FireControl, int Drive, int Weapons);
+
+    /// <summary>
+    /// One ship's resolved move: the order's plan, the path the table allowed, and how it came about.
+    /// </summary>
+    /// <remarks>
+    /// Kept beside the commitment rather than in it because two kinds of mover have no commitment
+    /// worth the name - a ship with no order drifts, and its move still has to be shown - and one
+    /// commitment has no move: a ship wrecked before movement keeps its revealed order but never flies.
+    /// </remarks>
+    private sealed record ResolvedMoveState(
+        Guid ShipId,
+        int StartingVelocity,
+        int StartingCourse,
+        int EndingVelocity,
+        int EndingCourse,
+        IReadOnlyList<MovementSegment> Segments,
+        IReadOnlyList<ResolvedPoint> Path,
+        bool Clamped,
+        bool Drifted);
+
+    /// <summary>A place on the table a resolved move passed through.</summary>
+    private sealed record ResolvedPoint(decimal X, decimal Y);
+
+    /// <summary>One turn event as the match holds it. See <c>TurnEventDto</c> for what each field means.</summary>
+    private sealed record TurnEventState(string Kind)
+    {
+        public long Sequence { get; init; }
+        public int TurnNumber { get; init; }
+        public Guid? ActorShipId { get; init; }
+        public Guid? TargetShipId { get; init; }
+        public Guid? MarkerId { get; init; }
+        public int? FiringResultIndex { get; init; }
+        public ResolvedPoint? From { get; init; }
+        public ResolvedPoint? To { get; init; }
+        public IReadOnlyList<int>? Rolls { get; init; }
+        public int? Kills { get; init; }
+        public int? Launched { get; init; }
+        public int? Arriving { get; init; }
+        public int? Surviving { get; init; }
+        public IReadOnlyList<int>? DamageRolls { get; init; }
+        public int? Damage { get; init; }
+        public int? ArmorApplied { get; init; }
+        public int? HullApplied { get; init; }
+        public int? Row { get; init; }
+        public IReadOnlyList<string>? LostSystems { get; init; }
+    }
+
+    /// <summary>A finished turn's moves, shots and events, kept for one more turn.</summary>
+    private sealed record LastTurnState(
+        int TurnNumber,
+        IReadOnlyList<ResolvedMoveState> Moves,
+        IReadOnlyList<FiringResultState> FiringResults,
+        IReadOnlyList<TurnEventState> Events);
 }

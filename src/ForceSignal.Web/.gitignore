@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 *.stackdump
+
+dist-bench
+test-results
+playwright-report

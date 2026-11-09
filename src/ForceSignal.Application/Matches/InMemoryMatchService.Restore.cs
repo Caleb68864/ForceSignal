@@ -316,7 +316,33 @@ public sealed partial class InMemoryMatchService
                         result.EndingCourse,
                         result.Segments));
         }
+
+        // A backup taken after movement resolved carries each move as it was flown. Without this a
+        // match restored mid-firing would go back to showing the orders' plans walked back from
+        // where the ships ended up - the edge-clamped, drifting and wrecked cases all wrong again.
+        var flown = (snapshot.MovementResults ?? [])
+            .Where(m => m.Path is { Count: > 1 and <= MaxPathPointsPerMove } && shipIdMap.ContainsKey(m.ShipId))
+            .ToArray();
+        if (flown.Length > 0)
+        {
+            match.ResolvedMoves = [.. flown.Select(m => new ResolvedMoveState(
+                shipIdMap[m.ShipId],
+                m.StartingVelocity,
+                m.StartingCourse,
+                m.EndingVelocity,
+                m.EndingCourse,
+                m.Segments ?? [],
+                [.. m.Path!.Select(point => new ResolvedPoint(ClampPosition(point.X, match.TableWidth), ClampPosition(point.Y, match.TableDepth)))],
+                m.Clamped,
+                m.Drifted))];
+        }
     }
+
+    /// <summary>
+    /// Longest path a restored move may carry: one point per leg and one to start from. A real move
+    /// has a handful of legs; this only stops a doctored file from carrying thousands.
+    /// </summary>
+    private const int MaxPathPointsPerMove = 64;
     /// <summary>
     /// Puts the firing phase back where it was, rather than starting it again.
     /// </summary>

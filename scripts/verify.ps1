@@ -127,6 +127,18 @@ try {
         }
     }
 
+    # Size, measured on what was just built: the entry chunk every device loads, everything loaded
+    # later, and no animated-map code in the entry chunk (a device that leaves it off pays nothing).
+    Invoke-Step "Check web bundle budget" {
+        Push-Location "src/ForceSignal.Web"
+        try {
+            Invoke-Native npm run check:bundle
+        }
+        finally {
+            Pop-Location
+        }
+    }
+
     Invoke-Step "Validate Docker Compose configuration" {
         Invoke-Native docker compose config | Out-Null
     }

@@ -25,15 +25,19 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "tsc --noEmit && eslint . && vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "e2e": "playwright test",
+    "check:bundle": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",
+    "pixi.js": "8.22.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.64.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@types/react": "^19.2.7",

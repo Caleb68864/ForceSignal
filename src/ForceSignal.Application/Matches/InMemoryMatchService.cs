@@ -1133,6 +1133,12 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 "Fighters",
                 match.Phase.ToString(),
                 $"{DescribeShip(match, group)} flew {distance:0.#} from {startingX:0.#},{startingY:0.#} to {destinationX:0.#},{destinationY:0.#}, now facing course {group.CurrentCourse}.{PositionEdgeNote(group, match)}");
+            match.AddEvent(new TurnEventState(TurnEventKinds.FighterFlew)
+            {
+                ActorShipId = group.Id,
+                From = new ResolvedPoint(startingX, startingY),
+                To = new ResolvedPoint(destinationX, destinationY),
+            });
             match.Touch("FighterGroupMoved");
             return ToSnapshot(match);
         }
@@ -1594,12 +1600,18 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             if (match.Phase == MatchPhase.Firing)
             {
                 ResolvePendingThresholds(match);
+
+                // The turn just played is kept whole for one more turn, so a device can play it
+                // again - its moves, its shots and everything else - after the board has moved on.
+                match.LastTurn = new LastTurnState(match.TurnNumber, match.ResolvedMoves ?? [], [.. match.FiringResults], [.. match.TurnEvents]);
+                match.TurnEvents.Clear();
                 match.FiringParticipantId = null;
                 match.ActivatedShipIds.Clear();
                 match.TurnNumber++;
                 match.Phase = MatchPhase.OrderEntry;
                 match.Commitments.Clear();
                 match.FiringResults.Clear();
+                match.ResolvedMoves = null;
                 match.MovedFighterGroupIds.Clear();
                 match.CarrierLaunchesThisTurn.Clear();
                 match.CarrierRecoveriesThisTurn.Clear();
@@ -1622,6 +1634,11 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 throw new InvalidOperationException("All valid orders must be revealed before advancing.");
             }
 
+            // Every move as it is flown, so the snapshot can show the path the table allowed rather
+            // than leave the client to walk the order's legs back from where the ship ended up -
+            // which put a hull the edge had stopped in the wrong place, drew a move for a ship that
+            // never made one, and drew nothing for a ship that drifted.
+            var resolvedMoves = new List<ResolvedMoveState>();
             foreach (var commitment in match.Commitments.Values)
             {
                 var ship = match.Ships.Single(s => s.Id == commitment.ShipId);
@@ -1635,9 +1652,20 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 var startingCourse = ship.CurrentCourse;
                 var startingX = ship.PositionX;
                 var startingY = ship.PositionY;
+                var (path, clamped) = WalkPath(ship.PositionX, ship.PositionY, commitment.Result!, match.TableWidth, match.TableDepth);
                 ship.CurrentVelocity = commitment.Result!.EndingVelocity;
                 ship.CurrentCourse = commitment.Result.EndingCourse;
-                (ship.PositionX, ship.PositionY) = EstimatePositionFromResult(ship.PositionX, ship.PositionY, commitment.Result, match.TableWidth, match.TableDepth);
+                (ship.PositionX, ship.PositionY) = path[^1];
+                resolvedMoves.Add(new ResolvedMoveState(
+                    ship.Id,
+                    startingVelocity,
+                    startingCourse,
+                    ship.CurrentVelocity,
+                    ship.CurrentCourse,
+                    commitment.Result.Segments is { Count: > 0 } segments ? segments : [new MovementSegment(commitment.Result.EndingCourse, commitment.Result.EndingVelocity)],
+                    [.. path.Select(point => new ResolvedPoint(point.X, point.Y))],
+                    clamped,
+                    Drifted: false));
                 var order = commitment.RevealedOrder!;
                 match.AddLog("Movement", match.Phase.ToString(), $"{DescribeShip(match, ship)} plotted dV {order.VelocityDelta}, helm {DescribeTurnSequence(order)}; moved v{startingVelocity}/c{startingCourse} to v{ship.CurrentVelocity}/c{ship.CurrentCourse}, position {startingX:0.#},{startingY:0.#} to {ship.PositionX:0.#},{ship.PositionY:0.#}.{PositionEdgeNote(ship, match)}");
             }
@@ -1649,12 +1677,26 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                 var ship = match.Ships.Single(s => s.Id == shipId);
                 var startingX = ship.PositionX;
                 var startingY = ship.PositionY;
-                (ship.PositionX, ship.PositionY) = EstimatePosition(ship.PositionX, ship.PositionY, ship.CurrentVelocity, ship.CurrentCourse, match.TableWidth, match.TableDepth);
+                bool clamped;
+                (ship.PositionX, ship.PositionY, clamped) = StepPosition(ship.PositionX, ship.PositionY, ship.CurrentVelocity, ship.CurrentCourse, match.TableWidth, match.TableDepth);
+                resolvedMoves.Add(new ResolvedMoveState(
+                    ship.Id,
+                    ship.CurrentVelocity,
+                    ship.CurrentCourse,
+                    ship.CurrentVelocity,
+                    ship.CurrentCourse,
+                    [new MovementSegment(ship.CurrentCourse, ship.CurrentVelocity)],
+                    [new ResolvedPoint(startingX, startingY), new ResolvedPoint(ship.PositionX, ship.PositionY)],
+                    clamped,
+                    Drifted: true));
                 match.AddLog(
                     "Movement",
                     match.Phase.ToString(),
                     $"{DescribeShip(match, ship)} had no order and held course: v{ship.CurrentVelocity}/c{ship.CurrentCourse}, position {startingX:0.#},{startingY:0.#} to {ship.PositionX:0.#},{ship.PositionY:0.#}.{PositionEdgeNote(ship, match)}");
             }
+
+            match.ResolvedMoves = resolvedMoves;
+            match.AddEvent(new TurnEventState(TurnEventKinds.MovementResolved));
 
             // Salvo missiles strike at the end of movement, before anyone opens fire.
             ResolveSalvoMissiles(match);

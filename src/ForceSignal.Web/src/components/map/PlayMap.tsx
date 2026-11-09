@@ -7,7 +7,7 @@
  * PlayMap owns the viewport and the pointer handling; everything else here draws one layer.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { CommittedNumber } from '../../components/CommittedNumber.tsx';
 import { ShipIcon } from '../../components/ShipCard.tsx';
 import { fighterStatuses, firableArcs, newOrdnanceDraft } from '../../constants.ts';
@@ -22,6 +22,37 @@ import { useFiringSolution } from '../../lib/useFiringSolution.ts';
 import { OrderPreviewNotice } from '../OrderPreviewNotice.tsx';
 import { lastShotBy, ShotResultCard } from '../ShotResultCard.tsx';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, RulesProfile, Ship, TablePoint, FiringSolution } from '../../types.ts';
+
+// The animated map: a canvas under these same DOM controls that plays each resolved turn. Its own
+// chunk, so a device that leaves it off downloads none of it.
+const PixiTableLayer = lazy(() => import('./pixi/PixiTableLayer.tsx'));
+
+const animatedMapKey = 'forcesignal.animatedMap';
+
+/**
+ * Whether this device draws the animated map. A per-device choice kept in storage; `?renderer=`
+ * in the address overrides it, which is how the browser checks and the bench pick a renderer.
+ */
+function animatedMapChosen(): boolean {
+  try {
+    const forced = new URLSearchParams(window.location.search).get('renderer');
+    if (forced === 'pixi' || forced === 'dom') {
+      return forced === 'pixi';
+    }
+
+    return localStorage.getItem(animatedMapKey) === 'on';
+  } catch {
+    return false;
+  }
+}
+
+function rememberAnimatedMap(on: boolean) {
+  try {
+    localStorage.setItem(animatedMapKey, on ? 'on' : 'off');
+  } catch {
+    // A private window: the choice holds for this visit.
+  }
+}
 
 export function PlayMap({
   snapshot,
@@ -72,6 +103,8 @@ export function PlayMap({
     ?? snapshot.ships.find((ship) => ownedShipIds.has(ship.id) && !ship.isDestroyed)
     ?? snapshot.ships[0];
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const [usePixi, setUsePixi] = useState(animatedMapChosen);
+  const [mapElement, setMapElement] = useState<HTMLDivElement | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -91,7 +124,16 @@ export function PlayMap({
   const markerLongPressRef = useRef<{ pointerId: number; timeoutId: number } | null>(null);
   const pointersRef = useRef(new Map<number, TablePoint>());
   const pinchRef = useRef<{ distance: number; scale: number } | null>(null);
-  const [viewport, setViewport] = useState({ scale: 1, x: 0, y: 0 });
+  const [committedViewport, setViewport] = useState({ scale: 1, x: 0, y: 0 });
+  // A drag in progress moves the table without a React render per pointer move: every ship button,
+  // overlay and the inspector re-rendered on each one, which is what made panning a full table
+  // stutter on a phone. The live position is written straight to the content element (and handed
+  // to the animated map), and committed to state once, when the finger lifts. A render that
+  // happens mid-drag - a snapshot arriving - reads the live position, so the table does not jump.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const liveViewportRef = useRef<{ scale: number; x: number; y: number } | null>(null);
+  const viewportPreviewRef = useRef<((next: { scale: number; x: number; y: number }) => void) | null>(null);
+  const viewport = liveViewportRef.current ?? committedViewport;
   const [isPanning, setIsPanning] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [inspectorMode, setInspectorMode] = useState<'status' | 'helm' | 'fire' | 'ops'>('status');
@@ -164,16 +206,51 @@ export function PlayMap({
       const localY = event.clientY - rect.top;
       const deltaPixels = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
       const delta = Math.max(-0.35, Math.min(0.35, -deltaPixels * 0.0015));
-      setViewport((current) => {
-        const next = viewportZoomedAt(current, localX, localY, current.scale + delta);
-        setMapNotice(`Zoom ${Math.round(next.scale * 100)}%`);
-        return next;
-      });
+      // A wheel or trackpad sends a burst of these. Each zooms the table at once, live, and the
+      // burst is committed as one render when it stops - not a full render of the map per notch.
+      const current = liveViewportRef.current ?? committedViewportRef.current;
+      previewViewportRef.current(viewportZoomedAt(current, localX, localY, current.scale + delta));
+      window.clearTimeout(wheelCommitRef.current);
+      wheelCommitRef.current = window.setTimeout(() => commitLiveViewportRef.current(), 160);
     };
 
     document.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-    return () => document.removeEventListener('wheel', handleWheel, { capture: true });
+    return () => {
+      document.removeEventListener('wheel', handleWheel, { capture: true });
+      window.clearTimeout(wheelCommitRef.current);
+    };
   }, []);
+
+  /** Moves the table to a viewport now, without a render, until it is committed. */
+  function previewViewport(next: { scale: number; x: number; y: number }) {
+    liveViewportRef.current = next;
+    if (contentRef.current) {
+      contentRef.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.scale})`;
+      contentRef.current.style.setProperty('--marker-scale', `${1 / next.scale}`);
+    }
+
+    viewportPreviewRef.current?.(next);
+  }
+
+  /** Ends a live drag or zoom: the position it reached becomes the viewport. */
+  function commitLiveViewport() {
+    const live = liveViewportRef.current;
+    if (live) {
+      liveViewportRef.current = null;
+      setViewport(live);
+      if (live.scale !== committedViewport.scale) {
+        setMapNotice(`Zoom ${Math.round(live.scale * 100)}%`);
+      }
+    }
+  }
+  // The wheel listener is attached once, so it reaches these through refs.
+  const commitLiveViewportRef = useRef(commitLiveViewport);
+  commitLiveViewportRef.current = commitLiveViewport;
+  const previewViewportRef = useRef(previewViewport);
+  previewViewportRef.current = previewViewport;
+  const committedViewportRef = useRef(committedViewport);
+  committedViewportRef.current = committedViewport;
+  const wheelCommitRef = useRef<number | undefined>(undefined);
 
   function setZoom(nextScale: number) {
     setViewport((current) => clampMapViewport({ ...current, scale: nextScale }));
@@ -374,6 +451,17 @@ export function PlayMap({
           <h3>{snapshot.tableWidth} x {snapshot.tableDepth} table</h3>
         </div>
         <p aria-live="polite">{mapNotice}</p>
+        <label className="map-animated-toggle">
+          <input
+            type="checkbox"
+            checked={usePixi}
+            onChange={(event) => {
+              setUsePixi(event.target.checked);
+              rememberAnimatedMap(event.target.checked);
+            }}
+          />
+          Animated map
+        </label>
       </div>
       <div className="map-controls" aria-label="Map controls">
         <label className="map-contact-select">
@@ -413,11 +501,14 @@ export function PlayMap({
         <span>{Math.round(viewport.scale * 100)}%</span>
       </div>
       <div
-        ref={tableRef}
+        ref={(element) => {
+          tableRef.current = element;
+          setMapElement(element);
+        }}
         tabIndex={0}
         role="application"
         aria-label="Tactical play map. Use arrow keys to pan, plus and minus to zoom, and Home to fit."
-        className={isPanning ? 'table-map panning' : 'table-map'}
+        className={['table-map', isPanning ? 'panning' : '', usePixi ? 'pixi-renderer' : ''].filter(Boolean).join(' ')}
         style={{ aspectRatio: `${snapshot.tableWidth} / ${snapshot.tableDepth}` }}
         onKeyDown={(event) => {
           const panStep = event.shiftKey ? 96 : 32;
@@ -457,8 +548,9 @@ export function PlayMap({
           event.currentTarget.focus();
           pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
           if (pointersRef.current.size === 2 && !measureMode) {
-            // Second finger down: switch from panning to pinch zoom.
+            // Second finger down: switch from panning to pinch zoom, from wherever the pan reached.
             clearLongPress();
+            commitLiveViewport();
             const [first, second] = [...pointersRef.current.values()];
             pinchRef.current = { distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)), scale: viewport.scale };
             if (dragRef.current) {
@@ -549,8 +641,8 @@ export function PlayMap({
 
           drag.didMove = true;
           clearLongPress();
-          setViewport((current) => clampMapViewport({
-            ...current,
+          previewViewport(clampMapViewport({
+            ...viewport,
             x: drag.originX + event.clientX - drag.startX,
             y: drag.originY + event.clientY - drag.startY,
           }));
@@ -581,6 +673,7 @@ export function PlayMap({
             } else {
               setMapNotice('Table view repositioned');
             }
+            commitLiveViewport();
             if (event.currentTarget.hasPointerCapture(event.pointerId)) {
               event.currentTarget.releasePointerCapture(event.pointerId);
             }
@@ -597,11 +690,28 @@ export function PlayMap({
             event.currentTarget.releasePointerCapture(event.pointerId);
           }
           clearLongPress();
+          commitLiveViewport();
           dragRef.current = null;
           setIsPanning(false);
         }}
       >
+        {usePixi ? (
+          <Suspense fallback={null}>
+            <PixiTableLayer
+              snapshot={snapshot}
+              viewport={viewport}
+              viewportPreviewRef={viewportPreviewRef}
+              focusedShipId={selectedShip?.id}
+              mapElement={mapElement}
+              onUnavailable={() => {
+                setUsePixi(false);
+                setMapNotice('The animated map cannot run on this device, so the classic map is showing.');
+              }}
+            />
+          </Suspense>
+        ) : null}
         <div
+          ref={contentRef}
           className="table-map-content"
           style={{
             transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
@@ -632,10 +742,12 @@ export function PlayMap({
               tableDepth={snapshot.tableDepth}
             />
           ) : null}
-          <ResolvedMovementTrailOverlay
-            snapshot={snapshot}
-            focusedShipId={selectedShip?.id}
-          />
+          {usePixi ? null : (
+            <ResolvedMovementTrailOverlay
+              snapshot={snapshot}
+              focusedShipId={selectedShip?.id}
+            />
+          )}
           {orderPreview && inspectorMode === 'helm' ? (
             <MovementPreviewOverlay
               preview={orderPreview}

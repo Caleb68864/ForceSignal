@@ -1,0 +1,900 @@
+{
+  "matchId": "4bf847b8-dd2e-4a91-8fbe-7cb796ae94e0",
+  "joinCode": "PIVOT-TOPAZ-JUNO-BEACON",
+  "name": "Playback Fixture",
+  "phase": "OrderEntry",
+  "turnNumber": 1,
+  "rulesProfileKey": "full-thrust-light-cinematic",
+  "rules": {
+    "name": "Invented Test Set",
+    "dieFaces": 8,
+    "beamDamage": [
+      {
+        "dieFace": 8,
+        "screenLevel": 0,
+        "damage": 2
+      },
+      {
+        "dieFace": 7,
+        "screenLevel": 0,
+        "damage": 2
+      },
+      {
+        "dieFace": 6,
+        "screenLevel": 0,
+        "damage": 1
+      },
+      {
+        "dieFace": 5,
+        "screenLevel": 0,
+        "damage": 1
+      },
+      {
+        "dieFace": 8,
+        "screenLevel": 1,
+        "damage": 1
+      },
+      {
+        "dieFace": 7,
+        "screenLevel": 1,
+        "damage": 1
+      },
+      {
+        "dieFace": 6,
+        "screenLevel": 1,
+        "damage": 1
+      },
+      {
+        "dieFace": 8,
+        "screenLevel": 2,
+        "damage": 1
+      }
+    ],
+    "beamRangeBandWidth": 10,
+    "maxScreenLevel": 2,
+    "torpedoMaximumRange": 40,
+    "torpedoBandWidth": 8,
+    "torpedoBestToHit": 3,
+    "needleBeamRange": 7,
+    "needleSystemKillRoll": 8,
+    "enhancedNeedleBeams": false,
+    "needleHullDamageRoll": 7,
+    "thresholdRows": "FixedRows",
+    "thresholdRowCount": 3,
+    "escortRowCount": 2,
+    "cruiserRowCount": 3,
+    "maxPartiesPerJob": 2,
+    "repairRollWithOneParty": 7,
+    "repairBestRoll": 6,
+    "fighterMoveAllowance": 15,
+    "carrierRatesFollowBays": false,
+    "trueCarrierAllowance": 3,
+    "otherShipAllowance": 1,
+    "carrierTurnaroundRoll": false,
+    "turnaround": [
+      {
+        "dieFace": 1,
+        "isGroundedForGame": true,
+        "turnsBeforeRelaunch": 0
+      },
+      {
+        "dieFace": 3,
+        "isGroundedForGame": false,
+        "turnsBeforeRelaunch": 2
+      },
+      {
+        "dieFace": 8,
+        "isGroundedForGame": false,
+        "turnsBeforeRelaunch": 1
+      }
+    ],
+    "pointDefenseRange": 5,
+    "pointDefenseKills": [
+      {
+        "dieFace": 8,
+        "kills": 2
+      },
+      {
+        "dieFace": 7,
+        "kills": 1
+      },
+      {
+        "dieFace": 6,
+        "kills": 1
+      }
+    ],
+    "pointDefenseChainOnFace": 8,
+    "missilesPerSalvo": 4,
+    "salvoAttackRadius": 5,
+    "isPlayable": true
+  },
+  "tableWidth": 72,
+  "tableDepth": 48,
+  "participants": [
+    {
+      "id": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "displayName": "Blue Admiral",
+      "role": "Owner",
+      "isReady": true,
+      "isConnected": false,
+      "ordersComplete": false
+    },
+    {
+      "id": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "displayName": "Red Admiral",
+      "role": "Player",
+      "isReady": true,
+      "isConnected": false,
+      "ordersComplete": false
+    }
+  ],
+  "fleets": [
+    {
+      "id": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "name": "Blue",
+      "faction": null,
+      "fleetColor": "#3b82f6"
+    },
+    {
+      "id": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "name": "Red",
+      "faction": null,
+      "fleetColor": "#ef4444"
+    }
+  ],
+  "ships": [
+    {
+      "id": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
+      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "name": "Lance",
+      "className": "Cruiser",
+      "thrustRating": 6,
+      "currentVelocity": 6,
+      "currentCourse": 3,
+      "positionX": 18,
+      "positionY": 24,
+      "hullMax": 14,
+      "hullDamage": 0,
+      "armorMax": 2,
+      "armorDamage": 0,
+      "fireControlMax": 2,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 0,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 1,
+      "screenDamage": 0,
+      "weapons": [
+        {
+          "id": "aeabe1fd-79c2-4724-b8d2-407e0adcf289",
+          "name": "Battery A",
+          "attackDice": 6,
+          "maxRange": 30,
+          "arcs": [
+            "Fore",
+            "ForeStarboard",
+            "AftStarboard",
+            "AftPort",
+            "ForePort"
+          ],
+          "ammoMax": 0,
+          "ammoUsed": 0,
+          "reloadTurns": 0,
+          "isDestroyed": false,
+          "kind": "Beam",
+          "isNeedleKilled": false
+        },
+        {
+          "id": "63f02493-d152-404e-b781-740a5034d184",
+          "name": "Launcher",
+          "attackDice": 1,
+          "maxRange": 40,
+          "arcs": [
+            "Fore",
+            "ForeStarboard",
+            "AftStarboard",
+            "AftPort",
+            "ForePort"
+          ],
+          "ammoMax": 0,
+          "ammoUsed": 0,
+          "reloadTurns": 0,
+          "isDestroyed": false,
+          "kind": "PulseTorpedo",
+          "isNeedleKilled": false
+        }
+      ],
+      "isDestroyed": false,
+      "hullRows": [
+        5,
+        5,
+        4
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "cruiser",
+      "fighterEnduranceMax": 0,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 0,
+      "fighterStatus": "Docked",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 1,
+      "workingFireControl": 2,
+      "fighterReach": 6,
+      "repairableSystems": []
+    },
+    {
+      "id": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
+      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "name": "Edge Runner",
+      "className": "Frigate",
+      "thrustRating": 4,
+      "currentVelocity": 8,
+      "currentCourse": 3,
+      "positionX": 66,
+      "positionY": 8,
+      "hullMax": 6,
+      "hullDamage": 0,
+      "armorMax": 0,
+      "armorDamage": 0,
+      "fireControlMax": 1,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 0,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 0,
+      "screenDamage": 0,
+      "weapons": [
+        {
+          "id": "9342eb7d-0ec1-4680-89c5-df88f91d83eb",
+          "name": "Battery B",
+          "attackDice": 2,
+          "maxRange": 48,
+          "arcs": [
+            "Fore",
+            "ForeStarboard",
+            "AftStarboard",
+            "AftPort",
+            "ForePort"
+          ],
+          "ammoMax": 0,
+          "ammoUsed": 0,
+          "reloadTurns": 0,
+          "isDestroyed": false,
+          "kind": "Beam",
+          "isNeedleKilled": false
+        }
+      ],
+      "isDestroyed": false,
+      "hullRows": [
+        2,
+        2,
+        2
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "frigate",
+      "fighterEnduranceMax": 0,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 0,
+      "fighterStatus": "Docked",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 0,
+      "workingFireControl": 1,
+      "fighterReach": 8,
+      "repairableSystems": []
+    },
+    {
+      "id": "8b99f8aa-750f-4db6-8dfe-534b05144978",
+      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "name": "Drifter",
+      "className": "Escort",
+      "thrustRating": 2,
+      "currentVelocity": 4,
+      "currentCourse": 6,
+      "positionX": 10,
+      "positionY": 10,
+      "hullMax": 4,
+      "hullDamage": 0,
+      "armorMax": 0,
+      "armorDamage": 0,
+      "fireControlMax": 0,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 0,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 0,
+      "screenDamage": 0,
+      "weapons": [],
+      "isDestroyed": false,
+      "hullRows": [
+        2,
+        1,
+        1
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "escort",
+      "fighterEnduranceMax": 0,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 0,
+      "fighterStatus": "Docked",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 0,
+      "workingFireControl": 0,
+      "fighterReach": 4,
+      "repairableSystems": []
+    },
+    {
+      "id": "c35365a7-fbc7-499a-8a1b-65e2c9cd73e2",
+      "fleetId": "2967ed50-144b-425f-9486-43042ebaaac5",
+      "name": "Hawk Flight",
+      "className": "Fighter Group",
+      "thrustRating": 6,
+      "currentVelocity": 0,
+      "currentCourse": 3,
+      "positionX": 28,
+      "positionY": 30,
+      "hullMax": 6,
+      "hullDamage": 0,
+      "armorMax": 0,
+      "armorDamage": 0,
+      "fireControlMax": 1,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 0,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 0,
+      "screenDamage": 0,
+      "weapons": [
+        {
+          "id": "b13a44fe-dc8f-4c94-a705-be8294135811",
+          "name": "Fighter Attack",
+          "attackDice": 6,
+          "maxRange": 6,
+          "arcs": [
+            "Fore"
+          ],
+          "ammoMax": 0,
+          "ammoUsed": 0,
+          "reloadTurns": 0,
+          "isDestroyed": false,
+          "kind": "Beam",
+          "isNeedleKilled": false
+        }
+      ],
+      "isDestroyed": false,
+      "hullRows": [
+        2,
+        2,
+        2
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "fighter-group",
+      "fighterEnduranceMax": 6,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 36,
+      "fighterStatus": "Airborne",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 0,
+      "workingFireControl": 1,
+      "fighterReach": 6,
+      "repairableSystems": []
+    },
+    {
+      "id": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
+      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "name": "Bulwark",
+      "className": "Cruiser",
+      "thrustRating": 4,
+      "currentVelocity": 4,
+      "currentCourse": 9,
+      "positionX": 46,
+      "positionY": 24,
+      "hullMax": 20,
+      "hullDamage": 0,
+      "armorMax": 4,
+      "armorDamage": 0,
+      "fireControlMax": 2,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 2,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 1,
+      "screenDamage": 0,
+      "weapons": [
+        {
+          "id": "31e4d2f6-082e-4871-be0e-3996e8f5de46",
+          "name": "Battery R",
+          "attackDice": 3,
+          "maxRange": 30,
+          "arcs": [
+            "Fore",
+            "ForeStarboard",
+            "AftStarboard",
+            "AftPort",
+            "ForePort"
+          ],
+          "ammoMax": 0,
+          "ammoUsed": 0,
+          "reloadTurns": 0,
+          "isDestroyed": false,
+          "kind": "Beam",
+          "isNeedleKilled": false
+        }
+      ],
+      "isDestroyed": false,
+      "hullRows": [
+        7,
+        7,
+        6
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "cruiser",
+      "fighterEnduranceMax": 0,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 0,
+      "fighterStatus": "Docked",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 1,
+      "workingFireControl": 2,
+      "fighterReach": 4,
+      "repairableSystems": []
+    },
+    {
+      "id": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
+      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "name": "Picket",
+      "className": "Escort",
+      "thrustRating": 4,
+      "currentVelocity": 2,
+      "currentCourse": 9,
+      "positionX": 42,
+      "positionY": 34,
+      "hullMax": 1,
+      "hullDamage": 0,
+      "armorMax": 0,
+      "armorDamage": 0,
+      "fireControlMax": 0,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 0,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 0,
+      "screenDamage": 0,
+      "weapons": [],
+      "isDestroyed": false,
+      "hullRows": [
+        1
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "escort",
+      "fighterEnduranceMax": 0,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 0,
+      "fighterStatus": "Docked",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 0,
+      "workingFireControl": 0,
+      "fighterReach": 2,
+      "repairableSystems": []
+    },
+    {
+      "id": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
+      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "name": "Needler",
+      "className": "Destroyer",
+      "thrustRating": 4,
+      "currentVelocity": 3,
+      "currentCourse": 9,
+      "positionX": 28,
+      "positionY": 22,
+      "hullMax": 6,
+      "hullDamage": 0,
+      "armorMax": 0,
+      "armorDamage": 0,
+      "fireControlMax": 1,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 0,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 0,
+      "screenDamage": 0,
+      "weapons": [
+        {
+          "id": "b1d3cba0-222b-4891-a1e7-41d872ffd4a1",
+          "name": "Needle",
+          "attackDice": 1,
+          "maxRange": 7,
+          "arcs": [
+            "Fore",
+            "ForeStarboard",
+            "AftStarboard",
+            "AftPort",
+            "ForePort"
+          ],
+          "ammoMax": 0,
+          "ammoUsed": 0,
+          "reloadTurns": 0,
+          "isDestroyed": false,
+          "kind": "NeedleBeam",
+          "isNeedleKilled": false
+        }
+      ],
+      "isDestroyed": false,
+      "hullRows": [
+        2,
+        2,
+        2
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "destroyer",
+      "fighterEnduranceMax": 0,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 0,
+      "fighterStatus": "Docked",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 0,
+      "workingFireControl": 1,
+      "fighterReach": 3,
+      "repairableSystems": []
+    },
+    {
+      "id": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
+      "fleetId": "19d945fc-17d5-4ecc-9d4a-3b1750d98bd6",
+      "name": "Wreck",
+      "className": "Escort",
+      "thrustRating": 4,
+      "currentVelocity": 4,
+      "currentCourse": 9,
+      "positionX": 60,
+      "positionY": 40,
+      "hullMax": 2,
+      "hullDamage": 0,
+      "armorMax": 0,
+      "armorDamage": 0,
+      "fireControlMax": 0,
+      "fireControlDamage": 0,
+      "pointDefenseSystems": 0,
+      "fighterBays": 0,
+      "fighterBayDamage": 0,
+      "damageControlParties": 0,
+      "driveDamage": 0,
+      "weaponDamage": 0,
+      "screenRating": 0,
+      "screenDamage": 0,
+      "weapons": [],
+      "isDestroyed": false,
+      "hullRows": [
+        1,
+        1
+      ],
+      "hullRowsCompleted": 0,
+      "iconKey": "escort",
+      "fighterEnduranceMax": 0,
+      "fighterEnduranceUsed": 0,
+      "fighterMaxRange": 0,
+      "fighterStatus": "Docked",
+      "homeCarrierShipId": null,
+      "pointsValue": 0,
+      "needledFireControl": 0,
+      "needledDrives": 0,
+      "needledScreens": 0,
+      "needledBays": 0,
+      "fighterRelaunchTurn": 0,
+      "fighterGroundedForGame": false,
+      "effectiveScreens": 0,
+      "workingFireControl": 0,
+      "fighterReach": 4,
+      "repairableSystems": []
+    }
+  ],
+  "orderStatuses": [
+    {
+      "shipId": "3d9f2c92-c27b-4029-9821-0c1d7c948b2c",
+      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    },
+    {
+      "shipId": "3beb8efa-60b5-4a7b-8c51-d82676f13def",
+      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    },
+    {
+      "shipId": "8b99f8aa-750f-4db6-8dfe-534b05144978",
+      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    },
+    {
+      "shipId": "c35365a7-fbc7-499a-8a1b-65e2c9cd73e2",
+      "ownerParticipantId": "d5c63822-5408-45b5-936c-3d7bca13e2b7",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    },
+    {
+      "shipId": "3c719a27-d3e6-4342-b2dd-09e09d66efe0",
+      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    },
+    {
+      "shipId": "e8f84b7f-af4d-49fa-af2f-ca6e23b765b8",
+      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    },
+    {
+      "shipId": "30dd4a32-6cb8-474d-94c2-0be5a59dbb29",
+      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    },
+    {
+      "shipId": "cb9db2e3-347d-4d30-9524-4f97a6fef6a5",
+      "ownerParticipantId": "691d61c7-6518-496c-a47e-fa0412d634d9",
+      "isCommitted": false,
+      "isRevealed": false,
+      "verificationFailed": false
+    }
+  ],
+  "revealedOrders": [],
+  "movementResults": [],
+  "firingResults": [],
+  "ordnanceMarkers": [],
+  "matchLog": [
+    {
+      "sequence": 1,
+      "timestamp": "2026-11-09T20:05:45.255502+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Match created."
+    },
+    {
+      "sequence": 2,
+      "timestamp": "2026-11-09T20:05:45.2594452+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Red Admiral joined the match."
+    },
+    {
+      "sequence": 3,
+      "timestamp": "2026-11-09T20:05:45.263705+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Blue fleet created for Blue Admiral."
+    },
+    {
+      "sequence": 4,
+      "timestamp": "2026-11-09T20:05:45.2708959+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Red fleet created for Red Admiral."
+    },
+    {
+      "sequence": 5,
+      "timestamp": "2026-11-09T20:05:45.2885538+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Lance [Blue, Blue Admiral] added to Blue."
+    },
+    {
+      "sequence": 6,
+      "timestamp": "2026-11-09T20:05:45.2965265+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Edge Runner [Blue, Blue Admiral] added to Blue."
+    },
+    {
+      "sequence": 7,
+      "timestamp": "2026-11-09T20:05:45.2966308+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Drifter [Blue, Blue Admiral] added to Blue."
+    },
+    {
+      "sequence": 8,
+      "timestamp": "2026-11-09T20:05:45.2977335+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Hawk Flight [Blue, Blue Admiral] added to Blue."
+    },
+    {
+      "sequence": 9,
+      "timestamp": "2026-11-09T20:05:45.2978191+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Bulwark [Red, Red Admiral] added to Red."
+    },
+    {
+      "sequence": 10,
+      "timestamp": "2026-11-09T20:05:45.2978543+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Picket [Red, Red Admiral] added to Red."
+    },
+    {
+      "sequence": 11,
+      "timestamp": "2026-11-09T20:05:45.2995121+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Needler [Red, Red Admiral] added to Red."
+    },
+    {
+      "sequence": 12,
+      "timestamp": "2026-11-09T20:05:45.2995589+00:00",
+      "turnNumber": 1,
+      "phase": "FleetSetup",
+      "category": "Setup",
+      "message": "Wreck [Red, Red Admiral] added to Red."
+    },
+    {
+      "sequence": 13,
+      "timestamp": "2026-11-09T20:05:45.3027019+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Phase",
+      "message": "All crews ready. Order entry opened."
+    },
+    {
+      "sequence": 14,
+      "timestamp": "2026-11-09T20:05:45.303567+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Lance [Blue, Blue Admiral] pos 18,24 on 72x48, v6/c3, hull 0/14, armor 0/2, screens 1, operational."
+    },
+    {
+      "sequence": 15,
+      "timestamp": "2026-11-09T20:05:45.3035751+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Edge Runner [Blue, Blue Admiral] pos 66,8 on 72x48, v8/c3, hull 0/6, armor 0/0, screens 0, operational."
+    },
+    {
+      "sequence": 16,
+      "timestamp": "2026-11-09T20:05:45.3035773+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Drifter [Blue, Blue Admiral] pos 10,10 on 72x48, v4/c6, hull 0/4, armor 0/0, screens 0, operational."
+    },
+    {
+      "sequence": 17,
+      "timestamp": "2026-11-09T20:05:45.3035792+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Hawk Flight [Blue, Blue Admiral] pos 28,30 on 72x48, v0/c3, hull 0/6, armor 0/0, screens 0, operational."
+    },
+    {
+      "sequence": 18,
+      "timestamp": "2026-11-09T20:05:45.3035872+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Bulwark [Red, Red Admiral] pos 46,24 on 72x48, v4/c9, hull 0/20, armor 0/4, screens 1, operational."
+    },
+    {
+      "sequence": 19,
+      "timestamp": "2026-11-09T20:05:45.3035891+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Picket [Red, Red Admiral] pos 42,34 on 72x48, v2/c9, hull 0/1, armor 0/0, screens 0, operational."
+    },
+    {
+      "sequence": 20,
+      "timestamp": "2026-11-09T20:05:45.3035908+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Needler [Red, Red Admiral] pos 28,22 on 72x48, v3/c9, hull 0/6, armor 0/0, screens 0, operational."
+    },
+    {
+      "sequence": 21,
+      "timestamp": "2026-11-09T20:05:45.3035926+00:00",
+      "turnNumber": 1,
+      "phase": "OrderEntry",
+      "category": "Snapshot",
+      "message": "Start of order entry: Wreck [Red, Red Admiral] pos 60,40 on 72x48, v4/c9, hull 0/2, armor 0/0, screens 0, operational."
+    }
+  ],
+  "firingShipId": null,
+  "firingParticipantId": null,
+  "activatedShipIds": [],
+  "version": 14,
+  "pointsLimit": 0,
+  "turnEvents": [],
+  "lastTurn": null
+}
