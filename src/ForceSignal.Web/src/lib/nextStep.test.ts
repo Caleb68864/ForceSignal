@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { nextStep } from './nextStep.ts';
+import { matchCommands, nextStep } from './nextStep.ts';
 import { blankRulesProfile, type MatchSnapshot, type OrderStatus, type Participant, type RulesProfile, type Ship } from '../types.ts';
 
 const playable: RulesProfile = {
@@ -120,5 +120,51 @@ describe('every phase', () => {
         expect(step.yourMove || step.waiting !== null || step.you.length > 0).toBe(true);
       }
     }
+  });
+});
+
+describe('the match commands on offer', () => {
+  const primaries = (commands: ReturnType<typeof matchCommands>) => (['ready', 'lock', 'reveal', 'advance'] as const).filter((key) => commands[key] === 'primary');
+
+  it('offers only what the phase allows, with at most one thing to press', () => {
+    for (const phase of ['FleetSetup', 'OrderEntry', 'OrdersLocked', 'Reveal', 'Movement', 'Firing']) {
+      for (const seat of ['blue', 'red']) {
+        const commands = matchCommands(table({ phase, firingParticipantId: null, orderStatuses: [status('b1', 'blue'), status('r1', 'red')] }), seat);
+        expect(primaries(commands).length, `${phase} as ${seat}`).toBeLessThanOrEqual(1);
+      }
+    }
+
+    expect(matchCommands(table(), 'blue')).toMatchObject({ ready: 'primary', lock: null, reveal: null, advance: null });
+    expect(matchCommands(table({ phase: 'OrderEntry' }), 'blue')).toMatchObject({ ready: null, lock: 'primary', reveal: null, advance: null });
+  });
+
+  it('never offers Advance Turn to a guest', () => {
+    for (const phase of ['FleetSetup', 'OrderEntry', 'OrdersLocked', 'Movement', 'Firing']) {
+      expect(matchCommands(table({ phase, firingParticipantId: null }), 'red').advance, phase).toBeNull();
+    }
+  });
+
+  it('says why Ready cannot be pressed yet', () => {
+    expect(matchCommands(table({ rules: blankRulesProfile }), 'blue')).toMatchObject({ ready: 'secondary', readyBlocker: 'Needs a rules profile first.' });
+    expect(matchCommands(table({ ships: [ship('r1', 'fr')] }), 'blue')).toMatchObject({ ready: 'secondary', readyBlocker: 'Add at least one ship first.' });
+    expect(matchCommands(table({ participants: [player('blue', 'Blue', { isReady: true }), player('red', 'Red')] }), 'blue').ready).toBe('done');
+  });
+
+  it('makes moving the ships the host\'s one thing to press once orders are revealed', () => {
+    expect(matchCommands(table({ phase: 'Movement' }), 'blue').advance).toBe('primary');
+  });
+
+  it('warns the host before ending firing with ships still to fire, naming them', () => {
+    const armed = { weapons: [{ id: 'w', isDestroyed: false }] } as Partial<Ship>;
+    const snapshot = table({
+      phase: 'Firing',
+      firingParticipantId: 'red',
+      activatedShipIds: ['b1'],
+      ships: [ship('b1', 'fb', armed), ship('b2', 'fb', armed), ship('r1', 'fr', armed), ship('r2', 'fr', { ...armed, isDestroyed: true })],
+    });
+    const commands = matchCommands(snapshot, 'blue');
+    expect(commands.advance).toBe('secondary');
+    expect(commands.advanceWarning).toContain('Not yet fired: b2 (Blue), r1 (Red).');
+    expect(matchCommands({ ...snapshot, firingParticipantId: null }, 'blue')).toMatchObject({ advance: 'primary', advanceWarning: null });
   });
 });

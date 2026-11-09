@@ -374,11 +374,11 @@ describe('the next-step banner', () => {
     vi.restoreAllMocks();
   });
 
-  // The refusal used to land in a muted line at the top of the board while Ready sits at the bottom
-  // of the sidebar, styled exactly like a success - so a refused Ready looked like nothing at all.
+  // The refusal used to land in a muted line at the top of the board while the commands sit at the
+  // bottom of the sidebar, styled exactly like a success - so a refusal looked like nothing at all.
   it('shows a refused command as an alert in the banner, not as a quiet success', async () => {
-    post.mockImplementation((path) => (path.endsWith('/ready')
-      ? Promise.reject(new Error('Set a rules profile before readying up.'))
+    post.mockImplementation((path) => (path.endsWith('/table')
+      ? Promise.reject(new Error('Only the owner can change the table.'))
       : Promise.resolve(session('ALPHA'))));
     get.mockResolvedValue(snapshot('ALPHA', 1));
 
@@ -386,11 +386,11 @@ describe('the next-step banner', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
     await screen.findByText('Created room ALPHA.');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Ready' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Set Table' }));
     const banner = await screen.findByTestId('next-step');
     const alert = await waitFor(() => {
       const found = banner.querySelector('[role="alert"]');
-      expect(found?.textContent).toContain('Set a rules profile before readying up.');
+      expect(found?.textContent).toContain('Only the owner can change the table.');
       return found;
     });
     expect(alert?.className).toContain('error');
@@ -436,5 +436,23 @@ describe('the next-step banner', () => {
 
     await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Order entry'));
     expect(screen.queryByText('Created room ALPHA.')).toBeNull();
+  });
+
+  // A fresh match used to offer Ready, the checklist said "Clear to proceed", and the server then
+  // refused it off-screen. Now the button says why it cannot be pressed.
+  it('does not offer Ready on a fresh match, and says why', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+
+    const ready = await screen.findByRole('button', { name: 'Ready' });
+    expect((ready as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Needs a rules profile first.')).toBeTruthy();
+    // And the commands that mean nothing yet are not on offer at all.
+    expect(screen.queryByRole('button', { name: 'Lock Fleet Orders' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reveal Fleet Orders' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Advance Turn' })).toBeNull();
   });
 });

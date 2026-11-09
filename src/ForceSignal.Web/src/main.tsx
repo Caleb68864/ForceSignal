@@ -58,7 +58,7 @@ import { blankRulesProfile } from './types.ts';
 import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
 import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
 import { NextStepBanner, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
-import { nextStep } from './lib/nextStep.ts';
+import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
@@ -393,6 +393,9 @@ function App() {
   }, [session?.matchId, session?.participantToken]);
 
   const me = snapshot?.participants.find((participant) => participant.id === session?.participantId);
+  const commands = snapshot && session
+    ? matchCommands(snapshot, session.participantId)
+    : { ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null };
   // Keyed on the two dimensions alone, so a snapshot that changes nothing about the table does not
   // overwrite a width the player is typing.
   const tableWidth = snapshot?.tableWidth;
@@ -1528,15 +1531,43 @@ function App() {
             </div>
             <div className="side-actions">
               <span className="label">Match commands</span>
-              <button onClick={() => run(markReady)} disabled={busy}>Ready</button>
-              <button className="ghost" onClick={() => run(lockOwnedOrders)} disabled={busy}>Lock Fleet Orders</button>
+              {/* Only what this phase and this seat allow, with the one thing to press now as the
+                  primary button. Every command used to show in every phase - Lock and Reveal during
+                  setup, Advance Turn on a guest's screen where the server refuses it. */}
+              {commands.ready === 'done' ? (
+                <button className="ghost" disabled>Ready ✓</button>
+              ) : commands.ready ? (
+                <>
+                  <button className={commandClass(commands.ready)} onClick={() => run(markReady)} disabled={busy || Boolean(commands.readyBlocker)}>Ready</button>
+                  {commands.readyBlocker ? <small className="command-blocker">{commands.readyBlocker}</small> : null}
+                </>
+              ) : null}
+              {commands.lock === 'primary' ? (
+                <button className={commandClass(commands.lock)} onClick={() => run(lockOwnedOrders)} disabled={busy}>Lock Fleet Orders</button>
+              ) : null}
               {/* Only while the declaration still means nothing - once everyone has closed out,
                   the phase has turned over and reopening the turn is not one player's to do. */}
               {me?.ordersComplete && snapshot?.phase === 'OrderEntry' ? (
                 <button className="ghost" onClick={() => run(resumePlotting)} disabled={busy}>Resume Plotting</button>
               ) : null}
-              <button className="ghost" onClick={() => run(revealOwnedOrders)} disabled={busy}>Reveal Fleet Orders</button>
-              <button onClick={() => run(advanceTurn)} disabled={busy}>Advance Turn</button>
+              {commands.reveal === 'primary' ? (
+                <button className={commandClass(commands.reveal)} onClick={() => run(revealOwnedOrders)} disabled={busy}>Reveal Fleet Orders</button>
+              ) : null}
+              {commands.advance ? (
+                <button
+                  className={commandClass(commands.advance)}
+                  onClick={() => {
+                    // Ending firing early takes the shot from every ship still waiting. That is
+                    // sometimes right - a player who has walked away - but never by accident.
+                    if (commands.advanceWarning && !window.confirm(commands.advanceWarning)) {
+                      return;
+                    }
+
+                    run(advanceTurn);
+                  }}
+                  disabled={busy}
+                >Advance Turn</button>
+              ) : null}
               <button className={publicMode ? 'ghost active' : 'ghost'} onClick={() => {
                 setPublicMode((current) => !current);
                 setActiveView('map');
@@ -2185,3 +2216,8 @@ createRoot(root).render(
     <App />
   </ErrorBoundary>,
 );
+
+/** A match command's button style: the one thing to press now is solid, anything else is a ghost. */
+function commandClass(state: CommandState): string | undefined {
+  return state === 'primary' ? undefined : 'ghost';
+}

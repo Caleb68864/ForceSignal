@@ -127,3 +127,80 @@ function waitingOn(players: Participant[], what: string): string | null {
 function count(value: number, noun: string): string {
   return `${value} ${noun}${value === 1 ? '' : 's'}`;
 }
+
+/** How a command shows: the one thing to press now, an available extra, done, or not at all. */
+export type CommandState = 'primary' | 'secondary' | 'done' | null;
+
+export type MatchCommands = {
+  ready: CommandState;
+  lock: CommandState;
+  reveal: CommandState;
+  advance: CommandState;
+  /**
+   * Set when Advance Turn would end firing with ships still waiting to shoot: the confirmation to
+   * show, naming them. Null when advancing loses nothing.
+   */
+  advanceWarning: string | null;
+  /** Why Ready cannot be pressed yet, said beside the disabled button. */
+  readyBlocker: string | null;
+};
+
+/**
+ * Which match commands this player is offered, and which one is the thing to press now.
+ *
+ * Every command used to show in every phase, for every seat: Lock and Reveal during fleet setup,
+ * Advance Turn on the guest's screen where the server refuses it. This offers only what the phase
+ * and the seat allow, with at most one of them primary.
+ */
+export function matchCommands(snapshot: MatchSnapshot, meId: string): MatchCommands {
+  const step = nextStep(snapshot, meId);
+  const me = snapshot.participants.find((participant) => participant.id === meId);
+  const isHost = me?.role === 'Owner';
+  const none: MatchCommands = { ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null };
+
+  switch (snapshot.phase) {
+    case 'FleetSetup': {
+      if (me?.isReady) {
+        return { ...none, ready: 'done' };
+      }
+
+      const ownerOf = new Map(snapshot.fleets.map((fleet) => [fleet.id, fleet.ownerParticipantId]));
+      const blocker = gapsIn(snapshot.rules ?? blankRulesProfile).length > 0
+        ? 'Needs a rules profile first.'
+        : snapshot.ships.some((ship) => ownerOf.get(ship.fleetId) === meId) ? null : 'Add at least one ship first.';
+      return { ...none, ready: blocker ? 'secondary' : 'primary', readyBlocker: blocker };
+    }
+    case 'OrderEntry':
+      return { ...none, lock: me?.ordersComplete ? 'done' : 'primary' };
+    case 'OrdersLocked':
+    case 'Reveal':
+      return { ...none, reveal: step.yourMove ? 'primary' : 'done' };
+    case 'Movement':
+      return { ...none, advance: isHost ? 'primary' : null };
+    case 'Firing': {
+      if (!isHost) {
+        return none;
+      }
+
+      if (!snapshot.firingParticipantId) {
+        return { ...none, advance: 'primary' };
+      }
+
+      const ownerOf = new Map(snapshot.fleets.map((fleet) => [fleet.id, fleet.ownerParticipantId]));
+      const activated = new Set(snapshot.activatedShipIds ?? []);
+      const waiting = snapshot.ships.filter((ship) => !ship.isDestroyed && !activated.has(ship.id) && ship.weapons?.some((weapon) => !weapon.isDestroyed));
+      const names = waiting.map((ship) => {
+        const owner = snapshot.participants.find((participant) => participant.id === ownerOf.get(ship.fleetId));
+        return owner ? `${ship.name} (${owner.displayName})` : ship.name;
+      });
+      return {
+        ...none,
+        advance: 'secondary',
+        advanceWarning: `Firing is not finished.${names.length > 0 ? ` Not yet fired: ${names.join(', ')}.` : ''} End the firing phase anyway? Ships that have not fired lose their fire this turn.`,
+      };
+    }
+
+    default:
+      return none;
+  }
+}

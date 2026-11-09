@@ -3203,3 +3203,8 @@ small,
     padding-bottom: 150px;
   }
 }
+
+.command-blocker {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
