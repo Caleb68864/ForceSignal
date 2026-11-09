@@ -20,6 +20,7 @@ import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } fr
 import { describeArcs, fighterFlightRefusal, firingDraftFor, firingReadoutNotes, firingTargetOptions, isFighterGroup, needleSystemNote, salvoStrikeNote } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
 import { OrderPreviewNotice } from '../OrderPreviewNotice.tsx';
+import { lastShotBy, ShotResultCard } from '../ShotResultCard.tsx';
 import type { DraftOrder, FighterStatus, FiringDraft, FiringResult, Fleet, MatchSnapshot, MovementResult, OrdnanceMarker, OrderPreview, Participant, RulesProfile, Ship, TablePoint, FiringSolution } from '../../types.ts';
 
 export function PlayMap({
@@ -784,6 +785,8 @@ export function PlayMap({
                 </span>
                 <span className="map-status-badges" aria-hidden="true">
                   {ship.screenRating > 0 ? <i className="screen">S</i> : null}
+                  {/* Hull boxes lost, so a hit shows on the map and not only in the Log. */}
+                  {ship.hullDamage > 0 && !ship.isDestroyed ? <i className="hull" title="Hull damage">{ship.hullDamage}</i> : null}
                   {ship.driveDamage > 0 ? <i className="drive">D</i> : null}
                   {ship.fireControlDamage > 0 ? <i className="fire-control">FC</i> : null}
                   {ship.isDestroyed ? <i className="destroyed">X</i> : null}
@@ -1465,6 +1468,7 @@ export function MapFiringAssistant({
   // here: the server cannot judge a system that has not been picked yet.
   const needsSystem = weapon?.kind === 'NeedleBeam' && !draft.targetSystem;
   const canFire = phase === 'Firing' && Boolean(solution?.canFire) && !needsSystem;
+  const lastShot = lastShotBy(ship.id, firingResults);
   const firingNote = needsSystem
     ? 'Name the system this needle is aimed at'
     : phase !== 'Firing'
@@ -1526,6 +1530,7 @@ export function MapFiringAssistant({
       {canEndFire ? (
         <button className="ghost volley-close" type="button" disabled={busy} onClick={onCeaseFire}>{volleyOpen ? 'Done Firing' : 'Hold Fire'}</button>
       ) : null}
+      {lastShot ? <ShotResultCard result={lastShot} ships={ships} /> : null}
     </div>
   );
 }
