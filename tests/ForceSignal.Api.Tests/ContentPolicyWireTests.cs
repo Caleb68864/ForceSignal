@@ -145,7 +145,7 @@ public sealed class ContentPolicyWireTests
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.IsSuccessStatusCode, body);
 
-        var edited = JsonDocument.Parse(body).RootElement
+        var edited = JsonElement.Parse(body)
             .GetProperty("ships").EnumerateArray()
             .Single(candidate => candidate.GetProperty("id").GetString() == shipId);
 
@@ -219,7 +219,7 @@ public sealed class ContentPolicyWireTests
         Assert.True(response.IsSuccessStatusCode, body);
 
         // Reached-the-subject: the settle-up really happened and really wrote a line about it.
-        var log = JsonDocument.Parse(body).RootElement.GetProperty("log").EnumerateArray()
+        var log = JsonElement.Parse(body).GetProperty("log").EnumerateArray()
             .Select(entry => entry.GetString() ?? string.Empty);
         Assert.Contains(log, entry => entry.Contains("counted its down", StringComparison.Ordinal));
     }
@@ -296,7 +296,7 @@ public sealed class ContentPolicyWireTests
         using var response = await client.PostAsync("/api/stargrunt/games", Body(createBody));
         var text = await response.Content.ReadAsStringAsync();
         Assert.True(response.IsSuccessStatusCode, text);
-        var created = JsonDocument.Parse(text).RootElement.Clone();
+        var created = JsonElement.Parse(text);
         var game = created.GetProperty("gameId").GetGuid();
 
         client.DefaultRequestHeaders.Remove("X-Game-Token");
@@ -410,7 +410,7 @@ public sealed class ContentPolicyWireTests
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.IsSuccessStatusCode, body);
 
-        return JsonDocument.Parse(body).RootElement.GetProperty("ships").EnumerateArray().Last();
+        return JsonElement.Parse(body).GetProperty("ships").EnumerateArray().Last();
     }
 
     private static StringContent Body(string json) => new(json, Encoding.UTF8, "application/json");
