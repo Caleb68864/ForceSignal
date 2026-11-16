@@ -753,3 +753,8 @@ revealed independently from their own devices and their own keys, and the phase 
 both. Zero problems and no console errors. What it does *not* yet drive is a volley - the ships it
 puts on the table carry no mounts, so nothing is fired. Arming them and resolving a real shot is the
 next thing this script should learn to do.
+
+*Updated 2026-11-16.* Done by hand rather than by the script: a two-device Full Thrust match with
+armed ships, two turns of move and fire, the firing initiative honoured, damage and a threshold
+check, and a reconnect and a reload of one device mid-game. See the roadmap's "Two-device play
+2026-11-16".

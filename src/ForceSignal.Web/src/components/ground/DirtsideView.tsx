@@ -122,8 +122,15 @@ export function DirtsideView() {
     setMessageIsError(true);
   }
 
-  /** Runs one command, refusing to start a second while the first is still going. */
-  async function run(action: () => Promise<DirtsideSnapshot>, note?: string) {
+  /**
+   * Runs one command, refusing to start a second while the first is still going.
+   *
+   * The status line shows `note` when there is one, otherwise what the command logged. A command
+   * that logged nothing used to leave the previous entry standing, so after one platoon activated
+   * the line still described the last thing the other one did; `ifNothingLogged` says what
+   * happened instead, and without it the line is cleared rather than left saying something old.
+   */
+  async function run(action: () => Promise<DirtsideSnapshot>, note?: string, ifNothingLogged?: string) {
     if (busyRef.current) {
       return;
     }
@@ -131,9 +138,11 @@ export function DirtsideView() {
     busyRef.current = true;
     setBusy(true);
     try {
+      const loggedBefore = snapshot?.log.length ?? 0;
       const next = await action();
       setSnapshot(next);
-      say(note ?? next.log[next.log.length - 1] ?? '');
+      const logged = next.log.length > loggedBefore ? next.log[next.log.length - 1] : undefined;
+      say(note ?? logged ?? ifNothingLogged ?? '');
     } catch (error) {
       fail(error);
     } finally {
@@ -520,7 +529,7 @@ export function DirtsideView() {
       <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
 
       <div className="quick-actions">
-        <button type="button" disabled={busy} onClick={() => void run(() => api.beginTurn(game))}>
+        <button type="button" disabled={busy} onClick={() => void run(() => api.beginTurn(game), undefined, 'Turn opened.')}>
           Begin Turn
         </button>
         {snapshot.sides.map((side) => (
@@ -529,7 +538,7 @@ export function DirtsideView() {
             className="ghost"
             type="button"
             disabled={busy}
-            onClick={() => void run(() => api.chooseFirstActivator(game, side, true))}
+            onClick={() => void run(() => api.chooseFirstActivator(game, side, true), undefined, `${side} takes the first activation.`)}
           >
             {side} Goes First
           </button>
@@ -540,12 +549,12 @@ export function DirtsideView() {
             className="ghost"
             type="button"
             disabled={busy}
-            onClick={() => void run(() => api.pass(game, side))}
+            onClick={() => void run(() => api.pass(game, side), undefined, `${side} passed.`)}
           >
             {side} Passes
           </button>
         ))}
-        <button className="ghost" type="button" disabled={busy} onClick={() => void run(() => api.endTurn(game))}>
+        <button className="ghost" type="button" disabled={busy} onClick={() => void run(() => api.endTurn(game), undefined, 'Turn ended.')}>
           End Turn
         </button>
         <button className="ghost" type="button" disabled={busy} onClick={leave}>Leave Game</button>
@@ -562,7 +571,7 @@ export function DirtsideView() {
             unit={unit}
             isActivating={unit.id === snapshot.activatingUnitId}
             busy={busy}
-            onActivate={() => void run(() => api.beginActivation(game, unit.side, unit.id))}
+            onActivate={() => void run(() => api.beginActivation(game, unit.side, unit.id), undefined, `${unit.name} activated.`)}
           />
         ))}
       </div>
@@ -885,7 +894,7 @@ export function DirtsideView() {
               className="ghost"
               disabled={busy || !snapshot.canEndActivation}
               title={snapshot.whyActivationCannotEnd ?? undefined}
-              onClick={() => void run(() => api.endActivation(game))}
+              onClick={() => void run(() => api.endActivation(game), undefined, 'Activation ended.')}
             >
               End Activation
             </button>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dirtsideGameKey } from '../../constants.ts';
 import { ApiRequestError } from '../../lib/api.ts';
@@ -7,8 +7,12 @@ import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, Game
 import { DirtsideView } from './DirtsideView.tsx';
 
 const readGame = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
+const beginTurn = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
+const endTurn = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
 vi.mock('../../lib/dirtsideApi.ts', () => ({
   readGame: (game: GameHandle) => readGame(game),
+  beginTurn: (game: GameHandle) => beginTurn(game),
+  endTurn: (game: GameHandle) => endTurn(game),
 }));
 
 const handle: GameHandle = { gameId: 'game-1', token: 'token-1' };
@@ -283,5 +287,49 @@ describe('DirtsideView waiting list', () => {
     render(<DirtsideView />);
 
     expect((await screen.findByText(/Waiting on/)).textContent).toContain('ghost-9');
+  });
+});
+
+describe('DirtsideView status line', () => {
+  // Found playing a game in the browser: the line shows the newest log entry after each command,
+  // and a command that logs nothing left the previous one standing - after red's platoon activated
+  // it still said blue's element had stood down.
+  const stale = "Hammer's Vehicle 2 stood down for the turn.";
+
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    beginTurn.mockReset();
+    endTurn.mockReset();
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+  });
+
+  afterEach(cleanup);
+
+  function status() {
+    return screen.getAllByText((_, node) => node?.getAttribute('aria-live') === 'polite' && node.tagName === 'P')[0].textContent;
+  }
+
+  it('says the turn ended rather than repeating an older entry when ending it logs nothing', async () => {
+    const before = { ...snapshot, phase: 'Activating', log: [stale] };
+    readGame.mockResolvedValue(before);
+    endTurn.mockResolvedValue({ ...before, phase: 'TurnEnded', version: 2 });
+
+    render(<DirtsideView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'End Turn' }));
+
+    await waitFor(() => expect(endTurn).toHaveBeenCalled());
+    await waitFor(() => expect(status()).toBe('Turn ended.'));
+  });
+
+  it('still shows what a command logged when it did log something', async () => {
+    const before = { ...snapshot, log: [stale] };
+    readGame.mockResolvedValue(before);
+    beginTurn.mockResolvedValue({ ...before, turnNumber: 2, log: [stale, 'Turn 2 began; red keeps the initiative.'], version: 2 });
+
+    render(<DirtsideView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Begin Turn' }));
+
+    await waitFor(() => expect(status()).toBe('Turn 2 began; red keeps the initiative.'));
   });
 });

@@ -276,6 +276,50 @@ public sealed class StarGruntGameServiceTests
         service.BeginTurn(created.GameId);
     }
 
+    [Fact]
+    public void ADieLeftUnenteredOnTheUnitFormIsRefusedInPlainWords()
+    {
+        // Found playing a game in two browsers: the screen sends 0 for a die select left on
+        // "Not entered", and the refusal read "A QualityDie die of 0 is not on the quality ladder" -
+        // the C# property name, the word "die" twice, and no hint that the box was simply blank.
+        var service = new StarGruntGameService();
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
+
+        var quality = Assert.Throws<InvalidOperationException>(() => service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue") with { QualityDie = 0 }));
+        var impact = Assert.Throws<InvalidOperationException>(() => service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue") with { Weapons = [new StarGruntWeaponDto("Rifles", 0)] }));
+
+        Assert.Equal("The quality die has not been entered: pick one of D4, D6, D8, D10, D12.", quality.Message);
+        Assert.Equal("The impact die has not been entered: pick one of D4, D6, D8, D10, D12.", impact.Message);
+        Assert.Empty(service.GetSnapshot(created.GameId).Units);
+    }
+
+    [Fact]
+    public void AFirepowerDieLeftUnenteredIsRefusedInPlainWords()
+    {
+        var service = new StarGruntGameService();
+        var game = Table(service);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.Fire(game, new StarGruntFireRequest(
+            "alpha", "bravo", "Rifles", FirepowerDie: 0, SupportWeapons: [], DistanceInches: 9, Cover: "Soft")));
+
+        Assert.Equal("The firepower die has not been entered: pick one of D4, D6, D8, D10, D12.", refusal.Message);
+    }
+
+    [Fact]
+    public void ADieOffTheLadderIsRefusedByTheNameOfTheBox()
+    {
+        var service = new StarGruntGameService();
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue") with { QualityDie = 7 }));
+
+        Assert.Equal("A quality die of 7 is not on the quality ladder (4, 6, 8, 10, 12).", refusal.Message);
+    }
+
+
     [Theory]
     [InlineData("7")]
     [InlineData("1")]

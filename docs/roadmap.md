@@ -21,6 +21,62 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Two-device play 2026-11-16 (`test/two-player-smoke`)
+
+The long-standing top item - play one real two-device game since the turn structure changed - was
+played, in a real dev pair (API and Vite dev server, Development, both ground engines switched on),
+with Playwright driving separate browser contexts as separate devices. The driver scripts were kept
+outside the repo; only what they found is recorded here.
+
+- [x] **CI's `two-player` job, run locally.** `scripts/two-player-smoke.py` against the dev pair:
+      zero problems, both phase turnovers seen live on the second device.
+- [x] **A Full Thrust match, past where the smoke script stops.** Create, join, ships armed through
+      the add-ship form (thrust, hull, a firecon, a 3D/24 beam), both ready, then two whole turns: a
+      speed change plotted, locked and revealed on one device; the movement and firing phases seen
+      live on the other; the firing die-off honoured (the side without the initiative has Fire
+      disabled, and its shot sent straight to the endpoint anyway - a stale tap racing the other
+      device - is refused with "It is Red's turn to fire." and moves no version); both sides firing
+      in turn, damage landing, a threshold check knocking a mount out, and the host's Advance Turn
+      warning about the unfired ship before closing the turn. The add-ship form is gone on both
+      devices once turn 1 opens.
+- [x] **Reconnect.** The guest's SignalR socket was cut and its reconnects refused for a few seconds:
+      its chip left "Link live", the host saw it "Offline", the host locked an order meanwhile, and
+      when the socket came back the guest showed "Link live" and the host's lock (`1/2 LOCKED`)
+      without a reload. A full reload of the guest then resumed its seat on turn 3, and the turn
+      went on to movement.
+- [x] **The audit's "second room shows the first one's state" holds no more.** A guest joined room A,
+      left the device session, joined room B: it shows only B's ships, and A's next push does not
+      reach it.
+- [x] **Dirtside, one device.** The two-sides rule refuses a third side and "Red" beside "red" by
+      name, and Begin Turn with one side is refused saying why; with two sides the turn opens and
+      the add-a-platoon panel is gone (and stays gone on turn 2). An activation moved one element;
+      a shot with no die tables was refused by name and left the element's combat action unspent;
+      both platoons stood down, the turn ended and the next began; a reload reopened it.
+- [x] **StarGrunt, one device.** Same two-sides checks, Begin Turn disabled until there are two
+      sides, add-a-unit and Import Force gone at turn 1 with Export kept, first activation chosen,
+      a squad activated, a reload reopened it.
+- [x] **Fixed: a StarGrunt die left blank was refused in the code's words.** A die select left on
+      "Not entered" sends 0, and the refusal read "A QualityDie die of 0 is not on the quality
+      ladder" (likewise "A FirepowerDie die", "A impact die"). Zero is now refused as a box not
+      entered, naming the dice it can be; another number off the ladder names the box as the screen
+      labels it (`StarGruntGameServiceTests`, three cases, all failing before the fix).
+
+### Found and left
+
+- [ ] **The refused-shot push (`FiringInitiativeRolled`) is not reachable from the screen.** Firing
+      opens with a die-off already rolled, and a restore puts the holder back or rolls one itself,
+      so a shot never finds the initiative empty in normal play. Only `FireRefusalPushTests`
+      exercises that path; two devices could not.
+- [x] **Fixed: Dirtside's status line went stale.** It showed the newest log entry after each
+      command, and Activate, End Activation, Begin Turn and End Turn log nothing, so after red's
+      platoon activated the line still said "Hammer's Vehicle 2 stood down for the turn." It now
+      shows a log entry only when the command added one, and otherwise says what was done
+      ("Anvil activated.", "Turn ended."), as StarGrunt does (`DirtsideView.test.tsx`, "status
+      line"; the first case fails before the fix, the second is the control).
+- [ ] **Ground games are one device.** Neither Dirtside nor StarGrunt has a join flow or a realtime
+      link; a second browser gets only the setup screen. "Two-device" for them is not a thing yet,
+      and nothing here says it should be - but it is why only Full Thrust was played across two.
+
 ## Hardening pass 2026-11-09 (`harden/2026-11-09`)
 
 Code quality and debuggability across the hub, presence and the web client's link state. Every fix
