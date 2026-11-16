@@ -646,6 +646,63 @@ public sealed class ApiHardeningTests
         Assert.Contains("order", problem.GetProperty("detail").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Production")]
+    public async Task AnEnumNameThatDoesNotExistInTheBody_IsABadRequestNamingTheField(string environment)
+    {
+        using var factory = CreateFactory(environment: environment);
+        using var client = factory.CreateClient();
+        var (token, shipId) = await CreateShip(client, "Bad Kind");
+
+        // Binding fails before the handler runs. It used to escape as a 500 "Something went wrong"
+        // in Development and an empty 400 in Production.
+        using var response = await client.PostAsync($"/api/ships/{shipId}/repair",
+            RepairBody(token, "Nope"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Request could not be completed", problem.GetProperty("title").GetString());
+        Assert.Contains("jobs[0].kind", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnEnumNameThatExistsInTheBody_StillBindsAndReachesTheService()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var (token, shipId) = await CreateShip(client, "Good Kind");
+
+        using var response = await client.PostAsync($"/api/ships/{shipId}/repair",
+            RepairBody(token, "Drive"));
+
+        // The body bound: the answer is the service's own refusal (no match under way yet), not a
+        // complaint about the body.
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Damage control works between turns, while orders are being written.",
+            problem.GetProperty("detail").GetString());
+    }
+
+    private static StringContent RepairBody(string token, string kind) => new(
+        $$"""{"participantToken":"{{token}}","jobs":[{"kind":"{{kind}}","weaponId":null,"parties":1}]}""",
+        Encoding.UTF8,
+        "application/json");
+
+    private static async Task<(string Token, Guid ShipId)> CreateShip(HttpClient client, string name)
+    {
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", name, 72, 48, Rules: TestRules.Invented)))
+            .Content.ReadFromJsonAsync<MatchCreatedResponse>();
+        Assert.NotNull(created);
+        var fleet = await (await client.PostAsJsonAsync($"/api/matches/{created.MatchId}/fleets",
+            new CreateFleetRequest(created.ParticipantToken, "Blue Watch", null))).Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+        var ship = await (await client.PostAsJsonAsync($"/api/fleets/{fleet!.Fleets.Single().Id}/ships",
+            new CreateShipRequest(created.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 2, StartX: 20, StartY: 24)))
+            .Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+        return (created.ParticipantToken, ship!.Ships.Single().Id);
+    }
+
     [Fact]
     public async Task AFaultTheServerDidNotPlanFor_IsAGenericProblemThatSaysNothingAboutIt()
     {
@@ -736,11 +793,16 @@ public sealed class ApiHardeningTests
         public IReadOnlyList<StoredMatch> LoadAll() => [];
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(Dictionary<string, string?>? settings = null, IMatchStore? store = null) =>
+    private static WebApplicationFactory<Program> CreateFactory(Dictionary<string, string?>? settings = null, IMatchStore? store = null, string environment = "Development") =>
         new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
-                builder.UseEnvironment("Development");
+                builder.UseEnvironment(environment);
+                if (environment != "Development")
+                {
+                    // Outside Development the host refuses to start without named origins.
+                    builder.UseSetting("Cors:AllowedOrigins", "https://table.example");
+                }
                 if (settings is not null)
                 {
                     builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(settings));
