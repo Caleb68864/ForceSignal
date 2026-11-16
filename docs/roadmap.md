@@ -179,8 +179,10 @@ out of scope (indirect fire was in progress on another branch).
         only passed because of the reset; it now builds the roster first. The web form for adding a
         platoon is hidden once `turnNumber > 0`, the same point the server starts refusing (owner's
         call, 2026-11-16). Pinned by `DirtsideAssault.test.tsx` "offers the add-a-platoon panel
-        before the first turn and not after", which fails on the old view. StarGrunt's add-a-unit
-        form is still shown mid-game.
+        before the first turn and not after", which fails on the old view. StarGrunt's add-a-squad
+        panel and its Import Force control (which also adds units) close at the same point; Export
+        stays (`StarGruntView.test.tsx` "closes adding and importing at the first turn, and keeps
+        export", which fails on the old view).
   - [x] **An assault launched at a platoon whose card cannot stand jammed the game for good.**
         Launch checked the attacker's card only; the stand was then refused every time, the
         activation could not end with an assault open, and nothing cleared it. Launch now also

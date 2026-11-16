@@ -35,7 +35,7 @@ function snapshotFrom(unitJson: string, profileJson = '"profile": { "bandWidths"
   return JSON.parse(`{
     "gameId": "game-1",
     "name": "Hill 43",
-    "turnNumber": 1,
+    "turnNumber": 0,
     "phase": "Setup",
     "sides": ["blue", "red"],
     ${profileJson}
@@ -137,6 +137,25 @@ describe('StarGrunt add-a-squad panel', () => {
   function die(label: string): HTMLSelectElement {
     return screen.getByLabelText(label) as HTMLSelectElement;
   }
+
+  // The server refuses a unit once the first turn has begun (it would restart the game). Adding a
+  // squad and importing a force both add units, so both go; exporting adds nothing and stays.
+  it('closes adding and importing at the first turn, and keeps export', async () => {
+    await open(wholeUnit);
+    expect(screen.getByRole('button', { name: 'Add Squad' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Import Force' })).toBeTruthy();
+    cleanup();
+
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...snapshotFrom(wholeUnit), turnNumber: 1, phase: 'Activations' } as StarGruntSnapshot);
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    expect(screen.queryByRole('button', { name: 'Add Squad' })).toBeNull();
+    expect(screen.queryByLabelText('Add a unit')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Import Force' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Export blue' })).toBeTruthy();
+  });
 
   it('shows every die as unentered rather than as the first rung of the ladder', async () => {
     await open(wholeUnit);
