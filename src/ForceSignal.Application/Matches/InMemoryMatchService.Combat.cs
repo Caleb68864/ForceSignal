@@ -79,7 +79,12 @@ public sealed partial class InMemoryMatchService
                     Weapon = solution.Weapon with { AttackDice = SurvivingFighters(attacker) },
                 };
             }
-            else if (IsFighterGroupShip(target))
+
+            // The target's side of it, whoever is attacking. This was an `else`, so a group attacked
+            // by another group never paid - and since the attack then names it in this turn's
+            // results, it counted as already engaged and fought the rest of the turn for nothing.
+            // Charged before the result below is recorded, which is what that check reads.
+            if (IsFighterGroupShip(target))
             {
                 SpendFighterEndurance(match, target);
             }

@@ -76,6 +76,16 @@ out of scope (indirect fire was in progress on another branch).
       closing (phone locked, wifi dropped) stays "connected" on the other device until the server
       timeout (30 s default) fires. Not wrong, but the chip on the other device has no age. Worth a
       "last seen" if two-device testing finds it confusing.
+      *Looked at again on `harden/found-and-left` and left, on purpose.* Both sides run SignalR's
+      defaults (`AddSignalR()` with no options: 15 s server keep-alive, 30 s `ClientTimeoutInterval`;
+      the web client sets no `withKeepAliveInterval`, so 15 s). The only contained change is to
+      tighten the pair together - client keep-alive to ~5 s and server `ClientTimeoutInterval` to
+      ~15 s (the timeout has to stay at least twice the client's keep-alive or healthy clients get
+      cut off). That halves the stale window but triples keep-alive traffic on phones, and turns
+      every 15-30 s wifi hiccup into a disconnect, a reconnect and two "connected/disconnected" lines
+      in the match log - a trade, not a fix, and nothing from two-device play says it is needed. A
+      "last seen" age would need a new `ParticipantDto` field and a ticking chip, which is not
+      contained either. Revisit with two-device evidence.
 - [x] **`IsConnected` is still persisted** in `PersistedParticipant` though it is ignored on load (a
       restart starts every seat at zero connections, correctly). Dead field on the wire format;
       leave it until the persisted shape next changes, so old rows keep deserializing.
@@ -118,8 +128,49 @@ out of scope (indirect fire was in progress on another branch).
       unmounts its app; the hub fakes are reset for every test; and buttons are found by text.
       Reproduced by pinning vitest to one core shared with twelve busy loops: the old file failed
       11 of 12, the new one passes 12 of 12 (the first two at ~2.7 s and ~1.7 s).
-- [ ] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
+- [ ] **`noOutcome.test.ts`'s first case has the same shape.** Found while reproducing the above:
+      one full web run with 56 busy loops on 8 cores failed only "refuses code that adds up damage",
+      the first `eslint.lintText` call in the file, which pays for loading the ESLint config and
+      typescript-eslint cold. Not fixed here (out of scope); the same remedy applies - warm the
+      `ESLint` instance in a `beforeAll` with its own budget.
+- [x] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
       (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
+      *Reviewed on `harden/found-and-left`* (by reading; findings below were checked against the
+      code, and only the fixed one was reproduced by a test). Full Thrust firing/combat:
+  - [x] **A fighter group attacked by another fighter group spent no endurance**, and then fought
+        the rest of the turn free, because the attack named it in the turn's results and that is
+        what "already engaged" reads (`InMemoryMatchService.Combat.cs`, an `else if` that skipped
+        the target whenever the attacker was also a group). Fixed
+        (`InMemoryMatchServiceOrdnanceTests.FireWeapon_SpendsEnduranceOnBothSidesOfAFighterOnFighterAttack`,
+        fails on the old code).
+  - [ ] **Restoring an exported snapshot mid-volley drops the pending threshold checks.**
+        `RestoreFiringTurnOrder` (`InMemoryMatchService.Restore.cs`) brings back the firing ship
+        and activations, but `MatchSnapshotDto` does not carry `PendingThresholds`, so rows crossed
+        before the export are never checked. A server restart is fine (persistence round-trips
+        it). Fixing it adds a wire field; left for a decision on the snapshot shape.
+  - [ ] **The threshold roll is clamped twice, against different row counts.** With
+        `ThresholdRows = ByShipClass`, the service caps the threshold by the hull band's row count
+        (`Combat.cs`), then `FullThrustLightThresholdRules.Resolve` caps it again by
+        `ThresholdRowCount`, which it is given instead of the band. A profile whose band count
+        exceeds `ThresholdRowCount` (e.g. cruiser 4, default 3) loses systems on 2- instead of 3-.
+        `RulesProfile.Validate` does not forbid that profile. Touches how profile numbers combine,
+        so left with F17 in mind rather than changed here.
+  - [ ] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
+        `PrepareShot`): when no one holds initiative, the roll and its log lines happen, the shot is
+        then refused, and nothing calls `Touch` - so the change is neither versioned, persisted nor
+        pushed. Low impact (the next successful action carries it).
+  - [ ] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
+        snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
+        threshold loss looking needle-caused and so unrepairable. Low impact.
+  - [ ] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
+        rewrites mounts from the client, `IsDestroyed`/`IsNeedleKilled`/`AmmoUsed` included. The
+        table is evidently trusted here (`UpdateShipDamage` already lets an owner zero their own
+        hull), but it is worth a deliberate yes.
+  - Checked and sound: ownership, phase and turn-order guards; firing twice (per weapon and after
+    cease fire); destroyed, needle-killed and empty mounts; needle pre-checks before any state
+    moves; damage clamping; range/arc refusals before any roll; error-status mapping; turn-change
+    clean-up; restart persistence field lists; every mutation under the lock and `Touch`ed; no
+    tokens or hashes in the snapshot; range-band and threshold-row edges.
 ## Map visuals and turn playback (`spike/pixi-map`, 2026-11-09)
 
 Data first: [docs/visuals/findings-2026-11-09.md](visuals/findings-2026-11-09.md). Every item has a

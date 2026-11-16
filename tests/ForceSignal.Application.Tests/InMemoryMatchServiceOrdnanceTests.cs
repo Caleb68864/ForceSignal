@@ -217,6 +217,23 @@ public sealed class InMemoryMatchServiceOrdnanceTests
         Assert.True(enemyFlight.HullDamage > 0);
     }
 
+    [Fact]
+    public void FireWeapon_SpendsEnduranceOnBothSidesOfAFighterOnFighterAttack()
+    {
+        // "Endurance is spent by both sides of the engagement" - but the target was only charged
+        // when the attacker was not itself a fighter group. And because the attack then names the
+        // target group in this turn's results, it counted as already charged for the rest of the
+        // turn, so it went on to fight the whole turn for nothing.
+        var table = OrdnanceTable.Build(targetPointDefense: 0, opposingFlight: true);
+        table.RunToFiring();
+        table.Dice.Script(1, 1, 1, 1, 1, 1);
+
+        var result = table.StrikeOpposingFlight();
+
+        Assert.Equal(1, result.Ships.Single(ship => ship.Id == table.FighterGroupId).FighterEnduranceUsed);
+        Assert.Equal(1, result.Ships.Single(ship => ship.Id == table.OpposingFlightId).FighterEnduranceUsed);
+    }
+
     /// <summary>A missile cruiser and a fighter group against one target, all inside 6mu of it.</summary>
     private sealed record OrdnanceTable(
         InMemoryMatchService Service,
