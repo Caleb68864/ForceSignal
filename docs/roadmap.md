@@ -288,6 +288,13 @@ out of scope (indirect fire was in progress on another branch).
           an enum name that does not bind in a request body (`"kind":"Nope"` on `/repair`) answers
           **500** "Something went wrong" in Development, because `BadHttpRequestException` is not
           mapped; production (empty 400 by default) not checked.
+          *Fixed on `fix/bad-enum-body-400`:* `ThrowOnBadRequest` is on in every environment and
+          the problem middleware maps `BadHttpRequestException` to its own status (400, or
+          413/415) as problem+json, "Request could not be completed"; when JSON was the cause the
+          detail names the field (`jobs[0].kind`). Production was an empty 400 with no body.
+          Tests: `ApiHardeningTests.AnEnumNameThatDoesNotExistInTheBody_IsABadRequestNamingTheField`
+          (Development and Production, both fail on the old code) and
+          `...AnEnumNameThatExistsInTheBody_StillBindsAndReachesTheService`.
         - Server-written saves: StarGrunt games and ground sessions are serialized with no enum
           converter, so their enums are stored as **numbers** - numbers are the format, and reading
           names only would lose every StarGrunt save. Dirtside games and Full Thrust match rows

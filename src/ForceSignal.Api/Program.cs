@@ -52,6 +52,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+// A body that will not bind - an enum name that does not exist, a string where a number goes - is
+// thrown rather than answered with the framework's own empty 400, in every environment, so it
+// reaches the problem+json mapping below and is told in the same shape as every other refusal.
+builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
 // Where matches are kept so a restart does not end the game. A configured path switches durable
 // storage on; leaving it unset keeps everything in memory, which is what a throwaway session or a
 // test wants and which readiness then warns about.
@@ -196,6 +200,9 @@ app.Use(async (context, next) =>
             // stable line rather than SQLite's.
             SqliteException => (StatusCodes.Status503ServiceUnavailable, "Storage unavailable",
                 "The server could not write the game to storage. Try again in a moment."),
+            // Binding failed before any handler ran. Its status is the framework's (400, or 413 /
+            // 415 for size and content type); when the JSON was the cause, the field is named.
+            BadHttpRequestException bad => (bad.StatusCode, "Request could not be completed", DescribeBadRequest(bad)),
             InvalidOperationException or ArgumentException or KeyNotFoundException
                 or JsonException or FormatException or OverflowException
                 => (StatusCodes.Status400BadRequest, "Request could not be completed", ex.Message),
@@ -318,6 +325,21 @@ if (features.Dirtside)
 app.MapMatchEndpoints();
 
 app.Run();
+
+static string DescribeBadRequest(BadHttpRequestException ex)
+{
+    if (ex.InnerException is not JsonException json)
+    {
+        return ex.Message;
+    }
+
+    var field = json.Path is { Length: > 2 } path && path.StartsWith("$.", StringComparison.Ordinal)
+        ? path[2..]
+        : null;
+    return field is null
+        ? "The request body is not valid JSON."
+        : $"The request body has a value for '{field}' that could not be read.";
+}
 
 static Task WriteProblem(HttpContext context, int status, string title, string detail)
 {
