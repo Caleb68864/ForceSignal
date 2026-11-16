@@ -285,7 +285,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
             Firer = new UnitId(request.FirerId),
             Target = new UnitId(request.TargetId),
             WeaponName = GroundGameGuards.TruncateOptional(request.WeaponName)!,
-            FirepowerDie = Die(request.FirepowerDie, nameof(request.FirepowerDie)),
+            FirepowerDie = Die(request.FirepowerDie, "firepower"),
             SupportWeapons = [.. (request.SupportWeapons ?? []).Select(GroundGameGuards.Truncate)],
             DistanceInches = request.DistanceInches,
             TargetPosture = new TargetPosture(Cover(request.Cover), request.InPosition),
@@ -582,7 +582,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
             Level = Enum.TryParse<CommandLevel>(request.Level, ignoreCase: true, out var level)
                 ? level
                 : throw new InvalidOperationException($"'{request.Level}' is not a command level."),
-            QualityDie = Die(request.QualityDie, nameof(request.QualityDie)),
+            QualityDie = Die(request.QualityDie, "quality"),
             LeadershipValue = Leadership(request.LeadershipValue, leadershipValues, name),
             Fatigue = Enum.TryParse<FatigueLevel>(request.Fatigue, ignoreCase: true, out var fatigue)
                 ? fatigue
@@ -630,11 +630,29 @@ public sealed class StarGruntGameService : IStarGruntGameService
             : value;
 
     /// <summary>Turns a face count into a rung of the ladder, refusing anything that is not one.</summary>
-    private static QualityDie Die(int faces, string what) =>
-        Enum.IsDefined(typeof(QualityDie), faces)
-            ? (QualityDie)faces
-            : throw new InvalidOperationException(
-                $"A {what} die of {faces} is not on the quality ladder ({string.Join(", ", StarGruntWire.Ladder)}).");
+    /// <remarks>
+    /// <paramref name="what"/> is the box's name as the screen labels it, in lower case. Zero is what
+    /// the screen sends for a die select left on "Not entered", so it is refused as a blank box
+    /// rather than as a die nobody owns; the refusal used to carry the C# property name
+    /// ("A QualityDie die of 0") and read as if the player had picked a zero-sided die.
+    /// </remarks>
+    private static QualityDie Die(int faces, string what)
+    {
+        if (Enum.IsDefined(typeof(QualityDie), faces))
+        {
+            return (QualityDie)faces;
+        }
+
+        if (faces == 0)
+        {
+            throw new InvalidOperationException(
+                $"The {what} die has not been entered: pick one of {string.Join(", ", StarGruntWire.Ladder.Select(rung => $"D{rung}"))}.");
+        }
+
+        var article = "aeiou".Contains(what[0], StringComparison.Ordinal) ? "An" : "A";
+        throw new InvalidOperationException(
+            $"{article} {what} die of {faces} is not on the quality ladder ({string.Join(", ", StarGruntWire.Ladder)}).");
+    }
 
     private static CoverLevel Cover(string? cover) =>
         Enum.TryParse<CoverLevel>(cover, ignoreCase: true, out var level)
