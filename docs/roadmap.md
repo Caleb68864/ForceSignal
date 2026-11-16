@@ -225,9 +225,29 @@ out of scope (indirect fire was in progress on another branch).
         remove-platoon route. With the roster now closed at the first turn the fix belongs at
         `BeginTurn` (refuse unless exactly two sides) or at add time (normalise case) - a choice
         about what "side" means, left for the owner.
+        *Fixed on `fix/review-findings`, at both points:* `DirtsideGame.WithUnit` refuses a platoon
+        that would make a third side, and one whose side differs from a side already on the table
+        only by case (named, with the spelling in use - refused rather than folded in, because
+        every later request names the side and would still have to match). `BeginTurn` refuses
+        unless the roster holds exactly two sides, so a one-sided table can still be finished.
+        Tests in `DirtsideGameServiceTests`: `AThirdSideIsRefusedWhenThePlatoonIsAdded`,
+        `ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse`,
+        `ATurnCannotBeginWithOnlyOneSideOnTheTable`; all three fail on the old code.
+        *Not fixed:* StarGrunt's `StarGruntGame` builds its session from the roster the same way
+        (`SessionForRoster`, `sides.Length == 2`), so it very likely has the same hole; not
+        reproduced or changed here.
   - [ ] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
         accepted and echoed back. Harmless downstream (treated as Armour; an unknown fire control is
         refused by name at the shot), but wrong.
+        *Fixed on `fix/review-findings`:* both are read by name only, ignoring case
+        (`DirtsideGameService.ByName`), so a number ("7", or "1" for Armour) and a comma list
+        (which `TryParse` ORs together) are refused by name. Tests:
+        `DirtsideGameServiceTests.AKindGivenAsANumberOrAListIsRefused`,
+        `...AFireControlGivenAsANumberOrAListIsRefused` (six cases, all fail on the old code) and
+        `...AKindAndFireControlAreStillReadByNameInAnyCase`. *Same shape, not changed:* the chit
+        colour set and value scale in `ToValidity`, the profile mapping's fire control and posture
+        (`DirtsideRulesProfileMapping`), and StarGrunt's command level, fatigue, cover and action
+        all use `Enum.TryParse` (some with `IsDefined`, which still takes "1").
   - [ ] The refusal for firing at an already-destroyed target says "the shot is spent either way",
         but nothing is spent and the element may fire again elsewhere. Code or message - a rules
         call.

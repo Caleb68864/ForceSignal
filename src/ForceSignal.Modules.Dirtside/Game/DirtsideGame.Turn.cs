@@ -10,8 +10,23 @@ public sealed partial record DirtsideGame
 {
     /// <summary>Opens the turn.</summary>
     /// <returns>The game with the turn under way, or why it could not start.</returns>
-    public GameOutcome<DirtsideGame> BeginTurn() =>
-        Apply(GroundCombatSequence.CanBeginTurn(Session), () => GroundCombatSequence.BeginTurn(Session));
+    /// <remarks>
+    /// The roster has to hold exactly two sides first. With any other number it builds no session,
+    /// and the turn used to open anyway, onto a first activation nobody could take; once a turn has
+    /// begun the roster is closed, so the game could never be put right.
+    /// </remarks>
+    public GameOutcome<DirtsideGame> BeginTurn()
+    {
+        var sides = Units.Values.Select(unit => unit.Side).Distinct().ToArray();
+        if (Session.TurnNumber == 0 && sides.Length != 2)
+        {
+            return GameOutcome.Refused<DirtsideGame>(sides.Length == 0
+                ? "There is nobody on the table yet. A game is fought between two sides: add a platoon for each."
+                : $"A game is fought between two sides, and the table has {sides.Length} ({string.Join(", ", sides.Select(side => side.Value))}). Add a platoon for the other side first.");
+        }
+
+        return Apply(GroundCombatSequence.CanBeginTurn(Session), () => GroundCombatSequence.BeginTurn(Session));
+    }
 
     /// <summary>Takes or declines the first activation of the turn.</summary>
     /// <param name="chooser">The side that won the choice.</param>

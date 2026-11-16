@@ -211,6 +211,101 @@ public sealed class DirtsideGameServiceTests
             Platoon("alpha", "Alpha Troop", "blue") with { Kind = "Cavalry" }));
     }
 
+    [Theory]
+    [InlineData("7")]
+    [InlineData("1")]
+    [InlineData("Armour, DismountedInfantry")]
+    public void AKindGivenAsANumberOrAListIsRefused(string kind)
+    {
+        // Enum.TryParse takes a number, or a comma list it ORs together, as readily as a name: "7"
+        // went onto the card and was echoed back, and "1" quietly meant Armour.
+        var service = new DirtsideGameService();
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(created.GameId,
+            Platoon("alpha", "Alpha Troop", "blue") with { Kind = kind }));
+
+        Assert.Contains("is not a unit kind", refusal.Message, StringComparison.Ordinal);
+        Assert.Empty(service.GetSnapshot(created.GameId).Units);
+    }
+
+    [Theory]
+    [InlineData("7")]
+    [InlineData("2")]
+    [InlineData("Basic, Superior")]
+    public void AFireControlGivenAsANumberOrAListIsRefused(string fireControl)
+    {
+        var service = new DirtsideGameService();
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge"));
+        var platoon = Platoon("alpha", "Alpha Troop", "blue");
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(created.GameId,
+            platoon with { Elements = [platoon.Elements[0] with { FireControl = fireControl }] }));
+
+        Assert.Contains("is not a fire control level", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AKindAndFireControlAreStillReadByNameInAnyCase()
+    {
+        var service = new DirtsideGameService();
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge"));
+        var platoon = Platoon("alpha", "Alpha Troop", "blue");
+
+        var snapshot = service.AddPlatoon(created.GameId,
+            platoon with { Kind = "dismountedinfantry", Elements = [platoon.Elements[0] with { FireControl = "superior" }] });
+
+        Assert.Equal("DismountedInfantry", snapshot.Units.Single().Kind);
+    }
+
+    [Fact]
+    public void AThirdSideIsRefusedWhenThePlatoonIsAdded()
+    {
+        // The game is fought between two sides. A third one used to go on the roster, which then
+        // built no session at all: the turn began, nobody could take the first activation, and
+        // with the roster closed and no way to take a platoon off, the game was over before it began.
+        var service = new DirtsideGameService();
+        var game = Table(service);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(game, Platoon("charlie", "Charlie Troop", "green")));
+
+        Assert.Contains("two sides", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(2, service.GetSnapshot(game).Units.Count);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseDirtsideFirstActivatorRequest("blue", TakeIt: true));
+    }
+
+    [Fact]
+    public void ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse()
+    {
+        // "Red" beside "red" was a third side, with the same result as any other third side.
+        var service = new DirtsideGameService();
+        var game = Table(service);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(game, Platoon("charlie", "Charlie Troop", "Red")));
+
+        Assert.Contains("'red'", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(2, service.GetSnapshot(game).Units.Count);
+        service.AddPlatoon(game, Platoon("charlie", "Charlie Troop", "red"));
+    }
+
+    [Fact]
+    public void ATurnCannotBeginWithOnlyOneSideOnTheTable()
+    {
+        // With one side the roster builds no session, and the turn used to open anyway onto a
+        // first activation nobody could take. Refused, it can still be fixed by adding the other side.
+        var service = new DirtsideGameService();
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge"));
+        service.AddPlatoon(created.GameId, Platoon("alpha", "Alpha Troop", "blue"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.BeginTurn(created.GameId));
+
+        Assert.Contains("two sides", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(0, service.GetSnapshot(created.GameId).TurnNumber);
+        service.AddPlatoon(created.GameId, Platoon("bravo", "Bravo Troop", "red"));
+        service.BeginTurn(created.GameId);
+    }
+
     [Fact]
     public void ASnapshotCarriesWhetherEachPlatoonCouldActivateAndWhyNot()
     {
