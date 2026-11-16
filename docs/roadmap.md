@@ -85,10 +85,23 @@ out of scope (indirect fire was in progress on another branch).
       (`MatchPersistenceTests.ASaveDoesNotWriteDownWhoIsConnected` fails on the old code;
       `...ARowWrittenWhileConnectionStateWasStillSavedStillLoads` loads a row carrying
       `"isConnected":true` and checks it comes back whole and disconnected).
-- [ ] **No end-to-end hub test.** `MatchHubPresenceTests` drives the hub with fakes. A
+- [x] **No end-to-end hub test.** `MatchHubPresenceTests` drives the hub with fakes. A
       `WebApplicationFactory` test with `Microsoft.AspNetCore.SignalR.Client` over the test server
       would cover the real reconnect ordering; the package is not referenced by the test project
-      yet.
+      yet. *Closed on `harden/found-and-left`:* `MatchHubEndToEndTests` runs the real host and real
+      SignalR clients (long polling through the test server's handler): the other device is pushed
+      a player's arrival and departure; a reconnect whose old connection drops last leaves the
+      player connected, and the new connection's drop then takes them out; a wrong token is refused
+      over the wire. A disconnect that changes nothing sends no push, so the test waits on the match
+      service (wrapped in a pass-through proxy that reports each applied presence change) rather
+      than sleeping. With presence put back to the old one-flag-per-seat the reconnect case fails.
+      The client package is pinned at 10.0.15: 10.0.10-10.0.12 of `SignalR.Common` carry
+      GHSA-334f-vvp4-7g6p (CVE-2026-70159, stateful-reconnect DoS) and restore refuses them under
+      warnings-as-errors. *The server is not covered by that pin* - it runs SignalR from the shared
+      framework, and the runtimes installed on this machine (10.0.8, 10.0.12) are both in the
+      affected range. `MapHub` here does not turn on stateful reconnect, which the advisory needs,
+      but the deployed runtime should still be 10.0.13 or later; the Dockerfiles use the floating
+      `aspnet:10.0` tag, so a rebuild picks that up.
 - [x] **The first two `main.test.tsx` tests can time out under heavy machine load.** With load
       average ~60 they hit vitest's 5 s default (each re-imports `main.tsx` after
       `vi.resetModules()`); in isolation and on a rerun they pass (337/337). Master's
