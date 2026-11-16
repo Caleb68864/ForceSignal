@@ -62,11 +62,16 @@ out of scope (indirect fire was in progress on another branch).
 
 ### Found and left
 
-- [ ] **A failed `/api/features` read hides the optional engines without a word.**
+- [x] **A failed `/api/features` read hides the optional engines without a word.**
       `main.tsx` (`readFeatures().catch(...)`) turns any failure - including a server that is simply
       down at page load - into "StarGrunt and Dirtside are off", and never retries. Safe, but it
-      reports a configuration the server does not have. Wants at least an activity-line note, and a
-      re-read after the realtime link comes up.
+      reports a configuration the server does not have. *Closed on `harden/found-and-left`:* a failed
+      read still hides the engines, but now says so beside where their toggles go (the activity line
+      is only drawn inside a match, and this happens on the start screen), with a Check Again
+      button; it logs a `[ForceSignal]` console line; and it is read again by itself once the
+      realtime link comes up or rejoins - only if the last read failed (`main.test.tsx`, "a server
+      that will not say which engines it has"; the first two cases fail on the old code, the third
+      is the control).
 - [ ] **Presence is only as fresh as SignalR's server timeout.** A device that vanishes without
       closing (phone locked, wifi dropped) stays "connected" on the other device until the server
       timeout (30 s default) fires. Not wrong, but the chip on the other device has no age. Worth a
@@ -78,10 +83,22 @@ out of scope (indirect fire was in progress on another branch).
       `WebApplicationFactory` test with `Microsoft.AspNetCore.SignalR.Client` over the test server
       would cover the real reconnect ordering; the package is not referenced by the test project
       yet.
-- [ ] **The first two `main.test.tsx` tests can time out under heavy machine load.** With load
+- [x] **The first two `main.test.tsx` tests can time out under heavy machine load.** With load
       average ~60 they hit vitest's 5 s default (each re-imports `main.tsx` after
       `vi.resetModules()`); in isolation and on a rerun they pass (337/337). Master's
       copy passed the one run tried under the same load. Worth a per-file `testTimeout` if CI is slow.
+      *Closed on `harden/found-and-left`, without touching any timeout.* Measured, the first two
+      tests were paying three costs that were not theirs: the cold transform of `main.tsx`'s module
+      graph (~600 ms unloaded) and the first render, both charged to test one; and role queries,
+      which name every element on the board (~35 ms a call against ~1 ms for a text query, ~300 ms
+      for one that finds nothing) and rerun on every DOM change. Worse, no test ever unmounted the
+      app it imported, so each one left a live React root behind; a test that timed out left one
+      that kept writing its session to storage after the next test's `localStorage.clear()`, and
+      every later test then failed on "Unable to find Create Match". Now: a `beforeAll` mounts and
+      unmounts the start screen once under its own budget; `createRoot` is wrapped so every test
+      unmounts its app; the hub fakes are reset for every test; and buttons are found by text.
+      Reproduced by pinning vitest to one core shared with twelve busy loops: the old file failed
+      11 of 12, the new one passes 12 of 12 (the first two at ~2.7 s and ~1.7 s).
 - [ ] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
       (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
 ## Map visuals and turn playback (`spike/pixi-map`, 2026-11-09)
