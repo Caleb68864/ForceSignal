@@ -76,9 +76,15 @@ out of scope (indirect fire was in progress on another branch).
       closing (phone locked, wifi dropped) stays "connected" on the other device until the server
       timeout (30 s default) fires. Not wrong, but the chip on the other device has no age. Worth a
       "last seen" if two-device testing finds it confusing.
-- [ ] **`IsConnected` is still persisted** in `PersistedParticipant` though it is ignored on load (a
+- [x] **`IsConnected` is still persisted** in `PersistedParticipant` though it is ignored on load (a
       restart starts every seat at zero connections, correctly). Dead field on the wire format;
       leave it until the persisted shape next changes, so old rows keep deserializing.
+      *Closed on `harden/found-and-left`:* dropped from the record. Old rows still load because
+      System.Text.Json ignores properties it does not know (nothing here sets
+      `UnmappedMemberHandling.Disallow`), so the format version stays 1
+      (`MatchPersistenceTests.ASaveDoesNotWriteDownWhoIsConnected` fails on the old code;
+      `...ARowWrittenWhileConnectionStateWasStillSavedStillLoads` loads a row carrying
+      `"isConnected":true` and checks it comes back whole and disconnected).
 - [ ] **No end-to-end hub test.** `MatchHubPresenceTests` drives the hub with fakes. A
       `WebApplicationFactory` test with `Microsoft.AspNetCore.SignalR.Client` over the test server
       would cover the real reconnect ordering; the package is not referenced by the test project

@@ -111,7 +111,7 @@ public sealed partial class InMemoryMatchService
         match.CarrierRecoveriesThisTurn,
         match.PendingThresholds,
         [.. match.Participants.Select(p => new PersistedParticipant(
-            p.Id, p.Token, p.DisplayName, p.Role, p.IsReady, p.IsConnected, p.OrdersComplete))],
+            p.Id, p.Token, p.DisplayName, p.Role, p.IsReady, p.OrdersComplete))],
         [.. match.Fleets.Select(f => new PersistedFleet(f.Id, f.OwnerParticipantId, f.Name, f.Faction, f.FleetColor))],
         [.. match.Ships.Select(ToPersisted)],
         [.. match.OrdnanceMarkers.Select(m => new PersistedMarker(
@@ -327,8 +327,14 @@ public sealed partial class InMemoryMatchService
         IReadOnlyList<TurnEventState>? TurnEvents = null,
         LastTurnState? LastTurn = null);
 
+    /// <remarks>
+    /// No connection state: a connection cannot outlive the process that held it, so a restart
+    /// starts every seat at zero and the hub counts them back in. Rows written before the field was
+    /// dropped still carry <c>isConnected</c>; the reader ignores properties it does not know, so they
+    /// load unchanged and the format version did not need to move.
+    /// </remarks>
     private sealed record PersistedParticipant(
-        Guid Id, string Token, string DisplayName, string Role, bool IsReady, bool IsConnected, bool OrdersComplete);
+        Guid Id, string Token, string DisplayName, string Role, bool IsReady, bool OrdersComplete);
 
     private sealed record PersistedFleet(Guid Id, Guid OwnerParticipantId, string Name, string? Faction, string FleetColor);
 
