@@ -238,9 +238,14 @@ out of scope (indirect fire was in progress on another branch).
         Tests in `DirtsideGameServiceTests`: `AThirdSideIsRefusedWhenThePlatoonIsAdded`,
         `ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse`,
         `ATurnCannotBeginWithOnlyOneSideOnTheTable`; all three fail on the old code.
-        *Not fixed:* StarGrunt's `StarGruntGame` builds its session from the roster the same way
-        (`SessionForRoster`, `sides.Length == 2`), so it very likely has the same hole; not
-        reproduced or changed here.
+        *StarGrunt had the same hole, fixed on `fix/stargrunt-sides-and-push`:* reproduced first
+        through `StarGruntGameService` - with "green" or "Red" added beside "blue" and "red", turn 1
+        opened, no side could take the first activation ("No side called 'blue'" / "settled only at
+        the top of a turn") and the closed roster could not be repaired. `StarGruntGame.WithUnit`
+        and `BeginTurn` now refuse exactly as Dirtside's do. Tests in `StarGruntGameServiceTests`:
+        `AThirdSideIsRefusedWhenTheUnitIsAdded`,
+        `ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse`,
+        `ATurnCannotBeginWithOnlyOneSideOnTheTable`; all three fail on the old code.
   - [x] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
         accepted and echoed back. Harmless downstream (treated as Armour; an unknown fire control is
         refused by name at the shot), but wrong.
