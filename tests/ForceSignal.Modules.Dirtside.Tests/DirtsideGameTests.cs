@@ -208,6 +208,32 @@ public sealed class DirtsideGameTests
     }
 
     [Fact]
+    public void AShotAtSomethingAlreadyDestroyed_SaysNothingWasSpentBecauseNothingIs()
+    {
+        // The refusal used to say a declaration "cannot be re-pointed", as though the shot were
+        // bound and lost. Here a shot is declared by asking for it, and a refused one costs nothing:
+        // the element still has its combat action and can fire at something alive.
+        var afterFirst = GameFixtures.Activated()
+            .Fire(Shot(), new ScriptedDice(1, 8), Pot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented).Value!;
+
+        var refused = afterFirst.Fire(
+            Shot(element: GameFixtures.AlphaTwo),
+            new ScriptedDice(1, 8),
+            Pot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented);
+
+        Assert.False(refused.IsAllowed);
+        Assert.Contains("already destroyed", refused.Reason!, StringComparison.Ordinal);
+        Assert.DoesNotContain("re-pointed", refused.Reason!, StringComparison.Ordinal);
+        Assert.Contains("nothing was fired", refused.Reason!, StringComparison.Ordinal);
+
+        var elsewhere = afterFirst.Fire(
+            new FireCommand(GameFixtures.Alpha, GameFixtures.AlphaTwo, "Main Gun", GameFixtures.Bravo, GameFixtures.BravoTwo, WeaponRangeBand.Close, DefensivePosture.None),
+            new ScriptedDice(1, 8),
+            Pot(DamageChit.Numerical(ChitColour.Red, 8)), TestDieTables.Invented);
+        Assert.True(elsewhere.IsAllowed, elsewhere.Reason);
+    }
+
+    [Fact]
     public void AnElementCannotFireOnItsOwnSide()
     {
         var refused = GameFixtures.Activated().Fire(

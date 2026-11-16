@@ -164,7 +164,7 @@ out of scope (indirect fire was in progress on another branch).
         exceeds `ThresholdRowCount` (e.g. cruiser 4, default 3) loses systems on 2- instead of 3-.
         `RulesProfile.Validate` does not forbid that profile. Touches how profile numbers combine,
         so left with F17 in mind rather than changed here.
-  - [ ] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
+  - [x] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
         `PrepareShot`): when no one holds initiative, the roll and its log lines happen, the shot is
         then refused, and nothing calls `Touch` - so the change is neither versioned, persisted nor
         pushed. Low impact (the next successful action carries it).
@@ -177,7 +177,7 @@ out of scope (indirect fire was in progress on another branch).
         unchanged). *Still not pushed on a refusal:* the fire endpoint only notifies on success, so
         the other device learns of the new version at the next push or refetch. Pushing from the
         error path would need the endpoint to know the version moved; not done.
-  - [ ] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
+  - [x] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
         snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
         threshold loss looking needle-caused and so unrepairable. Low impact.
         *Fixed on `fix/review-findings`:* each needled count is clamped to the damage it is part of
@@ -219,7 +219,7 @@ out of scope (indirect fire was in progress on another branch).
         sides had committed - and was refused on every try, jamming the assault the same way. Now
         refused when the platoon is added, by name (`...AssaultChitsThePotCannotHandOut_...`,
         `...AWeaponChitCountThePotCannotHandOut_...`).
-  - [ ] **A third side, or "Red" beside "red", makes the game unplayable.** Side is free,
+  - [x] **A third side, or "Red" beside "red", makes the game unplayable.** Side is free,
         case-sensitive text; with other than two sides `SessionForRoster` returns an empty session,
         `BeginTurn` still succeeds, and the first activator is then refused; there is no
         remove-platoon route. With the roster now closed at the first turn the fix belongs at
@@ -236,7 +236,7 @@ out of scope (indirect fire was in progress on another branch).
         *Not fixed:* StarGrunt's `StarGruntGame` builds its session from the roster the same way
         (`SessionForRoster`, `sides.Length == 2`), so it very likely has the same hole; not
         reproduced or changed here.
-  - [ ] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
+  - [x] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
         accepted and echoed back. Harmless downstream (treated as Armour; an unknown fire control is
         refused by name at the shot), but wrong.
         *Fixed on `fix/review-findings`:* both are read by name only, ignoring case
@@ -248,9 +248,17 @@ out of scope (indirect fire was in progress on another branch).
         colour set and value scale in `ToValidity`, the profile mapping's fire control and posture
         (`DirtsideRulesProfileMapping`), and StarGrunt's command level, fatigue, cover and action
         all use `Enum.TryParse` (some with `IsDefined`, which still takes "1").
-  - [ ] The refusal for firing at an already-destroyed target says "the shot is spent either way",
+  - [x] The refusal for firing at an already-destroyed target says "the shot is spent either way",
         but nothing is spent and the element may fire again elsewhere. Code or message - a rules
         call.
+        *Message fixed on `fix/review-findings`; the code is unchanged.* Confirmed: the refusal
+        comes from `Prepare`/`DescribeBlocker`, before the step is taken, so nothing is spent. (The
+        "spent" wording was in the code comment; the message itself said a declaration "cannot be
+        re-pointed", which reads the same way.) It now says nothing was fired and the element still
+        has its shot, and the Dirtside screen's line under "Direct fire" no longer calls it the cost
+        of a binding declaration. Test: `DirtsideGameTests.AShotAtSomethingAlreadyDestroyed_...`
+        (fails on the old message; also fires the same element at a live target afterwards).
+        Whether such a shot *should* cost the combat action is still the rules call, not taken.
   - Checked and sound: game-token filter on every route but create (401/403/404, per game,
     constant-time, never in a snapshot); routes absent with the flag off; every command under the
     lock and immutable, nothing stored on refusal; persistence round-trips; error mapping (no 500

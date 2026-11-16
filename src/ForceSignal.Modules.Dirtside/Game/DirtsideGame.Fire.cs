@@ -248,8 +248,11 @@ public sealed partial record DirtsideGame
             return $"{firer.Name} has its systems down and does nothing until they are back.";
         }
 
-        // The declaration was binding, and what it named is gone. The shot is spent either way.
-        return $"{target.Name} was already destroyed, and a declaration cannot be re-pointed.";
+        // What it named is gone. Refused here, before the step, so nothing is spent: the element
+        // keeps its combat action and may fire at something still in the fight. This said the
+        // declaration "cannot be re-pointed", which read as a shot bound and lost. Whether a shot at
+        // a wreck should cost the action is a rules question, and not one this answers.
+        return $"{target.Name} was already destroyed, so nothing was fired: {firer.Name} still has its shot for something still in the fight.";
     }
 
     /// <summary>Writes what the chits said onto the roster.</summary>
