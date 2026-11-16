@@ -143,11 +143,20 @@ out of scope (indirect fire was in progress on another branch).
         the target whenever the attacker was also a group). Fixed
         (`InMemoryMatchServiceOrdnanceTests.FireWeapon_SpendsEnduranceOnBothSidesOfAFighterOnFighterAttack`,
         fails on the old code).
-  - [ ] **Restoring an exported snapshot mid-volley drops the pending threshold checks.**
+  - [x] **Restoring an exported snapshot mid-volley drops the pending threshold checks.**
         `RestoreFiringTurnOrder` (`InMemoryMatchService.Restore.cs`) brings back the firing ship
         and activations, but `MatchSnapshotDto` does not carry `PendingThresholds`, so rows crossed
         before the export are never checked. A server restart is fine (persistence round-trips
         it). Fixing it adds a wire field; left for a decision on the snapshot shape.
+        *Fixed on `fix/review-findings`:* the snapshot now carries `pendingThresholds` (optional,
+        last, a list of `{ shipId, hullDamageBefore }`), and restore maps each entry to the restored
+        ship, drops one for a ship the file does not have, clamps the starting damage to the
+        ship's current hull damage, and caps the list at the ship ceiling. An older export without
+        the field restores as before. `types.ts` and `wireContract.test.ts` declare it; the
+        playback fixtures were not regenerated (they would churn every id, and their captures have
+        no open volley). Tests: `InMemoryMatchServiceThresholdTests.ASnapshotExportedMidVolley_...`
+        (fails on the old code: no threshold check after the restored volley closes) and
+        `...ASnapshotsPendingThresholds_AreMappedToTheRestoredShipsAndClampedToTheirDamage`.
   - [ ] **The threshold roll is clamped twice, against different row counts.** With
         `ThresholdRows = ByShipClass`, the service caps the threshold by the hull band's row count
         (`Combat.cs`), then `FullThrustLightThresholdRules.Resolve` caps it again by

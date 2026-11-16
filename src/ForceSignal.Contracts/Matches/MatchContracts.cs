@@ -440,7 +440,16 @@ public sealed record MatchSnapshotDto(
     long Version,
     int PointsLimit,
     IReadOnlyList<TurnEventDto>? TurnEvents = null,
-    LastTurnDto? LastTurn = null);
+    LastTurnDto? LastTurn = null,
+    IReadOnlyList<PendingThresholdDto>? PendingThresholds = null);
+
+/// <summary>
+/// A ship hit during the volley still being fired, whose threshold check waits for that volley to
+/// end. Carried on the snapshot so that an export taken mid-volley brings the check back with it.
+/// </summary>
+/// <param name="ShipId">The ship that was hit.</param>
+/// <param name="HullDamageBefore">Its hull damage when the volley began: the check reads every row crossed since.</param>
+public sealed record PendingThresholdDto(Guid ShipId, int HullDamageBefore);
 
 /// <summary>
 /// One thing that happened this turn, in the order the server resolved it, for turn playback.

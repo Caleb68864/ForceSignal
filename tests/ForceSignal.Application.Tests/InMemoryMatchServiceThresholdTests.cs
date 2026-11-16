@@ -117,6 +117,56 @@ public sealed class InMemoryMatchServiceThresholdTests
         Assert.Contains("thrust rating", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ASnapshotExportedMidVolley_StillRollsTheVolleysThresholdCheckOnceRestored()
+    {
+        // The shot completes two rows, but the volley is still open when the snapshot is taken, so
+        // its threshold check has not been rolled yet. It used to stay behind in the old match: the
+        // snapshot did not carry it, and the restored volley closed with no check at all.
+        var table = ThresholdTable.Build(fallbackFace: 8, targetHull: 9, targetScreens: 0);
+        var midVolley = table.Fire();
+        Assert.DoesNotContain(midVolley.MatchLog, entry => entry.Category == "Threshold");
+
+        var dice = new ScriptedDice { Fallback = 8 };
+        var service = new InMemoryMatchService(dice.Next);
+        var restored = service.RestoreMatch(midVolley, null);
+        var seat = restored.Seats.Single(s => s.DisplayName == "Blue");
+        var session = service.ClaimSeat(restored.MatchId, seat.ParticipantId, new ClaimSeatRequest("Blue", restored.JoinCode));
+        var gunner = restored.Snapshot.Ships.Single(s => s.Name == "Gunner");
+        Assert.Equal(gunner.Id, restored.Snapshot.FiringShipId);
+
+        var result = service.CeaseFire(restored.MatchId, new CeaseFireRequest(session.ParticipantToken, gunner.Id));
+
+        var check = Assert.Single(result.MatchLog, entry => entry.Category == "Threshold");
+        Assert.Contains("completed hull row 2 of 3", check.Message, StringComparison.Ordinal);
+        Assert.Contains("+1 rows in one attack", check.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASnapshotsPendingThresholds_AreMappedToTheRestoredShipsAndClampedToTheirDamage()
+    {
+        // A hand-edited file: one entry names a ship that is not in it, one claims the volley began
+        // with more damage than the ship now has (which would make the check read a row the ship
+        // never crossed in this volley as already crossed - or worse, none). Both are made safe.
+        var table = ThresholdTable.Build(fallbackFace: 8, targetHull: 9, targetScreens: 0);
+        var midVolley = table.Fire();
+        var edited = midVolley with
+        {
+            PendingThresholds =
+            [
+                new PendingThresholdDto(table.TargetId, 99),
+                new PendingThresholdDto(Guid.NewGuid(), 1),
+            ],
+        };
+
+        var restored = new InMemoryMatchService().RestoreMatch(edited, null).Snapshot;
+
+        var mark = restored.Ships.Single(s => s.Name == "Mark");
+        var pending = Assert.Single(restored.PendingThresholds!);
+        Assert.Equal(mark.Id, pending.ShipId);
+        Assert.Equal(mark.HullDamage, pending.HullDamageBefore);
+    }
+
     /// <summary>An attacker with one fore mount lined up on a stationary target dead ahead.</summary>
     private sealed record ThresholdTable(
         InMemoryMatchService Service,
