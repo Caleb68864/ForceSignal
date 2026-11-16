@@ -164,6 +164,103 @@ public sealed class DirtsideAssaultServiceTests
         Assert.True(alphaOne.HasTakenCombatAction);
     }
 
+    [Fact]
+    public void APlatoonAddedOnceTheGameHasBegun_IsRefused_AndTheTurnIsLeftAlone()
+    {
+        // Adding a platoon rebuilt the session from the roster, so mid-turn it put the game back to
+        // turn 0, not started, with the open activation and everyone's "has activated" gone - and
+        // saved that. The add-platoon form is always on screen.
+        var service = new DirtsideGameService(new ScriptedQualityDice { Fallback = 6 });
+        var game = Activated(service);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() =>
+            service.AddPlatoon(game, Platoon("charlie", "Charlie Troop", "red")));
+
+        Assert.Contains("has begun", refusal.Message, StringComparison.Ordinal);
+        var after = service.GetSnapshot(game);
+        Assert.Equal(1, after.TurnNumber);
+        Assert.Equal("alpha", after.ActivatingUnitId);
+        Assert.DoesNotContain(after.Units, unit => unit.Id == "charlie");
+    }
+
+    [Fact]
+    public void AnAssaultOnAPlatoonWhoseCardCannotStand_IsRefusedAtLaunch_SoTheGameIsNotStuck()
+    {
+        // Bravo's card carries no die, leadership or assault numbers - which the form says is
+        // allowed, it just cannot receive a close assault. The launch used to be accepted anyway, and
+        // then the stand was refused every time, the activation could not end with the assault
+        // open, and nothing cleared it.
+        var service = new DirtsideGameService(new ScriptedQualityDice { Fallback = 6 });
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
+        service.AddPlatoon(created.GameId, Platoon("alpha", "Alpha Troop", "blue"));
+        service.AddPlatoon(created.GameId, DirtsideGameServiceTests.Platoon("bravo", "Bravo Troop", "red"));
+        service.BeginTurn(created.GameId);
+        service.ChooseFirstActivator(created.GameId, new ChooseDirtsideFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(created.GameId, new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() =>
+            service.LaunchAssault(created.GameId, new LaunchDirtsideAssaultRequest("bravo", ["alpha-1"], 0, Everything)));
+
+        Assert.Contains("Bravo Troop", refusal.Message, StringComparison.Ordinal);
+        var after = service.GetSnapshot(created.GameId);
+        Assert.Null(after.Assault);
+        // And nothing about an assault stands between this activation and its end, which is what
+        // the stuck game could never get past.
+        Assert.DoesNotContain("assault", after.WhyActivationCannotEnd ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnAssaultOnAPlatoonWithNoStandLeftThatCouldCommit_IsRefusedAtLaunch()
+    {
+        // A tested card, but none of its elements says how many chits it draws: the same trap.
+        var service = new DirtsideGameService(new ScriptedQualityDice { Fallback = 6 });
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
+        service.AddPlatoon(created.GameId, Platoon("alpha", "Alpha Troop", "blue"));
+        service.AddPlatoon(created.GameId, DirtsideGameServiceTests.Platoon("bravo", "Bravo Troop", "red") with { QualityDie = "D8", LeadershipValue = 2 });
+        service.BeginTurn(created.GameId);
+        service.ChooseFirstActivator(created.GameId, new ChooseDirtsideFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(created.GameId, new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() =>
+            service.LaunchAssault(created.GameId, new LaunchDirtsideAssaultRequest("bravo", ["alpha-1"], 0, Everything)));
+
+        Assert.Contains("cannot stand", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100_000)]
+    public void AssaultChitsThePotCannotHandOut_AreRefusedWhenThePlatoonIsAdded(int chits)
+    {
+        // Unchecked, they reached the pot at the round - after both sides had committed - which
+        // refused the draw on every try and left the assault, and so the game, stuck.
+        var service = new DirtsideGameService(new ScriptedQualityDice { Fallback = 6 });
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
+        var platoon = Platoon("alpha", "Alpha Troop", "blue");
+        var bad = platoon with { Elements = [platoon.Elements[0] with { AssaultChits = chits }, platoon.Elements[1]] };
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(created.GameId, bad));
+
+        Assert.Contains("assault chits", refusal.Message, StringComparison.Ordinal);
+        Assert.Empty(service.GetSnapshot(created.GameId).Units);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100_000)]
+    public void AWeaponChitCountThePotCannotHandOut_IsRefusedWhenThePlatoonIsAdded(int chits)
+    {
+        var service = new DirtsideGameService(new ScriptedQualityDice { Fallback = 6 });
+        var created = service.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9"));
+        var platoon = Platoon("alpha", "Alpha Troop", "blue");
+        var element = platoon.Elements[0];
+        var bad = platoon with { Elements = [element with { Weapons = [element.Weapons[0] with { ChitCount = chits }] }] };
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddPlatoon(created.GameId, bad));
+
+        Assert.Contains("chit count", refusal.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>Two platoons that can assault and be assaulted, with Alpha's activation open.</summary>
     private static Guid Activated(DirtsideGameService service)
     {

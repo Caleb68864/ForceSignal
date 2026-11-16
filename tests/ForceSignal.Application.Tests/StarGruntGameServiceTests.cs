@@ -213,6 +213,21 @@ public sealed class StarGruntGameServiceTests
         Assert.Throws<InvalidOperationException>(() => service.AddUnit(game, Squad("alpha", "Duplicate", "blue")));
     }
 
+    [Fact]
+    public void AUnitAddedOnceTheGameHasBegun_IsRefused_AndTheTurnIsLeftAlone()
+    {
+        // The same shape as Dirtside's: adding a unit rebuilt the session from the roster and put a
+        // game in progress back to turn 0.
+        var service = new StarGruntGameService();
+        var game = Table(service);
+        service.BeginTurn(game);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddUnit(game, Squad("charlie", "Charlie Squad", "red")));
+
+        Assert.Contains("has begun", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(1, service.GetSnapshot(game).TurnNumber);
+    }
+
     private static Guid Table(StarGruntGameService service)
     {
         // With the invented range table, because every shot here is about what the service does

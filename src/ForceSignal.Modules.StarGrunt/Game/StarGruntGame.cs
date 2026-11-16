@@ -60,6 +60,7 @@ public sealed partial record StarGruntGame : IStarGruntBoard
     /// <param name="unit">The unit to add.</param>
     /// <returns>The game with it on.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="unit"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The first turn has begun.</exception>
     /// <exception cref="ArgumentException">A unit with that id is already on the table.</exception>
     public StarGruntGame WithUnit(UnitDefinition unit)
     {
@@ -67,6 +68,15 @@ public sealed partial record StarGruntGame : IStarGruntBoard
         if (Units.ContainsKey(unit.Id))
         {
             throw new ArgumentException($"'{unit.Id}' is already on the table.", nameof(unit));
+        }
+
+        // The session is rebuilt from the roster below, which once a turn has begun would throw away
+        // the turn: its number, the open activation, who has already gone, and the activation count
+        // Systems Down recovery is timed against. So the roster closes when the first turn opens.
+        if (Session.TurnNumber > 0)
+        {
+            throw new InvalidOperationException(
+                $"The game has begun, so nothing more can be put on the table: {unit.Name} would restart turn {Session.TurnNumber} from nothing.");
         }
 
         return this with

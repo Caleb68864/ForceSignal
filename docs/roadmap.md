@@ -166,7 +166,47 @@ out of scope (indirect fire was in progress on another branch).
         rewrites mounts from the client, `IsDestroyed`/`IsNeedleKilled`/`AmmoUsed` included. The
         table is evidently trusted here (`UpdateShipDamage` already lets an owner zero their own
         hull), but it is worth a deliberate yes.
-  - Checked and sound: ownership, phase and turn-order guards; firing twice (per weapon and after
+  - Dirtside endpoints, `GroundCombatEndpoints.cs` and the services behind them (the reviewer
+    reproduced each finding against the built service; each fix has a test that fails on the old
+    code):
+  - [x] **Adding a platoon mid-game wiped the turn.** `WithUnit` rebuilds the session from the
+        roster, so `POST /units` during a turn reset it to turn 0, not started - open activation,
+        who had already gone, and the activation count Systems Down recovery is timed against all
+        gone, and saved. StarGrunt's `WithUnit` was the same. Both now refuse once the first turn
+        has begun (`DirtsideAssaultServiceTests.APlatoonAddedOnceTheGameHasBegun_...`,
+        `StarGruntGameServiceTests.AUnitAddedOnceTheGameHasBegun_...`). One StarGrunt module test
+        (`GameAssaultTests.AUnitCannotChargeItsOwnSide`) had been adding a unit mid-activation and
+        only passed because of the reset; it now builds the roster first. *The web form for adding a
+        platoon is still shown mid-game*; it now gets the refusal in words. Hiding it is a UI call.
+  - [x] **An assault launched at a platoon whose card cannot stand jammed the game for good.**
+        Launch checked the attacker's card only; the stand was then refused every time, the
+        activation could not end with an assault open, and nothing cleared it. Launch now also
+        refuses when the defender's card has no die/leadership, or no living element with assault
+        chits and a kill threshold (`...AnAssaultOnAPlatoonWhoseCardCannotStand_...`,
+        `...AnAssaultOnAPlatoonWithNoStandLeftThatCouldCommit_...`).
+  - [x] **Assault chits and weapon chit counts were not checked against the pot.** A negative
+        count, or one larger than the game's pot, reached `ChitPot.Draw` at the round - after both
+        sides had committed - and was refused on every try, jamming the assault the same way. Now
+        refused when the platoon is added, by name (`...AssaultChitsThePotCannotHandOut_...`,
+        `...AWeaponChitCountThePotCannotHandOut_...`).
+  - [ ] **A third side, or "Red" beside "red", makes the game unplayable.** Side is free,
+        case-sensitive text; with other than two sides `SessionForRoster` returns an empty session,
+        `BeginTurn` still succeeds, and the first activator is then refused; there is no
+        remove-platoon route. With the roster now closed at the first turn the fix belongs at
+        `BeginTurn` (refuse unless exactly two sides) or at add time (normalise case) - a choice
+        about what "side" means, left for the owner.
+  - [ ] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
+        accepted and echoed back. Harmless downstream (treated as Armour; an unknown fire control is
+        refused by name at the shot), but wrong.
+  - [ ] The refusal for firing at an already-destroyed target says "the shot is spent either way",
+        but nothing is spent and the element may fire again elsewhere. Code or message - a rules
+        call.
+  - Checked and sound: game-token filter on every route but create (401/403/404, per game,
+    constant-time, never in a snapshot); routes absent with the flag off; every command under the
+    lock and immutable, nothing stored on refusal; persistence round-trips; error mapping (no 500
+    from bad input found); size caps; leadership and profile mapping; fire and assault stage
+    guards; the opportunity-fire window.
+  - Full Thrust checked and sound: ownership, phase and turn-order guards; firing twice (per weapon and after
     cease fire); destroyed, needle-killed and empty mounts; needle pre-checks before any state
     moves; damage clamping; range/arc refusals before any roll; error-status mapping; turn-change
     clean-up; restart persistence field lists; every mutation under the lock and `Touch`ed; no

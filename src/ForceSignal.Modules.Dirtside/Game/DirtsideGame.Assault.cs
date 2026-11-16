@@ -225,6 +225,20 @@ public sealed partial record DirtsideGame
             return uncommitted;
         }
 
+        // The defender's card is checked now too, not only when it is asked to stand. Launched at a
+        // platoon whose card cannot be tested, the assault waited for a stand that would always be
+        // refused, the activation could not end with an assault open, and nothing cleared it: the
+        // game was stuck for good. The words are the ones the stand would have used.
+        if (ProfileBlocker(holding) is { } defenderUnprofiled)
+        {
+            return defenderUnprofiled;
+        }
+
+        if (!CanCommitAnything(holding))
+        {
+            return $"{holding.Name} has no element left whose record card says how many chits it draws in an assault and what total removes it, so it cannot stand against one.";
+        }
+
         // The same check the step will make, in the same words, so the reason a button is disabled
         // is the reason the order would be refused. Checking each element against the frame as it
         // stands is sound because the only gate one element's step changes is its own.
@@ -611,6 +625,16 @@ public sealed partial record DirtsideGame
         platoon.Quality is null || platoon.LeadershipValue is null
             ? $"{platoon.Name}'s record card does not say what die it rolls or what its leadership value is, so its nerve cannot be tested."
             : null;
+
+    /// <summary>Whether a platoon has at least one element it could commit: alive, with assault numbers.</summary>
+    private bool CanCommitAnything(PlatoonDefinition platoon)
+    {
+        var status = Status(platoon.Id);
+        return platoon.Elements.Any(element =>
+            !status.Element(element.Id).IsDestroyed
+            && element.AssaultChits is not null
+            && element.KillThreshold is not null);
+    }
 
     /// <summary>Why a platoon cannot commit these elements to an assault.</summary>
     private string? CommitmentBlocker(PlatoonDefinition platoon, AssaultCommitment commitment)

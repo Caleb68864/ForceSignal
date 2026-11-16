@@ -76,6 +76,7 @@ public sealed partial record DirtsideGame : IDirtsideBoard
     /// <param name="platoon">The platoon to add.</param>
     /// <returns>The game with it on.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="platoon"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The first turn has begun.</exception>
     /// <exception cref="ArgumentException">A platoon with that id is already on the table.</exception>
     public DirtsideGame WithUnit(PlatoonDefinition platoon)
     {
@@ -83,6 +84,15 @@ public sealed partial record DirtsideGame : IDirtsideBoard
         if (Units.ContainsKey(platoon.Id))
         {
             throw new ArgumentException($"'{platoon.Id}' is already on the table.", nameof(platoon));
+        }
+
+        // The session is rebuilt from the roster below, which once a turn has begun would throw away
+        // the turn: its number, the open activation, who has already gone, and the activation count
+        // Systems Down recovery is timed against. So the roster closes when the first turn opens.
+        if (Session.TurnNumber > 0)
+        {
+            throw new InvalidOperationException(
+                $"The game has begun, so nothing more can be put on the table: {platoon.Name} would restart turn {Session.TurnNumber} from nothing.");
         }
 
         return this with
