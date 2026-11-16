@@ -742,7 +742,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
             new UnitId(Required(request.Id, "A platoon needs an id.")),
             name,
             new SideId(Required(request.Side, "A platoon needs a side.")),
-            ByName<DirtsideUnitKind>(request.Kind) is { } kind
+            EnumNames.ByName<DirtsideUnitKind>(request.Kind) is { } kind
                 ? kind
                 : throw new InvalidOperationException(
                     $"'{request.Kind}' is not a unit kind ({string.Join(", ", Enum.GetNames<DirtsideUnitKind>())})."),
@@ -784,25 +784,10 @@ public sealed class DirtsideGameService : IDirtsideGameService
         }
     }
 
-    /// <summary>
-    /// The enum member a word names, ignoring case, or null when it names none.
-    /// </summary>
-    /// <remarks>
-    /// Not <c>Enum.TryParse</c>, which reads a number ("7", or "1" for whatever happens to be 1) or a
-    /// comma list it ORs together as readily as a name, and so put values on a card that no name
-    /// gives. A card is filled in with names, so only a name is read.
-    /// </remarks>
-    private static TEnum? ByName<TEnum>(string? word)
-        where TEnum : struct, Enum
-    {
-        var name = Enum.GetNames<TEnum>().FirstOrDefault(name => string.Equals(name, word?.Trim(), StringComparison.OrdinalIgnoreCase));
-        return name is null ? null : Enum.Parse<TEnum>(name);
-    }
-
     /// <summary>Reads the die off a command marker, or nothing when the card does not say.</summary>
     private static QualityDie? Die(string? name) =>
         string.IsNullOrWhiteSpace(name) ? null
-        : Enum.TryParse<QualityDie>(name, ignoreCase: true, out var die) && Enum.IsDefined(die) ? die
+        : EnumNames.ByName<QualityDie>(name) is { } die ? die
         : throw new InvalidOperationException(
             $"'{name}' is not a quality die ({string.Join(", ", DirtsideWire.QualityDice)}).");
 
@@ -832,7 +817,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
         return new ElementDefinition(
             new ElementId(Required(element.Id, "An element needs an id.")),
             Required(element.Name, "An element needs a name."),
-            ByName<FireControlLevel>(element.FireControl) is { } control
+            EnumNames.ByName<FireControlLevel>(element.FireControl) is { } control
                 ? control
                 : throw new InvalidOperationException(
                     $"'{element.FireControl}' is not a fire control level ({string.Join(", ", DirtsideWire.FireControls)})."),
@@ -881,17 +866,39 @@ public sealed class DirtsideGameService : IDirtsideGameService
             return ChitValidity.Ineffective;
         }
 
-        var colours = string.Equals(row.Colours, "All", StringComparison.OrdinalIgnoreCase)
-            ? ChitColours.All
-            : Enum.TryParse<ChitColours>(row.Colours, ignoreCase: true, out var parsed)
-                ? parsed
-                : throw new InvalidOperationException($"'{row.Colours}' is not a set of chit colours.");
+        var colours = Colours(row.Colours)
+            ?? throw new InvalidOperationException(
+                $"'{row.Colours}' is not a set of chit colours ({string.Join(", ", DirtsideWire.ChitColourSets)}, or names joined by commas).");
 
-        var scale = Enum.TryParse<ChitValueScale>(row.ValueScale, ignoreCase: true, out var value)
-            ? value
-            : throw new InvalidOperationException($"'{row.ValueScale}' is not a chit value scale.");
+        var scale = EnumNames.ByName<ChitValueScale>(row.ValueScale)
+            ?? throw new InvalidOperationException(
+                $"'{row.ValueScale}' is not a chit value scale ({string.Join(", ", DirtsideWire.ValueScales)}).");
 
         return new ChitValidity(colours, scale, row.SpecialsCount);
+    }
+
+    /// <summary>
+    /// Reads the colours a validity row counts: one name, or several joined by commas.
+    /// </summary>
+    /// <remarks>
+    /// A set, so a list of names is a real thing to say ("Red, Yellow" is what most cards print) and
+    /// is read, each part by name. A number is not: "7" was every colour and "8" a colour no chit is
+    /// printed in. Null when any part names no colour.
+    /// </remarks>
+    private static ChitColours? Colours(string? words)
+    {
+        var colours = ChitColours.None;
+        foreach (var word in (words ?? string.Empty).Split(','))
+        {
+            if (EnumNames.ByName<ChitColours>(word) is not { } colour)
+            {
+                return null;
+            }
+
+            colours |= colour;
+        }
+
+        return colours;
     }
 
     /// <summary>
@@ -908,13 +915,13 @@ public sealed class DirtsideGameService : IDirtsideGameService
         string.IsNullOrWhiteSpace(posture)
         || string.Equals(posture, nameof(DefensivePosture.None), StringComparison.OrdinalIgnoreCase)
             ? DefensivePosture.None
-            : Enum.TryParse<DefensivePosture>(posture, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            : EnumNames.ByName<DefensivePosture>(posture) is { } parsed
                 ? parsed
                 : throw new InvalidOperationException(
                     $"'{posture}' is not a defensive posture ({string.Join(", ", DirtsideWire.Postures)}, or None).");
 
     private static WeaponRangeBand Band(string? band) =>
-        Enum.TryParse<WeaponRangeBand>(band, ignoreCase: true, out var parsed)
+        EnumNames.ByName<WeaponRangeBand>(band) is { } parsed
             ? parsed
             : throw new InvalidOperationException(
                 $"'{band}' is not a range band ({string.Join(", ", DirtsideWire.Bands)}).");

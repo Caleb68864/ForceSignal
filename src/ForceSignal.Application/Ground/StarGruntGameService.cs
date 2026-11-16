@@ -579,14 +579,13 @@ public sealed class StarGruntGameService : IStarGruntGameService
             Id = new UnitId(Required(request.Id, "A unit needs an id.")),
             Name = name,
             Side = new SideId(Required(request.Side, "A unit needs a side.")),
-            Level = Enum.TryParse<CommandLevel>(request.Level, ignoreCase: true, out var level)
-                ? level
-                : throw new InvalidOperationException($"'{request.Level}' is not a command level."),
+            Level = EnumNames.ByName<CommandLevel>(request.Level)
+                ?? throw new InvalidOperationException(
+                    $"'{request.Level}' is not a command level ({string.Join(", ", Enum.GetNames<CommandLevel>())})."),
             QualityDie = Die(request.QualityDie, "quality"),
             LeadershipValue = Leadership(request.LeadershipValue, leadershipValues, name),
-            Fatigue = Enum.TryParse<FatigueLevel>(request.Fatigue, ignoreCase: true, out var fatigue)
-                ? fatigue
-                : throw new InvalidOperationException($"'{request.Fatigue}' is not a fatigue level (Fresh, Tired, Exhausted)."),
+            Fatigue = EnumNames.ByName<FatigueLevel>(request.Fatigue)
+                ?? throw new InvalidOperationException($"'{request.Fatigue}' is not a fatigue level (Fresh, Tired, Exhausted)."),
             Figures = [.. (request.Figures ?? []).Select(figure => new FigureProfile(Die(figure.ArmourDie, "armour")))],
             Weapons = [.. (request.Weapons ?? []).Select(weapon => new WeaponProfile
             {
@@ -655,9 +654,8 @@ public sealed class StarGruntGameService : IStarGruntGameService
     }
 
     private static CoverLevel Cover(string? cover) =>
-        Enum.TryParse<CoverLevel>(cover, ignoreCase: true, out var level)
-            ? level
-            : throw new InvalidOperationException($"'{cover}' is not a cover level (None, Soft, Hard).");
+        EnumNames.ByName<CoverLevel>(cover)
+            ?? throw new InvalidOperationException($"'{cover}' is not a cover level (None, Soft, Hard).");
 
     /// <summary>
     /// Turns an action's name into a step.
@@ -670,10 +668,8 @@ public sealed class StarGruntGameService : IStarGruntGameService
     /// </remarks>
     private static ActivationStep StepFor(string? action)
     {
-        if (!Enum.TryParse<StarGruntAction>(action, ignoreCase: true, out var parsed))
-        {
-            throw new InvalidOperationException($"'{action}' is not an action a unit can take.");
-        }
+        var parsed = EnumNames.ByName<StarGruntAction>(action)
+            ?? throw new InvalidOperationException($"'{action}' is not an action a unit can take.");
 
         return parsed is StarGruntAction.Fire or StarGruntAction.TransferAction or StarGruntAction.RemoveSuppression
                 or StarGruntAction.Rally or StarGruntAction.Reorganise

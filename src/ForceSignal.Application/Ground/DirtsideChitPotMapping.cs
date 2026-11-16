@@ -68,7 +68,7 @@ internal static class DirtsideChitPotMapping
                 throw new InvalidOperationException("A chit pot cannot hold a row that says nothing.");
             }
 
-            var colour = Enum.TryParse<ChitColour>(entry.Colour, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            var colour = EnumNames.ByName<ChitColour>(entry.Colour) is { } parsed
                 ? parsed
                 : throw new InvalidOperationException(
                     $"'{entry.Colour}' is not a chit colour ({string.Join(", ", DirtsideWire.ChitColours)}).");
@@ -89,7 +89,7 @@ internal static class DirtsideChitPotMapping
                 throw new InvalidOperationException("A chit pot cannot hold a row that says nothing.");
             }
 
-            var special = Enum.TryParse<ChitSpecial>(entry.Special, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+            var special = EnumNames.ByName<ChitSpecial>(entry.Special) is { } parsed
                 ? parsed
                 : throw new InvalidOperationException(
                     $"'{entry.Special}' is not a special chit ({string.Join(", ", DirtsideWire.ChitSpecials)}).");

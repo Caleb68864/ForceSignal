@@ -155,7 +155,7 @@ public sealed partial class InMemoryMatchService
 
         var match = new MatchState(persisted.Id, persisted.JoinCode, persisted.Name, seats[0])
         {
-            Phase = Enum.TryParse<MatchPhase>(persisted.Phase, out var phase) ? phase : MatchPhase.FleetSetup,
+            Phase = EnumNames.ByExactName<MatchPhase>(persisted.Phase) ?? MatchPhase.FleetSetup,
             Rules = (persisted.Rules ?? RulesProfile.Empty).Normalized(),
             TurnNumber = persisted.TurnNumber,
             TableWidth = persisted.TableWidth,
