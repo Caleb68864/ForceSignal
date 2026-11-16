@@ -260,10 +260,43 @@ out of scope (indirect fire was in progress on another branch).
         (which `TryParse` ORs together) are refused by name. Tests:
         `DirtsideGameServiceTests.AKindGivenAsANumberOrAListIsRefused`,
         `...AFireControlGivenAsANumberOrAListIsRefused` (six cases, all fail on the old code) and
-        `...AKindAndFireControlAreStillReadByNameInAnyCase`. *Same shape, not changed:* the chit
-        colour set and value scale in `ToValidity`, the profile mapping's fire control and posture
-        (`DirtsideRulesProfileMapping`), and StarGrunt's command level, fatigue, cover and action
-        all use `Enum.TryParse` (some with `IsDefined`, which still takes "1").
+        `...AKindAndFireControlAreStillReadByNameInAnyCase`.
+        *The rest of that shape fixed on `fix/enum-names-only`:* every `Enum.TryParse` left on a
+        request path now goes through one helper, `EnumNames.ByName` (the 2b93a08 reader moved to
+        `ForceSignal.Application`): name only, any case, defined members only, refused naming the
+        field. Changed: Dirtside chit colour and special (pot), validity colour set and value scale,
+        measured band (which took "5", an undefined band), target posture, the command marker's die
+        and the profile's die ("8" was D8), and the profile's fire-control and posture rows;
+        StarGrunt command level, fatigue, cover and step action ("42" reached the engine). A colour
+        set is still read as several names joined by commas ("Red, Yellow"), each by name, since
+        it is a set and pairs are what cards print; "7" and "8" are refused. The saved Full Thrust
+        phase is read by its exact name (`ByExactName`), so "7" no longer restores a phase that does
+        not exist and "3" no longer means Reveal; an unknown word falls back to fleet setup as
+        before. The restore upload's JSON converter no longer reads numbers
+        (`allowIntegerValues: false`); exported snapshots write names, and still restore. Tests:
+        `EnumNamesOnlyTests` (Dirtside), the `...GivenAsANumberOrAListIsRefused` theories in
+        `StarGruntGameServiceTests`, `MatchPersistenceTests.ASavedPhaseIsReadByItsOwnNameOnly` and
+        `MatchRestoreEndpointTests.RestoreRefusesAnEnumGivenAsANumberAndNamesWhere` - all watched
+        failing on the old code - plus name-in-any-case guards and
+        `DirtsidePersistenceTests.APotAndProfileSavedByNameComeBackNowThatOnlyNamesAreRead` (saved
+        pot and profile are written as names, so old saves load).
+        *Left unchanged, deliberately:*
+        - The general HTTP JSON converter (`Program.cs`) still reads enum numbers. Tried: 25 API
+          tests failed, because `PostAsJsonAsync` with default options sends `RulesProfile`'s and
+          other enums as numbers - so would any non-browser client. The web client sends names
+          throughout. Closing it is a wire-contract change for the owner. Found while trying it:
+          an enum name that does not bind in a request body (`"kind":"Nope"` on `/repair`) answers
+          **500** "Something went wrong" in Development, because `BadHttpRequestException` is not
+          mapped; production (empty 400 by default) not checked.
+        - Server-written saves: StarGrunt games and ground sessions are serialized with no enum
+          converter, so their enums are stored as **numbers** - numbers are the format, and reading
+          names only would lose every StarGrunt save. Dirtside games and Full Thrust match rows
+          store names; their converters were left as they are, since nothing but this server
+          writes them.
+        - `FiringArcJsonConverter` reads a defined ordinal on purpose (old fleet files), and
+          `StableJson` only writes (commitment hashes).
+        - `DirtsideSteps.ActionOf` / `StarGruntSteps` read a step kind the engine wrote itself,
+          case-sensitive with `IsDefined`, never a request word.
   - [x] The refusal for firing at an already-destroyed target says "the shot is spent either way",
         but nothing is spent and the element may fire again elsewhere. Code or message - a rules
         call.

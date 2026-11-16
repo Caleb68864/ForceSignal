@@ -34,7 +34,9 @@ public static class MatchEndpoints
 
     private static readonly JsonSerializerOptions RestoreJson = new(JsonSerializerDefaults.Web)
     {
-        Converters = { new JsonStringEnumConverter() },
+        // Names only, as every snapshot this server exports writes them: a number would name a
+        // member by position, or one that does not exist.
+        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) },
         // A snapshot is four or five objects deep. A file nested far past that is not a snapshot
         // someone saved, and parsing it would recurse as far as it was told to.
         MaxDepth = 32,

@@ -34,6 +34,38 @@ public sealed class DirtsidePersistenceTests
     }
 
     [Fact]
+    public void APotAndProfileSavedByNameComeBackNowThatOnlyNamesAreRead()
+    {
+        // The counted pot and the entered tables are saved as the words a request carries, and are
+        // read back through the same name-only parsing on a restart. They were always written as
+        // the members' names, so a save from before that parsing tightened still loads.
+        var store = new MemoryStore();
+        var first = new DirtsideGameService(null, store);
+        var created = first.CreateGame(DirtsideTestProfile.CreateGame("Ridge 9") with
+        {
+            ChitPot = new DirtsideChitPotDto(
+                [new DirtsideNumericalChitsDto("red", 3, 12), new DirtsideNumericalChitsDto("Green", 0, 4)],
+                [new DirtsideSpecialChitsDto("boom", 2)]),
+        });
+        first.AddPlatoon(created.GameId, DirtsideGameServiceTests.Platoon("alpha", "Alpha Troop", "blue"));
+
+        var row = store.LoadAll().Single().State;
+        Assert.Contains("Red", row, StringComparison.Ordinal);
+        Assert.Contains("Enhanced", row, StringComparison.Ordinal);
+        Assert.Contains("HullDown", row, StringComparison.Ordinal);
+
+        var restarted = new DirtsideGameService(null, store);
+        var after = restarted.GetSnapshot(created.GameId);
+
+        Assert.Empty(restarted.SkippedSaves);
+        Assert.Equal(created.Snapshot.ChitPot!.Numericals, after.ChitPot!.Numericals);
+        Assert.Equal(created.Snapshot.ChitPot.Specials, after.ChitPot.Specials);
+        Assert.Equal(created.Snapshot.Profile!.FireControl, after.Profile!.FireControl);
+        Assert.Equal(created.Snapshot.Profile.Posture, after.Profile.Posture);
+        Assert.Contains(after.ChitPot.Specials, entry => entry is { Special: "Boom", Count: 2 });
+    }
+
+    [Fact]
     public void ARestoredGameCanBePlayedOn()
     {
         var store = new MemoryStore();

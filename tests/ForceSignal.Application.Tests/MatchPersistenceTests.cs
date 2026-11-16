@@ -232,6 +232,31 @@ public sealed partial class MatchPersistenceTests
         Assert.DoesNotContain("isConnected", row, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("OrderEntry", "OrderEntry")]
+    [InlineData("Firing", "Firing")]
+    [InlineData("7", "FleetSetup")]
+    [InlineData("3", "FleetSetup")]
+    [InlineData("orderentry", "FleetSetup")]
+    public void ASavedPhaseIsReadByItsOwnNameOnly(string saved, string restored)
+    {
+        // The phase is saved as its name, and a row saved by any earlier build reads back as it was.
+        // It used to be read with Enum.TryParse, which took "7" as a phase that does not exist and
+        // "3" as Reveal; a word that names no phase falls back to fleet setup, as one always did.
+        var store = new InMemoryTestStore();
+        var before = new InMemoryMatchService(null, store, loadPersisted: true);
+        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Old Row", Rules: TestRules.Invented));
+        var stored = store.LoadAll().Single();
+        Assert.Contains("\"phase\":\"FleetSetup\"", stored.State, StringComparison.Ordinal);
+        store.Save(stored.MatchId, stored.State.Replace(
+            "\"phase\":\"FleetSetup\"", $"\"phase\":\"{saved}\"", StringComparison.Ordinal));
+
+        var after = new InMemoryMatchService(null, store, loadPersisted: true);
+
+        Assert.Empty(after.SkippedSaves);
+        Assert.Equal(restored, after.GetSnapshot(owner.MatchId).Phase);
+    }
+
     [Fact]
     public void ARowWrittenWhileConnectionStateWasStillSavedStillLoads()
     {

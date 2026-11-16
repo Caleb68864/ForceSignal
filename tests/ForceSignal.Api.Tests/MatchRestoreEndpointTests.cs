@@ -108,6 +108,43 @@ public sealed class MatchRestoreEndpointTests
     }
 
     [Theory]
+    [InlineData("1")]
+    [InlineData("\"1\"")]
+    public async Task RestoreRefusesAnEnumGivenAsANumberAndNamesWhere(string written)
+    {
+        // An exported snapshot writes every enum as its name, and that file still restores. The
+        // converter used to read a number too, so a hand-edited file could name a member by its
+        // position or one that does not exist.
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Numbered", 72, 48, Rules: TestRules.Invented)))
+            .Content.ReadFromJsonAsync<MatchCreatedResponse>();
+        var fleetSnapshot = await (await client.PostAsJsonAsync($"/api/matches/{created!.MatchId}/fleets",
+            new CreateFleetRequest(created.ParticipantToken, "Blue Watch", null, "#47f1ff")))
+            .Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+        var withShip = await (await client.PostAsJsonAsync($"/api/fleets/{fleetSnapshot!.Fleets.Single().Id}/ships",
+            new CreateShipRequest(created.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24)))
+            .Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+        var exported = JsonSerializer.Serialize(withShip, JsonOptions);
+        const string Key = "\"thresholdRows\":\"";
+        var at = exported.IndexOf(Key, StringComparison.Ordinal);
+        Assert.True(at >= 0, "the snapshot carries the threshold mode by name");
+        var named = exported[at..(exported.IndexOf('"', at + Key.Length) + 1)];
+
+        using var asExported = await client.PostAsync("/api/matches/restore",
+            new StringContent(exported, Encoding.UTF8, "application/json"));
+        asExported.EnsureSuccessStatusCode();
+
+        using var numbered = await client.PostAsync("/api/matches/restore",
+            new StringContent(exported.Replace(named, $"\"thresholdRows\":{written}", StringComparison.Ordinal), Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, numbered.StatusCode);
+        var problem = await numbered.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("thresholdRows", problem.GetProperty("detail").GetString() ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Theory]
     // Every rejected payload must answer with problem+json, including a file that is not JSON at
     // all - model binding would otherwise return a plain-text 400.
     [InlineData("{ not json at all", "could not be read")]

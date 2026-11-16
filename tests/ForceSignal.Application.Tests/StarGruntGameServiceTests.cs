@@ -276,6 +276,100 @@ public sealed class StarGruntGameServiceTests
         service.BeginTurn(created.GameId);
     }
 
+    [Theory]
+    [InlineData("7")]
+    [InlineData("1")]
+    [InlineData("Squad, Platoon")]
+    public void ACommandLevelGivenAsANumberOrAListIsRefused(string level)
+    {
+        // Enum.TryParse took "7" as a level no army has, "1" as Platoon, and a list ORed together.
+        var service = new StarGruntGameService(new ScriptedQualityDice([]), null, new ScriptedFigureAllocator());
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddUnit(created.GameId,
+            Squad("alpha", "Alpha Squad", "blue") with { Level = level }));
+
+        Assert.Contains("is not a command level", refusal.Message, StringComparison.Ordinal);
+        Assert.Empty(service.GetSnapshot(created.GameId).Units);
+    }
+
+    [Theory]
+    [InlineData("7")]
+    [InlineData("2")]
+    [InlineData("Tired, Exhausted")]
+    public void AFatigueGivenAsANumberOrAListIsRefused(string fatigue)
+    {
+        var service = new StarGruntGameService(new ScriptedQualityDice([]), null, new ScriptedFigureAllocator());
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddUnit(created.GameId,
+            Squad("alpha", "Alpha Squad", "blue") with { Fatigue = fatigue }));
+
+        Assert.Contains("is not a fatigue level", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ALevelAndFatigueAreStillReadByNameInAnyCase()
+    {
+        var service = new StarGruntGameService(new ScriptedQualityDice([]), null, new ScriptedFigureAllocator());
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
+
+        var snapshot = service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue") with { Level = "platoon", Fatigue = "TIRED" });
+
+        Assert.Single(snapshot.Units);
+    }
+
+    [Theory]
+    [InlineData("7")]
+    [InlineData("2")]
+    [InlineData("Soft, Hard")]
+    public void ACoverGivenAsANumberOrAListIsRefused(string cover)
+    {
+        var service = new StarGruntGameService(new ScriptedQualityDice(AKillAndAStop), null, new ScriptedFigureAllocator());
+        var game = Table(service);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.Fire(game, new StarGruntFireRequest(
+            "alpha", "bravo", "Rifles", FirepowerDie: 10, SupportWeapons: [], DistanceInches: 9, Cover: cover)));
+
+        Assert.Contains("is not a cover level", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("7")]
+    [InlineData("42")]
+    [InlineData("Move, Dash")]
+    public void AnActionGivenAsANumberOrAListIsRefused(string action)
+    {
+        // "0" was Move and "7" Observe; "42" an action no rule describes, taken as a step.
+        var service = new StarGruntGameService(new ScriptedQualityDice([]), null, new ScriptedFigureAllocator());
+        var game = Table(service);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.TakeStep(game, new StarGruntStepRequest(action)));
+
+        Assert.Contains("is not an action a unit can take", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnActionIsStillReadByNameInAnyCase()
+    {
+        var service = new StarGruntGameService(new ScriptedQualityDice([]), null, new ScriptedFigureAllocator());
+        var game = Table(service);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
+        service.BeginActivation(game, new BeginStarGruntActivationRequest("blue", "alpha"));
+
+        var stepped = service.TakeStep(game, new StarGruntStepRequest("observe"));
+
+        Assert.NotNull(stepped);
+    }
+
     private static Guid Table(StarGruntGameService service)
     {
         // With the invented range table, because every shot here is about what the service does
