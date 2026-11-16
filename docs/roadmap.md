@@ -180,6 +180,13 @@ out of scope (indirect fire was in progress on another branch).
   - [ ] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
         snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
         threshold loss looking needle-caused and so unrepairable. Low impact.
+        *Fixed on `fix/review-findings`:* each needled count is clamped to the damage it is part of
+        after the edit; drives by step (0, 1 or 2, the ladder repair already reads), which is
+        tighter than restore's flat cap of 2. Tests:
+        `InMemoryMatchServiceRepairTests.EditingDamageBelowWhatANeedleTook_KeepsTheNeedledCountWithinIt`
+        (a real needle shot, then the record corrected, then a threshold-style loss repaired) and
+        `...EditingDamage_ClampsEveryNeedledCountToTheDamageItIsPartOf` (screens and drives); both
+        fail on the old code at the needled-count assertion.
   - [ ] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
         rewrites mounts from the client, `IsDestroyed`/`IsNeedleKilled`/`AmmoUsed` included. The
         table is evidently trusted here (`UpdateShipDamage` already lets an owner zero their own
