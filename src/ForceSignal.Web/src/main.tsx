@@ -235,9 +235,8 @@ function App() {
   }
 
   useEffect(() => {
-    loadFeatures();
     // Once, at mount; later reads are the retries above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadFeatures();
   }, []);
 
   useEffect(() => {
