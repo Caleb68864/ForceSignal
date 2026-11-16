@@ -67,10 +67,12 @@ outside the repo; only what they found is recorded here.
       opens with a die-off already rolled, and a restore puts the holder back or rolls one itself,
       so a shot never finds the initiative empty in normal play. Only `FireRefusalPushTests`
       exercises that path; two devices could not.
-- [ ] **Dirtside's status line goes stale.** It shows the last log entry after each command, and
-      Activate, End Activation, Begin Turn and End Turn log nothing, so after red's platoon activated
-      the line still said "Hammer's Vehicle 2 stood down for the turn." StarGrunt passes a note for
-      each of these; Dirtside should too.
+- [x] **Fixed: Dirtside's status line went stale.** It showed the newest log entry after each
+      command, and Activate, End Activation, Begin Turn and End Turn log nothing, so after red's
+      platoon activated the line still said "Hammer's Vehicle 2 stood down for the turn." It now
+      shows a log entry only when the command added one, and otherwise says what was done
+      ("Anvil activated.", "Turn ended."), as StarGrunt does (`DirtsideView.test.tsx`, "status
+      line"; the first case fails before the fix, the second is the control).
 - [ ] **Ground games are one device.** Neither Dirtside nor StarGrunt has a join flow or a realtime
       link; a second browser gets only the setup screen. "Two-device" for them is not a thing yet,
       and nothing here says it should be - but it is why only Full Thrust was played across two.
