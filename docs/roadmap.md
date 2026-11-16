@@ -62,28 +62,160 @@ out of scope (indirect fire was in progress on another branch).
 
 ### Found and left
 
-- [ ] **A failed `/api/features` read hides the optional engines without a word.**
+- [x] **A failed `/api/features` read hides the optional engines without a word.**
       `main.tsx` (`readFeatures().catch(...)`) turns any failure - including a server that is simply
       down at page load - into "StarGrunt and Dirtside are off", and never retries. Safe, but it
-      reports a configuration the server does not have. Wants at least an activity-line note, and a
-      re-read after the realtime link comes up.
+      reports a configuration the server does not have. *Closed on `harden/found-and-left`:* a failed
+      read still hides the engines, but now says so beside where their toggles go (the activity line
+      is only drawn inside a match, and this happens on the start screen), with a Check Again
+      button; it logs a `[ForceSignal]` console line; and it is read again by itself once the
+      realtime link comes up or rejoins - only if the last read failed (`main.test.tsx`, "a server
+      that will not say which engines it has"; the first two cases fail on the old code, the third
+      is the control).
 - [ ] **Presence is only as fresh as SignalR's server timeout.** A device that vanishes without
       closing (phone locked, wifi dropped) stays "connected" on the other device until the server
       timeout (30 s default) fires. Not wrong, but the chip on the other device has no age. Worth a
       "last seen" if two-device testing finds it confusing.
-- [ ] **`IsConnected` is still persisted** in `PersistedParticipant` though it is ignored on load (a
+      *Looked at again on `harden/found-and-left` and left, on purpose.* Both sides run SignalR's
+      defaults (`AddSignalR()` with no options: 15 s server keep-alive, 30 s `ClientTimeoutInterval`;
+      the web client sets no `withKeepAliveInterval`, so 15 s). The only contained change is to
+      tighten the pair together - client keep-alive to ~5 s and server `ClientTimeoutInterval` to
+      ~15 s (the timeout has to stay at least twice the client's keep-alive or healthy clients get
+      cut off). That halves the stale window but triples keep-alive traffic on phones, and turns
+      every 15-30 s wifi hiccup into a disconnect, a reconnect and two "connected/disconnected" lines
+      in the match log - a trade, not a fix, and nothing from two-device play says it is needed. A
+      "last seen" age would need a new `ParticipantDto` field and a ticking chip, which is not
+      contained either. Revisit with two-device evidence.
+- [x] **`IsConnected` is still persisted** in `PersistedParticipant` though it is ignored on load (a
       restart starts every seat at zero connections, correctly). Dead field on the wire format;
       leave it until the persisted shape next changes, so old rows keep deserializing.
-- [ ] **No end-to-end hub test.** `MatchHubPresenceTests` drives the hub with fakes. A
+      *Closed on `harden/found-and-left`:* dropped from the record. Old rows still load because
+      System.Text.Json ignores properties it does not know (nothing here sets
+      `UnmappedMemberHandling.Disallow`), so the format version stays 1
+      (`MatchPersistenceTests.ASaveDoesNotWriteDownWhoIsConnected` fails on the old code;
+      `...ARowWrittenWhileConnectionStateWasStillSavedStillLoads` loads a row carrying
+      `"isConnected":true` and checks it comes back whole and disconnected).
+- [x] **No end-to-end hub test.** `MatchHubPresenceTests` drives the hub with fakes. A
       `WebApplicationFactory` test with `Microsoft.AspNetCore.SignalR.Client` over the test server
       would cover the real reconnect ordering; the package is not referenced by the test project
-      yet.
-- [ ] **The first two `main.test.tsx` tests can time out under heavy machine load.** With load
+      yet. *Closed on `harden/found-and-left`:* `MatchHubEndToEndTests` runs the real host and real
+      SignalR clients (long polling through the test server's handler): the other device is pushed
+      a player's arrival and departure; a reconnect whose old connection drops last leaves the
+      player connected, and the new connection's drop then takes them out; a wrong token is refused
+      over the wire. A disconnect that changes nothing sends no push, so the test waits on the match
+      service (wrapped in a pass-through proxy that reports each applied presence change) rather
+      than sleeping. With presence put back to the old one-flag-per-seat the reconnect case fails.
+      The client package is pinned at 10.0.15: 10.0.10-10.0.12 of `SignalR.Common` carry
+      GHSA-334f-vvp4-7g6p (CVE-2026-70159, stateful-reconnect DoS) and restore refuses them under
+      warnings-as-errors. *The server is not covered by that pin* - it runs SignalR from the shared
+      framework, and the runtimes installed on this machine (10.0.8, 10.0.12) are both in the
+      affected range. `MapHub` here does not turn on stateful reconnect, which the advisory needs,
+      but the deployed runtime should still be 10.0.13 or later; the Dockerfiles use the floating
+      `aspnet:10.0` tag, so a rebuild picks that up.
+- [x] **The first two `main.test.tsx` tests can time out under heavy machine load.** With load
       average ~60 they hit vitest's 5 s default (each re-imports `main.tsx` after
       `vi.resetModules()`); in isolation and on a rerun they pass (337/337). Master's
       copy passed the one run tried under the same load. Worth a per-file `testTimeout` if CI is slow.
-- [ ] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
+      *Closed on `harden/found-and-left`, without touching any timeout.* Measured, the first two
+      tests were paying three costs that were not theirs: the cold transform of `main.tsx`'s module
+      graph (~600 ms unloaded) and the first render, both charged to test one; and role queries,
+      which name every element on the board (~35 ms a call against ~1 ms for a text query, ~300 ms
+      for one that finds nothing) and rerun on every DOM change. Worse, no test ever unmounted the
+      app it imported, so each one left a live React root behind; a test that timed out left one
+      that kept writing its session to storage after the next test's `localStorage.clear()`, and
+      every later test then failed on "Unable to find Create Match". Now: a `beforeAll` mounts and
+      unmounts the start screen once under its own budget; `createRoot` is wrapped so every test
+      unmounts its app; the hub fakes are reset for every test; and buttons are found by text.
+      Reproduced by pinning vitest to one core shared with twelve busy loops: the old file failed
+      11 of 12, the new one passes 12 of 12 (the first two at ~2.7 s and ~1.7 s).
+- [ ] **`noOutcome.test.ts`'s first case has the same shape.** Found while reproducing the above:
+      one full web run with 56 busy loops on 8 cores failed only "refuses code that adds up damage",
+      the first `eslint.lintText` call in the file, which pays for loading the ESLint config and
+      typescript-eslint cold. Not fixed here (out of scope); the same remedy applies - warm the
+      `ESLint` instance in a `beforeAll` with its own budget.
+- [x] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
       (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
+      *Reviewed on `harden/found-and-left`* (by reading; findings below were checked against the
+      code, and only the fixed one was reproduced by a test). Full Thrust firing/combat:
+  - [x] **A fighter group attacked by another fighter group spent no endurance**, and then fought
+        the rest of the turn free, because the attack named it in the turn's results and that is
+        what "already engaged" reads (`InMemoryMatchService.Combat.cs`, an `else if` that skipped
+        the target whenever the attacker was also a group). Fixed
+        (`InMemoryMatchServiceOrdnanceTests.FireWeapon_SpendsEnduranceOnBothSidesOfAFighterOnFighterAttack`,
+        fails on the old code).
+  - [ ] **Restoring an exported snapshot mid-volley drops the pending threshold checks.**
+        `RestoreFiringTurnOrder` (`InMemoryMatchService.Restore.cs`) brings back the firing ship
+        and activations, but `MatchSnapshotDto` does not carry `PendingThresholds`, so rows crossed
+        before the export are never checked. A server restart is fine (persistence round-trips
+        it). Fixing it adds a wire field; left for a decision on the snapshot shape.
+  - [ ] **The threshold roll is clamped twice, against different row counts.** With
+        `ThresholdRows = ByShipClass`, the service caps the threshold by the hull band's row count
+        (`Combat.cs`), then `FullThrustLightThresholdRules.Resolve` caps it again by
+        `ThresholdRowCount`, which it is given instead of the band. A profile whose band count
+        exceeds `ThresholdRowCount` (e.g. cruiser 4, default 3) loses systems on 2- instead of 3-.
+        `RulesProfile.Validate` does not forbid that profile. Touches how profile numbers combine,
+        so left with F17 in mind rather than changed here.
+  - [ ] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
+        `PrepareShot`): when no one holds initiative, the roll and its log lines happen, the shot is
+        then refused, and nothing calls `Touch` - so the change is neither versioned, persisted nor
+        pushed. Low impact (the next successful action carries it).
+  - [ ] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
+        snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
+        threshold loss looking needle-caused and so unrepairable. Low impact.
+  - [ ] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
+        rewrites mounts from the client, `IsDestroyed`/`IsNeedleKilled`/`AmmoUsed` included. The
+        table is evidently trusted here (`UpdateShipDamage` already lets an owner zero their own
+        hull), but it is worth a deliberate yes.
+  - Dirtside endpoints, `GroundCombatEndpoints.cs` and the services behind them (the reviewer
+    reproduced each finding against the built service; each fix has a test that fails on the old
+    code):
+  - [x] **Adding a platoon mid-game wiped the turn.** `WithUnit` rebuilds the session from the
+        roster, so `POST /units` during a turn reset it to turn 0, not started - open activation,
+        who had already gone, and the activation count Systems Down recovery is timed against all
+        gone, and saved. StarGrunt's `WithUnit` was the same. Both now refuse once the first turn
+        has begun (`DirtsideAssaultServiceTests.APlatoonAddedOnceTheGameHasBegun_...`,
+        `StarGruntGameServiceTests.AUnitAddedOnceTheGameHasBegun_...`). One StarGrunt module test
+        (`GameAssaultTests.AUnitCannotChargeItsOwnSide`) had been adding a unit mid-activation and
+        only passed because of the reset; it now builds the roster first. The web form for adding a
+        platoon is hidden once `turnNumber > 0`, the same point the server starts refusing (owner's
+        call, 2026-11-16). Pinned by `DirtsideAssault.test.tsx` "offers the add-a-platoon panel
+        before the first turn and not after", which fails on the old view. StarGrunt's add-a-squad
+        panel and its Import Force control (which also adds units) close at the same point; Export
+        stays (`StarGruntView.test.tsx` "closes adding and importing at the first turn, and keeps
+        export", which fails on the old view).
+  - [x] **An assault launched at a platoon whose card cannot stand jammed the game for good.**
+        Launch checked the attacker's card only; the stand was then refused every time, the
+        activation could not end with an assault open, and nothing cleared it. Launch now also
+        refuses when the defender's card has no die/leadership, or no living element with assault
+        chits and a kill threshold (`...AnAssaultOnAPlatoonWhoseCardCannotStand_...`,
+        `...AnAssaultOnAPlatoonWithNoStandLeftThatCouldCommit_...`).
+  - [x] **Assault chits and weapon chit counts were not checked against the pot.** A negative
+        count, or one larger than the game's pot, reached `ChitPot.Draw` at the round - after both
+        sides had committed - and was refused on every try, jamming the assault the same way. Now
+        refused when the platoon is added, by name (`...AssaultChitsThePotCannotHandOut_...`,
+        `...AWeaponChitCountThePotCannotHandOut_...`).
+  - [ ] **A third side, or "Red" beside "red", makes the game unplayable.** Side is free,
+        case-sensitive text; with other than two sides `SessionForRoster` returns an empty session,
+        `BeginTurn` still succeeds, and the first activator is then refused; there is no
+        remove-platoon route. With the roster now closed at the first turn the fix belongs at
+        `BeginTurn` (refuse unless exactly two sides) or at add time (normalise case) - a choice
+        about what "side" means, left for the owner.
+  - [ ] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
+        accepted and echoed back. Harmless downstream (treated as Armour; an unknown fire control is
+        refused by name at the shot), but wrong.
+  - [ ] The refusal for firing at an already-destroyed target says "the shot is spent either way",
+        but nothing is spent and the element may fire again elsewhere. Code or message - a rules
+        call.
+  - Checked and sound: game-token filter on every route but create (401/403/404, per game,
+    constant-time, never in a snapshot); routes absent with the flag off; every command under the
+    lock and immutable, nothing stored on refusal; persistence round-trips; error mapping (no 500
+    from bad input found); size caps; leadership and profile mapping; fire and assault stage
+    guards; the opportunity-fire window.
+  - Full Thrust checked and sound: ownership, phase and turn-order guards; firing twice (per weapon and after
+    cease fire); destroyed, needle-killed and empty mounts; needle pre-checks before any state
+    moves; damage clamping; range/arc refusals before any roll; error-status mapping; turn-change
+    clean-up; restart persistence field lists; every mutation under the lock and `Touch`ed; no
+    tokens or hashes in the snapshot; range-band and threshold-row edges.
 ## Map visuals and turn playback (`spike/pixi-map`, 2026-11-09)
 
 Data first: [docs/visuals/findings-2026-11-09.md](visuals/findings-2026-11-09.md). Every item has a

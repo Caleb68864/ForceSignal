@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import type { Root } from 'react-dom/client';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatchSnapshot, Session } from './types.ts';
 
 const get = vi.fn<(path: string, token?: string) => Promise<unknown>>();
@@ -15,8 +16,11 @@ vi.mock('./lib/api.ts', async (importActual) => ({
   post: (path: string, body?: unknown, token?: string) => post(path, body, token),
 }));
 
+const engines = { starGrunt: false, dirtside: false };
+const readFeatures = vi.fn<() => Promise<typeof engines>>(() => Promise.resolve(engines));
+
 vi.mock('./lib/starGruntApi.ts', () => ({
-  readFeatures: () => Promise.resolve({ starGrunt: false, dirtside: false }),
+  readFeatures: () => readFeatures(),
 }));
 
 // The hub is a live connection to a server that is not there. The screen only needs it to build,
@@ -53,6 +57,76 @@ vi.mock('@microsoft/signalr', () => {
 
   return { HubConnectionBuilder };
 });
+
+// Every test imports `main.tsx` afresh, and the import is what mounts the app. Nothing used to take
+// that app down again: clearing the body detached its DOM but left the React root alive, still
+// holding its hub connection and still answering every promise the test had started. Each test
+// added another, and a test that timed out left one that went on writing its session to storage
+// after the next test's `localStorage.clear()` - so the next screen restored a match instead of
+// offering Create Match, and one slow test failed every test after it. The roots are caught as they
+// are made, so each test can unmount its own.
+const mountedRoots: Root[] = [];
+vi.mock('react-dom/client', async (importActual) => {
+  const actual = await importActual<typeof import('react-dom/client')>();
+  return {
+    ...actual,
+    createRoot: (...args: Parameters<typeof actual.createRoot>) => {
+      const created = actual.createRoot(...args);
+      mountedRoots.push(created);
+      return created;
+    },
+  };
+});
+
+// The buttons these tests press are found by their text, not by role. A role query computes the
+// accessible name of every element on the page, and on the match board that is thirty times the
+// cost of a text query (about 35 ms against 1 ms here) - and a `find` reruns it on every DOM change
+// until it matches. Under load that alone ran the first two tests past their five seconds. What a
+// button is called is still what is checked, and the one role that is the point of a test - the
+// alert beside the room-code field - is still asked for by role. A role query that finds nothing is
+// the worst case, since it names every element before giving up: about 300 ms each on this board.
+function getButton(name: string) {
+  return screen.getByText(name, { selector: 'button' });
+}
+
+function findButton(name: string) {
+  return screen.findByText(name, { selector: 'button' });
+}
+
+function unmountApps() {
+  act(() => {
+    for (const root of mountedRoots.splice(0)) {
+      root.unmount();
+    }
+  });
+}
+
+// The first import of `main.tsx` in a worker transforms its whole module graph, and the first
+// render and first role query warm up React and the accessibility tree code. On a busy machine that
+// was most of the first two tests' five seconds each - a cost of the file, not of anything they
+// check - so they timed out while the tests after them, which found everything warm, passed. It is
+// paid once here, under a budget of its own, by mounting the start screen and taking it down again.
+beforeAll(async () => {
+  localStorage.clear();
+  document.body.innerHTML = '<div id="app"></div>';
+  await import('./main.tsx');
+  await screen.findByText('Create Match', { selector: 'button' }, { timeout: 60_000 });
+  unmountApps();
+  vi.resetModules();
+  document.body.innerHTML = '';
+}, 120_000);
+
+// What every test starts from, whatever the test before it did: engines readable, and a hub with
+// nothing left over - a rejoin the last test held open would otherwise hold this test's link too.
+beforeEach(() => {
+  readFeatures.mockReset();
+  readFeatures.mockImplementation(() => Promise.resolve(engines));
+  hub.notify = undefined;
+  hub.reconnected = undefined;
+  hub.invoke = undefined;
+});
+
+afterEach(unmountApps);
 
 function session(room: string): Session & { matchId: string; joinCode: string } {
   return {
@@ -122,15 +196,15 @@ describe('leaving one room and joining the next', () => {
 
     await import('./main.tsx');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     await screen.findByText('Created room ALPHA.');
 
     // Leave before that first snapshot has arrived. This is the ordinary case, not a contrived one:
     // the screen refetches the whole snapshot on every hub notification and never cancels the
     // request, so any of them can still be in the air when the player taps Leave.
     vi.stubGlobal('confirm', () => true);
-    fireEvent.click(screen.getByRole('button', { name: 'Leave Device Session' }));
-    await screen.findByRole('button', { name: 'Join Match' });
+    fireEvent.click(getButton('Leave Device Session'));
+    await findButton('Join Match');
 
     // And now it lands, on a screen that has already let go of that match. Version 9 is not a large
     // number - it is four or five actions into a game - but it is larger than the version any fresh
@@ -138,7 +212,7 @@ describe('leaving one room and joining the next', () => {
     deliverFirstSnapshot(snapshot('ALPHA', 9));
 
     fireEvent.change(screen.getByLabelText('Room code'), { target: { value: 'BRAVO' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Join Match' }));
+    fireEvent.click(getButton('Join Match'));
     await screen.findByText('Joined room BRAVO.');
 
     // Snapshot versions are per match and every room starts again at one, so a high water mark left
@@ -192,11 +266,11 @@ describe('tapping a setup control twice', () => {
 
     await import('./main.tsx');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     await screen.findByText('Created room ALPHA.');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'New Fleet' }));
-    const createFleet = await screen.findByRole('button', { name: 'Create Fleet' });
+    fireEvent.click(await findButton('New Fleet'));
+    const createFleet = await findButton('Create Fleet');
     fireEvent.click(createFleet);
     fireEvent.click(createFleet);
 
@@ -207,7 +281,7 @@ describe('tapping a setup control twice', () => {
 
     finishCreate(snapshot('ALPHA', 2));
     await waitFor(() => {
-      expect((screen.getByRole('button', { name: 'Create Fleet' }) as HTMLButtonElement).disabled).toBe(false);
+      expect((getButton('Create Fleet') as HTMLButtonElement).disabled).toBe(false);
     });
   });
 });
@@ -255,7 +329,7 @@ describe('a background refresh that fails', () => {
 
     await import('./main.tsx');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     const standingMessage = await screen.findByText('Created room ALPHA.');
 
     // Reached-the-subject: the screen really subscribed, so the push below is the real handler
@@ -282,7 +356,7 @@ describe('a background refresh that fails', () => {
     const { ApiRequestError } = await import('./lib/api.ts');
     await import('./main.tsx');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     await screen.findByText('Created room ALPHA.');
     const notify = await subscribedHandler();
 
@@ -323,7 +397,7 @@ describe('the realtime link chip', () => {
 
     await import('./main.tsx');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     await screen.findByText('Link live');
     await waitFor(() => expect(hub.reconnected).toBeDefined());
 
@@ -341,7 +415,7 @@ describe('the realtime link chip', () => {
 
     await import('./main.tsx');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     await screen.findByText('Link live');
     await waitFor(() => expect(hub.reconnected).toBeDefined());
 
@@ -383,12 +457,12 @@ describe('the next-step banner', () => {
     get.mockResolvedValue(snapshot('ALPHA', 1));
 
     await import('./main.tsx');
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     await screen.findByText('Created room ALPHA.');
 
     // Table settings live in the setup section, which opens once the match is known to be in setup.
     await waitFor(() => expect(screen.getByTestId('next-step').textContent).toContain('Fleet setup'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Set Table' }));
+    fireEvent.click(await findButton('Set Table'));
     const banner = await screen.findByTestId('next-step');
     const alert = await waitFor(() => {
       const found = banner.querySelector('[role="alert"]');
@@ -411,7 +485,7 @@ describe('the next-step banner', () => {
     get.mockResolvedValue(ordering);
 
     await import('./main.tsx');
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
 
     const banner = await screen.findByTestId('next-step');
     await waitFor(() => {
@@ -426,7 +500,7 @@ describe('the next-step banner', () => {
     get.mockResolvedValue(snapshot('ALPHA', 1));
 
     await import('./main.tsx');
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
     await screen.findByText('Created room ALPHA.');
     const notify = await subscribedHandler();
     // The setup snapshot has to have landed first, or the screen never sees a phase change at all -
@@ -451,15 +525,15 @@ describe('the next-step banner', () => {
     get.mockResolvedValue(snapshot('ALPHA', 1));
 
     await import('./main.tsx');
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Match' }));
+    fireEvent.click(await findButton('Create Match'));
 
-    const ready = await screen.findByRole('button', { name: 'Ready' });
+    const ready = await findButton('Ready');
     expect((ready as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('Needs a rules profile first.')).toBeTruthy();
     // And the commands that mean nothing yet are not on offer at all.
-    expect(screen.queryByRole('button', { name: 'Lock Fleet Orders' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Reveal Fleet Orders' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Advance Turn' })).toBeNull();
+    expect(screen.queryByText('Lock Fleet Orders', { selector: 'button' })).toBeNull();
+    expect(screen.queryByText('Reveal Fleet Orders', { selector: 'button' })).toBeNull();
+    expect(screen.queryByText('Advance Turn', { selector: 'button' })).toBeNull();
   });
 });
 
@@ -492,10 +566,77 @@ describe('joining by invite link', () => {
     await import('./main.tsx');
 
     fireEvent.change(await screen.findByLabelText('Room code'), { target: { value: 'PIVOT-VIOLET' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Join Match' }));
+    fireEvent.click(getButton('Join Match'));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('There is no room PIVOT-VIOLET');
     expect(alert.textContent).toContain('four words');
+  });
+});
+
+describe('a server that will not say which engines it has', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    vi.resetModules();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // A server that was down at page load used to read as one with StarGrunt and Dirtside switched
+  // off, silently and for the life of the tab - a configuration the server does not have.
+  it('says the engines are hidden because it could not ask, and can ask again', async () => {
+    readFeatures.mockRejectedValueOnce(new Error('The ForceSignal server did not answer within 15 seconds.'));
+    readFeatures.mockResolvedValue({ starGrunt: false, dirtside: true });
+
+    await import('./main.tsx');
+
+    const note = await screen.findByText(/did not say which other games it offers/);
+    expect(note.textContent).toContain('StarGrunt and Dirtside are hidden');
+    expect(screen.queryByText('Dirtside II', { selector: 'button' })).toBeNull();
+
+    fireEvent.click(getButton('Check Again'));
+
+    await findButton('Dirtside II');
+    expect(screen.queryByText(/did not say which other games it offers/)).toBeNull();
+  });
+
+  it('asks again by itself once the realtime link is up', async () => {
+    readFeatures.mockRejectedValueOnce(new Error('Failed to fetch'));
+    readFeatures.mockResolvedValue({ starGrunt: true, dirtside: false });
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    await screen.findByText(/did not say which other games it offers/);
+
+    // The link coming up is the first sign the server is back, and nobody has pressed anything.
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Link live');
+
+    await findButton('StarGrunt II');
+    expect(readFeatures).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/did not say which other games it offers/)).toBeNull();
+  });
+
+  // The control: a read that worked is not repeated on every reconnect.
+  it('does not ask again once it has an answer', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Link live');
+
+    expect(readFeatures).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/did not say which other games it offers/)).toBeNull();
   });
 });

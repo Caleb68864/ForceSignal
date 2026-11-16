@@ -89,6 +89,12 @@ function App() {
   // Read back from storage so a refresh mid-game lands on the same engine.
   const [gameMode, setGameMode] = useState<GameMode>(() => readStored(gameModeKey, normalizeGameMode) ?? 'fullthrust');
   const [features, setFeatures] = useState<FeatureFlags>({ starGrunt: false, dirtside: false });
+  // Whether the last read of the server's optional engines failed. A failure used to be folded into
+  // "StarGrunt and Dirtside are off" without a word, which reported a configuration the server does
+  // not have - a server that was merely down at page load hid both engines for the life of the tab.
+  // The ref is what the realtime link reads, since its callbacks close over the first render.
+  const [featuresUnread, setFeaturesUnread] = useState(false);
+  const featuresUnreadRef = useRef(false);
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   // What the app last told this player, and whether it was a refusal. Shown in the sticky
   // next-step banner so it lands where the player is looking, not at the top of a long page.
@@ -191,11 +197,20 @@ function App() {
     setSnapshotState(normalizeMatchSnapshot(next));
   }
 
-  useEffect(() => {
-    // A server with the engine off has no StarGrunt routes at all, so this is the only way to know
-    // whether to offer it. A failure means no optional engines, which is the safe answer.
+  /**
+   * Asks the server which optional engines it has on. A server with the engine off has no StarGrunt
+   * routes at all, so this is the only way to know whether to offer it.
+   *
+   * A failure still means no optional engines, which is the safe answer, but it is said as what it
+   * is - the server did not answer - and the read is tried again: by hand from the note, and on its
+   * own once the realtime link comes up, which is the first sign the server is back. Uses only
+   * setters and a ref, so a callback that closed over an old render can still call it.
+   */
+  function loadFeatures() {
     readFeatures()
       .then((flags) => {
+        featuresUnreadRef.current = false;
+        setFeaturesUnread(false);
         setFeatures(flags);
         // A stored ground mode whose engine this server has switched off would render a screen
         // with no way back, because the toggle that leaves it is only offered with the flag.
@@ -204,7 +219,24 @@ function App() {
             ? 'fullthrust'
             : current);
       })
-      .catch(() => setFeatures({ starGrunt: false, dirtside: false }));
+      .catch((error: unknown) => {
+        console.warn('[ForceSignal] could not read the server\'s optional engines', error);
+        featuresUnreadRef.current = true;
+        setFeaturesUnread(true);
+        setFeatures({ starGrunt: false, dirtside: false });
+      });
+  }
+
+  /** Reads the engines again if the last read failed; a read that worked is not repeated. */
+  function rereadFeaturesIfUnread() {
+    if (featuresUnreadRef.current) {
+      loadFeatures();
+    }
+  }
+
+  useEffect(() => {
+    // Once, at mount; later reads are the retries above.
+    loadFeatures();
   }, []);
 
   useEffect(() => {
@@ -360,6 +392,7 @@ function App() {
         .then(() => {
           console.info('[ForceSignal] realtime link rejoined', connectionId);
           setConnectionState('live');
+          rereadFeaturesIfUnread();
         })
         .catch((error: unknown) => {
           console.warn('[ForceSignal] could not rejoin the live feed', connectionId, error);
@@ -380,6 +413,7 @@ function App() {
       .then(() => {
         console.info('[ForceSignal] realtime link live', connection.connectionId);
         setConnectionState('live');
+        rereadFeaturesIfUnread();
       })
       .catch((error) => {
         console.warn('[ForceSignal] realtime link failed to start', error);
@@ -1404,6 +1438,13 @@ function App() {
           {publicMode ? (
             // The side panel that owns the toggle is hidden in public mode, so the exit lives here.
             <button className="ghost" type="button" onClick={() => setPublicMode(false)}>Exit Public Display</button>
+          ) : null}
+          {featuresUnread && !publicMode ? (
+            <span className="features-note" role="status">
+              The server did not say which other games it offers, so StarGrunt and Dirtside are hidden for now.
+              {' '}
+              <button className="ghost" type="button" onClick={loadFeatures}>Check Again</button>
+            </span>
           ) : null}
           {features.starGrunt && !publicMode ? (
             <button

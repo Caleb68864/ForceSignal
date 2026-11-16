@@ -427,6 +427,8 @@ export function StarGruntView() {
   const game = handle;
   const activating = snapshot.units.find((unit) => unit.id === snapshot.activatingUnitId);
   const canPlay = snapshot.units.length >= 2 && snapshot.sides.length === 2;
+  // The server refuses new units once the first turn has begun (`StarGruntGame.WithUnit`).
+  const rosterOpen = snapshot.turnNumber === 0;
   const targets = snapshot.units.filter((unit) => unit.id !== activating?.id && unit.figuresAlive > 0);
 
   return (
@@ -845,38 +847,42 @@ export function StarGruntView() {
         </div>
       ) : null}
 
-      <AddUnitPanel
-        form={unitForm}
-        busy={busy}
-        profile={snapshot.profile}
-        onChange={(patch) => setUnitForm((current) => ({ ...current, ...patch }))}
-        onAdd={() => run(
-          () => api.addUnit(game, {
-            id: newId(),
-            name: unitForm.name,
-            side: unitForm.side,
-            level: unitForm.level,
-            qualityDie: unitForm.qualityDie,
-            leadershipValue: unitForm.leadershipValue,
-            // Exactly as many as were entered. `Math.max(1, ...)` put a figure in a squad nobody had
-            // counted, and through the armour select that figure came with a die as well.
-            figures: Array.from({ length: unitForm.figures }, () => ({ armourDie: unitForm.armourDie })),
-            weapons: [{
-              name: unitForm.weaponName,
-              impactDie: unitForm.impactDie,
-              isSupport: false,
-              isCloseRange: false,
-              // The panel above builds a weapon that is not a support weapon, so no die is added to
-              // anybody's volley. It carried a 6 regardless - a die rating off a record card
-              // nobody had opened.
-              supportFirepowerDie: 0,
-              neverJoinsSquadFire: false,
-            }],
-            fatigue: unitForm.fatigue,
-          }),
-          `${unitForm.name} joined ${unitForm.side}.`,
-        )}
-      />
+      {/* The roster closes at the first turn: the server rebuilds the session from it, so a unit
+          added later would restart the game from nothing, and it refuses. */}
+      {rosterOpen ? (
+        <AddUnitPanel
+          form={unitForm}
+          busy={busy}
+          profile={snapshot.profile}
+          onChange={(patch) => setUnitForm((current) => ({ ...current, ...patch }))}
+          onAdd={() => run(
+            () => api.addUnit(game, {
+              id: newId(),
+              name: unitForm.name,
+              side: unitForm.side,
+              level: unitForm.level,
+              qualityDie: unitForm.qualityDie,
+              leadershipValue: unitForm.leadershipValue,
+              // Exactly as many as were entered. `Math.max(1, ...)` put a figure in a squad nobody had
+              // counted, and through the armour select that figure came with a die as well.
+              figures: Array.from({ length: unitForm.figures }, () => ({ armourDie: unitForm.armourDie })),
+              weapons: [{
+                name: unitForm.weaponName,
+                impactDie: unitForm.impactDie,
+                isSupport: false,
+                isCloseRange: false,
+                // The panel above builds a weapon that is not a support weapon, so no die is added to
+                // anybody's volley. It carried a 6 regardless - a die rating off a record card
+                // nobody had opened.
+                supportFirepowerDie: 0,
+                neverJoinsSquadFire: false,
+              }],
+              fatigue: unitForm.fatigue,
+            }),
+            `${unitForm.name} joined ${unitForm.side}.`,
+          )}
+        />
+      ) : null}
 
       <div className="card-module" aria-label="Force transfer">
         <span className="label module-title">Force transfer</span>
@@ -884,10 +890,12 @@ export function StarGruntView() {
           A force is a lot of dice to type. Export writes the roster at full strength with a format
           version, so the file still opens later.
         </p>
-        <label>
-          Side
-          <input value={importSide} onChange={(event) => setImportSide(event.target.value)} />
-        </label>
+        {rosterOpen ? (
+          <label>
+            Side
+            <input value={importSide} onChange={(event) => setImportSide(event.target.value)} />
+          </label>
+        ) : null}
         <div className="quick-actions">
           {snapshot.sides.map((side) => (
             <button
@@ -919,7 +927,10 @@ export function StarGruntView() {
               Export {side}
             </button>
           ))}
-          <button className="ghost" type="button" onClick={() => fileInput.current?.click()}>Import Force</button>
+          {/* Importing adds units, so it closes with the roster. Export stays open all game. */}
+          {rosterOpen ? (
+            <button className="ghost" type="button" onClick={() => fileInput.current?.click()}>Import Force</button>
+          ) : null}
         </div>
         <input
           ref={fileInput}

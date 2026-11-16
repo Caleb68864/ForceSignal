@@ -215,6 +215,47 @@ public sealed partial class MatchPersistenceTests
     }
 
     [Fact]
+    public void ASaveDoesNotWriteDownWhoIsConnected()
+    {
+        // A connection cannot outlive the process that held it, so a restart starts every seat at
+        // zero connections and the field was never read back. It was still written, as whatever it
+        // happened to be at the moment of the save.
+        var store = new InMemoryTestStore();
+        var service = new InMemoryMatchService(null, store, loadPersisted: true);
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Live Seat", Rules: TestRules.Invented));
+        service.SetParticipantConnection(owner.MatchId, owner.ParticipantToken, isConnected: true);
+        Assert.True(service.GetSnapshot(owner.MatchId).Participants.Single().IsConnected);
+
+        var row = store.LoadAll().Single().State;
+
+        Assert.Contains("\"displayName\":\"Blue\"", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("isConnected", row, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ARowWrittenWhileConnectionStateWasStillSavedStillLoads()
+    {
+        // Rows written before the field was dropped carry it, and must come back as they always
+        // did: whole, with nobody connected until their device reconnects.
+        var store = new InMemoryTestStore();
+        var before = new InMemoryMatchService(null, store, loadPersisted: true);
+        var owner = before.CreateMatch(new CreateMatchRequest("Blue", "Old Row", Rules: TestRules.Invented));
+        var stored = store.LoadAll().Single();
+        var oldRow = stored.State.Replace(
+            "\"ordersComplete\":", "\"isConnected\":true,\"ordersComplete\":", StringComparison.Ordinal);
+        Assert.Contains("\"isConnected\":true", oldRow, StringComparison.Ordinal);
+        store.Save(stored.MatchId, oldRow);
+
+        var after = new InMemoryMatchService(null, store, loadPersisted: true);
+
+        Assert.Empty(after.SkippedSaves);
+        var snapshot = after.GetSnapshot(owner.MatchId);
+        Assert.Equal("Old Row", snapshot.Name);
+        Assert.False(snapshot.Participants.Single().IsConnected);
+        Assert.True(after.IsMatchParticipant(owner.MatchId, owner.ParticipantToken));
+    }
+
+    [Fact]
     public void WithNoStoreNothingIsWrittenAtAll()
     {
         // The default has to stay the old behaviour, so a test or a throwaway session does not

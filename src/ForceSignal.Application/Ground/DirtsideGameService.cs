@@ -272,7 +272,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
         {
             var held = Find(gameId);
             GroundGameGuards.RequireRoom(held.Game.Units.Count, GroundGameGuards.MaxUnitsPerGame, "platoons");
-            var platoon = ToDefinition(request, held.Profile.LeadershipValues);
+            var platoon = ToDefinition(request, held.Profile.LeadershipValues, held.Composition.Count);
             if (held.Game.HasUnit(platoon.Id))
             {
                 throw new InvalidOperationException($"There is already a platoon called '{platoon.Id}' in this game.");
@@ -733,7 +733,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
     }
 
     /// <summary>Reads a platoon off the wire and onto the table.</summary>
-    private static PlatoonDefinition ToDefinition(AddDirtsidePlatoonRequest request, LeadershipRange leadershipValues)
+    private static PlatoonDefinition ToDefinition(AddDirtsidePlatoonRequest request, LeadershipRange leadershipValues, int potSize)
     {
         GroundGameGuards.RequireAtMost(request.Elements?.Count ?? 0, GroundGameGuards.MaxMembersPerUnit, "elements");
 
@@ -746,7 +746,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 ? kind
                 : throw new InvalidOperationException($"'{request.Kind}' is not a unit kind."),
             request.IsCybertank,
-            [.. (request.Elements ?? []).Select(ToElement)],
+            [.. (request.Elements ?? []).Select(element => ToElement(element, potSize))],
             Die(request.QualityDie),
             Leadership(request.LeadershipValue, leadershipValues, name));
     }
@@ -773,6 +773,16 @@ public sealed class DirtsideGameService : IDirtsideGameService
             ? throw new InvalidOperationException(refusal)
             : value;
 
+    /// <summary>Refuses a number of chits that this game's pot could not hand out in one draw.</summary>
+    private static void RequireDrawFits(int count, int potSize, string what)
+    {
+        if (count < 0 || count > potSize)
+        {
+            throw new InvalidOperationException(
+                $"{what} must be from 0 to {potSize}, the number of chits in this game's pot; it was {count}.");
+        }
+    }
+
     /// <summary>Reads the die off a command marker, or nothing when the card does not say.</summary>
     private static QualityDie? Die(string? name) =>
         string.IsNullOrWhiteSpace(name) ? null
@@ -780,9 +790,18 @@ public sealed class DirtsideGameService : IDirtsideGameService
         : throw new InvalidOperationException(
             $"'{name}' is not a quality die ({string.Join(", ", DirtsideWire.QualityDice)}).");
 
-    private static ElementDefinition ToElement(DirtsideElementDto element)
+    private static ElementDefinition ToElement(DirtsideElementDto element, int potSize)
     {
         ArgumentNullException.ThrowIfNull(element);
+
+        // A draw has to fit the bag. These went through unchecked, and the pot only objects at the
+        // draw - which for an assault is after both sides have committed, so the round was refused
+        // on every try, the activation could not end with an assault open, and the game was stuck
+        // for good. Said here, by name, while the card is still being filled in.
+        if (element.AssaultChits is { } assaultChits)
+        {
+            RequireDrawFits(assaultChits, potSize, $"{element.Name}'s assault chits");
+        }
         GroundGameGuards.RequireAtMost(element.Weapons?.Count ?? 0, GroundGameGuards.MaxWeaponsPerUnit, "weapons");
 
         // The add-platoon form opens at zero for "nobody has entered it". Past here the shot's
@@ -804,15 +823,16 @@ public sealed class DirtsideGameService : IDirtsideGameService
             element.Signature,
             element.ArmourValue,
             element.Movement,
-            [.. (element.Weapons ?? []).Select(ToWeapon)],
+            [.. (element.Weapons ?? []).Select(weapon => ToWeapon(weapon, potSize))],
             element.HasBackupSystems,
             element.AssaultChits,
             element.KillThreshold);
     }
 
-    private static WeaponDefinition ToWeapon(DirtsideWeaponDto weapon)
+    private static WeaponDefinition ToWeapon(DirtsideWeaponDto weapon, int potSize)
     {
         ArgumentNullException.ThrowIfNull(weapon);
+        RequireDrawFits(weapon.ChitCount, potSize, $"{weapon.Name}'s chit count");
 
         return new WeaponDefinition(
             Required(weapon.Name, "A weapon needs a name."),

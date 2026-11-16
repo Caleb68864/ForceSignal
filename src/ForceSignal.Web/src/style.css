@@ -2564,6 +2564,12 @@ small,
   color: var(--red);
 }
 
+/* Said when the server would not say which optional engines it has, beside where their toggles go. */
+.features-note {
+  color: var(--amber);
+  font-size: 0.72rem;
+}
+
 .seat-picker {
   display: grid;
   gap: 10px;

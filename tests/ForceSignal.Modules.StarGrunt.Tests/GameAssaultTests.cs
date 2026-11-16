@@ -77,7 +77,14 @@ public sealed class GameAssaultTests
     [Fact]
     public void AUnitCannotChargeItsOwnSide()
     {
-        var game = Activated().WithUnit(GameFixtures.Squad(new UnitId("charlie"), "Charlie Squad", GameFixtures.Blue));
+        // Charlie joins before the turn: the roster closes once one has begun. (This used to add
+        // Charlie mid-activation, which silently reset the turn under the test.) Blue now has more
+        // units, so Red has the choice, and hands Blue the first activation.
+        var game = GameFixtures.TwoSquadGame()
+            .WithUnit(GameFixtures.Squad(new UnitId("charlie"), "Charlie Squad", GameFixtures.Blue))
+            .BeginTurn().Value!
+            .ChooseFirstActivator(GameFixtures.Red, takeIt: false).Value!
+            .BeginActivation(GameFixtures.Blue, GameFixtures.Alpha).Value!;
 
         var refused = game.DeclareCloseAssault(GameFixtures.Alpha, new UnitId("charlie"), threatLevel: 0, new ScriptedDice(6));
 

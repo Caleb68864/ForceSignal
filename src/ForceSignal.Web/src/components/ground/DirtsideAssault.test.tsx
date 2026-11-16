@@ -341,9 +341,21 @@ describe('Dirtside add-platoon card numbers', () => {
 
   afterEach(cleanup);
 
+  // The server refuses a platoon once the first turn has begun (it would restart the game), so the
+  // panel goes away rather than offering a button that can only be refused.
+  it('offers the add-a-platoon panel before the first turn and not after', async () => {
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
+    expect(screen.getByRole('button', { name: 'Add Platoon' })).toBeTruthy();
+    cleanup();
+
+    await open(snapshotWith({ turnNumber: 1, activatingUnitId: null, units: [] }));
+    expect(screen.queryByRole('button', { name: 'Add Platoon' })).toBeNull();
+    expect(screen.queryByLabelText('Add platoon')).toBeNull();
+  });
+
   it('leaves the assault numbers out when the card does not give them', async () => {
     mocks.addPlatoon.mockResolvedValue(snapshotWith());
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Platoon' }));
 
@@ -358,7 +370,7 @@ describe('Dirtside add-platoon card numbers', () => {
 
   it('sends the card numbers when they are given', async () => {
     mocks.addPlatoon.mockResolvedValue(snapshotWith());
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     fireEvent.change(screen.getByLabelText('Quality die'), { target: { value: 'D10' } });
     // 4 is a Leadership Value at this table. The box this replaced would have taken 99 as readily.
@@ -376,7 +388,7 @@ describe('Dirtside add-platoon card numbers', () => {
   });
 
   it('offers the Leadership Values this game entered, and no others', async () => {
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     const leadership = screen.getByLabelText('Leadership value') as HTMLSelectElement;
 
@@ -386,7 +398,7 @@ describe('Dirtside add-platoon card numbers', () => {
   });
 
   it('offers no Leadership Value at all when the game was never told what they are', async () => {
-    await open(snapshotWith({ activatingUnitId: null, units: [], profile: null }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [], profile: null }));
 
     const leadership = screen.getByLabelText('Leadership value') as HTMLSelectElement;
 
@@ -563,7 +575,7 @@ describe('Dirtside validity-card editor', () => {
 
   it('sends a row of its own for each band', async () => {
     mocks.addPlatoon.mockResolvedValue(snapshotWith());
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     fireEvent.change(screen.getByLabelText('Close colours'), { target: { value: 'Red' } });
     fireEvent.change(screen.getByLabelText('Close value scale'), { target: { value: 'Doubled' } });
@@ -580,7 +592,7 @@ describe('Dirtside validity-card editor', () => {
 
   it('carries a second weapon on the same element', async () => {
     mocks.addPlatoon.mockResolvedValue(snapshotWith());
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     fireEvent.change(screen.getByLabelText('Weapon'), { target: { value: 'Main Gun' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add weapon' }));
@@ -596,7 +608,7 @@ describe('Dirtside validity-card editor', () => {
 
   it('puts elements that differ in one platoon', async () => {
     mocks.addPlatoon.mockResolvedValue(snapshotWith());
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     fireEvent.change(screen.getByLabelText('Copies'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('Element name'), { target: { value: 'Tank' } });
@@ -616,7 +628,7 @@ describe('Dirtside validity-card editor', () => {
 
   it('takes a card or a weapon back off, and will not take off the last card', async () => {
     mocks.addPlatoon.mockResolvedValue(snapshotWith());
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     expect(screen.queryByRole('button', { name: 'Remove element card 1' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Add another kind of element' }));
@@ -633,7 +645,7 @@ describe('Dirtside validity-card editor', () => {
 
   it('opens on no number off anybody\'s card', async () => {
     mocks.addPlatoon.mockResolvedValue(snapshotWith());
-    await open(snapshotWith({ activatingUnitId: null, units: [] }));
+    await open(snapshotWith({ turnNumber: 0, phase: 'Setup', activatingUnitId: null, units: [] }));
 
     const [element] = (await added()).elements;
     expect(element.signature).toBe(0);

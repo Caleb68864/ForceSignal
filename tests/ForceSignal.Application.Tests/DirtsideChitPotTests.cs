@@ -180,7 +180,7 @@ public sealed class DirtsideChitPotTests
             formatVersion = 1,
             token = new string('a', 64),
             lastActivity = DateTimeOffset.UtcNow,
-            game = JsonDocument.Parse(SavedGame()).RootElement,
+            game = JsonElement.Parse(SavedGame()),
         });
         store.Save(gameId, body);
 
@@ -332,6 +332,6 @@ public sealed class DirtsideChitPotTests
         var store = new MemoryStore();
         var id = DirtsideGameServiceTests.Table(new DirtsideGameService(null, store));
         var row = store.LoadAll().Single(saved => saved.MatchId == id).State;
-        return JsonDocument.Parse(row).RootElement.GetProperty("game").GetRawText();
+        return JsonElement.Parse(row).GetProperty("game").GetRawText();
     }
 }

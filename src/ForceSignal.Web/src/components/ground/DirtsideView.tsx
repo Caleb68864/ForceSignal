@@ -904,84 +904,88 @@ export function DirtsideView() {
 
       <DirtsideNervePanel game={game} snapshot={snapshot} busy={busy} run={run} />
 
-      <div className="card-module" aria-label="Add platoon">
-        <span className="label module-title">Add a platoon</span>
-        <p className="constraint-line">
-          Every number here comes off your own record card. Signature runs 1 for the largest down to
-          5 for the smallest. A weapon on a fixed mount can be fired before moving, never after.
-        </p>
-        <div className="table-fields">
-          <label>Name<input value={platoonForm.name} onChange={(e) => setPlatoonForm({ ...platoonForm, name: e.target.value })} /></label>
-          <label>Side<input value={platoonForm.side} onChange={(e) => setPlatoonForm({ ...platoonForm, side: e.target.value })} /></label>
-          <label>
-            Kind
-            <select value={platoonForm.kind} onChange={(e) => setPlatoonForm({ ...platoonForm, kind: e.target.value })}>
-              <option value="Armour">Armour</option>
-              <option value="DismountedInfantry">Dismounted infantry</option>
-            </select>
-          </label>
-          <label title="A cybertank carries no confidence marker at all, so nothing about morale applies to it.">
-            Cybertank
-            <input type="checkbox" checked={platoonForm.isCybertank} onChange={(e) => setPlatoonForm({ ...platoonForm, isCybertank: e.target.checked })} />
-          </label>
+      {/* The roster closes at the first turn: the server rebuilds the session from it, so a platoon
+          added later would restart the game from nothing, and it refuses. */}
+      {snapshot.turnNumber === 0 ? (
+        <div className="card-module" aria-label="Add platoon">
+          <span className="label module-title">Add a platoon</span>
+          <p className="constraint-line">
+            Every number here comes off your own record card. Signature runs 1 for the largest down to
+            5 for the smallest. A weapon on a fixed mount can be fired before moving, never after.
+          </p>
+          <div className="table-fields">
+            <label>Name<input value={platoonForm.name} onChange={(e) => setPlatoonForm({ ...platoonForm, name: e.target.value })} /></label>
+            <label>Side<input value={platoonForm.side} onChange={(e) => setPlatoonForm({ ...platoonForm, side: e.target.value })} /></label>
+            <label>
+              Kind
+              <select value={platoonForm.kind} onChange={(e) => setPlatoonForm({ ...platoonForm, kind: e.target.value })}>
+                <option value="Armour">Armour</option>
+                <option value="DismountedInfantry">Dismounted infantry</option>
+              </select>
+            </label>
+            <label title="A cybertank carries no confidence marker at all, so nothing about morale applies to it.">
+              Cybertank
+              <input type="checkbox" checked={platoonForm.isCybertank} onChange={(e) => setPlatoonForm({ ...platoonForm, isCybertank: e.target.checked })} />
+            </label>
+          </div>
+          <span className="label">The element cards, off your own sheets</span>
+          <p className="constraint-line">
+            One card for each kind of element in the platoon. Every number opens at zero, which means
+            nobody has entered it; this app carries no stat blocks.
+          </p>
+          <DirtsideElementCards cards={cards} onChange={setCards} />
+          <span className="label">Close assault, off the card</span>
+          <p className="constraint-line">
+            Leave any of these blank when the card does not give it. The platoon can still move and
+            shoot; it just cannot launch or receive a close assault until they are filled in.
+          </p>
+          <div className="table-fields">
+            <label title="The die on the command marker.">
+              Quality die
+              <select value={platoonForm.qualityDie} onChange={(e) => setPlatoonForm({ ...platoonForm, qualityDie: e.target.value })}>
+                <option value="">Not given</option>
+                {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
+              </select>
+            </label>
+            {/*
+              The numbers this game's own profile says are Leadership Values. This was a number box
+              clamped to 0-9, which was a bound the app had put on a card without anybody entering it;
+              it also let 99 and -4 through to a server that stored them, because the clamp was HTML
+              and the server checked nothing.
+            */}
+            <label title={leadershipValuesSummary(snapshot.profile)}>
+              Leadership value
+              <select
+                value={platoonForm.leadershipValue}
+                disabled={leadershipValues.length === 0}
+                onChange={(e) => setPlatoonForm({ ...platoonForm, leadershipValue: e.target.value })}
+              >
+                <option value="">Not given</option>
+                {leadershipValues.map((value) => <option key={value} value={String(value)}>{value}</option>)}
+              </select>
+            </label>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              const leadershipValue = optionalWholeNumber(platoonForm.leadershipValue, 0, 9);
+              void run(() => api.addPlatoon(game, {
+                id: newId(),
+                name: platoonForm.name,
+                side: platoonForm.side,
+                kind: platoonForm.kind,
+                isCybertank: platoonForm.isCybertank,
+                ...(platoonForm.qualityDie ? { qualityDie: platoonForm.qualityDie } : {}),
+                ...(leadershipValue === undefined ? {} : { leadershipValue }),
+                elements: toElementInputs(cards, newId),
+              }), `${platoonForm.name} joined ${platoonForm.side}.`);
+            }}
+          >
+            Add Platoon
+          </button>
         </div>
-        <span className="label">The element cards, off your own sheets</span>
-        <p className="constraint-line">
-          One card for each kind of element in the platoon. Every number opens at zero, which means
-          nobody has entered it; this app carries no stat blocks.
-        </p>
-        <DirtsideElementCards cards={cards} onChange={setCards} />
-        <span className="label">Close assault, off the card</span>
-        <p className="constraint-line">
-          Leave any of these blank when the card does not give it. The platoon can still move and
-          shoot; it just cannot launch or receive a close assault until they are filled in.
-        </p>
-        <div className="table-fields">
-          <label title="The die on the command marker.">
-            Quality die
-            <select value={platoonForm.qualityDie} onChange={(e) => setPlatoonForm({ ...platoonForm, qualityDie: e.target.value })}>
-              <option value="">Not given</option>
-              {qualityDice.map((die) => <option key={die} value={die}>{die}</option>)}
-            </select>
-          </label>
-          {/*
-            The numbers this game's own profile says are Leadership Values. This was a number box
-            clamped to 0-9, which was a bound the app had put on a card without anybody entering it;
-            it also let 99 and -4 through to a server that stored them, because the clamp was HTML
-            and the server checked nothing.
-          */}
-          <label title={leadershipValuesSummary(snapshot.profile)}>
-            Leadership value
-            <select
-              value={platoonForm.leadershipValue}
-              disabled={leadershipValues.length === 0}
-              onChange={(e) => setPlatoonForm({ ...platoonForm, leadershipValue: e.target.value })}
-            >
-              <option value="">Not given</option>
-              {leadershipValues.map((value) => <option key={value} value={String(value)}>{value}</option>)}
-            </select>
-          </label>
-        </div>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            const leadershipValue = optionalWholeNumber(platoonForm.leadershipValue, 0, 9);
-            void run(() => api.addPlatoon(game, {
-              id: newId(),
-              name: platoonForm.name,
-              side: platoonForm.side,
-              kind: platoonForm.kind,
-              isCybertank: platoonForm.isCybertank,
-              ...(platoonForm.qualityDie ? { qualityDie: platoonForm.qualityDie } : {}),
-              ...(leadershipValue === undefined ? {} : { leadershipValue }),
-              elements: toElementInputs(cards, newId),
-            }), `${platoonForm.name} joined ${platoonForm.side}.`);
-          }}
-        >
-          Add Platoon
-        </button>
-      </div>
+      ) : null}
 
       <div className="card-module" aria-label="Battle log">
         <span className="label module-title">Battle log</span>
