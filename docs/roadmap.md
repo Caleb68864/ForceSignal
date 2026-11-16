@@ -179,9 +179,15 @@ out of scope (indirect fire was in progress on another branch).
         saved even when the shot is then refused. Test:
         `InMemoryMatchServiceInitiativeTests.ARefusedShotThatRolledTheDieOff_StillSavesTheRoll`
         (restored seats unclaimed, so the first shot rolls; fails on the old code, version
-        unchanged). *Still not pushed on a refusal:* the fire endpoint only notifies on success, so
-        the other device learns of the new version at the next push or refetch. Pushing from the
-        error path would need the endpoint to know the version moved; not done.
+        unchanged). *Pushed on a refusal too, on `fix/stargrunt-sides-and-push`:* the fire endpoint
+        used to notify only on success, so the other device learnt of the new version late. It now
+        reads the version before the shot and, when the shot is refused but the version moved,
+        pushes that version (reason `FiringInitiativeRolled`) before the refusal goes back; a
+        refusal that changed nothing still pushes nothing. Tests through the real host and a real
+        SignalR client in `FireRefusalPushTests`:
+        `ARefusedShotThatRolledTheDieOff_IsPushedToTheOtherDevice` (fails on the old code: the 400
+        and the version bump arrive, the push never does) and
+        `ARefusedShotThatChangedNothing_PushesNothing` (a guard; passes either way).
   - [x] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
         snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
         threshold loss looking needle-caused and so unrepairable. Low impact.

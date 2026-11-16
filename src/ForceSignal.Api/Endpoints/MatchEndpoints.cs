@@ -541,7 +541,22 @@ public static class MatchEndpoints
             IMatchService matches,
             IHubContext<MatchHub> hub) =>
         {
-            var snapshot = matches.FireWeapon(matchId, request);
+            // A refused shot can still change the match: when nobody holds the firing initiative the
+            // shot rolls the die-off first, and the roll stands and is saved as a change of its own.
+            // Pushed only on success, the other device learnt who fires first late, at the next push
+            // or refetch. So a refusal is pushed too, when - and only when - the version moved.
+            var versionBefore = matches.GetSnapshot(matchId).Version;
+            MatchSnapshotDto snapshot;
+            try
+            {
+                snapshot = matches.FireWeapon(matchId, request);
+            }
+            catch (Exception) when (matches.GetSnapshot(matchId) is { } current && current.Version != versionBefore)
+            {
+                await NotifySnapshotChanged(hub, current, "FiringInitiativeRolled");
+                throw;
+            }
+
             await NotifySnapshotChanged(hub, snapshot, "WeaponFired");
             return Results.Ok(snapshot);
         })
