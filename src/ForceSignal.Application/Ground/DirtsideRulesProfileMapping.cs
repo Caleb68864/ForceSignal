@@ -105,7 +105,7 @@ internal static class DirtsideRulesProfileMapping
     /// <summary>The die a named key carries, or null when the table has no such row.</summary>
     private static QualityDie? Lookup<TKey>(ImmutableDictionary<TKey, QualityDie> table, string name)
         where TKey : struct, Enum =>
-        Enum.TryParse<TKey>(name, ignoreCase: true, out var key) && table.TryGetValue(key, out var die)
+        EnumNames.ByName<TKey>(name) is { } key && table.TryGetValue(key, out var die)
             ? die
             : null;
 
@@ -148,15 +148,13 @@ internal static class DirtsideRulesProfileMapping
     }
 
     private static FireControlLevel FireControl(string? name) =>
-        Enum.TryParse<FireControlLevel>(name, ignoreCase: true, out var level) && Enum.IsDefined(level)
+        EnumNames.ByName<FireControlLevel>(name) is { } level
             ? level
             : throw new InvalidOperationException(
                 $"'{name}' is not a fire control level ({string.Join(", ", DirtsideWire.FireControls)}).");
 
     private static DefensivePosture Posture(string? name) =>
-        Enum.TryParse<DefensivePosture>(name, ignoreCase: true, out var posture)
-        && Enum.IsDefined(posture)
-        && posture != DefensivePosture.None
+        EnumNames.ByName<DefensivePosture>(name) is { } posture && posture != DefensivePosture.None
             ? posture
             : throw new InvalidOperationException(
                 $"'{name}' is not a posture a die table has a row for ({string.Join(", ", DirtsideWire.Postures)}).");
@@ -170,7 +168,7 @@ internal static class DirtsideRulesProfileMapping
 
     private static QualityDie? Die(string? name) =>
         string.IsNullOrWhiteSpace(name) ? null
-        : Enum.TryParse<QualityDie>(name, ignoreCase: true, out var die) && Enum.IsDefined(die) ? die
+        : EnumNames.ByName<QualityDie>(name) is { } die ? die
         : throw new InvalidOperationException(
             $"'{name}' is not a quality die ({string.Join(", ", DirtsideWire.QualityDice)}).");
 
