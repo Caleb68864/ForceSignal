@@ -29,9 +29,18 @@ public sealed partial class InMemoryMatchService
                 ?? throw new NotFoundException("Weapon mount was not found.");
 
             // A restored match arrives mid-phase with no turn order, so settle one before checking it.
+            // The roll stands whether or not this shot is then refused - re-rolling it on the next
+            // try would let a player fish for the initiative with shots they know will fail - so
+            // it is a change of its own, versioned and saved before the shot is looked at. It was
+            // not, and a refused shot left the die-off in memory only: no new version for the other
+            // device to fetch, and nothing a restart would bring back.
             if (match.FiringParticipantId is null)
             {
                 RollFiringInitiative(match);
+                if (match.FiringParticipantId is not null)
+                {
+                    match.Touch("FiringInitiativeRolled");
+                }
             }
 
             var shot = PrepareShot(match, participant, attacker, target, weapon, request.Range, request.Arc);

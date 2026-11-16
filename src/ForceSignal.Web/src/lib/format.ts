@@ -69,6 +69,7 @@ const activitySentences: Record<string, string> = {
   OrderRevealFailed: 'A revealed order did not match what was locked.',
   TurnAdvanced: 'The match moved to the next phase.',
   WeaponFired: 'A weapon fired.',
+  FiringInitiativeRolled: 'The firing initiative was rolled.',
   FighterStrikeStopped: 'A fighter strike was stopped by point defence.',
   FireCompleted: 'A ship finished firing.',
 };

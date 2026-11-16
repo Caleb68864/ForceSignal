@@ -168,6 +168,15 @@ out of scope (indirect fire was in progress on another branch).
         `PrepareShot`): when no one holds initiative, the roll and its log lines happen, the shot is
         then refused, and nothing calls `Touch` - so the change is neither versioned, persisted nor
         pushed. Low impact (the next successful action carries it).
+        *Fixed on `fix/review-findings`:* the roll stands (re-rolling it on the next try would let a
+        player fish for the initiative with shots they know will fail), so it is now `Touch`ed as a
+        change of its own (`FiringInitiativeRolled`, with a sentence on the activity line) before the shot is looked at: versioned and
+        saved even when the shot is then refused. Test:
+        `InMemoryMatchServiceInitiativeTests.ARefusedShotThatRolledTheDieOff_StillSavesTheRoll`
+        (restored seats unclaimed, so the first shot rolls; fails on the old code, version
+        unchanged). *Still not pushed on a refusal:* the fire endpoint only notifies on success, so
+        the other device learns of the new version at the next push or refetch. Pushing from the
+        error path would need the endpoint to know the version moved; not done.
   - [ ] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
         snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
         threshold loss looking needle-caused and so unrepairable. Low impact.
