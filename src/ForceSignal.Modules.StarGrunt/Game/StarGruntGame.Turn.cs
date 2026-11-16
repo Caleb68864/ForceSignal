@@ -16,8 +16,23 @@ public sealed partial record StarGruntGame
 {
     /// <summary>Opens the next turn.</summary>
     /// <returns>The game with a turn under way, or why not.</returns>
-    public GameOutcome<StarGruntGame> BeginTurn() =>
-        Apply(GroundCombatSequence.CanBeginTurn(Session), () => GroundCombatSequence.BeginTurn(Session));
+    /// <remarks>
+    /// The roster has to hold exactly two sides first. With any other number it builds no session,
+    /// and the turn used to open anyway, onto a first activation nobody could take; once a turn has
+    /// begun the roster is closed, so the game could never be put right.
+    /// </remarks>
+    public GameOutcome<StarGruntGame> BeginTurn()
+    {
+        var sides = Sides;
+        if (Session.TurnNumber == 0 && sides.Length != 2)
+        {
+            return GameOutcome.Refused<StarGruntGame>(sides.Length == 0
+                ? "There is nobody on the table yet. A game is fought between two sides: add a unit for each."
+                : $"A game is fought between two sides, and the table has {sides.Length} ({string.Join(", ", sides.Select(side => side.Value))}). Add a unit for the other side first.");
+        }
+
+        return Apply(GroundCombatSequence.CanBeginTurn(Session), () => GroundCombatSequence.BeginTurn(Session));
+    }
 
     /// <summary>Settles who takes the first activation this turn.</summary>
     /// <param name="chooser">The side making the choice.</param>

@@ -228,6 +228,54 @@ public sealed class StarGruntGameServiceTests
         Assert.Equal(1, service.GetSnapshot(game).TurnNumber);
     }
 
+    [Fact]
+    public void AThirdSideIsRefusedWhenTheUnitIsAdded()
+    {
+        // The game is fought between two sides. A third one used to go on the roster, which then
+        // built no session at all: the turn began, nobody could take the first activation, and
+        // with the roster closed and no way to take a unit off, the game was over before it began.
+        var service = new StarGruntGameService();
+        var game = Table(service);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddUnit(game, Squad("charlie", "Charlie Squad", "green")));
+
+        Assert.Contains("two sides", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(2, service.GetSnapshot(game).Units.Count);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseFirstActivatorRequest("blue", TakeIt: true));
+    }
+
+    [Fact]
+    public void ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse()
+    {
+        // "Red" beside "red" was a third side, with the same result as any other third side.
+        var service = new StarGruntGameService();
+        var game = Table(service);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.AddUnit(game, Squad("charlie", "Charlie Squad", "Red")));
+
+        Assert.Contains("'red'", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(2, service.GetSnapshot(game).Units.Count);
+        service.AddUnit(game, Squad("charlie", "Charlie Squad", "red"));
+    }
+
+    [Fact]
+    public void ATurnCannotBeginWithOnlyOneSideOnTheTable()
+    {
+        // With one side the roster builds no session, and the turn used to open anyway onto a
+        // first activation nobody could take. Refused, it can still be fixed by adding the other side.
+        var service = new StarGruntGameService();
+        var created = service.CreateGame(StarGruntTestProfile.CreateGame("Hill 43"));
+        service.AddUnit(created.GameId, Squad("alpha", "Alpha Squad", "blue"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => service.BeginTurn(created.GameId));
+
+        Assert.Contains("two sides", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(0, service.GetSnapshot(created.GameId).TurnNumber);
+        service.AddUnit(created.GameId, Squad("bravo", "Bravo Squad", "red"));
+        service.BeginTurn(created.GameId);
+    }
+
     private static Guid Table(StarGruntGameService service)
     {
         // With the invented range table, because every shot here is about what the service does

@@ -179,9 +179,15 @@ out of scope (indirect fire was in progress on another branch).
         saved even when the shot is then refused. Test:
         `InMemoryMatchServiceInitiativeTests.ARefusedShotThatRolledTheDieOff_StillSavesTheRoll`
         (restored seats unclaimed, so the first shot rolls; fails on the old code, version
-        unchanged). *Still not pushed on a refusal:* the fire endpoint only notifies on success, so
-        the other device learns of the new version at the next push or refetch. Pushing from the
-        error path would need the endpoint to know the version moved; not done.
+        unchanged). *Pushed on a refusal too, on `fix/stargrunt-sides-and-push`:* the fire endpoint
+        used to notify only on success, so the other device learnt of the new version late. It now
+        reads the version before the shot and, when the shot is refused but the version moved,
+        pushes that version (reason `FiringInitiativeRolled`) before the refusal goes back; a
+        refusal that changed nothing still pushes nothing. Tests through the real host and a real
+        SignalR client in `FireRefusalPushTests`:
+        `ARefusedShotThatRolledTheDieOff_IsPushedToTheOtherDevice` (fails on the old code: the 400
+        and the version bump arrive, the push never does) and
+        `ARefusedShotThatChangedNothing_PushesNothing` (a guard; passes either way).
   - [x] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
         snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
         threshold loss looking needle-caused and so unrepairable. Low impact.
@@ -238,9 +244,14 @@ out of scope (indirect fire was in progress on another branch).
         Tests in `DirtsideGameServiceTests`: `AThirdSideIsRefusedWhenThePlatoonIsAdded`,
         `ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse`,
         `ATurnCannotBeginWithOnlyOneSideOnTheTable`; all three fail on the old code.
-        *Not fixed:* StarGrunt's `StarGruntGame` builds its session from the roster the same way
-        (`SessionForRoster`, `sides.Length == 2`), so it very likely has the same hole; not
-        reproduced or changed here.
+        *StarGrunt had the same hole, fixed on `fix/stargrunt-sides-and-push`:* reproduced first
+        through `StarGruntGameService` - with "green" or "Red" added beside "blue" and "red", turn 1
+        opened, no side could take the first activation ("No side called 'blue'" / "settled only at
+        the top of a turn") and the closed roster could not be repaired. `StarGruntGame.WithUnit`
+        and `BeginTurn` now refuse exactly as Dirtside's do. Tests in `StarGruntGameServiceTests`:
+        `AThirdSideIsRefusedWhenTheUnitIsAdded`,
+        `ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse`,
+        `ATurnCannotBeginWithOnlyOneSideOnTheTable`; all three fail on the old code.
   - [x] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
         accepted and echoed back. Harmless downstream (treated as Armour; an unknown fire control is
         refused by name at the shot), but wrong.

@@ -60,7 +60,10 @@ public sealed partial record StarGruntGame : IStarGruntBoard
     /// <param name="unit">The unit to add.</param>
     /// <returns>The game with it on.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="unit"/> is null.</exception>
-    /// <exception cref="InvalidOperationException">The first turn has begun.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The first turn has begun; or the unit would make a third side, including one that differs
+    /// from a side already on the table only by case.
+    /// </exception>
     /// <exception cref="ArgumentException">A unit with that id is already on the table.</exception>
     public StarGruntGame WithUnit(UnitDefinition unit)
     {
@@ -77,6 +80,25 @@ public sealed partial record StarGruntGame : IStarGruntBoard
         {
             throw new InvalidOperationException(
                 $"The game has begun, so nothing more can be put on the table: {unit.Name} would restart turn {Session.TurnNumber} from nothing.");
+        }
+
+        // Two sides, spelt one way each. A side is free text, and a third one - "green", or "Red"
+        // beside "red", which compares as a different side - left the roster with no session to
+        // build and, as there is no taking a unit off, a game that could never start properly.
+        var sides = Sides;
+        if (!sides.Contains(unit.Side))
+        {
+            if (sides.FirstOrDefault(side => string.Equals(side.Value, unit.Side.Value, StringComparison.OrdinalIgnoreCase)) is { Value: not null } spelt)
+            {
+                throw new InvalidOperationException(
+                    $"{unit.Name}'s side '{unit.Side.Value}' is spelt differently from the side already on the table as '{spelt.Value}'. Use '{spelt.Value}', or it counts as a third side.");
+            }
+
+            if (sides.Length >= 2)
+            {
+                throw new InvalidOperationException(
+                    $"A game is fought between two sides, and this one already has {string.Join(" and ", sides.Select(side => $"'{side.Value}'"))}: {unit.Name} has to join one of them, not '{unit.Side.Value}'.");
+            }
         }
 
         return this with
