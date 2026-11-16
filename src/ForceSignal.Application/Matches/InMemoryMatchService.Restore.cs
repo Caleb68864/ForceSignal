@@ -41,6 +41,7 @@ public sealed partial class InMemoryMatchService
         RequireWithin(snapshot.OrdnanceMarkers?.Count ?? 0, MaxOrdnanceMarkersPerMatch, "ordnance markers");
         RequireWithin(snapshot.MatchLog?.Count ?? 0, MaxLogEntriesPerMatch, "battle log entries");
         RequireWithin(snapshot.FiringResults?.Count ?? 0, MaxFiringResultsPerMatch, "firing records");
+        RequireWithin(snapshot.PendingThresholds?.Count ?? 0, MaxShipsPerMatch, "pending threshold checks");
         foreach (var ship in snapshot.Ships)
         {
             RequireWithin(ship.Weapons?.Count ?? 0, MaxWeaponsPerShip, $"weapon mounts on {NormalizeText(ship.Name, "a ship")}");
@@ -377,6 +378,22 @@ public sealed partial class InMemoryMatchService
         }
 
         match.FiringShipId = MapShipId(shipIdMap, snapshot.FiringShipId);
+
+        // The open volley's threshold checks. Without these a ship hit before the export closed its
+        // volley on the restored side with no check at all. A hand-edited file is held to what the
+        // ship can show: an entry for a ship it does not have is dropped, and a volley cannot have
+        // begun with more hull damage than the ship carries now.
+        foreach (var pending in snapshot.PendingThresholds ?? [])
+        {
+            if (pending is null
+                || !shipIdMap.TryGetValue(pending.ShipId, out var restoredShipId)
+                || match.Ships.SingleOrDefault(s => s.Id == restoredShipId) is not { } ship)
+            {
+                continue;
+            }
+
+            match.PendingThresholds[restoredShipId] = ClampDamage(pending.HullDamageBefore, ship.HullDamage);
+        }
 
         if (snapshot.FiringParticipantId is Guid holder && seatIds.Contains(holder))
         {

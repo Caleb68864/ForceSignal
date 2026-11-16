@@ -742,9 +742,10 @@ public sealed class DirtsideGameService : IDirtsideGameService
             new UnitId(Required(request.Id, "A platoon needs an id.")),
             name,
             new SideId(Required(request.Side, "A platoon needs a side.")),
-            Enum.TryParse<DirtsideUnitKind>(request.Kind, ignoreCase: true, out var kind)
+            ByName<DirtsideUnitKind>(request.Kind) is { } kind
                 ? kind
-                : throw new InvalidOperationException($"'{request.Kind}' is not a unit kind."),
+                : throw new InvalidOperationException(
+                    $"'{request.Kind}' is not a unit kind ({string.Join(", ", Enum.GetNames<DirtsideUnitKind>())})."),
             request.IsCybertank,
             [.. (request.Elements ?? []).Select(element => ToElement(element, potSize))],
             Die(request.QualityDie),
@@ -783,6 +784,21 @@ public sealed class DirtsideGameService : IDirtsideGameService
         }
     }
 
+    /// <summary>
+    /// The enum member a word names, ignoring case, or null when it names none.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>Enum.TryParse</c>, which reads a number ("7", or "1" for whatever happens to be 1) or a
+    /// comma list it ORs together as readily as a name, and so put values on a card that no name
+    /// gives. A card is filled in with names, so only a name is read.
+    /// </remarks>
+    private static TEnum? ByName<TEnum>(string? word)
+        where TEnum : struct, Enum
+    {
+        var name = Enum.GetNames<TEnum>().FirstOrDefault(name => string.Equals(name, word?.Trim(), StringComparison.OrdinalIgnoreCase));
+        return name is null ? null : Enum.Parse<TEnum>(name);
+    }
+
     /// <summary>Reads the die off a command marker, or nothing when the card does not say.</summary>
     private static QualityDie? Die(string? name) =>
         string.IsNullOrWhiteSpace(name) ? null
@@ -816,7 +832,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
         return new ElementDefinition(
             new ElementId(Required(element.Id, "An element needs an id.")),
             Required(element.Name, "An element needs a name."),
-            Enum.TryParse<FireControlLevel>(element.FireControl, ignoreCase: true, out var control)
+            ByName<FireControlLevel>(element.FireControl) is { } control
                 ? control
                 : throw new InvalidOperationException(
                     $"'{element.FireControl}' is not a fire control level ({string.Join(", ", DirtsideWire.FireControls)})."),

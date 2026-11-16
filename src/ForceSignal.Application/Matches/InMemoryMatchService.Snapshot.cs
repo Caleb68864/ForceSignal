@@ -112,7 +112,8 @@ public sealed partial class InMemoryMatchService
         [.. match.TurnEvents.Select(ToDto)],
         match.LastTurn is { } last
             ? new LastTurnDto(last.TurnNumber, [.. last.Moves.Select(ToDto)], [.. last.FiringResults.Select(ToDto)], [.. last.Events.Select(ToDto)])
-            : null);
+            : null,
+        [.. match.PendingThresholds.Select(pending => new PendingThresholdDto(pending.Key, pending.Value))]);
 
     private static MovementResultDto ToDto(ResolvedMoveState m) => new(
         m.ShipId, m.StartingVelocity, m.StartingCourse, m.EndingVelocity, m.EndingCourse, m.Segments,

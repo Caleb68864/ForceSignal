@@ -776,8 +776,8 @@ export function DirtsideView() {
 
           <span className="label module-title">Direct fire</span>
           <p className="constraint-line">
-            The declaration is binding. A shot at something an earlier shot destroyed is refused
-            rather than re-pointed, which is the cost of information you did not have.
+            A shot at something an earlier shot destroyed is refused, and costs nothing: the element
+            keeps its shot for something still in the fight.
           </p>
           <div className="table-fields">
             <label>

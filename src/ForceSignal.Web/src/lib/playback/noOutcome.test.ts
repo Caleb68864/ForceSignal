@@ -9,9 +9,18 @@
  */
 
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const eslint = new ESLint();
+
+// The first `lintText` in a worker loads the ESLint config and typescript-eslint from cold, which on
+// an idle machine is over a second and on a busy one was past the five seconds of whichever test
+// happened to run first - "refuses code that adds up damage" failed alone under load, every time,
+// while the probes after it, finding everything warm, passed. That cost belongs to the file, not to
+// any probe, so it is paid once here under a budget of its own, on a playback path like the probes'.
+beforeAll(async () => {
+  await eslint.lintText('export const warm = 1;\n', { filePath: 'src/lib/playback/warm.ts' });
+}, 120_000);
 
 async function messagesFor(code: string, filePath = 'src/lib/playback/probe.ts'): Promise<string[]> {
   const [result] = await eslint.lintText(code, { filePath });

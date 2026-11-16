@@ -136,6 +136,36 @@ public sealed class InMemoryMatchServiceInitiativeTests
         Assert.Equal(table.OpponentParticipantId, nextFiring.FiringParticipantId);
     }
 
+    [Fact]
+    public void ARefusedShotThatRolledTheDieOff_StillSavesTheRoll()
+    {
+        // A snapshot from before turn order was exported, restored with no seat claimed: nobody
+        // holds the initiative until the first shot asks, and that shot rolls the die-off.
+        var table = InitiativeTable.Build(5, 2);
+        var dice = new ScriptedDice { Fallback = 4 };
+        var service = new InMemoryMatchService(dice.Next);
+        var restored = service.RestoreMatch(table.Snapshot() with { FiringParticipantId = null, ActivatedShipIds = [] }, null);
+        Assert.Null(restored.Snapshot.FiringParticipantId);
+        var blue = service.ClaimSeat(restored.MatchId, restored.Seats.Single(s => s.DisplayName == "Blue").ParticipantId, new ClaimSeatRequest("Blue", restored.JoinCode));
+        var red = service.ClaimSeat(restored.MatchId, restored.Seats.Single(s => s.DisplayName == "Red").ParticipantId, new ClaimSeatRequest("Red", restored.JoinCode));
+        var before = service.GetSnapshot(restored.MatchId);
+        var blueLead = before.Ships.Single(s => s.Name == "Blue Lead");
+        var redLead = before.Ships.Single(s => s.Name == "Red Lead");
+
+        // Red wins the die-off, so Blue's shot is refused - after the roll.
+        dice.Script(2, 5);
+        var error = Assert.Throws<InvalidOperationException>(() => service.FireWeapon(restored.MatchId,
+            new FireWeaponRequest(blue.ParticipantToken, blueLead.Id, redLead.Id, blueLead.Weapons.Single().Id, 10)));
+        Assert.Contains("It is Red's turn to fire", error.Message, StringComparison.Ordinal);
+
+        // The roll happened and stands, so it is a change like any other: a new version, saved and
+        // pushed. Left unversioned, no other device was told who fires first, and a restart lost it.
+        var after = service.GetSnapshot(restored.MatchId);
+        Assert.Equal(red.ParticipantId, after.FiringParticipantId);
+        Assert.Contains(after.MatchLog, entry => entry.Category == "Initiative" && entry.Message.Contains("Red fires first", StringComparison.Ordinal));
+        Assert.True(after.Version > before.Version, $"version {after.Version} after the die-off, {before.Version} before");
+    }
+
     /// <summary>Blue with two ships against Red with one, all lined up bow to bow.</summary>
     private sealed record InitiativeTable(
         InMemoryMatchService Service,

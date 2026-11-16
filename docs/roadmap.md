@@ -128,11 +128,16 @@ out of scope (indirect fire was in progress on another branch).
       unmounts its app; the hub fakes are reset for every test; and buttons are found by text.
       Reproduced by pinning vitest to one core shared with twelve busy loops: the old file failed
       11 of 12, the new one passes 12 of 12 (the first two at ~2.7 s and ~1.7 s).
-- [ ] **`noOutcome.test.ts`'s first case has the same shape.** Found while reproducing the above:
+- [x] **`noOutcome.test.ts`'s first case has the same shape.** Found while reproducing the above:
       one full web run with 56 busy loops on 8 cores failed only "refuses code that adds up damage",
       the first `eslint.lintText` call in the file, which pays for loading the ESLint config and
       typescript-eslint cold. Not fixed here (out of scope); the same remedy applies - warm the
       `ESLint` instance in a `beforeAll` with its own budget.
+      *Closed on `fix/review-findings`, without touching any timeout:* a `beforeAll` lints one
+      line at a playback path under a 120 s budget of its own, so the cold load is paid there.
+      Unloaded, the first probe went from ~1.2 s to ~17 ms. Reproduced by pinning vitest to one
+      core shared with six busy loops: the old file failed 4 of 4 (always that first probe, at
+      8.5-9.9 s); the new one passes 4 of 4 with six loops and 4 of 4 with twelve.
 - [x] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
       (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
       *Reviewed on `harden/found-and-left`* (by reading; findings below were checked against the
@@ -143,11 +148,20 @@ out of scope (indirect fire was in progress on another branch).
         the target whenever the attacker was also a group). Fixed
         (`InMemoryMatchServiceOrdnanceTests.FireWeapon_SpendsEnduranceOnBothSidesOfAFighterOnFighterAttack`,
         fails on the old code).
-  - [ ] **Restoring an exported snapshot mid-volley drops the pending threshold checks.**
+  - [x] **Restoring an exported snapshot mid-volley drops the pending threshold checks.**
         `RestoreFiringTurnOrder` (`InMemoryMatchService.Restore.cs`) brings back the firing ship
         and activations, but `MatchSnapshotDto` does not carry `PendingThresholds`, so rows crossed
         before the export are never checked. A server restart is fine (persistence round-trips
         it). Fixing it adds a wire field; left for a decision on the snapshot shape.
+        *Fixed on `fix/review-findings`:* the snapshot now carries `pendingThresholds` (optional,
+        last, a list of `{ shipId, hullDamageBefore }`), and restore maps each entry to the restored
+        ship, drops one for a ship the file does not have, clamps the starting damage to the
+        ship's current hull damage, and caps the list at the ship ceiling. An older export without
+        the field restores as before. `types.ts` and `wireContract.test.ts` declare it; the
+        playback fixtures were not regenerated (they would churn every id, and their captures have
+        no open volley). Tests: `InMemoryMatchServiceThresholdTests.ASnapshotExportedMidVolley_...`
+        (fails on the old code: no threshold check after the restored volley closes) and
+        `...ASnapshotsPendingThresholds_AreMappedToTheRestoredShipsAndClampedToTheirDamage`.
   - [ ] **The threshold roll is clamped twice, against different row counts.** With
         `ThresholdRows = ByShipClass`, the service caps the threshold by the hull band's row count
         (`Combat.cs`), then `FullThrustLightThresholdRules.Resolve` caps it again by
@@ -155,13 +169,29 @@ out of scope (indirect fire was in progress on another branch).
         exceeds `ThresholdRowCount` (e.g. cruiser 4, default 3) loses systems on 2- instead of 3-.
         `RulesProfile.Validate` does not forbid that profile. Touches how profile numbers combine,
         so left with F17 in mind rather than changed here.
-  - [ ] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
+  - [x] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
         `PrepareShot`): when no one holds initiative, the roll and its log lines happen, the shot is
         then refused, and nothing calls `Touch` - so the change is neither versioned, persisted nor
         pushed. Low impact (the next successful action carries it).
-  - [ ] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
+        *Fixed on `fix/review-findings`:* the roll stands (re-rolling it on the next try would let a
+        player fish for the initiative with shots they know will fail), so it is now `Touch`ed as a
+        change of its own (`FiringInitiativeRolled`, with a sentence on the activity line) before the shot is looked at: versioned and
+        saved even when the shot is then refused. Test:
+        `InMemoryMatchServiceInitiativeTests.ARefusedShotThatRolledTheDieOff_StillSavesTheRoll`
+        (restored seats unclaimed, so the first shot rolls; fails on the old code, version
+        unchanged). *Still not pushed on a refusal:* the fire endpoint only notifies on success, so
+        the other device learns of the new version at the next push or refetch. Pushing from the
+        error path would need the endpoint to know the version moved; not done.
+  - [x] **`UpdateShipDamage` does not clamp the `Needled*` counts** to the damage it sets, as
         snapshot restore does; lowering `FireControlDamage` below `NeedledFireControl` leaves a later
         threshold loss looking needle-caused and so unrepairable. Low impact.
+        *Fixed on `fix/review-findings`:* each needled count is clamped to the damage it is part of
+        after the edit; drives by step (0, 1 or 2, the ladder repair already reads), which is
+        tighter than restore's flat cap of 2. Tests:
+        `InMemoryMatchServiceRepairTests.EditingDamageBelowWhatANeedleTook_KeepsTheNeedledCountWithinIt`
+        (a real needle shot, then the record corrected, then a threshold-style loss repaired) and
+        `...EditingDamage_ClampsEveryNeedledCountToTheDamageItIsPartOf` (screens and drives); both
+        fail on the old code at the needled-count assertion.
   - [ ] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
         rewrites mounts from the client, `IsDestroyed`/`IsNeedleKilled`/`AmmoUsed` included. The
         table is evidently trusted here (`UpdateShipDamage` already lets an owner zero their own
@@ -194,18 +224,46 @@ out of scope (indirect fire was in progress on another branch).
         sides had committed - and was refused on every try, jamming the assault the same way. Now
         refused when the platoon is added, by name (`...AssaultChitsThePotCannotHandOut_...`,
         `...AWeaponChitCountThePotCannotHandOut_...`).
-  - [ ] **A third side, or "Red" beside "red", makes the game unplayable.** Side is free,
+  - [x] **A third side, or "Red" beside "red", makes the game unplayable.** Side is free,
         case-sensitive text; with other than two sides `SessionForRoster` returns an empty session,
         `BeginTurn` still succeeds, and the first activator is then refused; there is no
         remove-platoon route. With the roster now closed at the first turn the fix belongs at
         `BeginTurn` (refuse unless exactly two sides) or at add time (normalise case) - a choice
         about what "side" means, left for the owner.
-  - [ ] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
+        *Fixed on `fix/review-findings`, at both points:* `DirtsideGame.WithUnit` refuses a platoon
+        that would make a third side, and one whose side differs from a side already on the table
+        only by case (named, with the spelling in use - refused rather than folded in, because
+        every later request names the side and would still have to match). `BeginTurn` refuses
+        unless the roster holds exactly two sides, so a one-sided table can still be finished.
+        Tests in `DirtsideGameServiceTests`: `AThirdSideIsRefusedWhenThePlatoonIsAdded`,
+        `ASideSpeltLikeAnotherInADifferentCaseIsRefusedByTheSpellingInUse`,
+        `ATurnCannotBeginWithOnlyOneSideOnTheTable`; all three fail on the old code.
+        *Not fixed:* StarGrunt's `StarGruntGame` builds its session from the roster the same way
+        (`SessionForRoster`, `sides.Length == 2`), so it very likely has the same hole; not
+        reproduced or changed here.
+  - [x] `Kind` and `FireControl` are parsed with `Enum.TryParse` and no `IsDefined`, so `"7"` is
         accepted and echoed back. Harmless downstream (treated as Armour; an unknown fire control is
         refused by name at the shot), but wrong.
-  - [ ] The refusal for firing at an already-destroyed target says "the shot is spent either way",
+        *Fixed on `fix/review-findings`:* both are read by name only, ignoring case
+        (`DirtsideGameService.ByName`), so a number ("7", or "1" for Armour) and a comma list
+        (which `TryParse` ORs together) are refused by name. Tests:
+        `DirtsideGameServiceTests.AKindGivenAsANumberOrAListIsRefused`,
+        `...AFireControlGivenAsANumberOrAListIsRefused` (six cases, all fail on the old code) and
+        `...AKindAndFireControlAreStillReadByNameInAnyCase`. *Same shape, not changed:* the chit
+        colour set and value scale in `ToValidity`, the profile mapping's fire control and posture
+        (`DirtsideRulesProfileMapping`), and StarGrunt's command level, fatigue, cover and action
+        all use `Enum.TryParse` (some with `IsDefined`, which still takes "1").
+  - [x] The refusal for firing at an already-destroyed target says "the shot is spent either way",
         but nothing is spent and the element may fire again elsewhere. Code or message - a rules
         call.
+        *Message fixed on `fix/review-findings`; the code is unchanged.* Confirmed: the refusal
+        comes from `Prepare`/`DescribeBlocker`, before the step is taken, so nothing is spent. (The
+        "spent" wording was in the code comment; the message itself said a declaration "cannot be
+        re-pointed", which reads the same way.) It now says nothing was fired and the element still
+        has its shot, and the Dirtside screen's line under "Direct fire" no longer calls it the cost
+        of a binding declaration. Test: `DirtsideGameTests.AShotAtSomethingAlreadyDestroyed_...`
+        (fails on the old message; also fires the same element at a live target afterwards).
+        Whether such a shot *should* cost the combat action is still the rules call, not taken.
   - Checked and sound: game-token filter on every route but create (401/403/404, per game,
     constant-time, never in a snapshot); routes absent with the flag off; every command under the
     lock and immutable, nothing stored on refusal; persistence round-trips; error mapping (no 500

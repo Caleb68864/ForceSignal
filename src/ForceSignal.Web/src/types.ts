@@ -293,6 +293,14 @@ export type MatchSnapshot = {
   // This turn's events in resolution order, and the previous turn kept whole for replay.
   turnEvents?: TurnEvent[] | null;
   lastTurn?: LastTurn | null;
+  // Ships hit during the volley still being fired, whose threshold checks wait for it to end. The
+  // client does not read these; they ride along so an exported snapshot can bring them back.
+  pendingThresholds?: PendingThreshold[] | null;
+};
+
+export type PendingThreshold = {
+  shipId: string;
+  hullDamageBefore: number;
 };
 export type Session = {
   matchId: string;

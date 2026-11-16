@@ -739,6 +739,15 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             ship.FighterBayDamage = ClampDamage(request.FighterBayDamage, ship.FighterBays);
             ship.DriveDamage = ClampDamage(request.DriveDamage, ship.ThrustRating);
             ship.WeaponDamage = ClampDamage(request.WeaponDamage, 12);
+            // What a needle took is part of the damage, so it cannot outlast it. A corrected record
+            // that left the count standing made the next ordinary loss of that system look like
+            // needle work, which damage control is never allowed to touch. Restore holds the counts
+            // the same way. Drives are needled by step (half, then all), so the ceiling is the
+            // steps the new drive damage amounts to.
+            ship.NeedledFireControl = ClampDamage(ship.NeedledFireControl, ship.FireControlDamage);
+            ship.NeedledDrives = ClampDamage(ship.NeedledDrives, ship.DriveDamage > 0 ? ship.DriveDamage >= ship.ThrustRating ? 2 : 1 : 0);
+            ship.NeedledScreens = ClampDamage(ship.NeedledScreens, ship.ScreenDamage);
+            ship.NeedledBays = ClampDamage(ship.NeedledBays, ship.FighterBayDamage);
             match.AddLog("Damage", match.Phase.ToString(), $"{DescribeShip(match, ship)} damage record updated: {DescribeDamageDelta(before, CaptureDamage(ship))}.");
             match.Touch("ShipDamageUpdated");
             return ToSnapshot(match);

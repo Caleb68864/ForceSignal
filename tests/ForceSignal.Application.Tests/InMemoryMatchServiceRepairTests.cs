@@ -222,6 +222,61 @@ public sealed class InMemoryMatchServiceRepairTests
     }
 
     [Fact]
+    public void EditingDamageBelowWhatANeedleTook_KeepsTheNeedledCountWithinIt()
+    {
+        // The table corrects the record: the needled fire control was never lost after all. The
+        // needled count has to come down with it, as a snapshot restore already does - left at one,
+        // the next ordinary loss of that system read as needle work and could never be repaired.
+        var table = RepairTable.Build();
+        table.NeedleTheFireControl();
+        Assert.Equal(1, table.Ship().NeedledFireControl);
+
+        var ship = table.Ship();
+        table.Service.UpdateShipDamage(table.ShipId, new UpdateShipDamageRequest(
+            table.OwnerToken, ship.HullDamage, ship.ArmorDamage, 0, ship.DriveDamage, ship.WeaponDamage));
+        Assert.Equal(0, table.Ship().NeedledFireControl);
+
+        // Now a threshold check takes it, which damage control can fix.
+        table.BreakFireControl();
+        var broken = table.Ship();
+        Assert.Equal(1, broken.FireControlDamage);
+        Assert.Contains(broken.RepairableSystems!, job => job.Kind == "FireControl");
+        table.Dice.Script(7);
+        var repaired = table.ShipIn(table.Repair(new RepairJobDto(ShipSystemKind.FireControl, null, 1)));
+        Assert.Equal(0, repaired.FireControlDamage);
+    }
+
+    [Fact]
+    public void EditingDamage_ClampsEveryNeedledCountToTheDamageItIsPartOf()
+    {
+        // Screens, bays and drives are held the same way. A needle cannot be pointed at a screen
+        // in this table, so the counts are planted through a snapshot restore, which keeps them.
+        var table = RepairTable.Build();
+        var exported = table.Service.GetSnapshot(table.MatchId);
+        var planted = exported with
+        {
+            Ships = [.. exported.Ships.Select(s => s.Id != table.ShipId ? s : s with
+            {
+                ScreenDamage = 1, NeedledScreens = 1, DriveDamage = 4, NeedledDrives = 2,
+            })],
+        };
+        var service = new InMemoryMatchService();
+        var restored = service.RestoreMatch(planted, null);
+        var session = service.ClaimSeat(restored.MatchId, restored.Seats.Single(s => s.DisplayName == "Blue").ParticipantId, new ClaimSeatRequest("Blue", restored.JoinCode));
+        var before = restored.Snapshot.Ships.Single(s => s.Name == "Patchwork");
+        Assert.Equal(1, before.NeedledScreens);
+        Assert.Equal(2, before.NeedledDrives);
+
+        // Drives brought back to half (one step of two), screens fully back.
+        var after = service.UpdateShipDamage(before.Id, new UpdateShipDamageRequest(
+            session.ParticipantToken, 0, 0, 0, DriveDamage: 2, WeaponDamage: 0, ScreenDamage: 0))
+            .Ships.Single(s => s.Id == before.Id);
+
+        Assert.Equal(0, after.NeedledScreens);
+        Assert.Equal(1, after.NeedledDrives);
+    }
+
+    [Fact]
     public void AttemptRepairs_RefusesDuringTheFiringPhase()
     {
         var table = RepairTable.Build();
