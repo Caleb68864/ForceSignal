@@ -128,11 +128,16 @@ out of scope (indirect fire was in progress on another branch).
       unmounts its app; the hub fakes are reset for every test; and buttons are found by text.
       Reproduced by pinning vitest to one core shared with twelve busy loops: the old file failed
       11 of 12, the new one passes 12 of 12 (the first two at ~2.7 s and ~1.7 s).
-- [ ] **`noOutcome.test.ts`'s first case has the same shape.** Found while reproducing the above:
+- [x] **`noOutcome.test.ts`'s first case has the same shape.** Found while reproducing the above:
       one full web run with 56 busy loops on 8 cores failed only "refuses code that adds up damage",
       the first `eslint.lintText` call in the file, which pays for loading the ESLint config and
       typescript-eslint cold. Not fixed here (out of scope); the same remedy applies - warm the
       `ESLint` instance in a `beforeAll` with its own budget.
+      *Closed on `fix/review-findings`, without touching any timeout:* a `beforeAll` lints one
+      line at a playback path under a 120 s budget of its own, so the cold load is paid there.
+      Unloaded, the first probe went from ~1.2 s to ~17 ms. Reproduced by pinning vitest to one
+      core shared with six busy loops: the old file failed 4 of 4 (always that first probe, at
+      8.5-9.9 s); the new one passes 4 of 4 with six loops and 4 of 4 with twelve.
 - [x] **Not reviewed this pass:** the Dirtside endpoints and the Full Thrust firing/combat paths
       (out of scope while indirect fire is in progress elsewhere), and `GroundCombatEndpoints.cs`.
       *Reviewed on `harden/found-and-left`* (by reading; findings below were checked against the
