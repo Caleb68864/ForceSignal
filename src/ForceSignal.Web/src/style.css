@@ -2403,9 +2403,10 @@ small,
     text-align: center;
   }
 
+  /* Two across: one button a row made each ship card's actions a screen's height (second pass). */
   .card-actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .view-tabs {
@@ -3846,5 +3847,24 @@ html {
   .explain > summary {
     width: 44px;
     height: 44px;
+  }
+}
+
+/* A ground game's own numbers - pot, die tables, walk, range table - folded once play begins. */
+.game-numbers > summary {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  cursor: pointer;
+  color: var(--line-hot);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (pointer: coarse) {
+  .game-numbers > summary {
+    min-height: 44px;
   }
 }

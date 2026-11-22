@@ -72,7 +72,11 @@ describe('RulesProfileEditor', () => {
     // here - including the case where reading the file itself fails, which is what an unreadable
     // card or a file that went away between the picker and the read looks like.
     Object.defineProperty(file, 'text', {
-      value: () => (typeof contents === 'string' ? Promise.resolve(contents) : Promise.reject(contents)),
+      // Settled on a later task, as a real read off disk is: settling in the same microtask let a
+      // test pass by reading the screen before the component had heard back.
+      value: () => new Promise((resolve, reject) => {
+        setTimeout(() => (typeof contents === 'string' ? resolve(contents) : reject(contents)), 20);
+      }),
     });
     fireEvent.change(input, { target: { files: [file] } });
   }
@@ -85,9 +89,12 @@ describe('RulesProfileEditor', () => {
 
     // The numbers first, because losing them is the harm; the message second, because saying
     // nothing about it is the other half.
-    await waitFor(() => expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Invented Layer'));
+    // Waits on the message, which only the failed read produces. Waiting on the numbers passed at
+    // once - they were on screen before the file was picked - and then read the alert before the
+    // read had failed, which flaked under load.
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not be read/i);
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Invented Layer');
     expect((screen.getByLabelText('Die faces') as HTMLInputElement).value).toBe('8');
-    expect(screen.getByRole('alert').textContent).toMatch(/could not be read/i);
   });
 
   it('keeps them when the file parses but is not a rules profile', async () => {

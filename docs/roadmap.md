@@ -21,6 +21,32 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Second playtest pass 2026-11-22 (`ux/playtest-fixes-4`)
+
+The agent's own pass over all three games at 390x844, 820x1180 and 1440x900, scripted the way the
+first playtester worked (a turn of Full Thrust through firing, a Dirtside and a StarGrunt activation
+through fire), with screenshots read at each step. Each fix has a test that fails on the old code.
+
+- [x] **Full Thrust cards offered what the phase could not take.** Duplicate stayed on a ship card in
+      play, where it put a new ship on the table mid-battle; Repair All and the Damage tab's Repair
+      showed in movement and firing, where the server refuses repairs. Duplicate is a fleet-setup
+      control now and the repairs show only between turns. The Fleet orders table also stays put
+      after a player declares plotting closed - it goes, as the orders are in - and on a phone a
+      card's action buttons sit two across instead of one a row (`main.test.tsx` "offers Duplicate
+      only while fleets are built" and "puts the fleet orders table away", `phoneLayout.spec.ts`
+      "a ship card's actions sit two across", all failing on the old code).
+- [x] **The ground screens' own numbers took the top of every turn.** Dirtside's chit pot, die
+      tables and firer walk lines - three red or amber paragraphs, about 250px on a phone - and
+      StarGrunt's range table line sat above the game on every turn. They stay open before the first
+      turn, where the table checks them, and fold into "This game's numbers · 2 guessed or missing"
+      once play begins, one tap away (`DirtsideAssault.test.tsx` "the game's own numbers once play
+      begins", failing on the old code).
+- [x] **StarGrunt's close assault opened with "Defenders in cover" ticked.** A melee against men in
+      the open was fought with their cover bonus unless somebody noticed the box. It opens unticked,
+      as the power-armour flags do: it is a fact about the figures, and nothing in the rules makes
+      cover the usual case (`StarGruntView.test.tsx` "does not put the defenders in cover until the
+      table says so", failing on the old code).
+
 ## Playtest fixes 2026-11-21 (`ux/playtest-fixes`)
 
 Working the UX playtester's report (42 findings against master `3ae95f4`), in its order: M1-M10,
@@ -279,8 +305,10 @@ that fails on the old code.
       step to port or starboard, Drift, and "To all" to give every ship that order - through the same
       clamps and the same locked-order guard as the card's helm, which is still there for anything
       finer. On a phone each row stacks into two columns of 44px controls (`main.test.tsx` "plots
-      every ship from one table", failing on the old code). *Left:* plotting by dragging on the map,
-      which the card and map already allow for the focused ship.
+      every ship from one table", failing on the old code). Plotting by dragging on the map
+      was thought to be the focused ship's alone; checked in the second playtest pass with a mouse
+      and a finger, a drag from any of your ships' markers already plots that ship
+      (`mapDragPlot.spec.ts` guards it, desktop and touch phone).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

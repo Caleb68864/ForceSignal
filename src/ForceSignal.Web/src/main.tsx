@@ -2008,7 +2008,8 @@ function App() {
               />
             ) : null}
 
-            {activeView === 'ships' && snapshot?.phase === 'OrderEntry' && !snapshot.battleOver ? (
+            {/* Until the player declares plotting closed; after that the orders are in. */}
+            {activeView === 'ships' && snapshot?.phase === 'OrderEntry' && !snapshot.battleOver && !me?.ordersComplete ? (
               <Suspense fallback={null}>
                 <FleetOrdersTable
                   ships={ownedShips}
@@ -2080,8 +2081,11 @@ function App() {
                         >
                           {isEditing ? 'Close Editor' : 'Edit Stats'}
                         </button>
-                        {showShipControls && !ship.isDestroyed ? <button className="ghost" disabled={busy} onClick={() => run(() => duplicateShip(ship))}>Duplicate</button> : null}
-                        {showPlayControls && !ship.isDestroyed ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
+                        {/* Duplicate builds a fleet; in play it put a new ship on the table mid-battle. Repair
+                            All is between turns only, as the server has it; it was offered in movement and
+                            firing and then refused (second playtest pass). */}
+                        {showShipControls && !ship.isDestroyed && snapshot.phase === 'FleetSetup' ? <button className="ghost" disabled={busy} onClick={() => run(() => duplicateShip(ship))}>Duplicate</button> : null}
+                        {showPlayControls && !ship.isDestroyed && ['OrderEntry', 'OrdersLocked'].includes(snapshot.phase) ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
                       </div>
                     ) : null}
 
@@ -2316,7 +2320,7 @@ function App() {
                             onChange={(value) => run(() => updateDamage(ship, { weaponDamage: value }))}
                           />
                           <div className="quick-actions damage-actions">
-                            <button className="ghost" type="button" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair</button>
+                            {['OrderEntry', 'OrdersLocked'].includes(snapshot.phase) ? <button className="ghost" type="button" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair</button> : null}
                             <button className="ghost" type="button" disabled={busy} onClick={() => run(() => updateDamage(ship, { fireControlDamage: ship.fireControlDamage + 1 }))}>Firecon Hit</button>
                             <button className="ghost" type="button" disabled={busy} onClick={() => run(() => updateDamage(ship, { driveDamage: ship.driveDamage + 1 }))}>Drive Hit</button>
                             <button className="ghost" type="button" disabled={busy} onClick={() => run(() => updateDamage(ship, { weaponDamage: ship.weaponDamage + 1 }))}>Weapon Hit</button>
