@@ -195,8 +195,9 @@ outside the repo; only what they found is recorded here.
       `e2e-ground/twoDevices.spec.ts` starts a Dirtside game in one context, joins it from a second
       by its code, adds a platoon on each and sees each appear on the other, begins the turn on one
       and sees it on the other, all without a reload; and a third context with one character of the
-      code wrong is told the code opens nothing. Green on repeats. Done for both engines; the screen
-      code is shared, and the StarGrunt half is covered by the component tests.
+      code wrong is told the code opens nothing. Green on repeats. `twoDevicesStarGrunt.spec.ts` does
+      the same for StarGrunt: a squad added on each device appears on the other, and a turn begun on
+      one and an activation opened on the other each reach the opposite screen.
       *CI fix:* the verify job failed with three unhandled vitest errors ("Closing rpc while
       'onUserConsoleLog' was pending") - on CI's Node 22 the ground screens' component tests really
       started a SignalR connection in jsdom, and SignalR's own logger wrote after the tests ended.
