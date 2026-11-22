@@ -240,14 +240,31 @@ small,
 }
 
 .legal-notice a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: max-content;
+  min-height: 44px;
   border: 1px solid var(--amber);
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
-  padding: 8px 12px;
+  padding: 8px 14px;
   color: var(--amber);
   font-weight: 900;
   text-decoration: none;
   text-transform: uppercase;
+}
+
+/* A link inside the credit sentence is part of the sentence. Given the Rules button's box it was
+   taller than the line, and its border ran across the lines above and below it. */
+.legal-notice p a {
+  display: inline;
+  min-height: 0;
+  border: 0;
+  clip-path: none;
+  padding: 0;
+  font-weight: 700;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .profile-note {
@@ -3072,8 +3089,10 @@ small,
 }
 
 .link-button {
-  display: inline;
-  min-height: 0;
+  /* Reads as a link, but is hit with a thumb: the box is a full touch target, the text is not. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: none;

@@ -21,6 +21,21 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Polish pass 2026-11-21 (`polish/2026-11-21`)
+
+A UX pass of the agent's own while the playtester's report is written: first run, cues for what to
+do next, phase indicators, empty and error states, loading, and touch targets at phone (390x844) and
+tablet (820x1180) size. Each fix has a test that fails on the old code.
+
+- [x] **The credit links ran across the lines around them, and two controls were too small to hit.**
+      On the start screen the two links inside the artwork credit sentence wore the Rules button's
+      bordered box, taller than the line, so their borders crossed the text above and below; the
+      Rules link itself was 32px tall, and "New here? How to play" 19px. The sentence links are now
+      underlined text on the line, and Rules and the how-to-play link are 44px touch targets that
+      still read as what they are. `e2e-ground/touchTargets.spec.ts` holds the start screen and both
+      ground setup screens at both sizes to no sideways scroll and no control under 40px, and checks
+      a link in a sentence stays within the line; all four cases failed on the old styles.
+
 ## Hardening pass 2026-11-21 (`harden/2026-11-21`)
 
 Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to fail on the old code.
