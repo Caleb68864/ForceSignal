@@ -38,6 +38,13 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       each kind of query once per DOM file in a `beforeAll` with its own budget. Unloaded, those
       first tests dropped to 1.1 s, 0.5 s, 0.6 s and 0.3 s. Reproduced with 32 busy loops on 8
       cores: the old config failed 2 of 4 full runs (that test both times), the new one passed 4 of 4.
+- [x] **A request the rate limiter turned away came back with no body.** The client shows a
+      problem's `detail` and falls back to "Request failed with status 429." when there is none, so
+      a player who mistyped a room code a few times, or a table opening its eleventh game in a
+      minute, read only a status number. `OnRejected` now answers problem+json - "Too many tries
+      from this device in the last minute. Wait N seconds and try again." - with a `Retry-After`
+      header from the limiter's own lease (`ApiHardeningTests.ATurnedAwayRequest_SaysWhyAndWhenToTryAgain`,
+      fails on the old code at the content type).
 
 ## Two-device play 2026-11-16 (`test/two-player-smoke`)
 
