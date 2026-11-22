@@ -79,6 +79,12 @@ that fails on the old code.
       on the contact card when a ship is selected or hovered (`mapLabels.test.ts`;
       `fullThrustLayout.spec.ts` "the map labels sister ships", failing on the old code with
       `["BLU", "BLU", "BLU", "RED"]`). *Left:* spreading tokens that sit on the same spot.
+- [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
+      code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
+      lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
+      the words as the dash, on the server and on the screen (which sends and quotes the canonical
+      code). A code with a word wrong is still not found (`JoinCodeTypingTests`, five separators
+      failing on the old code, and a control; `normalize.test.ts`).
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

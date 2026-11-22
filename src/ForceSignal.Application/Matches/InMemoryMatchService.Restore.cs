@@ -463,9 +463,21 @@ public sealed partial class InMemoryMatchService
     /// and this is the one place a credential was compared with an early-out. Case is folded first,
     /// because the code is read aloud and typed back by someone who may not reach for shift.
     /// </remarks>
+    /// <summary>
+    /// A room code as it is stored: upper case, its words joined by single dashes. A code is read
+    /// aloud and typed back, so spaces, dots and underscores between the words - or several of them -
+    /// all mean the dash that was meant (playtest M7: the right code typed with spaces was "no room").
+    /// </summary>
+    private static string NormalizeJoinCode(string? joinCode) =>
+        string.Join('-', (joinCode ?? string.Empty)
+            .ToUpperInvariant()
+            .Split(JoinCodeSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private static readonly char[] JoinCodeSeparators = [' ', '\t', '\n', '\r', '-', '_', '.', ',', '/', ':', ';'];
+
     private static void RequireJoinCode(MatchState match, string? joinCode)
     {
-        var presented = System.Text.Encoding.UTF8.GetBytes(NormalizeText(joinCode, string.Empty).ToUpperInvariant());
+        var presented = System.Text.Encoding.UTF8.GetBytes(NormalizeJoinCode(joinCode));
         var expected = System.Text.Encoding.UTF8.GetBytes(match.JoinCode.ToUpperInvariant());
         if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(presented, expected))
         {
@@ -518,7 +530,7 @@ public sealed partial class InMemoryMatchService
     {
         lock (_gate)
         {
-            if (string.IsNullOrWhiteSpace(joinCode) || !_joinCodes.TryGetValue(joinCode.Trim(), out var matchId))
+            if (string.IsNullOrWhiteSpace(joinCode) || !_joinCodes.TryGetValue(NormalizeJoinCode(joinCode), out var matchId))
             {
                 throw new NotFoundException("Room code was not found.");
             }

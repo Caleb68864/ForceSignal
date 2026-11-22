@@ -24,7 +24,7 @@ import {
   writeStorage,
 } from './lib/api.ts';
 import { exportLastDeviceBackup } from './lib/backup.ts';
-import { normalizeBattleView, normalizeGameMode, normalizeSession } from './lib/normalize.ts';
+import { normalizeBattleView, normalizeGameMode, normalizeJoinCode, normalizeSession } from './lib/normalize.ts';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { RoomCode } from './components/RoomCode.tsx';
 import { StarGruntView } from './components/ground/StarGruntView.tsx';
@@ -482,10 +482,12 @@ function App() {
   }
 
   async function joinMatch() {
+    // Spaces or dots between the words mean the dash (playtest M7); the server reads it so too.
+    const code = normalizeJoinCode(joinCode);
     try {
       const response = await post<Session & { matchId: string; joinCode: string }>('/api/matches/join', {
         displayName,
-        joinCode,
+        joinCode: code,
       });
       clearLocalMatchState();
       setSession(response);
@@ -497,7 +499,7 @@ function App() {
     } catch (error) {
       // "Match was not found." told a player with a mistyped code nothing about what to fix.
       if (error instanceof ApiRequestError && error.status === 404) {
-        throw new Error(`There is no room ${joinCode || 'with that code'}. Check the room code with the host: it is four words, like PIVOT-VIOLET-SEVEN-INDIGO.`, { cause: error });
+        throw new Error(`There is no room ${code || 'with that code'}. Check the room code with the host: it is four words, like PIVOT-VIOLET-SEVEN-INDIGO.`, { cause: error });
       }
 
       // A restored room refuses ordinary joins until every seat is claimed.
@@ -505,7 +507,7 @@ function App() {
         throw error;
       }
 
-      const identity = await get<MatchIdentity>(`/api/matches/by-code/${encodeURIComponent(joinCode)}`);
+      const identity = await get<MatchIdentity>(`/api/matches/by-code/${encodeURIComponent(code)}`);
       if (!identity.hasUnclaimedSeats) {
         // Someone took the last seat between the join attempt and this lookup.
         setMessage(`Every seat in ${identity.joinCode} has been claimed. Ask the host to restore the backup again if you need a seat.`, 'error');

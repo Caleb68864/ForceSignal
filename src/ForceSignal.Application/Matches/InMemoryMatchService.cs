@@ -292,7 +292,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             // Trimmed, as the lookup trims: a code pasted with a stray space resolved to a match
             // one call earlier and then failed to join it, which read as the server changing its
             // mind.
-            if (string.IsNullOrWhiteSpace(request.JoinCode) || !_joinCodes.TryGetValue(request.JoinCode.Trim(), out var matchId))
+            if (string.IsNullOrWhiteSpace(request.JoinCode) || !_joinCodes.TryGetValue(NormalizeJoinCode(request.JoinCode), out var matchId))
             {
                 throw new NotFoundException("Room code was not found.");
             }
