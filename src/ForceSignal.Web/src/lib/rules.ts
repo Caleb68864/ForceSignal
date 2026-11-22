@@ -215,23 +215,19 @@ export function firingTargetOptions(ship: Ship, ships: Ship[], ownedShipIds?: Se
     .sort((left, right) => Number(left.friendly) - Number(right.friendly) || left.range - right.range)
     .map((entry) => entry.candidate);
 }
-export function focusedFirstShips(ships: Ship[], focusedShipId: string | null, fallbackShipId?: string) {
+/**
+ * The ship cards in the order a player reads them: the focused ship, then the rest of this player's
+ * own fleet, then everyone else's, each group in its own order. Own and opposing cards used to come
+ * mixed in creation order (playtest m22).
+ */
+export function focusedFirstShips(ships: Ship[], focusedShipId: string | null, fallbackShipId?: string, ownedShipIds?: ReadonlySet<string>) {
   const priorityShipId = focusedShipId ?? fallbackShipId;
-  if (!priorityShipId) {
+  if (!priorityShipId && !ownedShipIds) {
     return ships;
   }
 
-  return [...ships].sort((left, right) => {
-    if (left.id === priorityShipId) {
-      return -1;
-    }
-
-    if (right.id === priorityShipId) {
-      return 1;
-    }
-
-    return 0;
-  });
+  const rank = (ship: Ship) => (ship.id === priorityShipId ? 0 : ownedShipIds?.has(ship.id) ? 1 : 2);
+  return [...ships].sort((left, right) => rank(left) - rank(right));
 }
 export function captureDamageState(ship: Ship): DamageState {
   return {

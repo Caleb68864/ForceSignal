@@ -161,6 +161,12 @@ describe('focusedFirstShips', () => {
     expect(focusedFirstShips(ships, null, 'b').map((item) => item.id)).toEqual(['b', 'a', 'c']);
     expect(focusedFirstShips(ships, null)).toBe(ships);
   });
+
+  it('puts this player\'s own ships before everyone else\'s (playtest m22)', () => {
+    const mixed = [ship({ id: 'theirs-1' }), ship({ id: 'mine-1' }), ship({ id: 'theirs-2' }), ship({ id: 'mine-2' })];
+    expect(focusedFirstShips(mixed, 'mine-2', undefined, new Set(['mine-1', 'mine-2'])).map((item) => item.id))
+      .toEqual(['mine-2', 'mine-1', 'theirs-1', 'theirs-2']);
+  });
 });
 
 describe('captureDamageState', () => {

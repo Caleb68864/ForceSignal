@@ -185,6 +185,12 @@ that fails on the old code.
       anyway?"), read the way the server reads it (`pastEffectiveRange`). A table that has entered
       no reach is not second-guessed (`StarGruntView.test.tsx` "shots past effective range", failing
       on the old code).
+- [x] **m22. Full Thrust mixed your ship cards with the opponent's.** Cards now run: the focused ship,
+      the rest of your own fleet, then everyone else's, each group in its own order.
+- [x] **m23. Reveal was offered during order entry and then refused.** A ship card offers Lock only
+      while orders are written, and Reveal only once orders are locked, for a ship that has locked
+      and not yet revealed. (`main.test.tsx` "puts your own cards first, and offers Lock but not
+      Reveal", failing on the old code; `rules.test.ts` for the ordering.)
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

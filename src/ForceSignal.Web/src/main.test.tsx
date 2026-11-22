@@ -737,6 +737,23 @@ describe('the end of a battle (playtest M1)', () => {
     expect(await screen.findByText(/Max Accel spends all of Valiant's thrust on speed, so 1 plotted turn step was cleared\./)).toBeTruthy();
   });
 
+  it('puts your own cards first, and offers Lock but not Reveal while orders are written (playtest m22, m23)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const board = inPlay(2);
+    // The opponent's ship listed first, as creation order can have it.
+    get.mockResolvedValue({ ...board, ships: [...board.ships].reverse() });
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    await waitFor(() => expect(document.querySelectorAll('article.ship-card h3').length).toBe(2));
+    const titles = [...document.querySelectorAll('article.ship-card h3')].map((title) => title.textContent);
+    expect(titles[0]).toBe('Valiant');
+    expect(await findButton('Lock')).toBeTruthy();
+    expect(screen.queryByText('Reveal', { selector: 'button' })).toBeNull();
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));

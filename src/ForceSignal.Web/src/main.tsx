@@ -1961,7 +1961,7 @@ function App() {
 
             {activeView === 'ships' && snapshot ? (
             <div className="ship-grid">
-              {focusedFirstShips(snapshot.ships, mapFocusShipId, ownedShips[0]?.id).map((ship) => {
+              {focusedFirstShips(snapshot.ships, mapFocusShipId, ownedShips[0]?.id, ownedShipIds).map((ship) => {
                 const draft = draftFor(ship.id, drafts);
                 const status = snapshot.orderStatuses.find((item) => item.shipId === ship.id);
                 const result = snapshot.movementResults.find((item) => item.shipId === ship.id);
@@ -2178,8 +2178,14 @@ function App() {
                               <button className="ghost" type="button" onClick={() => updateDraft(ship.id, turnPatchFromManeuvers([]))}>Clear Turns</button>
                             </div>
                           </div>
-                          <button onClick={() => run(() => commit(ship))} disabled={busy}>Lock</button>
-                          <button onClick={() => run(() => reveal(ship))} disabled={busy}>Reveal</button>
+                          {/* Each in its own phase: Reveal was on offer while orders were still being written,
+                              and the server could only refuse it (playtest m23). */}
+                          {snapshot.phase === 'OrderEntry'
+                            ? <button onClick={() => run(() => commit(ship))} disabled={busy}>Lock</button>
+                            : null}
+                          {['OrdersLocked', 'Reveal'].includes(snapshot.phase) && status?.isCommitted && !status.isRevealed
+                            ? <button onClick={() => run(() => reveal(ship))} disabled={busy}>Reveal</button>
+                            : null}
                         </div>
                       </>
                     ) : null}
