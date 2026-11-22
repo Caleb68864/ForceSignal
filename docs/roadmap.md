@@ -72,8 +72,14 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
   - `POST .../orders/preview` with `"turnManeuvers": [null]`. `RequireOrder`, which preview, commit
     and reveal all call, now refuses it naming the maneuver
     (`InMemoryMatchServicePreviewTests.AnEmptyTurnManeuverIsRefusedByName`).
-  Each test fails on the old code with the `NullReferenceException`. Every other ground and Full
-  Thrust route came back 4xx for every variant.
+  - `POST /api/matches/restore` with a `null` in any list of the file - participants, fleets, ships,
+    a ship's weapons, firing results, ordnance markers, the log. A hand-edited file, or one a tool
+    cut short, was a 500. No list in a snapshot holds an empty entry, so the endpoint now walks the
+    file first and refuses one naming where it is ("the entry at ships[0] is empty")
+    (`MatchRestoreEndpointTests.ASnapshotFileWithAnEmptyEntryIsRefusedNamingWhereItIs`, four cases).
+  Each test fails on the old code with a 500. After the fixes every variant of every route came
+  back 4xx: ground routes against games with units and an open activation, Full Thrust routes in
+  fleet setup, order entry and firing, and restore against a snapshot taken mid-firing.
 
 ## Two-device play 2026-11-16 (`test/two-player-smoke`)
 
