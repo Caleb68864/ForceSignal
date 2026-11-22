@@ -175,6 +175,14 @@ describe('Dirtside close assault', () => {
     expect((await screen.findAllByText('Alpha Troop went in.')).length).toBeGreaterThan(0);
   });
 
+  it('says once, not on every waiting row, which platoon is activated (playtest M3)', async () => {
+    const waiting = { ...bravo, canActivate: false, whyItCannotActivate: 'Alpha Troop is still activated.' };
+    await open(snapshotWith({ phase: 'Activating', units: [alpha, waiting] }));
+
+    expect(screen.queryByText('Alpha Troop is still activated.')).toBeNull();
+    expect(screen.getByLabelText('What to do next').textContent).toContain("Finish Alpha Troop's activation");
+  });
+
   it('sends a separate hand-to-hand validity only when asked to', async () => {
     mocks.launchAssault.mockResolvedValue(snapshotWith({ assault: assaultAt('AwaitingDefender') }));
     await open(snapshotWith());

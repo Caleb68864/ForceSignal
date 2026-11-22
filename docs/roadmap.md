@@ -51,6 +51,13 @@ that fails on the old code.
       activation that is now the activating unit, or gone, falls back to the first enemy instead of
       being sent as it was (`StarGruntView.test.tsx` "StarGrunt targets", two cases failing on the
       old code).
+- [x] **M3. Dirtside showed a raw GUID on every waiting platoon's row.** The sequence layer names a
+      unit by its id, the screen generates ids, and Dirtside never translated them back as StarGrunt
+      does: every other row read "DE1EF79D-... is still activated." Dirtside's game now puts platoon
+      names into every sequence refusal ("Alpha Troop is still activated."), and the waiting rows no
+      longer repeat it - the next-step line already says "Finish Alpha Troop's activation"
+      (`DirtsideGameServiceTests.APlatoonWaitingOnAnOpenActivationIsToldWhichPlatoonByName` and
+      `DirtsideAssault.test.tsx` "says once, not on every waiting row", both failing on the old code).
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 
