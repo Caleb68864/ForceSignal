@@ -58,6 +58,13 @@ that fails on the old code.
       longer repeat it - the next-step line already says "Finish Alpha Troop's activation"
       (`DirtsideGameServiceTests.APlatoonWaitingOnAnOpenActivationIsToldWhichPlatoonByName` and
       `DirtsideAssault.test.tsx` "says once, not on every waiting row", both failing on the old code).
+- [x] **M4. Checkboxes drew as 40-60 px white squares.** The shared input rule gave every input a
+      full-width 40px box with clipped corners, so a tick box was a white square, and on a phone a
+      bar the width of the screen (measured: 182 px wide on a phone, 393 px on a tablet, in
+      Dirtside's add-a-platoon card). Checkboxes and radios are now 24px controls in the app's
+      accent colour, inside labels that stay the tap target. `e2e-ground/touchTargets.spec.ts` "a
+      checkbox is a checkbox" holds them to 20-28px at phone and tablet size (failing on the old
+      styles). The map bench suite still passes (9 of 9).
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 
