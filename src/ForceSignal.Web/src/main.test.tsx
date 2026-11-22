@@ -723,6 +723,20 @@ describe('the end of a battle (playtest M1)', () => {
     expect(screen.queryByText('Awaiting orders')).toBeNull();
   });
 
+  it('says so when Max Accel clears the turns already plotted (playtest m12)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(inPlay(2));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    fireEvent.click(await findButton('Starboard +1'));
+    fireEvent.click(await findButton('Max Accel'));
+
+    expect(await screen.findByText(/Max Accel spends all of Valiant's thrust on speed, so 1 plotted turn step was cleared\./)).toBeTruthy();
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));
@@ -757,5 +771,36 @@ describe('the start screen and the keyboard (playtest m9)', () => {
     fireEvent.change(code, { target: { value: 'BRAVO' } });
     fireEvent.submit(code.closest('form') as HTMLFormElement);
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/matches/join', expect.objectContaining({ joinCode: 'BRAVO' }), undefined));
+  });
+});
+
+describe('host-only controls on a guest\'s screen (playtest m13)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('are not offered to the guest, who is told the host sets them', async () => {
+    const guestView = snapshot('ALPHA', 1);
+    guestView.participants = [{ ...guestView.participants[0], role: 'Player' }];
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(guestView);
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    expect(await screen.findByText('The host sets the table.')).toBeTruthy();
+    expect(screen.queryByText('Set Table', { selector: 'button' })).toBeNull();
+    expect(screen.queryByText('Set Limit', { selector: 'button' })).toBeNull();
+    expect((screen.getByLabelText('Width') as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText(/The host sets the rules profile for this match\./)).toBeTruthy();
   });
 });

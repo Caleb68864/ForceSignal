@@ -135,6 +135,16 @@ that fails on the old code.
       dropdown shows its whole choice" measures every visible select against its text (failing on
       the old styles with both). *Not reproduced:* "Crimsor" and the 130px phone contact list -
       neither showed up when the same measure was run over the setup, ships, map and log views.
+- [x] **m12. Max Accel silently wiped plotted turns.** Turns and acceleration share one thrust, so
+      the clamp took the turns. Warning only - the order stands as clamped - and Max Accel and Max
+      Decel now say what went ("Max Accel spends all of Valiant's thrust on speed, so 1 plotted turn
+      step was cleared."). Whether turns and acceleration should share thrust is the rulebook's.
+- [x] **m13. Host-only controls appeared on the guest's screen.** The table size and points limit
+      are disabled for the guest, with "The host sets the table." in place of Set Table and no Set
+      Limit, and the rules profile editor says "The host sets the rules profile for this match." -
+      the server already refused all three. (`main.test.tsx` "says so when Max Accel clears the
+      turns already plotted" and "host-only controls on a guest's screen", both failing on the old
+      code.)
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

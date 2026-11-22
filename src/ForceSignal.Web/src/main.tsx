@@ -435,6 +435,7 @@ function App() {
   }, [session?.matchId, session?.participantToken]);
 
   const me = snapshot?.participants.find((participant) => participant.id === session?.participantId);
+  const isHost = me?.role === 'Owner';
   const commands = snapshot && session
     ? matchCommands(snapshot, session.participantId)
     : { ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null, endBattle: false };
@@ -1304,6 +1305,23 @@ function App() {
     ));
   }
 
+  /**
+   * Max Accel and Max Decel: all of a ship's thrust on its speed. Turns share the same thrust, so the
+   * clamp takes plotted turns away to make room - which it used to do without a word (playtest
+   * m12). The order stands as clamped; the notice says what went.
+   */
+  function plotAtFullThrust(ship: Ship, thrust: number, draft: DraftOrder, velocityDelta: number) {
+    const next = clampDraftForShip(thrust, { ...draft, velocityDelta }, ship.currentVelocity);
+    updateDraft(ship.id, next);
+    const lost = totalTurnSteps(draft) - totalTurnSteps(next);
+    if (lost > 0) {
+      setMessage(
+        `${velocityDelta > 0 ? 'Max Accel' : 'Max Decel'} spends all of ${ship.name}'s thrust on speed, so ${lost} plotted turn step${lost === 1 ? ' was' : 's were'} cleared.`,
+        'info',
+      );
+    }
+  }
+
   async function advanceTurn() {
     if (!session) {
       return;
@@ -1611,18 +1629,23 @@ function App() {
                 <div className="table-fields">
                   <label>
                     Width
-                    <input type="number" min="24" max="144" value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: wholeNumberFrom(event.target.value, 24, 24, 144) })} />
+                    <input type="number" min="24" max="144" disabled={!isHost} value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: wholeNumberFrom(event.target.value, 24, 24, 144) })} />
                   </label>
                   <label>
                     Depth
-                    <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
+                    <input type="number" min="24" max="96" disabled={!isHost} value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
                   </label>
                 </div>
-                <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
+                {/* Host only, as the server has it: a guest saw live controls the server then refused
+                    (playtest m13). */}
+                {isHost
+                  ? <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
+                  : <p className="privacy">The host sets the table.</p>}
               </div>
               <RulesProfileEditor
                 value={snapshot?.rules ?? blankRulesProfile}
-                editable={snapshot?.phase === 'FleetSetup'}
+                editable={snapshot?.phase === 'FleetSetup' && isHost}
+                lockedReason={snapshot?.phase === 'FleetSetup' && !isHost ? 'The host sets the rules profile for this match.' : undefined}
                 onApply={(rules) => {
                   if (snapshot?.phase === 'FleetSetup') {
                     run(() => updateRulesProfile(rules));
@@ -1638,6 +1661,7 @@ function App() {
                       type="number"
                       min="0"
                       max="99999"
+                      disabled={!isHost}
                       value={pointsLimitForm}
                       onChange={(event) => setPointsLimitForm(event.target.value)}
                     />
@@ -1647,7 +1671,7 @@ function App() {
                     <small>{(snapshot?.pointsLimit ?? 0) > 0 ? `of ${snapshot?.pointsLimit}` : 'no limit'}</small>
                   </div>
                 </div>
-                <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button>
+                {isHost ? <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button> : null}
                 <p className="privacy">0 means unlimited. Only the owner can change it, which is how both sides agree to a mismatch.</p>
               </div>
             </details>
@@ -2065,8 +2089,8 @@ function App() {
                           </p>
                           <div className="quick-actions">
                             <button className="ghost" type="button" onClick={() => updateDraft(ship.id, resetOrderDraft(draft))}>Drift</button>
-                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: shipThrust }, ship.currentVelocity))}>Max Accel</button>
-                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: -shipThrust }, ship.currentVelocity))}>Max Decel</button>
+                            <button className="ghost" type="button" onClick={() => plotAtFullThrust(ship, shipThrust, draft, shipThrust)}>Max Accel</button>
+                            <button className="ghost" type="button" onClick={() => plotAtFullThrust(ship, shipThrust, draft, -shipThrust)}>Max Decel</button>
                             <button className="ghost" type="button" onClick={() => applyOrderToOwnedFleet(ship.id)}>Copy Fleet</button>
                           </div>
                           <label>
