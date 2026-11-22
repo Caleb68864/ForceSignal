@@ -3567,3 +3567,8 @@ html {
     scroll-padding-bottom: calc(var(--sticky-clearance, 0px) + 8px);
   }
 }
+
+/* The start screen's two forms take no box of their own: their fields sit in the grid as before. */
+.auth-form {
+  display: contents;
+}

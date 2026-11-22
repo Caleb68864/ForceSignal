@@ -120,6 +120,13 @@ that fails on the old code.
 - [x] **m7. Scattered, Disorganised and Reorganise named one StarGrunt state.** The card's toggle now
       says "Mark Disorganised" / "Mark Back in Order", matching the status line and the activation's
       Reorganise (`StarGruntView.test.tsx` "one word for one state").
+- [x] **m8. The help dialog did not trap focus.** Tab walked out into the page behind the backdrop.
+      It now cycles inside the dialog both ways, and closing it hands focus back to whatever opened
+      it (`HelpGuide.test.tsx` "the guide and the keyboard", failing on the old code).
+- [x] **m9. Enter did not submit Create Match or Join Match.** Each is a form now, laid out with
+      `display: contents` so the start screen's grid is unchanged (`main.test.tsx` "joins on Enter in
+      the room code field", failing on the old code; the start screen stays clean in the touch-target
+      and axe specs).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

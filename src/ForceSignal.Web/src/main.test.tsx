@@ -734,3 +734,28 @@ describe('the end of a battle (playtest M1)', () => {
     expect(await screen.findByText('Out of action')).toBeTruthy();
   });
 });
+
+describe('the start screen and the keyboard (playtest m9)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('joins on Enter in the room code field', async () => {
+    post.mockImplementation((path) => Promise.resolve(path === '/api/matches' ? session('ALPHA') : session('BRAVO')));
+    get.mockImplementation((path) => Promise.resolve(snapshot(path.includes('ALPHA') ? 'ALPHA' : 'BRAVO', 1)));
+    await import('./main.tsx');
+
+    const code = await screen.findByLabelText('Room code');
+    fireEvent.change(code, { target: { value: 'BRAVO' } });
+    fireEvent.submit(code.closest('form') as HTMLFormElement);
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/matches/join', expect.objectContaining({ joinCode: 'BRAVO' }), undefined));
+  });
+});

@@ -1553,16 +1553,22 @@ function App() {
         </section>
       ) : gameMode !== 'fullthrust' ? null : !session ? (
         <section className="panel auth-grid" aria-label="Create or join match">
-          <label>
-            Display name
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-          </label>
-          <button onClick={() => run(createMatch)} disabled={busy}>Create Match</button>
-          <label>
-            Room code
-            <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
-          </label>
-          <button onClick={() => run(joinMatch)} disabled={busy}>Join Match</button>
+          {/* Forms, so Enter in either field does what its button does (playtest m9). Laid out as if
+              the forms were not there (display: contents), so the grid is unchanged. */}
+          <form className="auth-form" onSubmit={(event) => { event.preventDefault(); run(createMatch); }}>
+            <label>
+              Display name
+              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+            </label>
+            <button type="submit" disabled={busy}>Create Match</button>
+          </form>
+          <form className="auth-form" onSubmit={(event) => { event.preventDefault(); run(joinMatch); }}>
+            <label>
+              Room code
+              <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
+            </label>
+            <button type="submit" disabled={busy}>Join Match</button>
+          </form>
           <p className="privacy auth-wide">
             One player creates a match and reads out the room code; the other joins with it.{' '}
             <button className="link-button" type="button" onClick={() => setHelpOpen(true)}>New here? How to play</button>

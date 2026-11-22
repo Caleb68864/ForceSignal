@@ -168,6 +168,11 @@ export function HelpGuide({ currentStepId, onClose }: { currentStepId: string; o
   const startIndex = Math.max(0, helpSteps.findIndex((step) => step.id === currentStepId));
   const [index, setIndex] = useState(startIndex);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  // Where focus was when the guide opened - read while rendering, before the title takes it - so
+  // closing the guide hands focus back there.
+  const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
+  useEffect(() => () => opener?.focus(), [opener]);
   const step = helpSteps[index];
 
   useEffect(() => {
@@ -180,6 +185,29 @@ export function HelpGuide({ currentStepId, onClose }: { currentStepId: string; o
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
+        return;
+      }
+
+      // Tab stays inside the dialog (playtest m8): it walked out into the page behind the backdrop,
+      // which a screen reader user could not see they had left.
+      if (event.key === 'Tab' && dialogRef.current) {
+        const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )];
+        if (focusable.length === 0) {
+          return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const inside = dialogRef.current.contains(document.activeElement);
+        if (event.shiftKey && (document.activeElement === first || !inside)) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !inside)) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener('keydown', onKey);
@@ -189,6 +217,7 @@ export function HelpGuide({ currentStepId, onClose }: { currentStepId: string; o
   return (
     <div className="help-backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="help-guide"
         role="dialog"
         aria-modal="true"
