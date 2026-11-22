@@ -161,6 +161,12 @@ that fails on the old code.
       follow. `e2e-ground/touchTargetsInPlay.spec.ts` walks a Full Thrust match in order entry
       (ship card, Fire and Damage tabs, Play Map) on a phone, a phone held sideways and a tablet and
       finds nothing under 44px; all three failed on the old styles.
+- [x] **m18. The sticky banner covered most of a phone held sideways**, and cards scrolled up under it.
+      Controls brought into view now stop clear of it (the CI fix on `ux/playtest-fixes-3`). On a
+      short screen the banner is now one row - phase, the step cut to two lines, the action beside
+      it - and the standing "Ready." notice is gone (p3), so the notice row only appears when there
+      is something to say. At 844x390 the banner went from 199px to under a sixth of the screen
+      (`phoneLayout.spec.ts` "a phone held sideways", failing on the old styles).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

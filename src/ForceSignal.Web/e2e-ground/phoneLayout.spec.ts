@@ -85,3 +85,15 @@ test('Full Thrust folds the shipyard away once there is a fleet, so Ready is not
   await shipyard.locator('summary').click();
   await expect(page.getByText('Add ship', { exact: true }).first()).toBeVisible();
 });
+
+test.describe('a phone held sideways (playtest m18)', () => {
+  test.use({ viewport: { width: 844, height: 390 }, hasTouch: true });
+
+  test('the What to do next line takes no more than a sixth of the screen', async ({ page, request }) => {
+    await openSeededMatch(page, request);
+    const bar = page.getByLabel('What to do next');
+    await expect(bar).toBeVisible();
+    const box = await bar.boundingBox();
+    expect(box?.height ?? 999).toBeLessThanOrEqual(390 / 6);
+  });
+});

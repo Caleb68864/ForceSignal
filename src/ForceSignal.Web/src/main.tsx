@@ -99,7 +99,9 @@ function App() {
   const [damageUndo, setDamageUndo] = useState<{ shipId: string; shipName: string; before: DamageState } | null>(null);
   // What the app last told this player, and whether it was a refusal. Shown in the sticky
   // next-step banner so it lands where the player is looking, not at the top of a long page.
-  const [notice, setNotice] = useState<Notice>({ text: 'Ready.', tone: 'info', key: 0, at: 0 });
+  // Empty until there is something to say: a standing "Ready." told nobody anything and took a row of
+  // the banner (playtest p3, m18).
+  const [notice, setNotice] = useState<Notice>({ text: '', tone: 'info', key: 0, at: 0 });
   const message = notice.text;
   const setMessage = useCallback((text: string, tone: NoticeTone = 'success') => {
     setNotice((current) => ({ text, tone, key: current.key + 1, at: Date.now() }));

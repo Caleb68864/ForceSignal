@@ -3597,3 +3597,38 @@ html {
     min-height: 44px;
   }
 }
+
+/* A phone held sideways has a few hundred pixels of height, and the banner took more than half of
+   them (playtest m18): one row - the phase, the step cut to two lines, the action beside it. */
+@media (max-height: 500px) {
+  .next-step {
+    gap: 4px;
+    padding: 6px 10px;
+  }
+
+  .next-step-guide {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .next-step-guide strong {
+    flex: 1 1 auto;
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.85rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .next-step-waiting {
+    display: none;
+  }
+
+  .next-step-action {
+    flex: 0 0 auto;
+  }
+
+  .next-step-notice {
+    padding: 2px 8px;
+  }
+}
