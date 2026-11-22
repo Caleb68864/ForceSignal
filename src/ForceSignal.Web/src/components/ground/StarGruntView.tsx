@@ -490,7 +490,7 @@ export function StarGruntView() {
           {handle ? 'Reopening last game...' : 'Start Game'}
         </button>
         {handle ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
-        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         {handle ? null : <GroundJoin busy={busy} onJoin={(joining) => void join(joining)} />}
       </section>
     );
@@ -543,7 +543,7 @@ export function StarGruntView() {
         <p className={starGruntProfileIsEmpty(snapshot.profile) ? 'constraint-line warning' : 'constraint-line'}>
           Range table: {starGruntProfileSummary(snapshot.profile)}
         </p>
-        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         <GroundShare game={game} link={link} />
         <div className="quick-actions">
           <button

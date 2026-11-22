@@ -2468,7 +2468,9 @@ small,
     inset: 63px;
   }
 
-  .constraint-line {
+  /* The helm's lines sit under a centred compass. This used to be every constraint line on a
+     phone, which centred whole paragraphs on the ground screens (playtest m19). */
+  .order-form .constraint-line {
     line-height: 1.2;
     text-align: center;
   }
@@ -3631,4 +3633,31 @@ html {
   .next-step-notice {
     padding: 2px 8px;
   }
+}
+
+/* The ground screens are mostly sentences - rules reminders, refusals, results - and read badly as
+   amber capitals (playtest m19). Sentence case, left-aligned, at reading weight; the line that says
+   what just happened reads as a result, and a refusal as one. */
+.stargrunt .constraint-line,
+.panel[aria-label="Dirtside"] .constraint-line {
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  text-transform: none;
+}
+
+.ground-status {
+  border-left: 3px solid var(--line-hot);
+  padding-left: 8px;
+  color: var(--text, #e6fbff);
+}
+
+.ground-status:empty {
+  display: none;
+}
+
+.ground-status.error {
+  border-left-color: var(--red);
+  color: #ffd2d8;
 }

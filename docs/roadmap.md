@@ -167,6 +167,12 @@ that fails on the old code.
       it - and the standing "Ready." notice is gone (p3), so the notice row only appears when there
       is something to say. At 844x390 the banner went from 199px to under a sixth of the screen
       (`phoneLayout.spec.ts` "a phone held sideways", failing on the old styles).
+- [x] **m19. Ground text was all capitals, centred and amber**, and results read like help text. The
+      centring came from a phone rule meant for the helm that caught every constraint line; it is
+      scoped to the helm now. On both ground screens the lines are sentence case, left-aligned and at
+      reading weight, and the line saying what just happened is styled as a result (a cyan rule) or
+      a refusal (red) (`phoneLayout.spec.ts` "the ground screens read in sentences", failing on the
+      old styles; axe still clean). *Left:* folding long rules text behind a "?".
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

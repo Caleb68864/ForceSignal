@@ -97,3 +97,17 @@ test.describe('a phone held sideways (playtest m18)', () => {
     expect(box?.height ?? 999).toBeLessThanOrEqual(390 / 6);
   });
 });
+
+test('the ground screens read in sentences, left-aligned, not centred amber capitals (playtest m19)', async ({ page }) => {
+  await openEngine(page, 'Dirtside II');
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Start Game' }).click();
+  const line = page.getByText(/^Chit pot:/);
+  await expect(line).toBeVisible();
+
+  const style = await line.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { transform: computed.textTransform, align: computed.textAlign };
+  });
+  expect(style).toEqual({ transform: 'none', align: 'left' });
+});
