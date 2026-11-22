@@ -114,6 +114,13 @@ that fails on the old code.
       across on a phone. `e2e-ground/phoneLayout.spec.ts` at 390x844 checks all three; each failed
       on the old layout. *Left:* collapsing Full Thrust's fleet setup to a summary once a fleet
       exists, and moving "Table, rules and points" to a tab after the start.
+- [x] **The ground browser suite met the game-creation budget part-way through.** Each spec opens a
+      game from the one test address, and with fifteen specs a full run passed ten a minute and got
+      429s on Start Game - a flake waiting for CI. The budget is now configurable
+      (`RateLimits:GameCreatesPerMinute`, unset means ten, as before); the ground config's own
+      server and CI's two-player job raise it for the test run only
+      (`ApiHardeningTests.TheGameCreationBudgetCanBeRaisedForATestServer`, failing on the old code at
+      the eleventh create). Two full runs back to back: 15 of 15 each.
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

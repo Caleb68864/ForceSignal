@@ -139,11 +139,16 @@ builder.Services.AddRateLimiter(options =>
     // opens and far fewer than it takes to reach the ceiling. The two ground creates share this one
     // budget rather than getting their own: they cost the same machine the same memory, and three
     // separate allowances would just mean three times as much of it.
+    // Configurable only so a browser test run, which opens a game per test from one address, can
+    // raise it on its own server; unset, it is ten.
+    var createsPerMinute = int.TryParse(builder.Configuration["RateLimits:GameCreatesPerMinute"], out var configured) && configured > 0
+        ? configured
+        : 10;
     options.AddPolicy(RateLimitPolicies.MatchCreate, context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 10,
+            PermitLimit = createsPerMinute,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));

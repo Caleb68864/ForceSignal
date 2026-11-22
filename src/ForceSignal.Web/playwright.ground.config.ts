@@ -6,8 +6,9 @@
 // The servers are started here unless something already answers on their ports (CI starts its own
 // pair; locally a running dev pair is reused). GROUND_API_PORT / GROUND_WEB_PORT move them.
 //
-// Each test opens one game, and opening games is budgeted at ten a minute per address, so a local
-// --repeat-each past five against one API will start meeting 429s; that is the budget, not the app.
+// Each test opens a game from one address, so a server this config starts raises the game-creation
+// budget (RateLimits:GameCreatesPerMinute). A dev server reused here keeps its own budget of ten a
+// minute, and a full run against it will meet 429s; that is the budget, not the app.
 import { defineConfig } from '@playwright/test';
 
 const apiPort = process.env.GROUND_API_PORT ?? '8080';
@@ -30,6 +31,9 @@ export default defineConfig({
         ASPNETCORE_ENVIRONMENT: 'Development',
         FORCESIGNAL_FEATURES_STARGRUNT: 'true',
         FORCESIGNAL_FEATURES_DIRTSIDE: 'true',
+        // Every test opens a game from this one address; the production budget of ten a minute
+        // would turn a full run away part-way through.
+        RateLimits__GameCreatesPerMinute: '1000',
       },
       reuseExistingServer: true,
       timeout: 180_000,
