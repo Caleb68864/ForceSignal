@@ -809,6 +809,27 @@ function App() {
     }));
   }
 
+  /**
+   * Locks the fleet's orders, asking first when most ships have nothing plotted: an unplotted ship
+   * holds course and speed, which is legal, but locking a fleet that has barely been touched is
+   * usually a tap too early (playtest p8).
+   */
+  function lockIfMeant() {
+    if (!snapshot) {
+      return;
+    }
+
+    const open = ownedShips.filter((ship) => !ship.isDestroyed
+      && !snapshot.orderStatuses.find((status) => status.shipId === ship.id)?.isCommitted);
+    const unplotted = open.filter((ship) => !drafts[ship.id]);
+    if (open.length > 1 && unplotted.length * 2 > open.length
+      && !window.confirm(`${unplotted.length} of your ${open.length} ships have no order plotted and will hold course and speed. Lock the fleet's orders anyway?`)) {
+      return;
+    }
+
+    run(lockOwnedOrders);
+  }
+
   async function lockOwnedOrders() {
     if (!session || !snapshot) {
       return;
@@ -1406,7 +1427,7 @@ function App() {
   const bannerAction: BannerAction | null = commands.ready === 'primary'
     ? { label: 'Ready', onClick: () => run(markReady), disabled: busy }
     : commands.lock === 'primary'
-      ? { label: 'Lock Fleet Orders', onClick: () => run(lockOwnedOrders), disabled: busy }
+      ? { label: 'Lock Fleet Orders', onClick: () => lockIfMeant(), disabled: busy }
       : commands.reveal === 'primary'
         ? { label: 'Reveal Fleet Orders', onClick: () => run(revealOwnedOrders), disabled: busy }
         : commands.advance === 'primary'
@@ -1693,7 +1714,7 @@ function App() {
                 </>
               ) : null}
               {commands.lock === 'primary' ? (
-                <button className={commandClass(commands.lock)} onClick={() => run(lockOwnedOrders)} disabled={busy}>Lock Fleet Orders</button>
+                <button className={commandClass(commands.lock)} onClick={() => lockIfMeant()} disabled={busy}>Lock Fleet Orders</button>
               ) : null}
               {/* Only while the declaration still means nothing - once everyone has closed out,
                   the phase has turned over and reopening the turn is not one player's to do. */}

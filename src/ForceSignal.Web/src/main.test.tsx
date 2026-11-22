@@ -770,6 +770,25 @@ describe('the end of a battle (playtest M1)', () => {
     expect(document.querySelectorAll('.log-list > li')).toHaveLength(1);
   });
 
+  it('asks before locking a fleet with most ships unplotted (playtest p8)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const board = inPlay(2);
+    const blueTwo = { ...board.ships[0], id: 'ship-blue-2', name: 'Vigilant' };
+    get.mockResolvedValue({ ...board, ships: [...board.ships, blueTwo] });
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+    post.mockClear();
+
+    fireEvent.click((await screen.findAllByText('Lock Fleet Orders', { selector: 'button' }))[0]);
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('2 of your 2 ships have no order plotted'));
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));

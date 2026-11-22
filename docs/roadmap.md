@@ -205,6 +205,16 @@ that fails on the old code.
       and refusal and on the screens (`Words` in the shared ground module, `possessive` on the web).
       `WordsTests`, `possessive.test.ts`; the point-defence test now asserts "6 fighters" and failed
       against the new text before it was updated, as the old text fails it now.
+- [x] **p8. Lock Fleet Orders with most ships unplotted needed a confirm.** With more than half of a
+      player's open ships unplotted, Lock asks first ("2 of your 2 ships have no order plotted and
+      will hold course and speed. Lock the fleet's orders anyway?"), from the commands and from the
+      banner alike. A one-ship fleet is never asked, so the two-device smoke script's lock is
+      unchanged (`main.test.tsx` "asks before locking a fleet with most ships unplotted", failing
+      on the old code).
+- [ ] **p7. Every refused action logs a red 400 in the console.** Left, deliberately: that line is the
+      browser's own record of a failed request, written for any 4xx `fetch` and not something a page
+      can turn off. Answering refusals with 200 to hide it would make the API lie about what
+      happened. The refusal itself is already shown in words on the screen.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
