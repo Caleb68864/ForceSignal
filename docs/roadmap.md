@@ -182,8 +182,16 @@ outside the repo; only what they found is recorded here.
       an unknown game, the other engine's id or an engine switched off are all refused alike - and
       every ground route that changes a game now pushes `GroundGameChanged(engine, gameId, version)`
       to that game's followers only, from `GameTokenFilter` once the command has answered; a refusal
-      pushes nothing (`GroundGameHubEndToEndTests`, four cases over a real SignalR client). Still to
-      come: the share code and join flow on both screens, and the screens following the push.
+      pushes nothing (`GroundGameHubEndToEndTests`, four cases over a real SignalR client).
+      **Screens done:** each game screen has an "Other devices" panel with the link state and a game
+      code kept hidden until Show Game Code (the game id and its token, `lib/groundShare.ts`; never a
+      link, which would land in history and previews), and each setup screen a Join a Game field
+      that checks the code's shape before asking the server, and says "That game code does not open
+      a game on this server" when it does not. `lib/groundLive.ts` follows the game: a push naming a
+      newer version than the screen shows is read and shown, its own command's is not, and every
+      (re)join reads again for whatever was missed. No seats - both devices are the same table, as
+      one device always was (`GroundMultiDevice.test.tsx`, eight cases failing on the old screens;
+      `groundLive.test.tsx`; `groundShare.test.ts`). Still to come: a two-browser check.
 
 ## Hardening pass 2026-11-09 (`harden/2026-11-09`)
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { dirtsideGameKey } from '../../constants.ts';
 import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import * as api from '../../lib/dirtsideApi.ts';
@@ -30,12 +30,14 @@ import {
 import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import { newestLogEntry } from '../../lib/newestLogEntry.ts';
+import { useGroundLive } from '../../lib/groundLive.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
 import { DirtsideElementCards } from './DirtsideElementCards.tsx';
 import { DirtsideFirefightPanel } from './DirtsideFirefightPanel.tsx';
 import { DirtsideNervePanel } from './DirtsideNervePanel.tsx';
 import { GroundLog } from './GroundLog.tsx';
+import { GroundJoin, GroundShare } from './GroundShare.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
 function optionalWholeNumber(text: string, min: number, max: number) {
@@ -155,6 +157,32 @@ export function DirtsideView() {
     }
   }
 
+  /** Opens a game started on another device, from its game code. */
+  async function join(handle: GameHandle) {
+    if (busyRef.current) {
+      return;
+    }
+
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const joined = await api.readGame(handle);
+      writeStorage(dirtsideGameKey, handle);
+      setGame(handle);
+      setSnapshot(joined);
+      say(`Joined ${joined.name}.`);
+    } catch (error) {
+      if (error instanceof ApiRequestError && [401, 403, 404].includes(error.status)) {
+        fail(new Error('That game code does not open a game on this server.'));
+      } else {
+        fail(error);
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
   async function start() {
     if (busyRef.current) {
       return;
@@ -220,6 +248,28 @@ export function DirtsideView() {
     }
   }
 
+  // Following the game for changes made on another device holding its code. A push names the version
+  // the game reached; one this screen already shows - its own command's - reads nothing.
+  const shownVersion = useRef(-1);
+  useEffect(() => {
+    shownVersion.current = snapshot?.version ?? -1;
+  }, [snapshot]);
+  const followChange = useCallback((version: number | null) => {
+    if (!game || (version !== null && version <= shownVersion.current)) {
+      return;
+    }
+
+    api.readGame(game)
+      .then((next) => {
+        if (next.version > shownVersion.current) {
+          shownVersion.current = next.version;
+          setSnapshot(next);
+        }
+      })
+      .catch((error: unknown) => console.warn('[ForceSignal] could not read the ground game after a push', error));
+  }, [game]);
+  const link = useGroundLive('dirtside', snapshot ? game : null, followChange);
+
   // A stored game is reopened on mount. One the server no longer has, or no longer lets this
   // device into, is forgotten rather than left to fail every action.
   useEffect(() => {
@@ -269,8 +319,9 @@ export function DirtsideView() {
       <section className="panel" aria-label="Dirtside">
         <h2>Dirtside II</h2>
         <p className="privacy">
-          Vehicle-scale ground combat. One device at the table, no room code. Every number you enter
-          comes off your own record cards - this app ships none of them.
+          Vehicle-scale ground combat. No seats: the game is the table's, and any device given its
+          game code plays it. Every number you enter comes off your own record cards - this app ships
+          none of them.
         </p>
         <label>
           Game name
@@ -522,6 +573,7 @@ export function DirtsideView() {
         ) : null}
         {game ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
         <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        {game ? null : <GroundJoin busy={busy} onJoin={(handle) => void join(handle)} />}
       </section>
     );
   }
@@ -590,6 +642,7 @@ export function DirtsideView() {
         Firer walk: {firerWalkSummary(snapshot.profile)}
       </p>
       <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+      <GroundShare game={game} link={link} />
 
       <div className="quick-actions">
         <button type="button" disabled={busy} onClick={() => void run(() => api.beginTurn(game), undefined, 'Turn opened.')}>
