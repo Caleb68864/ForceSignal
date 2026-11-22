@@ -68,7 +68,14 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       before, with "Showing the most recent 300 of N lines." above them; the snapshot keeps the whole
       log, and rows are keyed by their place in the game's history so sliding the window re-renders
       nothing else (`DirtsideView.test.tsx` "battle log", `StarGruntView.test.tsx` "StarGrunt log";
-      both fail on the old code). Tests: one per screen ("... once the log is at its cap"), both
+      both fail on the old code).
+- [x] **Order reveal, fuzzed on throwaway matches.** Skipped in the first pass because an order that
+      cannot be proved before anything is public unlocks the ship by design, so fuzzing one live
+      match changes what the next variant meets. Each of 32 variants (every field and list entry
+      nulled, emptied or pushed to the integer limits) ran against a fresh match with both ships
+      locked, once with nothing revealed and once with the other ship already revealed: every
+      answer was 4xx or a handled reveal, and the match read back afterwards each time. Nothing to
+      fix. Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
 - [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
       with every field and list entry nulled in turn, against a dev server with a fleet, ships and
