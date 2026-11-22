@@ -3577,3 +3577,23 @@ html {
 .auth-form {
   display: contents;
 }
+
+/* On a touch screen every control is a 44px target, the size a thumb can hit (playtest m17). */
+@media (pointer: coarse) {
+  button,
+  select,
+  input:not([type=checkbox]):not([type=radio]):not([type=color]) {
+    min-height: 44px;
+  }
+
+  .next-step-notice button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* These set their own 42px and win on specificity. */
+  .map-contact-select select,
+  .map-controls button {
+    min-height: 44px;
+  }
+}

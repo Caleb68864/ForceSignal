@@ -154,6 +154,13 @@ that fails on the old code.
       a JSON ship with no weapons list, now imports with no mounts, as the server already treats a
       ship that names none. Two old tests asserted the placeholder and were turned round
       (`fleetIo.test.ts`, failing on the old code).
+- [x] **m17. Touch targets under 44px.** The polish branch fixed the start screen's (the "New here?"
+      link, Rules) and the Table/rules header; this does the rest on touch screens. Under
+      `(pointer: coarse)` every button, select and field is at least 44px, the banner's dismiss is
+      44x44 instead of 25x19, and the map's contact select and buttons - which set their own 42px -
+      follow. `e2e-ground/touchTargetsInPlay.spec.ts` walks a Full Thrust match in order entry
+      (ship card, Fire and Damage tabs, Play Map) on a phone, a phone held sideways and a tablet and
+      finds nothing under 44px; all three failed on the old styles.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
