@@ -322,6 +322,22 @@ public sealed class DirtsideGameServiceTests
         Assert.False(string.IsNullOrWhiteSpace(bravo.WhyItCannotActivate));
     }
 
+    [Fact]
+    public void APlatoonWaitingOnAnOpenActivationIsToldWhichPlatoonByName()
+    {
+        // Playtest M3: every other row read "DE1EF79D-... IS STILL ACTIVATED" - the screen sends a
+        // generated id, and the refusal printed it.
+        var service = new DirtsideGameService();
+        var game = Table(service);
+        service.BeginTurn(game);
+        service.ChooseFirstActivator(game, new ChooseDirtsideFirstActivatorRequest("blue", TakeIt: true));
+
+        var snapshot = service.BeginActivation(game, new BeginDirtsideActivationRequest("blue", "alpha"));
+
+        var bravo = snapshot.Units.Single(unit => unit.Id == "bravo");
+        Assert.Equal("Alpha Troop is still activated.", bravo.WhyItCannotActivate);
+    }
+
     /// <summary>Two platoons on the table and Alpha's activation open.</summary>
     internal static Guid Activated(DirtsideGameService service)
     {

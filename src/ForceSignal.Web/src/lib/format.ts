@@ -49,6 +49,7 @@ const activitySentences: Record<string, string> = {
   RulesProfileChanged: 'The host changed the rules profile.',
   TableUpdated: 'The table size changed.',
   PointsLimitUpdated: 'The points limit changed.',
+  BattleEnded: 'The host ended the battle.',
   FleetChanged: 'A fleet changed.',
   FleetCreated: 'A fleet was created.',
   ShipCreated: 'A ship was added.',

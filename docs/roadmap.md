@@ -21,6 +21,51 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Playtest fixes 2026-11-21 (`ux/playtest-fixes`)
+
+Working the UX playtester's report (42 findings against master `3ae95f4`), in its order: M1-M10,
+then m1-m23, p1-p8, then design suggestions 1-3. Finding ids are the report's. Each fix has a test
+that fails on the old code.
+
+- [x] **M1. Full Thrust never ended.** With one side wiped out the loser was told to plot 0 ships,
+      the checklist said "Clear to proceed · All your ships have locked orders", wrecks said
+      "Awaiting orders" beside Duplicate and Repair All, and the winner was asked to plot turn five.
+      Two ends now, and no invented victory conditions: **a side with no ship left** (worked out on
+      every snapshot, however the last ship went) and **the host's End Battle** (`POST
+      /api/matches/{id}/end`, host only, once play has begun, confirmed first, persisted as an
+      additive field). Either way the snapshot carries `battleOver`; the server refuses order,
+      reveal, fire, fighter moves and Advance Turn ("The battle is over: ..."); both screens'
+      banner says "Battle over" with the reason, the commands go, the checklist says the battle is
+      over, and a Battle over panel gives each side's ships afloat and lost with Export Battle Log
+      and Save Snapshot (a saved snapshot restores to play on). Wrecks show "Out of action" and keep
+      only their Damage tab, so a kill recorded by mistake can still be corrected.
+      Tests: `InMemoryMatchServiceBattleOverTests` (five cases, not compiling on the old code),
+      `nextStep.test.ts` and `rules.test.ts` "battle over" cases, and `main.test.tsx` "the end of a
+      battle" (two cases, both failing on the old screen).
+- [x] **M2. StarGrunt Fire and Close Assault defaulted to a friendly unit.** Targets were the roster
+      in order, so a red squad's default target was the other red squad, and no option said whose a
+      unit was. Enemies now come first and are the default; every option names the side and marks
+      "own side"; firing on or charging an own-side unit asks first ("Red Bravo is on red, Red
+      Alpha's own side. Fire on it anyway?") and goes ahead only on a yes - friendly fire stays
+      possible, because whether it is ever legal is the rulebook's. A target picked in an earlier
+      activation that is now the activating unit, or gone, falls back to the first enemy instead of
+      being sent as it was (`StarGruntView.test.tsx` "StarGrunt targets", two cases failing on the
+      old code).
+- [x] **M3. Dirtside showed a raw GUID on every waiting platoon's row.** The sequence layer names a
+      unit by its id, the screen generates ids, and Dirtside never translated them back as StarGrunt
+      does: every other row read "DE1EF79D-... is still activated." Dirtside's game now puts platoon
+      names into every sequence refusal ("Alpha Troop is still activated."), and the waiting rows no
+      longer repeat it - the next-step line already says "Finish Alpha Troop's activation"
+      (`DirtsideGameServiceTests.APlatoonWaitingOnAnOpenActivationIsToldWhichPlatoonByName` and
+      `DirtsideAssault.test.tsx` "says once, not on every waiting row", both failing on the old code).
+- [x] **M4. Checkboxes drew as 40-60 px white squares.** The shared input rule gave every input a
+      full-width 40px box with clipped corners, so a tick box was a white square, and on a phone a
+      bar the width of the screen (measured: 182 px wide on a phone, 393 px on a tablet, in
+      Dirtside's add-a-platoon card). Checkboxes and radios are now 24px controls in the app's
+      accent colour, inside labels that stay the tap target. `e2e-ground/touchTargets.spec.ts` "a
+      checkbox is a checkbox" holds them to 20-28px at phone and tablet size (failing on the old
+      styles). The map bench suite still passes (9 of 9).
+
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 
 A UX pass of the agent's own while the playtester's report is written: first run, cues for what to

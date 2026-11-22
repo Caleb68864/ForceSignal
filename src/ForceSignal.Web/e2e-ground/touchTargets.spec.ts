@@ -43,6 +43,23 @@ for (const [width, height, device] of [[390, 844, 'phone'], [820, 1180, 'tablet'
       expect(await smallTargets(page)).toEqual([]);
     });
 
+    test('a checkbox is a checkbox, not a 40-60 px white square (playtest M4)', async ({ page }) => {
+      await openEngine(page, 'Dirtside II');
+      page.on('dialog', (dialog) => void dialog.accept());
+      await page.getByRole('button', { name: 'Start Game' }).click();
+      await expect(page.getByLabel('Add platoon')).toBeVisible();
+      const boxes = await page.locator('input[type=checkbox]').evaluateAll((elements) => elements
+        .map((element) => element.getBoundingClientRect())
+        .filter((box) => box.width > 0)
+        .map((box) => [Math.round(box.width), Math.round(box.height)]));
+      expect(boxes.length).toBeGreaterThan(0);
+      for (const [boxWidth, boxHeight] of boxes) {
+        expect(boxWidth).toBeLessThanOrEqual(28);
+        expect(boxHeight).toBeLessThanOrEqual(28);
+        expect(boxWidth).toBeGreaterThanOrEqual(20);
+      }
+    });
+
     test('a link inside a sentence sits on the sentence\'s line rather than over the next', async ({ page }) => {
       await page.goto('/');
       const credit = page.locator('.icon-credit');

@@ -640,3 +640,80 @@ describe('a server that will not say which engines it has', () => {
     expect(screen.queryByText(/did not say which other games it offers/)).toBeNull();
   });
 });
+
+describe('the end of a battle (playtest M1)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+  });
+
+  function inPlay(version: number, patch: Partial<MatchSnapshot> = {}): MatchSnapshot {
+    const base = snapshot('ALPHA', version);
+    return {
+      ...base,
+      phase: 'OrderEntry',
+      participants: [
+        ...base.participants,
+        { id: 'participant-red', displayName: 'Red', role: 'Player', isReady: true, isConnected: true } as MatchSnapshot['participants'][number],
+      ],
+      fleets: [
+        { id: 'fleet-blue', ownerParticipantId: 'participant-ALPHA', name: 'Blue', fleetColor: '#47f1ff' },
+        { id: 'fleet-red', ownerParticipantId: 'participant-red', name: 'Red', fleetColor: '#ff4d6d' },
+      ] as MatchSnapshot['fleets'],
+      ships: [
+        { ...snapshot('x', 1).ships[0], id: 'ship-blue', fleetId: 'fleet-blue', name: 'Valiant', isDestroyed: false },
+        { id: 'ship-red', fleetId: 'fleet-red', name: 'Mark', isDestroyed: true },
+      ].map((ship) => ({
+        className: 'Cruiser', thrustRating: 4, currentVelocity: 0, currentCourse: 12, positionX: 20, positionY: 20,
+        hullMax: 10, hullDamage: ship.isDestroyed ? 10 : 0, armorMax: 0, armorDamage: 0, fireControlMax: 1, fireControlDamage: 0,
+        pointDefenseSystems: 0, fighterBays: 0, fighterBayDamage: 0, damageControlParties: 0, driveDamage: 0, weaponDamage: 0,
+        screenRating: 0, screenDamage: 0, weapons: [], hullRows: [], hullRowsCompleted: 0, iconKey: 'cruiser',
+        fighterEnduranceMax: 0, fighterEnduranceUsed: 0, fighterMaxRange: 0, pointsValue: 0, effectiveScreens: 0,
+        workingFireControl: 1, ...ship,
+      })) as MatchSnapshot['ships'],
+      ...patch,
+    };
+  }
+
+  it('offers the host End Battle, and shows both screens the result with the record to keep', async () => {
+    const over = inPlay(3, { battleOver: { reason: 'EndedByHost', message: 'Admiral ended the battle.' } });
+    post.mockImplementation((path) => Promise.resolve(path === '/api/matches' ? session('ALPHA') : over));
+    get.mockResolvedValue(inPlay(2));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    vi.stubGlobal('confirm', () => true);
+    fireEvent.click(await findButton('End Battle'));
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/matches/match-ALPHA/end', { participantToken: 'token-ALPHA' }, 'token-ALPHA'));
+    const panel = await screen.findByLabelText('Battle over');
+    expect(panel.textContent).toContain('Admiral ended the battle.');
+    expect(panel.textContent).toContain('Admiral: 1 of 1 ship still afloat');
+    expect(panel.textContent).toContain('Red: 0 of 1 ship still afloat');
+    expect(screen.getByText('Export Battle Log', { selector: 'button' })).toBeTruthy();
+    expect(screen.queryByText('Lock Fleet Orders', { selector: 'button' })).toBeNull();
+    expect(screen.queryByText('End Battle', { selector: 'button' })).toBeNull();
+    expect(screen.getAllByText('Battle over').length).toBeGreaterThan(0);
+  });
+
+  it('marks a wreck out of action rather than awaiting orders', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(inPlay(2));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    expect(await screen.findByText('Out of action')).toBeTruthy();
+  });
+});

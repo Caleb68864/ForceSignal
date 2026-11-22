@@ -33,6 +33,15 @@ export function nextStep(snapshot: MatchSnapshot, meId: string): NextStep {
   const myLiveShips = myShips.filter((ship) => !ship.isDestroyed);
   const turn = `Turn ${snapshot.turnNumber}`;
 
+  if (snapshot.battleOver) {
+    return {
+      heading: 'Battle over',
+      you: `${snapshot.battleOver.message.replace(/ The battle is over\.$/, '')} Export the log or save a snapshot to keep it.`,
+      waiting: null,
+      yourMove: false,
+    };
+  }
+
   switch (snapshot.phase) {
     case 'FleetSetup': {
       const heading = 'Fleet setup';
@@ -143,6 +152,8 @@ export type MatchCommands = {
   advanceWarning: string | null;
   /** Why Ready cannot be pressed yet, said beside the disabled button. */
   readyBlocker: string | null;
+  /** True for the host once play has begun and while the battle is still being fought. */
+  endBattle: boolean;
 };
 
 /**
@@ -156,8 +167,26 @@ export function matchCommands(snapshot: MatchSnapshot, meId: string): MatchComma
   const step = nextStep(snapshot, meId);
   const me = snapshot.participants.find((participant) => participant.id === meId);
   const isHost = me?.role === 'Owner';
-  const none: MatchCommands = { ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null };
+  const none: MatchCommands = {
+    ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null,
+    endBattle: false,
+  };
+  if (snapshot.battleOver) {
+    return none;
+  }
 
+  const commands = commandsForPhase(snapshot, meId, step, isHost, none);
+  return { ...commands, endBattle: isHost && snapshot.phase !== 'FleetSetup' };
+}
+
+function commandsForPhase(
+  snapshot: MatchSnapshot,
+  meId: string,
+  step: NextStep,
+  isHost: boolean,
+  none: MatchCommands,
+): MatchCommands {
+  const me = snapshot.participants.find((participant) => participant.id === meId);
   switch (snapshot.phase) {
     case 'FleetSetup': {
       if (me?.isReady) {

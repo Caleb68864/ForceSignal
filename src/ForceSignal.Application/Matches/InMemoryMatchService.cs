@@ -53,6 +53,9 @@ public interface IMatchService
     /// <summary>Sets the agreed points ceiling per player. Zero means unlimited.</summary>
     MatchSnapshotDto UpdatePointsLimit(Guid matchId, UpdateMatchPointsLimitRequest request);
 
+    /// <summary>Ends the battle where it stands. Host only, once play has begun.</summary>
+    MatchSnapshotDto EndBattle(Guid matchId, EndBattleRequest request);
+
     /// <summary>Creates a fleet in a match.</summary>
     MatchSnapshotDto CreateFleet(Guid matchId, CreateFleetRequest request);
 
@@ -513,6 +516,31 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
                     ? "Points limit cleared: fleets may be any size."
                     : $"Points limit set to {match.PointsLimit} per player.");
             match.Touch("PointsLimitUpdated");
+            return ToSnapshot(match);
+        }
+    }
+
+    public MatchSnapshotDto EndBattle(Guid matchId, EndBattleRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        lock (_gate)
+        {
+            var match = FindMatch(matchId);
+            var participant = FindParticipant(match, request.ParticipantToken);
+            if (participant.Role != "Owner")
+            {
+                throw new UnauthorizedAccessException("Only the host can end the battle.");
+            }
+
+            if (match.Phase == MatchPhase.FleetSetup)
+            {
+                throw new InvalidOperationException("There is no battle to end yet: the match is still in fleet setup.");
+            }
+
+            RequireBattleNotOver(match);
+            match.EndedBy = participant.DisplayName;
+            match.AddLog("Battle", match.Phase.ToString(), $"{participant.DisplayName} ended the battle on turn {match.TurnNumber}.");
+            match.Touch("BattleEnded");
             return ToSnapshot(match);
         }
     }
@@ -1157,6 +1185,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
         lock (_gate)
         {
             var match = FindMatch(matchId);
+            RequireBattleNotOver(match);
             var participant = FindParticipant(match, request.ParticipantToken);
             if (match.Phase is MatchPhase.FleetSetup or MatchPhase.Firing)
             {
@@ -1512,6 +1541,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
         lock (_gate)
         {
             var match = FindMatch(matchId);
+            RequireBattleNotOver(match);
             var participant = FindParticipant(match, request.ParticipantToken);
             var ship = FindOwnedShip(match, participant.Id, request.ShipId);
             // A ship whose reveal failed verification may re-lock during the reveal phase, so an
@@ -1583,6 +1613,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
         lock (_gate)
         {
             var match = FindMatch(matchId);
+            RequireBattleNotOver(match);
             var participant = FindParticipant(match, request.ParticipantToken);
             if (match.Phase is not (MatchPhase.OrdersLocked or MatchPhase.Reveal))
             {
@@ -1664,6 +1695,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
         lock (_gate)
         {
             var match = FindMatch(matchId);
+            RequireBattleNotOver(match);
             var participant = FindParticipant(match, participantToken);
             if (participant.Role != "Owner")
             {

@@ -249,6 +249,12 @@ export function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set
   const statuses = new Map(snapshot.orderStatuses.map((status) => [status.shipId, status]));
   const missingPositions = liveShips.filter((ship) => ship.positionX < 0 || ship.positionY < 0 || ship.positionX > snapshot.tableWidth || ship.positionY > snapshot.tableDepth);
 
+  // Once it is over nothing is left to check, and "Clear to proceed · All your ships have locked
+  // orders" was false for a player with no ship left (playtest M1).
+  if (snapshot.battleOver) {
+    return [{ id: 'over', text: 'The battle is over: export the log or save a snapshot to keep it', severity: 'ok' as const }];
+  }
+
   // Setup used to have no items at all, so a match with no rules profile, no ships and nobody to
   // play read "Clear to proceed" while the server refused every step forward.
   if (snapshot.phase === 'FleetSetup') {
@@ -267,7 +273,9 @@ export function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set
 
   // Only this player's ships, and a warning rather than a blocker: an unplotted ship is allowed and
   // simply holds course, and the opponent's unlocked ships were never this player's to act on.
-  if (snapshot.phase === 'OrderEntry') {
+  if (snapshot.phase === 'OrderEntry' && ownedLiveShips.length === 0) {
+    items.push({ id: 'orders', text: 'You have no ships in play, so there is nothing for you to plot', severity: 'ok' });
+  } else if (snapshot.phase === 'OrderEntry') {
     const friendlyUnlocked = ownedLiveShips.filter((ship) => !statuses.get(ship.id)?.isCommitted);
     items.push({
       id: 'orders',

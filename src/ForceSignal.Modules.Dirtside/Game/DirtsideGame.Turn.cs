@@ -667,5 +667,22 @@ public sealed partial record DirtsideGame
     private GameOutcome<DirtsideGame> Apply(SequenceCheck check, Func<GroundCombatSession> transition) =>
         check.IsAllowed
             ? GameOutcome.Allowed(this with { Session = transition() })
-            : GameOutcome.Refused<DirtsideGame>(check.Reason ?? "That is not legal now.");
+            : GameOutcome.Refused<DirtsideGame>(Humanise(check.Reason ?? "That is not legal now."));
+
+    /// <summary>
+    /// Puts platoon names into a refusal in place of the ids the sequence layer had to use, as
+    /// StarGrunt's game does. The screen generates the ids, so they are GUIDs: playtest M3 found every
+    /// waiting platoon's row reading "DE1EF79D-... is still activated".
+    /// </summary>
+    /// <param name="reason">The sentence as the sequence layer wrote it.</param>
+    /// <returns>The same sentence, with any platoon id replaced by that platoon's name.</returns>
+    internal string Humanise(string reason)
+    {
+        foreach (var platoon in Units.Values)
+        {
+            reason = reason.Replace(platoon.Id.Value, platoon.Name, StringComparison.Ordinal);
+        }
+
+        return reason;
+    }
 }

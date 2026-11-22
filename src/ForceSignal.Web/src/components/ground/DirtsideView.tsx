@@ -694,6 +694,7 @@ export function DirtsideView() {
             key={unit.id}
             unit={unit}
             isActivating={unit.id === snapshot.activatingUnitId}
+            waitingOnAnother={Boolean(snapshot.activatingUnitId) && unit.id !== snapshot.activatingUnitId}
             busy={busy}
             onActivate={() => void run(() => api.beginActivation(game, unit.side, unit.id), undefined, `${unit.name} activated.`)}
           />
@@ -1128,9 +1129,11 @@ export function DirtsideView() {
   );
 }
 
-function PlatoonCard({ unit, isActivating, busy, onActivate }: {
+function PlatoonCard({ unit, isActivating, waitingOnAnother = false, busy, onActivate }: {
   unit: DirtsidePlatoonState;
   isActivating: boolean;
+  /** Another platoon's activation is open. Said once, by the next-step line, not on every row. */
+  waitingOnAnother?: boolean;
   busy: boolean;
   onActivate: () => void;
 }) {
@@ -1156,7 +1159,7 @@ function PlatoonCard({ unit, isActivating, busy, onActivate }: {
         {isActivating ? 'Activated' : 'Activate'}
       </button>
       {/* The refusal as text, not only as a tooltip on a control a keyboard cannot reach. */}
-      {!unit.canActivate && !isActivating && !unit.hasActivated && unit.whyItCannotActivate ? (
+      {!unit.canActivate && !isActivating && !waitingOnAnother && !unit.hasActivated && unit.whyItCannotActivate ? (
         <p className="constraint-line">{unit.whyItCannotActivate}</p>
       ) : null}
     </div>

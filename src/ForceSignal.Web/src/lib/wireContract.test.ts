@@ -22,7 +22,7 @@ const snapshotKeys: Keys<MatchSnapshot> = {
   matchId: true, joinCode: true, name: true, phase: true, turnNumber: true, rulesProfileKey: true, tableWidth: true, tableDepth: true,
   participants: true, fleets: true, ships: true, orderStatuses: true, revealedOrders: true, movementResults: true, firingResults: true,
   ordnanceMarkers: true, matchLog: true, version: true, pointsLimit: true, rules: true, firingShipId: true, firingParticipantId: true,
-  activatedShipIds: true, turnEvents: true, lastTurn: true, pendingThresholds: true,
+  activatedShipIds: true, turnEvents: true, lastTurn: true, pendingThresholds: true, battleOver: true,
 };
 
 const shipKeys: Keys<Ship> = {

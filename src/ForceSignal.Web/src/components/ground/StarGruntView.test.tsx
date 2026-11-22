@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { starGruntGameKey } from '../../constants.ts';
 import { ApiRequestError } from '../../lib/api.ts';
@@ -481,5 +481,63 @@ describe('StarGrunt unit cards are told apart', () => {
       expect(screen.getByRole('button', { name: `Confidence test for ${name}` })).toBeTruthy();
       expect(screen.getByRole('button', { name: `Mark ${name} scattered` })).toBeTruthy();
     }
+  });
+});
+
+describe('StarGrunt targets (playtest M2)', () => {
+  // Both red squads shot their own side's unit: it came first in the roster, so it was the default,
+  // and the options did not say whose anything was.
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    fire.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  function redActivating(): StarGruntSnapshot {
+    const armed = wholeUnit
+      .replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "red-a", "name": "Red Alpha", "side": "red"')
+      .replace('"weaponLegality": []', '"weaponLegality": [{ "name": "Rifles", "canFire": true, "blocker": null }]');
+    const friend = wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "red-b", "name": "Red Bravo", "side": "red"');
+    const enemy = wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "blue-a", "name": "Blue Alpha", "side": "blue"');
+    return { ...snapshotFrom(`${armed},${friend},${enemy}`), activatingUnitId: 'red-a' };
+  }
+
+  async function openRed() {
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue(redActivating());
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+  }
+
+  it('offers the enemy first, says whose each unit is, and fires on the enemy by default', async () => {
+    await openRed();
+    fire.mockResolvedValue(redActivating());
+
+    const options = [...screen.getByLabelText('Red Alpha fire').querySelectorAll('select')[0].querySelectorAll('option')].map((option) => option.textContent);
+    expect(options[0]).toContain('Blue Alpha (blue)');
+    expect(options[1]).toContain('Red Bravo (red) · own side');
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    await waitFor(() => expect(fire).toHaveBeenCalled());
+    expect(fire.mock.calls[0][1]).toMatchObject({ targetId: 'blue-a' });
+  });
+
+  it('asks before firing on its own side, and fires only on a yes', async () => {
+    await openRed();
+    fire.mockResolvedValue(redActivating());
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const targetSelect = screen.getByLabelText('Red Alpha fire').querySelectorAll('select')[0];
+    fireEvent.change(targetSelect, { target: { value: 'red-b' } });
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    expect(confirm.mock.calls[0][0]).toContain("Red Bravo is on red, Red Alpha's own side");
+    expect(fire).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    await waitFor(() => expect(fire).toHaveBeenCalledTimes(1));
+    expect(fire.mock.calls[0][1]).toMatchObject({ targetId: 'red-b' });
+    confirm.mockRestore();
   });
 });

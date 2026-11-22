@@ -49,6 +49,9 @@ public sealed partial class InMemoryMatchService
                 throw new InvalidOperationException(blocked);
             }
 
+            // After the shot's own refusals, so a shot at a wreck still says it is a wreck.
+            RequireBattleNotOver(match);
+
             var targetArc = shot.TargetArc;
             var solution = shot.Solution;
             var resolver = shot.Resolver;

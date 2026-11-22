@@ -111,6 +111,22 @@ select {
   color: var(--text);
 }
 
+/* A checkbox or radio is its own small control, not a field: the rule above gave every input a
+   full-width 40px box with clipped corners, so a tick box drew as a 40-60px white square and on a
+   phone a bar the width of the screen (playtest M4). The label around it is the tap target. */
+input[type=checkbox],
+input[type=radio] {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  flex: 0 0 auto;
+  margin: 8px 0;
+  padding: 0;
+  clip-path: none;
+  accent-color: var(--line-hot);
+  cursor: pointer;
+}
+
 input[type="color"] {
   min-width: 52px;
   padding: 4px;
@@ -3489,4 +3505,24 @@ small,
   overflow-wrap: anywhere;
   word-break: break-all;
   user-select: all;
+}
+
+/* The end of a battle: said once, at the top of the board, with the record a click away. */
+.battle-over {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber);
+  background: rgba(245, 199, 102, 0.08);
+}
+
+.battle-over h3 {
+  margin: 0;
+  color: var(--amber);
+}
+
+.battle-over-sides {
+  margin: 0;
+  padding-left: 18px;
 }

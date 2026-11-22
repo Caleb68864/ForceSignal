@@ -293,3 +293,17 @@ describe('how many damage control parties one job may hold', () => {
     expect(partiesPerJobCap(undefined, 8)).toBe(8);
   });
 });
+
+describe('the checklist once the battle is over (playtest M1)', () => {
+  it('says the battle is over rather than "all your ships have locked orders"', () => {
+    const board = snapshot({
+      battleOver: { reason: 'OneSideLeft', message: 'p1 has no ships left. The battle is over.' },
+      ships: [ship({ id: 'mine', isDestroyed: true })],
+    });
+
+    const items = buildPreTurnChecklist(board, new Set(['mine']));
+
+    expect(items.map((item) => item.id)).toEqual(['over']);
+    expect(items[0].text).toContain('The battle is over');
+  });
+});

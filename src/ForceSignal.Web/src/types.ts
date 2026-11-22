@@ -296,7 +296,12 @@ export type MatchSnapshot = {
   // Ships hit during the volley still being fired, whose threshold checks wait for it to end. The
   // client does not read these; they ride along so an exported snapshot can bring them back.
   pendingThresholds?: PendingThreshold[] | null;
+  // Set once the battle is over: one side has no ship left, or the host ended it. The server
+  // refuses further turns; the screens show the result and how to keep the record.
+  battleOver?: BattleOver | null;
 };
+
+export type BattleOver = { reason: 'OneSideLeft' | 'EndedByHost' | string; message: string };
 
 export type PendingThreshold = {
   shipId: string;
