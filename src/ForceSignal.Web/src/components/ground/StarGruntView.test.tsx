@@ -435,3 +435,26 @@ describe('StarGrunt status line after a shot', () => {
     expect(await screen.findByText('Alpha Squad fired on Bravo Squad: one down.', { selector: 'p' })).toBeTruthy();
   });
 });
+
+describe('StarGrunt log', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('draws only the newest 300 lines of a long log, and says so', async () => {
+    const log = Array.from({ length: 350 }, (_, index) => `entry ${index}`);
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...snapshotFrom(wholeUnit), log });
+
+    const { container } = render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    const lines = container.querySelectorAll('[aria-label="StarGrunt log"] li');
+    expect(lines.length).toBe(300);
+    expect(lines[0].textContent).toBe('entry 50');
+    expect(screen.getByText('Showing the most recent 300 of 350 lines.')).toBeTruthy();
+  });
+});

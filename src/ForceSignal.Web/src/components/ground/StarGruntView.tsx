@@ -29,6 +29,7 @@ import {
   visibleBandRows,
 } from '../../lib/starGruntProfile.ts';
 import type { GameHandle, StarGruntRulesProfile, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
+import { GroundLog } from './GroundLog.tsx';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
 // - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
@@ -970,9 +971,7 @@ export function StarGruntView() {
 
       <div className="card-module" aria-label="StarGrunt log">
         <span className="label module-title">Log</span>
-        {snapshot.log.length === 0
-          ? <p className="constraint-line">Nothing has happened yet.</p>
-          : <ul className="stargrunt-log">{snapshot.log.map((entry, index) => <li key={`${index}-${entry}`}>{entry}</li>)}</ul>}
+        <GroundLog log={snapshot.log} logStart={snapshot.logStart} listClassName="stargrunt-log" />
       </div>
     </section>
   );

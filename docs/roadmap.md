@@ -61,7 +61,14 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       count a logged line as a rise in `logStart + log.length`, which a repeated sentence moves too;
       the text comparison remains only for a server older than the field
       (`GroundGameLogStartTests`, both engines, not compiling on the old code; `StarGruntView.test.tsx`,
-      "shows the same sentence again when the shot logs it at the cap", failing on the old code). Tests: one per screen ("... once the log is at its cap"), both
+      "shows the same sentence again when the shot logs it at the cap", failing on the old code).
+- [x] **Both ground screens drew their whole log on every render.** Up to 2000 lines went into the DOM
+      on every render, every keystroke on the add-a-platoon form included - the stutter the Full Thrust
+      log was cut to 300 for. `components/ground/GroundLog.tsx` draws the newest 300, oldest first as
+      before, with "Showing the most recent 300 of N lines." above them; the snapshot keeps the whole
+      log, and rows are keyed by their place in the game's history so sliding the window re-renders
+      nothing else (`DirtsideView.test.tsx` "battle log", `StarGruntView.test.tsx` "StarGrunt log";
+      both fail on the old code). Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
 - [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
       with every field and list entry nulled in turn, against a dev server with a fleet, ships and

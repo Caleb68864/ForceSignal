@@ -33,6 +33,7 @@ import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
 import { DirtsideElementCards } from './DirtsideElementCards.tsx';
 import { DirtsideFirefightPanel } from './DirtsideFirefightPanel.tsx';
 import { DirtsideNervePanel } from './DirtsideNervePanel.tsx';
+import { GroundLog } from './GroundLog.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
 function optionalWholeNumber(text: string, min: number, max: number) {
@@ -1049,10 +1050,7 @@ export function DirtsideView() {
 
       <div className="card-module" aria-label="Battle log">
         <span className="label module-title">Battle log</span>
-        {snapshot.log.length === 0 ? <p className="constraint-line">Nothing has happened yet.</p> : null}
-        <ol>
-          {snapshot.log.map((entry, index) => <li key={`${index}-${entry}`}>{entry}</li>)}
-        </ol>
+        <GroundLog log={snapshot.log} logStart={snapshot.logStart} ordered />
       </div>
     </section>
   );

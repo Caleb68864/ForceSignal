@@ -398,3 +398,29 @@ describe('DirtsideView firer walk', () => {
     expect(line.className).toContain('warning');
   });
 });
+
+describe('DirtsideView battle log', () => {
+  // The server keeps up to 2000 lines and every one went into the DOM on every render. The newest
+  // 300 are drawn, as the Full Thrust log does; the rest stay in the snapshot.
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+  });
+
+  afterEach(cleanup);
+
+  it('draws only the newest 300 lines of a long log, and says so', async () => {
+    const log = Array.from({ length: 350 }, (_, index) => `entry ${index}`);
+    readGame.mockResolvedValue({ ...snapshot, log, logStart: 0 });
+
+    const { container } = render(<DirtsideView />);
+    await screen.findByText('Reopened Ridge Line.');
+
+    const lines = container.querySelectorAll('[aria-label="Battle log"] li');
+    expect(lines.length).toBe(300);
+    expect(lines[0].textContent).toBe('entry 50');
+    expect(lines[299].textContent).toBe('entry 349');
+    expect(screen.getByText('Showing the most recent 300 of 350 lines.')).toBeTruthy();
+  });
+});
