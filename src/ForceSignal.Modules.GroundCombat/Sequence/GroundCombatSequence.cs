@@ -573,14 +573,21 @@ public static class GroundCombatSequence
     {
         ArgumentNullException.ThrowIfNull(session);
 
+        // In words a table can act on (playtest M9): "No turn is being played" was said while the
+        // header read "Turn 1", during the choice of who goes first.
         if (session.Phase != TurnPhase.Activating)
         {
-            return SequenceCheck.Refused("No turn is being played.");
+            return SequenceCheck.Refused(session.Phase switch
+            {
+                TurnPhase.ChoosingFirstActivator => "The turn has not reached its activations yet: choose who goes first.",
+                TurnPhase.TurnEnded => "The turn is already over; begin the next one.",
+                _ => "No turn has begun yet.",
+            });
         }
 
         if (!session.IsIdle)
         {
-            return SequenceCheck.Refused("Something is still activated.");
+            return SequenceCheck.Refused("Finish the open activation first.");
         }
 
         var everybodyDone = session.Sides.All(side => side.UnactivatedCount == 0);
@@ -588,7 +595,8 @@ public static class GroundCombatSequence
 
         return everybodyDone || bothPassed
             ? SequenceCheck.Allowed
-            : SequenceCheck.Refused("Neither side has run out nor have both passed in succession.");
+            : SequenceCheck.Refused(
+                "Not every unit has gone yet. A side with nothing it wants to activate passes; the turn ends once both sides pass in a row, or every unit has gone.");
     }
 
     /// <summary>Ends the turn.</summary>

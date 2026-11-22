@@ -94,6 +94,19 @@ that fails on the old code.
       "nobody said" without a contract change (`StarGruntView.test.tsx` "StarGrunt confidence test"
       and `DirtsideAssault.test.tsx` "refuses a confidence test with no threat level entered", both
       failing on the old code).
+- [x] **M9. The ground games gave no "what now".** After every unit had gone the status still said
+      "blue to act"; End Turn was refused with "Neither side has run out nor have both passed in
+      succession."; Begin Turn stayed highlighted mid-turn and "X goes first" stayed live; Dirtside's
+      End Turn during the choice said "No turn is being played" under a "Turn 1" header. Guidance and
+      highlighting only - nothing passes by itself. The next-step line (added on the polish branch)
+      now reads the roster: "Every platoon has gone. End Turn." once all have, and "blue has nothing
+      it can activate now: press blue passes." for a side with nothing it can activate. Both screens
+      highlight exactly the button it names (Begin Turn, the first-activator choice, End Activation,
+      the right side's Pass, End Turn) and switch off the turn buttons that do not apply in the
+      phase. The sequence's End Turn refusals say what to do instead. Tests: `groundNextStep.test.ts`
+      "the one button to press", `DirtsideAssault.test.tsx` "highlights End Turn once every platoon
+      has gone" and "tells a side with nothing it can activate to pass" (both failing on the old
+      code), `SequenceGuardsTests.EndingTheTurnTooEarlySaysWhatToDoInstead`.
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

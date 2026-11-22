@@ -46,6 +46,18 @@ public class SequenceGuardsTests
     }
 
     [Fact]
+    public void EndingTheTurnTooEarlySaysWhatToDoInstead()
+    {
+        // Playtest M9: "No turn is being played." while the header read "Turn 1", and "Neither side
+        // has run out nor have both passed in succession." with no hint of the pass buttons.
+        var begun = GroundCombatSequence.BeginTurn(SequenceFixtures.Game(2, 2));
+        var underWay = SequenceFixtures.TurnUnderWay(SequenceFixtures.Game(2, 2), SequenceFixtures.Blue);
+
+        Assert.Equal("The turn has not reached its activations yet: choose who goes first.", GroundCombatSequence.CanEndTurn(begun).Reason);
+        Assert.Contains("passes", GroundCombatSequence.CanEndTurn(underWay).Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PassingReadsUnactivatedUnitsRatherThanUnitsOnTable()
     {
         // Equal forces, but one side has already spent two markers. The larger pool of unactivated

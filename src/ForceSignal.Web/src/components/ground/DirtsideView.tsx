@@ -37,7 +37,8 @@ import { DirtsideElementCards } from './DirtsideElementCards.tsx';
 import { DirtsideFirefightPanel } from './DirtsideFirefightPanel.tsx';
 import { DirtsideNervePanel } from './DirtsideNervePanel.tsx';
 import { GroundLog } from './GroundLog.tsx';
-import { GroundNextStep } from './GroundNextStep.tsx';
+import { GroundNextStep, primaryWhen } from './GroundNextStep.tsx';
+import { groundNextStep } from '../../lib/groundNextStep.ts';
 import { GroundJoin, GroundShare } from './GroundShare.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
@@ -583,6 +584,20 @@ export function DirtsideView() {
   // the add-a-platoon panel offers none and says so.
   const leadershipValues = leadershipValuesOf(snapshot.profile);
   const activating = snapshot.units.find((unit) => unit.id === snapshot.activatingUnitId) ?? null;
+  const step = groundNextStep({
+    turnNumber: snapshot.turnNumber,
+    phase: snapshot.phase,
+    sides: snapshot.sides,
+    activeSide: snapshot.activeSide,
+    activatingName: activating?.name ?? null,
+    unitCount: snapshot.units.length,
+    units: snapshot.units.map((unit) => ({
+      side: unit.side,
+      canActivate: unit.canActivate,
+      hasActivated: unit.hasActivated,
+      isOut: unit.elements.length > 0 && unit.elements.every((element) => element.isDestroyed),
+    })),
+  }, 'platoon');
   const enemies = activating
     ? snapshot.units.filter((unit) => unit.side !== activating.side)
     : [];
@@ -603,17 +618,7 @@ export function DirtsideView() {
   return (
     <section className="panel" aria-label="Dirtside">
       <h2>{snapshot.name}</h2>
-      <GroundNextStep
-        unit="platoon"
-        turn={{
-          turnNumber: snapshot.turnNumber,
-          phase: snapshot.phase,
-          sides: snapshot.sides,
-          activeSide: snapshot.activeSide,
-          activatingName: activating?.name ?? null,
-          unitCount: snapshot.units.length,
-        }}
-      />
+      <GroundNextStep step={step} />
       {/*
         On every screen rather than only at the start: the composition moves every probability in
         the damage model, so a table settling an argument about a draw should be able to read what is
@@ -652,16 +657,24 @@ export function DirtsideView() {
       <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
       <GroundShare game={game} link={link} />
 
+      {/* One button highlighted - the one the next-step line names - and the rest off when the turn
+          is not at their point (playtest M9: Begin Turn stayed highlighted mid-turn, and "X Goes
+          First" stayed live after the choice was made). */}
       <div className="quick-actions">
-        <button type="button" disabled={busy} onClick={() => void run(() => api.beginTurn(game), undefined, 'Turn opened.')}>
+        <button
+          type="button"
+          className={primaryWhen(step.primary === 'begin-turn')}
+          disabled={busy || !['NotStarted', 'TurnEnded'].includes(snapshot.phase)}
+          onClick={() => void run(() => api.beginTurn(game), undefined, 'Turn opened.')}
+        >
           Begin Turn
         </button>
         {snapshot.sides.map((side) => (
           <button
             key={`first-${side}`}
-            className="ghost"
+            className={primaryWhen(step.primary === 'choose-first')}
             type="button"
-            disabled={busy}
+            disabled={busy || snapshot.phase !== 'ChoosingFirstActivator'}
             onClick={() => void run(() => api.chooseFirstActivator(game, side, true), undefined, `${side} takes the first activation.`)}
           >
             {side} Goes First
@@ -670,15 +683,20 @@ export function DirtsideView() {
         {snapshot.sides.map((side) => (
           <button
             key={`pass-${side}`}
-            className="ghost"
+            className={primaryWhen(step.primary === 'pass' && step.side === side)}
             type="button"
-            disabled={busy}
+            disabled={busy || snapshot.phase !== 'Activating' || Boolean(activating) || (Boolean(snapshot.activeSide) && snapshot.activeSide !== side)}
             onClick={() => void run(() => api.pass(game, side), undefined, `${side} passed.`)}
           >
             {side} Passes
           </button>
         ))}
-        <button className="ghost" type="button" disabled={busy} onClick={() => void run(() => api.endTurn(game), undefined, 'Turn ended.')}>
+        <button
+          className={primaryWhen(step.primary === 'end-turn')}
+          type="button"
+          disabled={busy || snapshot.phase !== 'Activating' || Boolean(activating)}
+          onClick={() => void run(() => api.endTurn(game), undefined, 'Turn ended.')}
+        >
           End Turn
         </button>
         <button className="ghost" type="button" disabled={busy} onClick={leave}>Leave Game</button>
@@ -1016,7 +1034,7 @@ export function DirtsideView() {
             </button>
             <button
               type="button"
-              className="ghost"
+              className={primaryWhen(snapshot.canEndActivation)}
               disabled={busy || !snapshot.canEndActivation}
               title={snapshot.whyActivationCannotEnd ?? undefined}
               onClick={() => void run(() => api.endActivation(game), undefined, 'Activation ended.')}
