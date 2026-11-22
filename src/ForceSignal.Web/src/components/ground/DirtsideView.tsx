@@ -41,6 +41,7 @@ import { GroundLog } from './GroundLog.tsx';
 import { GroundNextStep, primaryWhen } from './GroundNextStep.tsx';
 import { groundNextStep } from '../../lib/groundNextStep.ts';
 import { GroundJoin, GroundShare } from './GroundShare.tsx';
+import { Explain } from './Explain.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
 function optionalWholeNumber(text: string, min: number, max: number) {
@@ -719,11 +720,11 @@ export function DirtsideView() {
       {activating ? (
         <div className="card-module" aria-label="Activation">
           <span className="label module-title">{activating.name} is activated</span>
-          <p className="constraint-line">
+          <Explain topic="an activation">
             Each element takes one move and one combat action, in whichever order it likes, or
             neither. The activation cannot close until every element has said which - sitting out
             gives up its go for the whole turn.
-          </p>
+          </Explain>
           {/*
             Who the activation is actually waiting on, by name.
 
@@ -924,10 +925,10 @@ export function DirtsideView() {
           </label>
 
           <span className="label module-title">Direct fire</span>
-          <p className="constraint-line">
+          <Explain topic="a refused shot">
             A shot at something an earlier shot destroyed is refused, and costs nothing: the element
             keeps its shot for something still in the fight.
-          </p>
+          </Explain>
           <div className="table-fields">
             <label>
               Firing element
@@ -1075,10 +1076,10 @@ export function DirtsideView() {
       {snapshot.turnNumber === 0 ? (
         <div className="card-module" aria-label="Add platoon">
           <span className="label module-title">Add a platoon</span>
-          <p className="constraint-line">
+          <Explain topic="a record card">
             Every number here comes off your own record card. Signature runs 1 for the largest down to
             5 for the smallest. A weapon on a fixed mount can be fired before moving, never after.
-          </p>
+          </Explain>
           <div className="table-fields">
             <label>Name<input value={platoonForm.name} onChange={(e) => setPlatoonForm({ ...platoonForm, name: e.target.value })} /></label>
             <label>Side<input value={platoonForm.side} onChange={(e) => setPlatoonForm({ ...platoonForm, side: e.target.value })} /></label>
@@ -1095,16 +1096,16 @@ export function DirtsideView() {
             </label>
           </div>
           <span className="label">The element cards, off your own sheets</span>
-          <p className="constraint-line">
+          <Explain topic="element cards">
             One card for each kind of element in the platoon. Every number opens at zero, which means
             nobody has entered it; this app carries no stat blocks.
-          </p>
+          </Explain>
           <DirtsideElementCards cards={cards} onChange={setCards} />
           <span className="label">Close assault, off the card</span>
-          <p className="constraint-line">
+          <Explain topic="close assault numbers">
             Leave any of these blank when the card does not give it. The platoon can still move and
             shoot; it just cannot launch or receive a close assault until they are filled in.
-          </p>
+          </Explain>
           <div className="table-fields">
             <label title="The die on the command marker.">
               Quality die

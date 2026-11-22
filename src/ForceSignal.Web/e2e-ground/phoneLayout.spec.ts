@@ -130,3 +130,15 @@ test('a reload of a ground game comes back where the player was scrolled to (pla
   await expect(page.getByLabel('Add platoon')).toBeVisible();
   await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { timeout: 5_000 }).toBeGreaterThan(1300);
 });
+
+test('a ground panel\'s rules reminder waits behind a "?" (playtest m19 follow-up)', async ({ page }) => {
+  await openEngine(page, 'Dirtside II');
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Start Game' }).click();
+  const reminder = page.getByText(/Every number here comes off your own record card/);
+  await expect(page.getByLabel('Add platoon')).toBeVisible();
+  await expect(reminder).toBeHidden();
+
+  await page.locator('summary', { hasText: 'How a record card works' }).click();
+  await expect(reminder).toBeVisible();
+});

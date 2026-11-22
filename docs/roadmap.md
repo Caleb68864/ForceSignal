@@ -172,7 +172,14 @@ that fails on the old code.
       scoped to the helm now. On both ground screens the lines are sentence case, left-aligned and at
       reading weight, and the line saying what just happened is styled as a result (a cyan rule) or
       a refusal (red) (`phoneLayout.spec.ts` "the ground screens read in sentences", failing on the
-      old styles; axe still clean). *Left:* folding long rules text behind a "?".
+      old styles; axe still clean). *Left:* folding long rules text behind a "?". *Done on
+      `ux/playtest-fixes-4`:* seventeen rules reminders that sat open on every turn - how an
+      activation, an assault and each of its stages, a firefight, nerve tests, a charge, settling the
+      downed, record cards and force files work - now wait behind a round "?" (`Explain`, a closed
+      details element, so the text is one tap away and still reachable by a screen reader; 44px on a
+      touch screen). The create screens' guidance, read once at setup, stays open
+      (`phoneLayout.spec.ts` "a ground panel's rules reminder waits behind a ?", failing on the old
+      code; axe still clean).
 - [x] **m20. StarGrunt's roster had no order and no side colours.** Units are now grouped by side, in
       the order the sides were named, each side with its own coloured rule; the activated unit has an
       amber outline and says "Activated."; the other cards no longer repeat "...is still activated"
