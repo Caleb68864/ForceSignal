@@ -32,6 +32,20 @@ public class SequenceGuardsTests
     }
 
     [Fact]
+    public void ARefusalForTheWrongPhaseSaysThePhaseInWords()
+    {
+        // The refusal reaches the screen as written, and it used to carry the enum's name:
+        // "The turn is not in its activation phase (ChoosingFirstActivator)."
+        var begun = GroundCombatSequence.BeginTurn(SequenceFixtures.Game(2, 2));
+
+        var activate = GroundCombatSequence.CanBeginActivation(begun, SequenceFixtures.Blue, new UnitId("blue-1"));
+        var again = GroundCombatSequence.CanBeginTurn(begun);
+
+        Assert.Equal("Nobody can activate yet: the first activation is still being chosen.", activate.Reason);
+        Assert.Equal("A turn is already under way: the first activation is still being chosen.", again.Reason);
+    }
+
+    [Fact]
     public void PassingReadsUnactivatedUnitsRatherThanUnitsOnTable()
     {
         // Equal forces, but one side has already spent two markers. The larger pool of unactivated

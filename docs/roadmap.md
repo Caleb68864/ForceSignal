@@ -21,6 +21,32 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Polish pass 2026-11-21 (`polish/2026-11-21`)
+
+A UX pass of the agent's own while the playtester's report is written: first run, cues for what to
+do next, phase indicators, empty and error states, loading, and touch targets at phone (390x844) and
+tablet (820x1180) size. Each fix has a test that fails on the old code.
+
+- [x] **The credit links ran across the lines around them, and two controls were too small to hit.**
+      On the start screen the two links inside the artwork credit sentence wore the Rules button's
+      bordered box, taller than the line, so their borders crossed the text above and below; the
+      Rules link itself was 32px tall, and "New here? How to play" 19px. The sentence links are now
+      underlined text on the line, and Rules and the how-to-play link are 44px touch targets that
+      still read as what they are. `e2e-ground/touchTargets.spec.ts` holds the start screen and both
+      ground setup screens at both sizes to no sideways scroll and no control under 40px, and checks
+      a link in a sentence stays within the line; all four cases failed on the old styles.
+- [x] **The ground screens printed the engine's phase name and no next step.** The header read
+      "Turn 1 · ChoosingFirstActivator", a refused Activate read "The turn is not in its activation
+      phase (ChoosingFirstActivator).", and nothing said which of the row of buttons the game was
+      waiting for. Both ground screens now carry the sticky "What to do next" line Full Thrust has:
+      the turn and phase in words ("Turn 1 · Choosing who goes first") and the step ("Choose which
+      side goes first.", "blue activates a platoon, or passes.", "Finish Anvil's activation, then
+      End Activation.", "Put a platoon on the table for each side, then Begin Turn."), worked out
+      only from the snapshot (`lib/groundNextStep.ts`). The sequence's two phase refusals say the
+      phase in words too. Tests: `groundNextStep.test.ts`; `DirtsideView.test.tsx` "names the phase in
+      words and the step the game is waiting for" and
+      `SequenceGuardsTests.ARefusalForTheWrongPhaseSaysThePhaseInWords`, both failing on the old code.
+
 ## Hardening pass 2026-11-21 (`harden/2026-11-21`)
 
 Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to fail on the old code.
@@ -195,8 +221,9 @@ outside the repo; only what they found is recorded here.
       `e2e-ground/twoDevices.spec.ts` starts a Dirtside game in one context, joins it from a second
       by its code, adds a platoon on each and sees each appear on the other, begins the turn on one
       and sees it on the other, all without a reload; and a third context with one character of the
-      code wrong is told the code opens nothing. Green on repeats. Done for both engines; the screen
-      code is shared, and the StarGrunt half is covered by the component tests.
+      code wrong is told the code opens nothing. Green on repeats. `twoDevicesStarGrunt.spec.ts` does
+      the same for StarGrunt: a squad added on each device appears on the other, and a turn begun on
+      one and an activation opened on the other each reach the opposite screen.
       *CI fix:* the verify job failed with three unhandled vitest errors ("Closing rpc while
       'onUserConsoleLog' was pending") - on CI's Node 22 the ground screens' component tests really
       started a SignalR connection in jsdom, and SignalR's own logger wrote after the tests ended.

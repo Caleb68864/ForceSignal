@@ -48,7 +48,7 @@ public static class GroundCombatSequence
 
         return session.Phase is TurnPhase.NotStarted or TurnPhase.TurnEnded
             ? SequenceCheck.Allowed
-            : SequenceCheck.Refused($"A turn is already under way ({session.Phase}).");
+            : SequenceCheck.Refused($"A turn is already under way: {UnderWay(session.Phase)}.");
     }
 
     /// <summary>
@@ -601,11 +601,28 @@ public static class GroundCombatSequence
         return session with { Phase = TurnPhase.TurnEnded, ActiveSide = null };
     }
 
+    /// <summary>
+    /// A turn under way, as a refusal says it. These reach the screen word for word, and they used to
+    /// carry the enum's own name in brackets.
+    /// </summary>
+    private static string UnderWay(TurnPhase phase) => phase switch
+    {
+        TurnPhase.ChoosingFirstActivator => "the first activation is still being chosen",
+        TurnPhase.Activating => "activations are under way",
+        _ => phase.ToString(),
+    };
+
     private static SequenceCheck CanTakeATurn(GroundCombatSession session, SideId side)
     {
         if (session.Phase != TurnPhase.Activating)
         {
-            return SequenceCheck.Refused($"The turn is not in its activation phase ({session.Phase}).");
+            return SequenceCheck.Refused(session.Phase switch
+            {
+                TurnPhase.NotStarted => "No turn has begun yet.",
+                TurnPhase.ChoosingFirstActivator => "Nobody can activate yet: the first activation is still being chosen.",
+                TurnPhase.TurnEnded => "The turn is over; begin the next one.",
+                _ => $"The turn is not in its activation phase ({session.Phase}).",
+            });
         }
 
         if (!session.IsIdle)
