@@ -85,6 +85,13 @@ that fails on the old code.
       `fullThrustLayout.spec.ts` "ships on the same spot fan out", failing on the old code with all
       four markers on one point). On the animated map a fanned-out button no longer sits exactly on
       its hull, which is drawn where the ship is.
+- [x] **An axe pass at phone, tablet and desktop size, kept as a test.** The playtest ran axe-core
+      once by hand. `e2e-ground/accessibility.spec.ts` now runs it (axe-core 4.10.3, a pinned dev
+      dependency) over the start screen, a Full Thrust match's Ships, Play Map and Log views, and a
+      Dirtside and a StarGrunt game mid-activation, at 390x844, 820x1180 and 1440x900. It found one
+      serious violation the screens had grown since: the Full Thrust battle log scrolls on its own and
+      a keyboard could not reach it (`scrollable-region-focusable`). It now takes focus and is
+      labelled. 12 of 12 clean; three cases failed before the fix.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

@@ -2303,7 +2303,9 @@ function App() {
                   <button className="ghost" onClick={() => exportAfterAction('json')}>JSON</button>
                 </div>
               </div>
-              <ol className="log-list">
+              {/* Scrolls on its own, so it takes focus: a keyboard could not reach its entries (axe:
+                  scrollable-region-focusable). */}
+              <ol className="log-list" tabIndex={0} aria-label="Battle record entries">
                 {recentLog.map((entry) => (
                   <li key={entry.sequence}>
                     <span>T{entry.turnNumber} · {formatPhase(entry.phase)} · {entry.category} · {formatLogTime(entry.timestamp)}</span>
