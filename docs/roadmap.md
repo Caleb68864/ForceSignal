@@ -176,6 +176,14 @@ outside the repo; only what they found is recorded here.
 - [ ] **Ground games are one device.** Neither Dirtside nor StarGrunt has a join flow or a realtime
       link; a second browser gets only the setup screen. "Two-device" for them is not a thing yet,
       and nothing here says it should be - but it is why only Full Thrust was played across two.
+      *In progress on `feat/ground-multi-device` (2026-11-21).* **Server half done:** `/hubs/ground`
+      (`GroundGameHub.JoinGroundGame(engine, gameId, token)`) lets a device follow a game it holds
+      the token for - the token is the 256-bit one every route already demands, and a wrong token,
+      an unknown game, the other engine's id or an engine switched off are all refused alike - and
+      every ground route that changes a game now pushes `GroundGameChanged(engine, gameId, version)`
+      to that game's followers only, from `GameTokenFilter` once the command has answered; a refusal
+      pushes nothing (`GroundGameHubEndToEndTests`, four cases over a real SignalR client). Still to
+      come: the share code and join flow on both screens, and the screens following the push.
 
 ## Hardening pass 2026-11-09 (`harden/2026-11-09`)
 
