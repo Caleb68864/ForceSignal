@@ -27,6 +27,7 @@ import {
 
 import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
+import { newestLogEntry } from '../../lib/newestLogEntry.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { DirtsideAssaultPanel } from './DirtsideAssaultPanel.tsx';
 import { DirtsideElementCards } from './DirtsideElementCards.tsx';
@@ -139,11 +140,10 @@ export function DirtsideView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      const loggedBefore = snapshot?.log.length ?? 0;
+      const before = snapshot?.log ?? [];
       const next = await action();
       setSnapshot(next);
-      const logged = next.log.length > loggedBefore ? next.log[next.log.length - 1] : undefined;
-      say(note ?? logged ?? ifNothingLogged ?? '');
+      say(note ?? newestLogEntry(before, next.log) ?? ifNothingLogged ?? '');
     } catch (error) {
       fail(error);
     } finally {

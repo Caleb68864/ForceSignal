@@ -45,6 +45,18 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       from this device in the last minute. Wait N seconds and try again." - with a `Retry-After`
       header from the limiter's own lease (`ApiHardeningTests.ATurnedAwayRequest_SaysWhyAndWhenToTryAgain`,
       fails on the old code at the content type).
+- [x] **StarGrunt's status line kept a refused shot's alert over the shot that then landed.** `run()`
+      wrote the line only when given a sentence, and Fire has none, so the refusal stayed up, still
+      `role="alert"` - the defect Dirtside's line had until 2026-11-16. It now shows the command's
+      sentence, else what it logged, else nothing (`StarGruntView.test.tsx`, "shows what the shot
+      logged, not the refusal before it"; fails on the old code).
+- [x] **Both ground status lines went quiet once the log was full.** Each engine keeps the newest
+      2000 entries (`GroundGameGuards.MaxLogEntries`), so past that a logged line leaves the length
+      alone and "did the log grow" read as "nothing logged": Dirtside then said only its fallback
+      ("Turn opened.") and StarGrunt's Fire said nothing. `lib/newestLogEntry.ts` also counts a log
+      whose newest entry changed. One case is still missed and is written on the helper: the very
+      same sentence again at the cap. Tests: one per screen ("... once the log is at its cap"), both
+      failing on the old code, and `newestLogEntry.test.ts`.
 
 ## Two-device play 2026-11-16 (`test/two-player-smoke`)
 

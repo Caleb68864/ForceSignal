@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { starGruntGameKey } from '../../constants.ts';
+import { ApiRequestError } from '../../lib/api.ts';
 import type { GameHandle, StarGruntSnapshot } from '../../types.ts';
 import { StarGruntView } from './StarGruntView.tsx';
 
@@ -9,7 +10,9 @@ const readGame = vi.fn<(game: GameHandle) => Promise<StarGruntSnapshot>>();
 const addUnit = vi.fn<(game: GameHandle, unit: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
 const fightMelee = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
 const createGame = vi.fn<(name: string, profile?: Record<string, unknown>) => Promise<GameHandle & { snapshot: StarGruntSnapshot }>>();
+const fire = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
 vi.mock('../../lib/starGruntApi.ts', () => ({
+  fire: (game: GameHandle, request: Record<string, unknown>) => fire(game, request),
   readGame: (game: GameHandle) => readGame(game),
   addUnit: (game: GameHandle, unit: Record<string, unknown>) => addUnit(game, unit),
   fightMelee: (game: GameHandle, request: Record<string, unknown>) => fightMelee(game, request),
@@ -361,5 +364,60 @@ describe('StarGrunt range table', () => {
     });
     const summary = screen.getByText(/^Range table:/);
     expect(summary.className).not.toMatch(/warning/);
+  });
+});
+
+describe('StarGrunt status line after a shot', () => {
+  // Fire was the one command with no sentence of its own, and run() only wrote the line when it was
+  // given one - so a refused shot's alert stayed up, still marked as an alert, over the shot that
+  // then went through. Dirtside had the same defect and was fixed on 2026-11-16.
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    fire.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  function firingSnapshot(log: string[] = []): StarGruntSnapshot {
+    const armed = wholeUnit.replace('"weaponLegality": []', '"weaponLegality": [{ "name": "Rifles", "canFire": true, "blocker": null }]');
+    const snapshot = snapshotFrom(`${armed},${wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "bravo", "name": "Bravo Squad", "side": "red"')}`);
+    return { ...snapshot, activatingUnitId: 'alpha', log };
+  }
+
+  function status() {
+    return screen.getAllByText((_, node) => node?.getAttribute('aria-live') === 'polite' && node.tagName === 'P')[0];
+  }
+
+  it('shows what the shot logged, not the refusal before it', async () => {
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue(firingSnapshot());
+    fire.mockRejectedValueOnce(new ApiRequestError('No range die was entered for that band.', 400));
+    fire.mockResolvedValueOnce(firingSnapshot(['Alpha Squad fired on Bravo Squad: one down.']));
+
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    expect(await screen.findByText('No range die was entered for that band.')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    expect(await screen.findByText('Alpha Squad fired on Bravo Squad: one down.', { selector: 'p' })).toBeTruthy();
+    expect(status().getAttribute('role')).toBeNull();
+  });
+
+  it('shows what the shot logged once the log is at its cap', async () => {
+    // Five entries stand in for the server's 2000: what matters is a log that stays the same length
+    // because the oldest entry was dropped for the new one, and a short one keeps the render cheap.
+    const full = Array.from({ length: 5 }, (_, index) => `entry ${index}`);
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue(firingSnapshot(full));
+    fire.mockResolvedValueOnce(firingSnapshot([...full.slice(1), 'Alpha Squad fired on Bravo Squad: one down.']));
+
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    expect(await screen.findByText('Alpha Squad fired on Bravo Squad: one down.', { selector: 'p' })).toBeTruthy();
   });
 });
