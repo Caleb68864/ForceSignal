@@ -481,7 +481,7 @@ describe('StarGrunt unit cards are told apart', () => {
     for (const name of ['Alpha Squad', 'Bravo Squad']) {
       expect(screen.getByRole('button', { name: `Activate ${name}` })).toBeTruthy();
       expect(screen.getByRole('button', { name: `Confidence test for ${name}` })).toBeTruthy();
-      expect(screen.getByRole('button', { name: `Mark ${name} scattered` })).toBeTruthy();
+      expect(screen.getByRole('button', { name: `Mark ${name} disorganised` })).toBeTruthy();
     }
   });
 });
@@ -565,5 +565,21 @@ describe('StarGrunt confidence test (playtest M8)', () => {
     fireEvent.change(screen.getByLabelText('Threat level'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confidence test for Alpha Squad' }));
     await waitFor(() => expect(confidenceTest).toHaveBeenCalledWith(handle, 'alpha', 2));
+  });
+});
+
+describe('StarGrunt says one word for one state (playtest m7)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('never says Scattered: the state is Disorganised, the way back Reorganise', async () => {
+    await open(wholeUnit);
+
+    expect(screen.queryByText(/scattered/i)).toBeNull();
+    expect(screen.getByText('Mark Disorganised', { selector: 'button' })).toBeTruthy();
   });
 });

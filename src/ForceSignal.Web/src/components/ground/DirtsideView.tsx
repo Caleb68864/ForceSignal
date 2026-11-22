@@ -24,6 +24,7 @@ import {
   chitSpecials,
   fireControls,
   postures,
+  wordsFor,
   qualityDice,
 } from '../../lib/groundVocabulary.ts';
 
@@ -379,7 +380,7 @@ export function DirtsideView() {
           <button className="ghost" type="button" onClick={addNumericalRow}>Add Numbered Chits</button>
           {chitSpecials.map((special) => (
             <label key={special}>
-              {special}
+              {wordsFor(special)}
               <input
                 inputMode="numeric"
                 value={pot.specials[special] ?? ''}
@@ -429,7 +430,7 @@ export function DirtsideView() {
           <div className="row">
             {postures.map((posture) => (
               <label key={`posture-${posture}`}>
-                {posture}
+                {wordsFor(posture)}
                 <select
                   value={profile.posture[posture] ?? ''}
                   onChange={(event) => setDieRow('posture', posture, event.target.value)}
@@ -986,7 +987,7 @@ export function DirtsideView() {
                 onChange={(event) => setShot((current) => ({ ...current, targetPosture: event.target.value }))}
               >
                 <option value="None">In the open</option>
-                {postures.map((posture) => <option key={posture} value={posture}>{posture}</option>)}
+                {postures.map((posture) => <option key={posture} value={posture}>{wordsFor(posture)}</option>)}
               </select>
             </label>
             <label title="Declared with the shot, and binding. The shot is penalised as if it had already moved; without it, the element is refused a move over half afterwards.">

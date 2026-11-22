@@ -112,6 +112,14 @@ that fails on the old code.
       ForceSignal fleet file - it is not readable JSON. Nothing was imported.", and a JSON file with
       no list of ships - which used to import as nothing, silently - is refused the same way
       (`fleetIo.test.ts` "a file that is not a fleet", failing on the old code).
+- [x] **m6. Raw code names in the ground games.** The phase names went on the polish branch; the rest
+      now go too: posture and chit-special rows, the posture choice on a shot, value scales and
+      StarGrunt's step buttons read "Hull down", "Systems down (target)", "Face value", "Go in
+      position" (`wordsFor` in `lib/groundVocabulary.ts`; the value sent stays the code).
+      `groundVocabulary.test.ts`, and `DirtsideView.test.tsx` "in words", failing on the old code.
+- [x] **m7. Scattered, Disorganised and Reorganise named one StarGrunt state.** The card's toggle now
+      says "Mark Disorganised" / "Mark Back in Order", matching the status line and the activation's
+      Reorganise (`StarGruntView.test.tsx` "one word for one state").
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

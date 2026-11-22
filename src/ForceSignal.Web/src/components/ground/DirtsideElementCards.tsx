@@ -2,7 +2,7 @@ import type { DirtsideValidityInput } from '../../lib/dirtsideApi.ts';
 import type { ElementCard, WeaponCard } from '../../lib/dirtsideCard.ts';
 import { newElementCard, newWeaponCard } from '../../lib/dirtsideCard.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
-import { bands, chitColourSets, fireControls, valueScales } from '../../lib/groundVocabulary.ts';
+import { bands, chitColourSets, fireControls, valueScales, wordsFor } from '../../lib/groundVocabulary.ts';
 
 const bandKeys = { Close: 'close', Medium: 'medium', Long: 'long' } as const;
 
@@ -137,7 +137,7 @@ function ValidityRow({ band, row, onChange }: {
       <label title="How the numbers on the chits read at this band, off your own card.">
         {band} value scale
         <select value={row.valueScale} disabled={row.isIneffective} onChange={(e) => onChange({ ...row, valueScale: e.target.value })}>
-          {valueScales.map((scale) => <option key={scale} value={scale}>{scale}</option>)}
+          {valueScales.map((scale) => <option key={scale} value={scale}>{wordsFor(scale)}</option>)}
         </select>
       </label>
       <label title="Whether the special chits do anything at this band.">
