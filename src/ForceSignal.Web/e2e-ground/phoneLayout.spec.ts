@@ -29,8 +29,8 @@ test('StarGrunt puts the activated unit above the roster', async ({ page }) => {
     await add.getByRole('button', { name: 'Add Squad' }).click();
     await expect(page.getByText(`${name} joined ${side}.`)).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Begin Turn' }).click();
-  await page.getByRole('button', { name: 'blue goes first' }).click();
+  await page.getByRole('button', { name: 'Begin Turn', exact: true }).click();
+  await page.getByRole('button', { name: 'blue goes first', exact: true }).click();
   await page.getByRole('button', { name: 'Activate Alpha Squad' }).click();
   await expect(page.getByLabel('Alpha Squad activation')).toBeVisible();
 
@@ -52,8 +52,8 @@ test('Dirtside puts the activated platoon above the platoon list', async ({ page
     await add.getByRole('button', { name: 'Add Platoon' }).click();
     await expect(page.getByLabel('Platoons').getByText(name).first()).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Begin Turn' }).click();
-  await page.getByRole('button', { name: 'blue Goes First' }).click();
+  await page.getByRole('button', { name: 'Begin Turn', exact: true }).click();
+  await page.getByRole('button', { name: 'blue Goes First', exact: true }).click();
   await page.getByRole('button', { name: 'Activate Anvil' }).click();
   await expect(page.getByLabel('Activation', { exact: true })).toBeVisible();
 

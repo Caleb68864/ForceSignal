@@ -247,6 +247,15 @@ that fails on the old code.
       as a numbered square - the step you are at in amber, the open one outlined - with the open
       step's title as the heading below and each square keeping its title for a screen reader
       (`touchTargets.spec.ts` "the help guide on a phone", failing on the old styles).
+- [x] **Design suggestion 1. One "what now" banner across all three games.** The ground screens took
+      Full Thrust's banner on the polish branch (its look, its stickiness, at the bottom on a phone)
+      and its sense of the next step with M9. It now carries the command to press as well, as Full
+      Thrust's does - "Next: Begin Turn", "Next: End Activation", "Next: blue passes", "Next: End
+      Turn", and StarGrunt's "Next: red goes first" when the game knows who chooses - so on a phone,
+      where the banner is under the thumb and the turn buttons are at the top, the next step is one
+      tap from anywhere. The "Next:" keeps it from being taken for the turn button it repeats; the
+      browser specs now name turn buttons exactly (`DirtsideAssault.test.tsx` "carries the command
+      to press now in the banner", failing on the old code; 41 of 41 browser specs).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

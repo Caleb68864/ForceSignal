@@ -46,9 +46,9 @@ test('a StarGrunt game is played from two devices', async ({ browser }) => {
   await expect(first.getByRole('button', { name: 'Activate Bravo Squad' })).toBeVisible();
 
   // The turn begun on one shows on the other, and so does the activation it then opens.
-  await second.getByRole('button', { name: 'Begin Turn' }).click();
+  await second.getByRole('button', { name: 'Begin Turn', exact: true }).click();
   await expect(first.getByText('Turn 1', { exact: false }).first()).toBeVisible();
-  await first.getByRole('button', { name: 'blue goes first' }).click();
+  await first.getByRole('button', { name: 'blue goes first', exact: true }).click();
   await first.getByRole('button', { name: 'Activate Alpha Squad' }).click();
   await expect(second.getByText('Alpha Squad is activated')).toBeVisible();
 

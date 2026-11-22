@@ -543,7 +543,17 @@ export function StarGruntView() {
     <section className="stargrunt" aria-label="StarGrunt game">
       <div className="card-module">
         <span className="label module-title">{snapshot.name}</span>
-        <GroundNextStep step={step} />
+        <GroundNextStep
+          step={step}
+          action={
+            step.primary === 'begin-turn' && canPlay ? { label: 'Begin Turn', disabled: busy, onClick: () => run(() => api.beginTurn(game), 'Turn opened.') }
+              : step.primary === 'choose-first' && snapshot.firstActivationChooser ? { label: `${snapshot.firstActivationChooser} goes first`, disabled: busy, onClick: () => run(() => api.chooseFirstActivator(game, snapshot.firstActivationChooser as string, true), `${snapshot.firstActivationChooser} takes the first activation.`) }
+                : step.primary === 'end-turn' ? { label: 'End Turn', disabled: busy, onClick: () => run(() => api.endTurn(game), 'Turn ended.') }
+                  : step.primary === 'pass' && step.side ? { label: `${step.side} passes`, disabled: busy, onClick: () => run(() => api.pass(game, step.side as string), `${step.side} passed.`) }
+                    : step.primary === 'end-activation' && activating ? { label: 'End Activation', disabled: busy, onClick: () => run(() => api.endActivation(game), `${activating.name} is done.`) }
+                      : null
+          }
+        />
         {/*
           On every screen rather than only at setup, so a table arguing about a shot can read which
           numbers the game is settling it with. Warning-styled when there is nothing to settle one

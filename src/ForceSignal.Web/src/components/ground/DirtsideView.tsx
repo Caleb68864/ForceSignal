@@ -621,7 +621,16 @@ export function DirtsideView() {
   return (
     <section className="panel" aria-label="Dirtside">
       <h2>{snapshot.name}</h2>
-      <GroundNextStep step={step} />
+      <GroundNextStep
+        step={step}
+        action={
+          step.primary === 'begin-turn' ? { label: 'Begin Turn', disabled: busy, onClick: () => void run(() => api.beginTurn(game), undefined, 'Turn opened.') }
+            : step.primary === 'end-turn' ? { label: 'End Turn', disabled: busy, onClick: () => void run(() => api.endTurn(game), undefined, 'Turn ended.') }
+              : step.primary === 'pass' && step.side ? { label: `${step.side} Passes`, disabled: busy, onClick: () => void run(() => api.pass(game, step.side as string), undefined, `${step.side} passed.`) }
+                : step.primary === 'end-activation' && snapshot.canEndActivation ? { label: 'End Activation', disabled: busy, onClick: () => void run(() => api.endActivation(game), undefined, 'Activation ended.') }
+                  : null
+        }
+      />
       {/*
         On every screen rather than only at the start: the composition moves every probability in
         the damage model, so a table settling an argument about a draw should be able to read what is
