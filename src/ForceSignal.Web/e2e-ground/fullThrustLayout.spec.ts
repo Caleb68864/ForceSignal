@@ -74,3 +74,24 @@ test('a dropdown shows its whole choice (playtest m11)', async ({ page, request 
   });
   expect(cut).toEqual([]);
 });
+
+for (const [width, height] of [[390, 844], [1440, 900]] as const) {
+  test(`the map's readouts keep each number on one line at ${width}px (playtest p2)`, async ({ page, request }) => {
+    await page.setViewportSize({ width, height });
+    await openSeededMatch(page, request);
+    await page.getByRole('button', { name: 'Play Map', exact: true }).click();
+    const values = page.locator('.map-inspector .ship-readouts strong');
+    await expect(values.first()).toBeVisible();
+
+    const wrapped = await values.evaluateAll((cells) => cells
+      .filter((cell) => {
+        const line = parseFloat(getComputedStyle(cell).lineHeight) || cell.getBoundingClientRect().height;
+        return cell.getBoundingClientRect().height > line * 1.5;
+      })
+      .map((cell) => cell.textContent));
+    expect(wrapped).toEqual([]);
+    // Nor cut short instead.
+    const cut = await values.evaluateAll((cells) => cells.filter((cell) => cell.scrollWidth > cell.clientWidth + 1).map((cell) => cell.textContent));
+    expect(cut).toEqual([]);
+  });
+}

@@ -221,6 +221,10 @@ that fails on the old code.
       and read the game again for nothing - harmless at a table, a flake in the suite. It is set in a
       layout effect now, on both ground screens: 14 of 14 runs green, six of them beside six busy
       loops.
+- [x] **p2. Map readouts wrapped mid-number.** In the map inspector at 1440px, "20.0,10.0" broke after
+      the comma and "No turn" after "No". The cells are wide enough for a value on one line now, and
+      a value never wraps. `fullThrustLayout.spec.ts` checks every readout at 390 and 1440px for a
+      second line and for being cut short (failing on the old styles at 1440px).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

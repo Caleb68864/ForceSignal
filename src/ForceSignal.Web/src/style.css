@@ -1525,7 +1525,8 @@ small,
 
 .map-inspector .ship-readouts {
   min-width: 0;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  /* Wide enough for "20.0,10.0" and "No turn" on one line (playtest p2). */
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
 }
 
 .map-inspector .ship-readouts div {
@@ -1533,7 +1534,11 @@ small,
 }
 
 .map-inspector .ship-readouts strong {
-  font-size: clamp(1.05rem, 1.8vw, 1.28rem);
+  /* One line per value: "20.0,10.0" broke after the comma, and "No turn" after its first word
+     (playtest p2). Long values shrink instead of wrapping. */
+  font-size: clamp(0.92rem, 1.4vw, 1.28rem);
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 
 .contact-ranges {
