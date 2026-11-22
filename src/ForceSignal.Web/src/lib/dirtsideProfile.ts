@@ -177,6 +177,18 @@ function firerWalkOf(draft: DirtsideProfileDraft): DirtsideFirerWalk | undefined
   return { rungsUpAtClose: up, rungsDownAtLong: down, rungsDownMovingOverHalf: hurried };
 }
 
+/** Whether any of the firer walk's three boxes holds anything. Half a walk is refused elsewhere. */
+export function firerWalkTouched(draft: DirtsideProfileDraft): boolean {
+  return [draft.firerWalkUpAtClose, draft.firerWalkDownAtLong, draft.firerWalkDownMovingOverHalf]
+    .some((text) => text.trim() !== '');
+}
+
+/** What a table starting a game with no firer walk is asked. */
+export const builtInWalkQuestion =
+  'No firer walk was entered, so this game will play the built-in firer walk: one rung up at close, '
+  + 'one down at long, one down for moving over half. That is this app\'s walk, not your rulebook\'s, '
+  + 'and it cannot be changed once the game starts. Start anyway?';
+
 /**
  * What the table should be told about the firer walk it is playing.
  *

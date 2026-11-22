@@ -1151,10 +1151,10 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
       defenders in cover and the entry is missing, never asked in the open.
 - [x] **StarGrunt's communication die**, one rung per command level skipped. No production caller, so
       the cost per level is a parameter - the precedent Dirtside's rider check set.
-- [ ] **Dirtside's firer walk**, `(int)band + (firerMovedOverHalf ? -1 : 0)`: the `WeaponRangeBand`
+- [x] **Dirtside's firer walk**, `(int)band + (firerMovedOverHalf ? -1 : 0)`: the `WeaponRangeBand`
       enum values *are* the table - close +1, medium 0, long -1 - and a hurried shot costs one more.
       The same shape StarGrunt's walk was. **Partly done 2026-11-09 (engine and wire); the
-      screen 2026-11-21. Only the owner's call at the end is left.** The walk is an entry now: `DirtsideRulesProfile.FirerWalk` (`Combat/FirerWalk`:
+      screen 2026-11-21; the owner's call decided by agent 2026-11-21 (below).** The walk is an entry now: `DirtsideRulesProfile.FirerWalk` (`Combat/FirerWalk`:
       rungs up at close, down at long, down for moving over half), read by `HitResolution.Solve`
       through `FirerWalk.Steps`, so the enum's values no longer carry it. On the wire as the optional
       `DirtsideRulesProfileDto.FirerWalk` (`DirtsideFirerWalkDto`), mapped both ways, a negative rung
@@ -1182,8 +1182,18 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
             the control.
       - [x] Mapping round-trip and negative-rung refusal over HTTP:
             `DirtsideEndpointTests.TheFirerWalkRoundTripsAndANegativeRungIsRefused`.
-      - [ ] Owner's call: whether the fallback becomes a refusal once profiles can be edited, which
-            is what takes this off `NotYetThePlayers`.
+      - [x] Owner's call: whether the fallback becomes a refusal once profiles can be edited, which
+            is what takes this off `NotYetThePlayers`. **Decided by agent 2026-11-21 (owner may
+            revisit): a warning and a confirm, not a refusal.** Starting a game with all three walk
+            boxes blank now asks "No firer walk was entered, so this game will play the built-in
+            firer walk ... Start anyway?"; No starts nothing and points back at the boxes, Yes starts
+            the game exactly as before. The server still falls back and reports it, so no API client,
+            stored game or existing flow changes - a hard refusal would have stranded every stored
+            game's close and long shots, since nothing edits a game's profile. Reversible by deleting
+            the check in `DirtsideView.start`. `NotYetThePlayers` keeps its entry, because the
+            fallback is still this app's number (`DirtsideView.test.tsx`, "asks before starting a game
+            that will play the built-in walk"; fails on the old code; "does not ask when the walk was
+            entered" is the control).
 - [x] **`DirtsideRulesProfile` equality ignored `RungsLostUnderFire`** (found 2026-11-09): the
       hand-written `Equals`/`GetHashCode` skipped it, so two profiles differing only there compared
       equal. Fixed with the firer walk; `HitResolutionTests.TheFirerWalkIsPartOfTheProfilesEquality`.

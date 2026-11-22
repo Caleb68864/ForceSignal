@@ -388,6 +388,40 @@ describe('DirtsideView firer walk', () => {
     });
   });
 
+  it('asks before starting a game that will play the built-in walk, and starts nothing on a no', async () => {
+    // The walk is the one entry the server fills in itself; a table that never saw the boxes would
+    // play the app's rungs without knowing. Asked rather than refused, so no flow is broken.
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    createGame.mockResolvedValue({ ...handle, snapshot: { ...snapshot, profile } });
+
+    render(<DirtsideView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Start Game' }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm.mock.calls[0][0]).toContain('built-in firer walk');
+    expect(createGame).not.toHaveBeenCalled();
+    expect(screen.getByText(/Enter your firer walk, or start again/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Game' }));
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1));
+    confirm.mockRestore();
+  });
+
+  it('does not ask when the walk was entered', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
+    createGame.mockResolvedValue({ ...handle, snapshot: { ...snapshot, profile } });
+
+    render(<DirtsideView />);
+    fireEvent.change(screen.getByLabelText('Firer walk: rungs up at close'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Rungs down at long'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Rungs down moving over half'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start Game' }));
+
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1));
+    expect(confirm).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
   it('says on the game screen when the built-in walk is being played', async () => {
     localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
     readGame.mockResolvedValue({ ...snapshot, profile: { ...profile, firerWalk: null } });
