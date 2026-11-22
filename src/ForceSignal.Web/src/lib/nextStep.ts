@@ -194,9 +194,14 @@ function commandsForPhase(
       }
 
       const ownerOf = new Map(snapshot.fleets.map((fleet) => [fleet.id, fleet.ownerParticipantId]));
+      const mine = snapshot.ships.filter((ship) => ownerOf.get(ship.fleetId) === meId);
+      // Said before Ready is pressed rather than as its refusal (playtest m14).
+      const points = mine.reduce((total, ship) => total + (ship.pointsValue ?? 0), 0);
+      const overLimit = snapshot.pointsLimit > 0 && points > snapshot.pointsLimit;
       const blocker = gapsIn(snapshot.rules ?? blankRulesProfile).length > 0
         ? 'Needs a rules profile first.'
-        : snapshot.ships.some((ship) => ownerOf.get(ship.fleetId) === meId) ? null : 'Add at least one ship first.';
+        : mine.length === 0 ? 'Add at least one ship first.'
+          : overLimit ? `Your fleet is ${points} points, over the ${snapshot.pointsLimit}-point limit.` : null;
       return { ...none, ready: blocker ? 'secondary' : 'primary', readyBlocker: blocker };
     }
     case 'OrderEntry':

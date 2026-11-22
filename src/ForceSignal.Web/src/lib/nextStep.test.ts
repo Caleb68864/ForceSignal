@@ -194,3 +194,14 @@ describe('a battle that is over (playtest M1)', () => {
     expect(matchCommands(table({ phase: 'FleetSetup' }), 'blue').endBattle).toBe(false);
   });
 });
+
+describe('a fleet over the points limit (playtest m14)', () => {
+  it('is said beside Ready, before it is pressed', () => {
+    const over = table({ pointsLimit: 100, ships: [ship('b1', 'fb', { pointsValue: 80 }), ship('b2', 'fb', { pointsValue: 40 }), ship('r1', 'fr')] });
+
+    const commands = matchCommands(over, 'blue');
+
+    expect(commands.ready).toBe('secondary');
+    expect(commands.readyBlocker).toBe('Your fleet is 120 points, over the 100-point limit.');
+  });
+});

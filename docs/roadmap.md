@@ -145,6 +145,10 @@ that fails on the old code.
       the server already refused all three. (`main.test.tsx` "says so when Max Accel clears the
       turns already plotted" and "host-only controls on a guest's screen", both failing on the old
       code.)
+- [x] **m14. A points overrun only showed after pressing Ready.** Ready is now held back beside the
+      button ("Your fleet is 120 points, over the 100-point limit.") and the setup checklist lists
+      it as a blocker, before anyone presses anything (`nextStep.test.ts` "a fleet over the points
+      limit", failing on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

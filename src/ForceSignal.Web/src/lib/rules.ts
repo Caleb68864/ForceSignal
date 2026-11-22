@@ -266,6 +266,11 @@ export function buildPreTurnChecklist(snapshot: MatchSnapshot, ownedShipIds: Set
       items.push({ id: 'fleet', text: 'You have no ships yet: add them under Fleet setup', severity: 'blocker' });
     }
 
+    const points = ownedLiveShips.reduce((total, ship) => total + (ship.pointsValue ?? 0), 0);
+    if (snapshot.pointsLimit > 0 && points > snapshot.pointsLimit) {
+      items.push({ id: 'points', text: `Your fleet is ${points} points, over the ${snapshot.pointsLimit}-point limit`, severity: 'blocker' });
+    }
+
     // A warning, not a refusal: a stationary platform with no guns may be exactly what was meant
     // (playtest m4).
     const blank = ownedLiveShips.filter((ship) => ship.thrustRating === 0 && (ship.weapons?.length ?? 0) === 0);
