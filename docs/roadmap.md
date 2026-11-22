@@ -124,6 +124,17 @@ that fails on the old code.
       server and CI's two-player job raise it for the test run only
       (`ApiHardeningTests.TheGameCreationBudgetCanBeRaisedForATestServer`, failing on the old code at
       the eleventh create). Two full runs back to back: 15 of 15 each.
+- [x] **CI: the phone layout spec's click was intercepted by the "What to do next" bar.** On a phone
+      the bar is fixed to the bottom edge, and nothing kept a control that is brought into view clear
+      of it - so a button parked just above the edge was wholly "visible" and still under the bar,
+      and Playwright retried the click thirty times while the bar took it. The same thing happened
+      to anyone tabbing through the page (m18). The bar's height is now measured into
+      `--sticky-clearance` (`lib/useStickyClearance.ts`, on both the ground and Full Thrust bars)
+      and the page's scroll padding keeps that much clear - the bottom edge on a phone, the top
+      elsewhere - and the end-of-page room under the phone bar now covers the ground screens too.
+      `e2e-ground/stickyCover.spec.ts` parks Add Platoon under the bar and focuses it: 45px of
+      overlap on the old styles, none now. The whole ground suite, three times over on two workers
+      with twelve busy loops: 48 of 48.
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 
