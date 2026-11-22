@@ -305,8 +305,10 @@ that fails on the old code.
       step to port or starboard, Drift, and "To all" to give every ship that order - through the same
       clamps and the same locked-order guard as the card's helm, which is still there for anything
       finer. On a phone each row stacks into two columns of 44px controls (`main.test.tsx` "plots
-      every ship from one table", failing on the old code). *Left:* plotting by dragging on the map,
-      which the card and map already allow for the focused ship.
+      every ship from one table", failing on the old code). Plotting by dragging on the map
+      was thought to be the focused ship's alone; checked in the second playtest pass with a mouse
+      and a finger, a drag from any of your ships' markers already plots that ship
+      (`mapDragPlot.spec.ts` guards it, desktop and touch phone).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
