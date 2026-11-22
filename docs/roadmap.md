@@ -221,6 +221,32 @@ that fails on the old code.
       and read the game again for nothing - harmless at a table, a flake in the suite. It is set in a
       layout effect now, on both ground screens: 14 of 14 runs green, six of them beside six busy
       loops.
+- [x] **p2. Map readouts wrapped mid-number.** In the map inspector at 1440px, "20.0,10.0" broke after
+      the comma and "No turn" after "No". The cells are wide enough for a value on one line now, and
+      a value never wraps. `fullThrustLayout.spec.ts` checks every readout at 390 and 1440px for a
+      second line and for being cut short (failing on the old styles at 1440px).
+- [x] **p3. A meaningless "Ready." notice, and a reload losing the scroll position.** The notice went
+      with m18. The scroll position was *not reproduced*: a reload kept it on the old code in a Full
+      Thrust match and a Dirtside game alike, even with the server's answer held back a second so the
+      page was short when the browser restored. No change was made without a failing case; the
+      Dirtside reload is kept as a guard (`phoneLayout.spec.ts` "a reload of a ground game comes back
+      where the player was scrolled to").
+- [x] **p4. Vague activity messages.** When the other device acted, the activity line said "A weapon
+      fired." or "A ship was edited." and nothing about whose or what. It still says that at once,
+      and then, when the match has been read, the newest log line written since - "Mark fired Beam
+      at Valiant: 2 damage." - skipping the per-ship state rows (`main.test.tsx` "what the other
+      device did", failing on the old code).
+- [x] **p5. "NO MATCH" looked like a button, and the header's buttons wrapped at 1440px** ("How to /
+      play", "StarGrunt / II", the room chip). The phase status is plain amber text behind a marker
+      rule now, not a bordered box, and a header button that runs out of room moves to the next row
+      whole instead of breaking its words; the row wraps from the right on a desk and from the left
+      on a phone (`fullThrustLayout.spec.ts` "the header's buttons keep their words on one line",
+      failing on the old styles with four wrapped buttons).
+- [x] **p6. The help guide's step strip was cut off on a phone.** It scrolled sideways, one and a half
+      steps wide, and cut the second step's title mid-word. On a phone every step now shows at once
+      as a numbered square - the step you are at in amber, the open one outlined - with the open
+      step's title as the heading below and each square keeping its title for a screen reader
+      (`touchTargets.spec.ts` "the help guide on a phone", failing on the old styles).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

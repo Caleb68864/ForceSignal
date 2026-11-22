@@ -71,3 +71,18 @@ for (const [width, height, device] of [[390, 844, 'phone'], [820, 1180, 'tablet'
     });
   });
 }
+
+test.describe('the help guide on a phone (playtest p6)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('shows every step at once rather than a strip cut off mid-word', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'How to play' }).first().click();
+    const strip = page.getByRole('list', { name: 'Steps of a match' });
+    await expect(strip).toBeVisible();
+
+    const fits = await strip.evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+    expect(fits).toBe(true);
+    await expect(strip.getByRole('button', { name: /Set the rules profile/i })).toBeVisible();
+  });
+});
