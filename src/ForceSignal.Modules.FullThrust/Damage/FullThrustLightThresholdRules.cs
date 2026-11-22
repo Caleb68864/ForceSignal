@@ -119,7 +119,8 @@ public sealed class FullThrustLightThresholdRules(Func<int, int>? rollDie = null
         var faces = Math.Max(1, rules.DieFaces);
 
         // The deepest row reached sets the number, then one point worse per extra row torn through.
-        var threshold = Math.Clamp(check.Threshold, 1, DeepestThresholdFor(Math.Max(1, rules.ThresholdRowCount)));
+        var rowCount = check.RowCount ?? rules.ThresholdRowCount;
+        var threshold = Math.Clamp(check.Threshold, 1, DeepestThresholdFor(Math.Max(1, rowCount)));
         var lostOn = Math.Clamp(threshold + Math.Max(0, check.ExtraThresholds), 1, faces);
         var rolls = check.Systems
             .Select(system =>

@@ -305,7 +305,7 @@ public sealed partial class InMemoryMatchService
         var threshold = Math.Min(rowsAfter, FullThrustLightThresholdRules.DeepestThresholdFor(rows.Count));
         var extra = rowsAfter - rowsBefore - 1;
         var systems = SurvivingSystems(target);
-        var result = _thresholdRules.Resolve(new ThresholdCheck(threshold, extra, systems), match.Rules);
+        var result = _thresholdRules.Resolve(new ThresholdCheck(threshold, extra, systems, rows.Count), match.Rules);
 
         var losses = new List<string>();
         foreach (var system in result.Lost)

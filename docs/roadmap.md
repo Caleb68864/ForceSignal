@@ -318,13 +318,20 @@ out of scope (indirect fire was in progress on another branch).
         no open volley). Tests: `InMemoryMatchServiceThresholdTests.ASnapshotExportedMidVolley_...`
         (fails on the old code: no threshold check after the restored volley closes) and
         `...ASnapshotsPendingThresholds_AreMappedToTheRestoredShipsAndClampedToTheirDamage`.
-  - [ ] **The threshold roll is clamped twice, against different row counts.** With
+  - [x] **The threshold roll is clamped twice, against different row counts.** With
         `ThresholdRows = ByShipClass`, the service caps the threshold by the hull band's row count
         (`Combat.cs`), then `FullThrustLightThresholdRules.Resolve` caps it again by
         `ThresholdRowCount`, which it is given instead of the band. A profile whose band count
         exceeds `ThresholdRowCount` (e.g. cruiser 4, default 3) loses systems on 2- instead of 3-.
         `RulesProfile.Validate` does not forbid that profile. Touches how profile numbers combine,
         so left with F17 in mind rather than changed here.
+        **Decided by agent 2026-11-21 (owner may revisit): the hull's own rows decide.** Not an F17
+        number - no value changes, only which of the players' own two entries bounds the check.
+        Where the profile draws rows by class, the resolver is now handed the hull's row count
+        (`ThresholdCheck.RowCount`, optional; a caller that leaves it out gets the old behaviour), so
+        the check is bounded by the same track the screen draws and the service already capped by.
+        A fixed-rows profile is unchanged (`InMemoryMatchServiceThresholdTests.ACruiserDrawnWithMoreRowsThanTheProfileDefault_IsCheckedAgainstItsOwnRows`;
+        fails on the old code with "threshold 2").
   - [x] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
         `PrepareShot`): when no one holds initiative, the roll and its log lines happen, the shot is
         then refused, and nothing calls `Touch` - so the change is neither versioned, persisted nor
@@ -710,13 +717,19 @@ defences, damage control, needle beams - found six more divergences. Each is wri
       now wired and tested against both layers: **the enhanced needle beam** puts a point into the
       hull on a 5 or a 6 and that point ignores armour, and **flight operations** run at one group
       per operational bay out, half the bays back, with a turnaround roll on recovery.
-- [ ] **Threshold rows by class** is *not* a Fleet Book difference and is deliberately not wired.
+- [x] **Threshold rows by class** is *not* a Fleet Book difference and is deliberately not wired.
       Four rows for every hull is the Fleet Book rule and is what both shipped layers use; rows by
       class band - an escort two, a cruiser three, a capital four - is the second edition rule, and
       ForceSignal has no second-edition profile to hang it on. The seam exists
       (`RulesProfile.ThresholdRows`, `ShipClassBands`, `FullThrustLightThresholdRules.RowCountFor`),
       so adding a second-edition layer is a matter of selecting it. Whether to add that layer is a
       separate decision: it also changes screens, needle reach, fighter moves and ship points.
+      **Decided by agent 2026-11-21 (owner may revisit): no built-in second-edition layer.** The
+      rows themselves are already the players' to choose - a profile can set rows by class and enter
+      its own escort and cruiser counts on the profile editor, and with the double clamp above fixed
+      that choice now plays as entered. A named layer would mean this app shipping a rulebook's
+      screens, needle reach, fighter moves and points, which is the kind of number it does not ship.
+      Nothing changed in code for this; the seam stays.
 
 ## Movement Rule Fidelity
 
