@@ -23,6 +23,7 @@ import { useGroundLive } from '../../lib/groundLive.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
 import {
+  pastEffectiveRange,
   emptyStarGruntProfileDraft,
   starGruntProfileIsEmpty,
   starGruntProfileSummary,
@@ -526,6 +527,11 @@ export function StarGruntView() {
   const targetFor = (id: string) => targets.find((unit) => unit.id === id) ?? targets[0];
   const shotTarget = targetFor(shot.targetId);
   const assaultTarget = targetFor(assault.defenderId);
+  const withinReachOrConfirmed = () => {
+    const weapon = activating?.weapons.find((candidate) => candidate.name === (shot.weaponName || activating.weapons[0]?.name));
+    const why = activating ? pastEffectiveRange(snapshot.profile, activating.qualityDie, shot.distanceInches, weapon?.isCloseRange ?? false) : null;
+    return !why || window.confirm(`${why} The shot can score nothing. Fire anyway?`);
+  };
   const againstOwnSide = (target: StarGruntUnit | undefined, doing: string) =>
     !target || !activating || target.side !== activating.side
     || window.confirm(`${target.name} is on ${target.side}, ${activating.name}'s own side. ${doing} anyway?`);
@@ -908,7 +914,7 @@ export function StarGruntView() {
             shot={shot}
             busy={busy}
             onChange={(patch) => setShot((current) => ({ ...current, ...patch }))}
-            onFire={() => againstOwnSide(shotTarget, 'Fire on it') && run(() => api.fire(game, {
+            onFire={() => againstOwnSide(shotTarget, 'Fire on it') && withinReachOrConfirmed() && run(() => api.fire(game, {
               firerId: activating.id,
               targetId: shotTarget?.id ?? '',
               weaponName: shot.weaponName || activating.weapons[0]?.name || '',

@@ -197,3 +197,31 @@ export function starGruntProfileSummary(profile: StarGruntRulesProfile | null | 
 export function starGruntProfileIsEmpty(profile: StarGruntRulesProfile | null | undefined): boolean {
   return profile != null && profile.bandWidths.length === 0 && profile.rangeDice.length === 0;
 }
+
+/**
+ * Why a shot at this distance can score nothing, read off the game's own range table the way the
+ * server reads it - or null when it can, or when the table does not say. Playtest m21: shots at 30 to
+ * 42 inches went through as "0 potential hits", spending the action. A warning, not a refusal: past
+ * effective range is the table's call to make knowingly.
+ */
+export function pastEffectiveRange(
+  profile: StarGruntRulesProfile | null | undefined,
+  qualityDie: number,
+  distanceInches: number,
+  isCloseRangeWeapon: boolean,
+): string | null {
+  const band = profile?.bandWidths.find((row) => row.qualityDie === qualityDie)?.inches;
+  if (!band || band <= 0) {
+    return null;
+  }
+
+  const bandsOut = Math.max(1, Math.ceil(distanceInches / band));
+  if (isCloseRangeWeapon && bandsOut > 1) {
+    return `That weapon is only effective inside ${band} inches.`;
+  }
+
+  const reach = profile?.effectiveBands;
+  return typeof reach === 'number' && reach > 0 && bandsOut > reach
+    ? `That is past effective range: ${bandsOut} bands out, and this game's range table gives small arms ${reach}.`
+    : null;
+}

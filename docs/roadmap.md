@@ -178,6 +178,13 @@ that fails on the old code.
       amber outline and says "Activated."; the other cards no longer repeat "...is still activated"
       (the next-step line says it once); and the readout labels break between words, not inside them
       (`StarGruntView.test.tsx` "StarGrunt roster", failing on the old code).
+- [x] **m21. StarGrunt let a shot go at 30-42 inches for "0 potential hits"**, spending the action.
+      Warning only: when the game's own range table says the shot is past effective range - or a
+      close-range weapon is past its one band - Fire asks first ("That is past effective range: 3
+      bands out, and this game's range table gives small arms 2. The shot can score nothing. Fire
+      anyway?"), read the way the server reads it (`pastEffectiveRange`). A table that has entered
+      no reach is not second-guessed (`StarGruntView.test.tsx` "shots past effective range", failing
+      on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
