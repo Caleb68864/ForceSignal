@@ -205,3 +205,28 @@ describe('a fleet over the points limit (playtest m14)', () => {
     expect(commands.readyBlocker).toBe('Your fleet is 120 points, over the 100-point limit.');
   });
 });
+
+describe('ships with nothing to shoot at (design suggestion 3)', () => {
+  const firing = (patch: Partial<MatchSnapshot> = {}) => table({
+    phase: 'Firing',
+    firingParticipantId: 'blue',
+    ships: [ship('b1', 'fb', { name: 'Valiant', hasTargetOnMap: true }), ship('b2', 'fb', { name: 'Vigilant', hasTargetOnMap: false }), ship('r1', 'fr', { hasTargetOnMap: true })],
+    ...patch,
+  });
+
+  it('names the ships that have a shot, and the ones that have none on the map', () => {
+    const step = nextStep(firing(), 'blue');
+    expect(step.you).toContain('pick Valiant, open Fire');
+    expect(step.you).toContain('Vigilant has nothing in arc and range on the map.');
+  });
+
+  it('says to hold fire when no ship still to fire has anything to shoot at', () => {
+    const step = nextStep(firing({ activatedShipIds: ['b1'] }), 'blue');
+    expect(step.you).toContain('None of your ships still to fire has a target in arc and range on the map (Vigilant)');
+  });
+
+  it('does not count a ship with nothing to shoot at as fire lost when the host ends the phase', () => {
+    const commands = matchCommands(firing({ activatedShipIds: ['b1', 'r1'] }), 'blue');
+    expect(commands.advanceWarning).not.toContain('Vigilant');
+  });
+});

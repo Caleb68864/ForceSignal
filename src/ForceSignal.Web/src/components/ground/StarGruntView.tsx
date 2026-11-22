@@ -36,6 +36,7 @@ import { GroundLog } from './GroundLog.tsx';
 import { GroundNextStep, primaryWhen } from './GroundNextStep.tsx';
 import { groundNextStep } from '../../lib/groundNextStep.ts';
 import { GroundJoin, GroundShare } from './GroundShare.tsx';
+import { Explain } from './Explain.tsx';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
 // - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
@@ -543,7 +544,17 @@ export function StarGruntView() {
     <section className="stargrunt" aria-label="StarGrunt game">
       <div className="card-module">
         <span className="label module-title">{snapshot.name}</span>
-        <GroundNextStep step={step} />
+        <GroundNextStep
+          step={step}
+          action={
+            step.primary === 'begin-turn' && canPlay ? { label: 'Begin Turn', disabled: busy, onClick: () => run(() => api.beginTurn(game), 'Turn opened.') }
+              : step.primary === 'choose-first' && snapshot.firstActivationChooser ? { label: `${snapshot.firstActivationChooser} goes first`, disabled: busy, onClick: () => run(() => api.chooseFirstActivator(game, snapshot.firstActivationChooser as string, true), `${snapshot.firstActivationChooser} takes the first activation.`) }
+                : step.primary === 'end-turn' ? { label: 'End Turn', disabled: busy, onClick: () => run(() => api.endTurn(game), 'Turn ended.') }
+                  : step.primary === 'pass' && step.side ? { label: `${step.side} passes`, disabled: busy, onClick: () => run(() => api.pass(game, step.side as string), `${step.side} passed.`) }
+                    : step.primary === 'end-activation' && activating ? { label: 'End Activation', disabled: busy, onClick: () => run(() => api.endActivation(game), `${activating.name} is done.`) }
+                      : null
+          }
+        />
         {/*
           On every screen rather than only at setup, so a table arguing about a shot can read which
           numbers the game is settling it with. Warning-styled when there is nothing to settle one
@@ -599,10 +610,10 @@ export function StarGruntView() {
 
       <div className="card-module">
         <span className="label module-title">Confidence test</span>
-        <p className="constraint-line">
+        <Explain topic="a confidence test">
           Taken the moment something bad happens, to whichever unit it happened to - not an action, and
           not only on its own go. The threat level is the one your own table gives the event.
-        </p>
+        </Explain>
         <label>
           Threat level
           <select value={threatLevel} onChange={(event) => setThreatLevel(Number(event.target.value))}>
@@ -701,13 +712,13 @@ export function StarGruntView() {
 
           <div className="card-module" aria-label="Close assault">
             <span className="label module-title">Close assault</span>
-            <p className="constraint-line">
+            <Explain topic="a charge">
               A charge spends the whole activation. Threat levels, weapon shifts and the bands that
               read a downed figure all come off your own tables. What this works out is the odds the
               defenders face, and it will not let a unit that has lost its nerve charge at all. Who
               fights whom is yours to pair off - the attacker takes one each, the defender allocates
               the rest.
-            </p>
+            </Explain>
             <label>
               Target
               <select
@@ -835,11 +846,11 @@ export function StarGruntView() {
                 Fight Round
               </button>
             </div>
-            <p className="constraint-line">
+            <Explain topic="settling the downed">
               Once somebody holds the ground, count this unit's down and read them off your own
               table. A stunned man gets up again on the winning side and is taken on the losing one,
               which is why it waits until the fighting stops.
-            </p>
+            </Explain>
             <label>
               Down
               <input
@@ -1001,10 +1012,10 @@ export function StarGruntView() {
 
       <div className="card-module" aria-label="Force transfer">
         <span className="label module-title">Force transfer</span>
-        <p className="constraint-line">
+        <Explain topic="a force file">
           A force is a lot of dice to type. Export writes the roster at full strength with a format
           version, so the file still opens later.
-        </p>
+        </Explain>
         {rosterOpen ? (
           <label>
             Side

@@ -33,7 +33,7 @@ const shipKeys: Keys<Ship> = {
   hullRowsCompleted: true, iconKey: true, fighterEnduranceMax: true, fighterEnduranceUsed: true, fighterMaxRange: true,
   fighterStatus: true, homeCarrierShipId: true, pointsValue: true, effectiveScreens: true, workingFireControl: true,
   fighterReach: true, repairableSystems: true, needledFireControl: true, needledDrives: true, needledScreens: true,
-  needledBays: true, fighterRelaunchTurn: true, fighterGroundedForGame: true,
+  needledBays: true, fighterRelaunchTurn: true, fighterGroundedForGame: true, hasTargetOnMap: true,
 };
 
 const weaponKeys: Keys<WeaponMount> = {

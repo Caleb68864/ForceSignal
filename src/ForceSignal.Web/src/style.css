@@ -3740,3 +3740,111 @@ html {
     justify-content: flex-start;
   }
 }
+
+/* Every ship's order on a row (design suggestion 2). */
+.fleet-orders table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fleet-orders th,
+.fleet-orders td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #174a54;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.fleet-orders th small {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.fleet-orders-step {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.fleet-orders-step button {
+  min-width: 44px;
+  padding-inline: 8px;
+}
+
+.fleet-orders-step strong {
+  min-width: 3ch;
+  text-align: center;
+  color: var(--amber);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .fleet-orders table,
+  .fleet-orders tbody,
+  .fleet-orders tr {
+    display: grid;
+  }
+
+  .fleet-orders thead {
+    display: none;
+  }
+
+  .fleet-orders tr {
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 6px 0;
+    border-bottom: 1px solid #174a54;
+  }
+
+  .fleet-orders th[scope=row] {
+    grid-column: 1 / -1;
+    border: 0;
+  }
+
+  .fleet-orders td {
+    border: 0;
+  }
+}
+
+/* A rules reminder behind a "?": closed, a small round button; open, the paragraph beneath it. */
+.explain {
+  margin: 2px 0;
+}
+
+.explain > summary {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-hot);
+  border-radius: 50%;
+  color: var(--line-hot);
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.explain > summary::-webkit-details-marker {
+  display: none;
+}
+
+.explain[open] > summary {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+@media (pointer: coarse) {
+  .explain > summary {
+    width: 44px;
+    height: 44px;
+  }
+}

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   resolveAssaultAftermath: vi.fn(),
   followThrough: vi.fn(),
   endActivation: vi.fn(),
+  endTurn: vi.fn(),
   takeConfidenceTest: vi.fn(),
   takeReactionTest: vi.fn(),
   declareAdvance: vi.fn(),
@@ -193,6 +194,17 @@ describe('Dirtside close assault', () => {
     expect(button('Begin Turn').disabled).toBe(true);
     expect(button('blue Goes First').disabled).toBe(true);
     expect(button('red Passes').disabled).toBe(true);
+  });
+
+  it('carries the command to press now in the banner, under the thumb (design suggestion 1)', async () => {
+    const done = (unit: typeof alpha) => ({ ...unit, hasActivated: true, canActivate: false });
+    mocks.endTurn.mockResolvedValue(snapshotWith({ phase: 'TurnEnded', activatingUnitId: null, units: [done(alpha), done(bravo)] }));
+    await open(snapshotWith({ phase: 'Activating', activatingUnitId: null, activeSide: 'blue', units: [done(alpha), done(bravo)] }));
+
+    const banner = within(screen.getByLabelText('What to do next'));
+    fireEvent.click(banner.getByText('Next: End Turn', { selector: 'button' }));
+
+    await waitFor(() => expect(mocks.endTurn).toHaveBeenCalledWith(handle));
   });
 
   it('tells a side with nothing it can activate to pass, and highlights its Pass', async () => {

@@ -5,6 +5,7 @@ import { wholeNumberFrom } from '../../lib/format.ts';
 // The lists the API accepts, not this panel's idea of them. See groundVocabulary.ts.
 import { chitColourSets, valueScales, wordsFor } from '../../lib/groundVocabulary.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
+import { Explain } from './Explain.tsx';
 
 
 const plainValidity: DirtsideValidityInput = {
@@ -59,12 +60,12 @@ export function DirtsideAssaultPanel({ game, snapshot, activating, busy, run }: 
     return (
       <div className="card-module" aria-label="Close assault">
         <span className="label module-title">Close assault</span>
-        <p className="constraint-line">
+        <Explain topic="an assault">
           Every element you send spends its combat action whether or not the troops go. The threat
           level and what the chits may count come off your own tables; the platoon needs its quality
           die and leadership value, and each element its assault chits and kill threshold, or the
           order is refused.
-        </p>
+        </Explain>
         <div className="table-fields">
           <label>
             Target platoon
@@ -142,11 +143,11 @@ export function DirtsideAssaultPanel({ game, snapshot, activating, busy, run }: 
 
       {assault.stage === 'AwaitingDefender' ? (
         <>
-          <p className="constraint-line">
+          <Explain topic="standing against an assault">
             The defenders take a confidence test. Standing goes to a round; giving way goes straight
             to the attackers' follow-through. A platoon whose nerve has already gone gives way without
             a test.
-          </p>
+          </Explain>
           <label title="What holding asks of the defenders, off your own table.">
             Threat level
             <input
@@ -188,10 +189,10 @@ export function DirtsideAssaultPanel({ game, snapshot, activating, busy, run }: 
 
       {assault.stage === 'AwaitingRound' ? (
         <>
-          <p className="constraint-line">
+          <Explain topic="an assault round">
             Both sides draw and the game removes the stands that go, in the order they were committed.
             Move the models the log names.
-          </p>
+          </Explain>
           <div className="quick-actions">
             <button type="button" disabled={busy} onClick={() => void run(() => api.fightAssaultRound(game))}>
               Fight Round {assault.round}
@@ -202,11 +203,11 @@ export function DirtsideAssaultPanel({ game, snapshot, activating, busy, run }: 
 
       {assault.stage === 'AwaitingAftermath' ? (
         <>
-          <p className="constraint-line">
+          <Explain topic="the aftermath">
             Each side tests its nerve against what it just lost, the defender first. Both threat
             levels come off your own table; if the defender breaks the attacker is never asked, and
             if both hold the next round is hand to hand.
-          </p>
+          </Explain>
           <div className="table-fields">
             <label title="The threat a side faces after light losses, off your own table.">
               Light casualty threat
@@ -246,11 +247,11 @@ export function DirtsideAssaultPanel({ game, snapshot, activating, busy, run }: 
 
       {assault.stage === 'AwaitingFollowThrough' ? (
         <>
-          <p className="constraint-line">
+          <Explain topic="following through">
             The position is taken. The attackers may test to press on: a pass gives them a whole
             extra activation on the spot. End Activation declines the test and consolidates where
             they are.
-          </p>
+          </Explain>
           <label title="What pressing on asks of the attackers, off your own table.">
             Threat level
             <input

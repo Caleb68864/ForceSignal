@@ -172,7 +172,14 @@ that fails on the old code.
       scoped to the helm now. On both ground screens the lines are sentence case, left-aligned and at
       reading weight, and the line saying what just happened is styled as a result (a cyan rule) or
       a refusal (red) (`phoneLayout.spec.ts` "the ground screens read in sentences", failing on the
-      old styles; axe still clean). *Left:* folding long rules text behind a "?".
+      old styles; axe still clean). *Left:* folding long rules text behind a "?". *Done on
+      `ux/playtest-fixes-4`:* seventeen rules reminders that sat open on every turn - how an
+      activation, an assault and each of its stages, a firefight, nerve tests, a charge, settling the
+      downed, record cards and force files work - now wait behind a round "?" (`Explain`, a closed
+      details element, so the text is one tap away and still reachable by a screen reader; 44px on a
+      touch screen). The create screens' guidance, read once at setup, stays open
+      (`phoneLayout.spec.ts` "a ground panel's rules reminder waits behind a ?", failing on the old
+      code; axe still clean).
 - [x] **m20. StarGrunt's roster had no order and no side colours.** Units are now grouped by side, in
       the order the sides were named, each side with its own coloured rule; the activated unit has an
       amber outline and says "Activated."; the other cards no longer repeat "...is still activated"
@@ -247,6 +254,33 @@ that fails on the old code.
       as a numbered square - the step you are at in amber, the open one outlined - with the open
       step's title as the heading below and each square keeping its title for a screen reader
       (`touchTargets.spec.ts` "the help guide on a phone", failing on the old styles).
+- [x] **Design suggestion 1. One "what now" banner across all three games.** The ground screens took
+      Full Thrust's banner on the polish branch (its look, its stickiness, at the bottom on a phone)
+      and its sense of the next step with M9. It now carries the command to press as well, as Full
+      Thrust's does - "Next: Begin Turn", "Next: End Activation", "Next: blue passes", "Next: End
+      Turn", and StarGrunt's "Next: red goes first" when the game knows who chooses - so on a phone,
+      where the banner is under the thumb and the turn buttons are at the top, the next step is one
+      tap from anywhere. The "Next:" keeps it from being taken for the turn button it repeats; the
+      browser specs now name turn buttons exactly (`DirtsideAssault.test.tsx` "carries the command
+      to press now in the banner", failing on the old code; 41 of 41 browser specs).
+- [x] **Design suggestion 3. Skip ships with nothing in arc or range during firing.** During firing
+      each ship's snapshot now says whether a working mount has an opposing ship in its arc and reach
+      on the map (`HasTargetOnMap`, read with the same bearing, reach and target rules a shot is
+      checked against). It is advice, never a refusal - the table measures the shot. The banner
+      names the ships that have a shot ("pick Valiant, open Fire...") and the ones that have none,
+      says to Hold Fire when none of a player's remaining ships has anything to shoot at, and the
+      host's end-firing warning no longer counts a ship with nothing to shoot at as fire lost.
+      Tests: `InMemoryMatchServiceThresholdTests` "InFiringEachShipSaysWhetherItHasATargetInArcAndReachOnTheMap"
+      and "OutsideFiringNoShipIsJudgedForTargets"; `nextStep.test.ts` "ships with nothing to shoot
+      at" (two of three failing on the old code).
+- [x] **Design suggestion 2. A one-row-per-ship plotting table.** Eight ships took about thirty taps
+      a turn: focus a card, open its helm, plot, next card. In order entry the Ships view now opens
+      with a Fleet orders table - a row for each of your ships with speed down and up a step, a turn a
+      step to port or starboard, Drift, and "To all" to give every ship that order - through the same
+      clamps and the same locked-order guard as the card's helm, which is still there for anything
+      finer. On a phone each row stacks into two columns of 44px controls (`main.test.tsx` "plots
+      every ship from one table", failing on the old code). *Left:* plotting by dragging on the map,
+      which the card and map already allow for the focused ship.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

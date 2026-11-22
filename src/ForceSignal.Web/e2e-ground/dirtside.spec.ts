@@ -30,15 +30,15 @@ test('a Dirtside game is created, armed and plays an activation', async ({ page 
     await expect(page.getByLabel('Platoons').getByText(name, { exact: false }).first()).toBeVisible();
   }
 
-  await page.getByRole('button', { name: 'Begin Turn' }).click();
-  await page.getByRole('button', { name: 'blue Goes First' }).click();
+  await page.getByRole('button', { name: 'Begin Turn', exact: true }).click();
+  await page.getByRole('button', { name: 'blue Goes First', exact: true }).click();
   await page.getByRole('button', { name: 'Activate Anvil' }).click();
   const activation = page.getByLabel('Activation');
   await expect(activation.getByText('Anvil is activated')).toBeVisible();
 
   await activation.getByRole('button', { name: /^Move / }).first().click();
   await expect(activation.getByText('Every element has said what it is doing.')).toBeVisible();
-  await activation.getByRole('button', { name: 'End Activation' }).click();
+  await activation.getByRole('button', { name: 'End Activation', exact: true }).click();
   await expect(page.getByText('Activation ended.')).toBeVisible();
 
   expect(problems).toEqual([]);

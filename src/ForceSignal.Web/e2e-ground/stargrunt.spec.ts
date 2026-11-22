@@ -28,18 +28,18 @@ test('a StarGrunt game is created, manned and plays an activation', async ({ pag
     await expect(page.getByText(`${name} joined ${side}.`)).toBeVisible();
   }
 
-  await page.getByRole('button', { name: 'Begin Turn' }).click();
+  await page.getByRole('button', { name: 'Begin Turn', exact: true }).click();
   await expect(page.getByText('Turn opened.')).toBeVisible();
   // The side with fewer units has the choice; with one a side either may be asked, so take
   // whichever button the screen offers.
-  await page.getByRole('button', { name: 'blue goes first' }).click();
+  await page.getByRole('button', { name: 'blue goes first', exact: true }).click();
   await page.getByRole('button', { name: /^Activate (Alpha|Bravo) Squad$/ }).and(page.locator(':enabled')).first().click();
   const activation = page.getByLabel(/ activation$/);
   await expect(activation.getByText(/is activated/)).toBeVisible();
 
   await activation.getByRole('button', { name: 'Move', exact: true }).click();
   await expect(page.getByText(/: Move\.$/)).toBeVisible();
-  await activation.getByRole('button', { name: 'End Activation' }).click();
+  await activation.getByRole('button', { name: 'End Activation', exact: true }).click();
   await expect(page.getByText(/ is done\.$/)).toBeVisible();
 
   expect(problems).toEqual([]);

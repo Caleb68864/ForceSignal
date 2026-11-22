@@ -29,8 +29,8 @@ test('StarGrunt puts the activated unit above the roster', async ({ page }) => {
     await add.getByRole('button', { name: 'Add Squad' }).click();
     await expect(page.getByText(`${name} joined ${side}.`)).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Begin Turn' }).click();
-  await page.getByRole('button', { name: 'blue goes first' }).click();
+  await page.getByRole('button', { name: 'Begin Turn', exact: true }).click();
+  await page.getByRole('button', { name: 'blue goes first', exact: true }).click();
   await page.getByRole('button', { name: 'Activate Alpha Squad' }).click();
   await expect(page.getByLabel('Alpha Squad activation')).toBeVisible();
 
@@ -52,8 +52,8 @@ test('Dirtside puts the activated platoon above the platoon list', async ({ page
     await add.getByRole('button', { name: 'Add Platoon' }).click();
     await expect(page.getByLabel('Platoons').getByText(name).first()).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Begin Turn' }).click();
-  await page.getByRole('button', { name: 'blue Goes First' }).click();
+  await page.getByRole('button', { name: 'Begin Turn', exact: true }).click();
+  await page.getByRole('button', { name: 'blue Goes First', exact: true }).click();
   await page.getByRole('button', { name: 'Activate Anvil' }).click();
   await expect(page.getByLabel('Activation', { exact: true })).toBeVisible();
 
@@ -129,4 +129,16 @@ test('a reload of a ground game comes back where the player was scrolled to (pla
   await page.reload();
   await expect(page.getByLabel('Add platoon')).toBeVisible();
   await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { timeout: 5_000 }).toBeGreaterThan(1300);
+});
+
+test('a ground panel\'s rules reminder waits behind a "?" (playtest m19 follow-up)', async ({ page }) => {
+  await openEngine(page, 'Dirtside II');
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Start Game' }).click();
+  const reminder = page.getByText(/Every number here comes off your own record card/);
+  await expect(page.getByLabel('Add platoon')).toBeVisible();
+  await expect(reminder).toBeHidden();
+
+  await page.locator('summary', { hasText: 'How a record card works' }).click();
+  await expect(reminder).toBeVisible();
 });

@@ -71,7 +71,8 @@ public sealed partial class InMemoryMatchService
             EffectiveScreens(s),
             WorkingFireControl(s),
             FighterReach(s),
-            RepairableSystemsOn(s))).ToArray(),
+            RepairableSystemsOn(s),
+            match.Phase == MatchPhase.Firing ? HasTargetOnMap(match, s) : null)).ToArray(),
         match.Ships.Select(s =>
         {
             match.Commitments.TryGetValue(s.Id, out var commitment);
@@ -149,6 +150,34 @@ public sealed partial class InMemoryMatchService
         return beaten.Count == 0
             ? null
             : new BattleOverDto("OneSideLeft", $"{string.Join(" and ", beaten)} {(beaten.Count == 1 ? "has" : "have")} no ships left. The battle is over.");
+    }
+
+    /// <summary>
+    /// Whether any working mount on a ship has an opposing ship in its arc and reach on the map
+    /// (design suggestion 3). Advice for the screen, read with the same bearing, reach and target
+    /// rules a shot is checked against, and never a refusal: the table measures the shot.
+    /// </summary>
+    private static bool HasTargetOnMap(MatchState match, ShipState ship)
+    {
+        if (IsDestroyed(ship))
+        {
+            return false;
+        }
+
+        var owner = match.Fleets.FirstOrDefault(fleet => fleet.Id == ship.FleetId)?.OwnerParticipantId;
+        var canEngageFighters = IsFighterGroupShip(ship);
+        var targets = match.Ships.Where(target => target.Id != ship.Id
+            && !IsDestroyed(target)
+            && match.Fleets.FirstOrDefault(fleet => fleet.Id == target.FleetId)?.OwnerParticipantId != owner
+            && (canEngageFighters || !IsFighterGroupShip(target)));
+        return targets.Any(target =>
+        {
+            var arc = BearingToTarget(ship, target);
+            var range = MapRangeBetween(ship, target);
+            return FiringArcs.CanFireThrough(arc) && ship.Weapons.Any(weapon => !weapon.IsDestroyed
+                && weapon.Arcs.Contains(arc)
+                && range <= (weapon.Kind == WeaponKind.NeedleBeam ? Math.Min(weapon.MaxRange, match.Rules.NeedleBeamRange) : weapon.MaxRange));
+        });
     }
 
     /// <summary>Refuses a command that would play on once the battle is over.</summary>

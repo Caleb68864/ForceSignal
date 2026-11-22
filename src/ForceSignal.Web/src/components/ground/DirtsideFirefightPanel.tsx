@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as api from '../../lib/dirtsideApi.ts';
 import { bands } from '../../lib/groundVocabulary.ts';
 import type { DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
+import { Explain } from './Explain.tsx';
 
 /**
  * Infantry firing as stands: one check for the unit, then a draw per stand, never pooled.
@@ -35,11 +36,11 @@ export function DirtsideFirefightPanel({ game, snapshot, firing, busy, run }: {
   return (
     <div role="group" aria-label="Firefight">
       <span className="label">Firefight</span>
-      <p className="constraint-line">
+      <Explain topic="a firefight">
         Tick the stands in the order you would have them fire. Each one named spends its combat action,
         and if the check lets only part of the unit shoot, the first ones ticked are that part. Any
         firefight marks the target.
-      </p>
+      </Explain>
       <div className="table-fields">
         {able.map((element) => (
           <label key={element.id}>

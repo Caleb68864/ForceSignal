@@ -47,7 +47,7 @@ test('a Dirtside game is played from two devices', async ({ browser }) => {
   await expect(first.getByLabel('Platoons').getByText('Hammer').first()).toBeVisible();
 
   // Then the turn begun on the first shows on the second.
-  await first.getByRole('button', { name: 'Begin Turn' }).click();
+  await first.getByRole('button', { name: 'Begin Turn', exact: true }).click();
   await expect(second.getByText(/^Turn 1 /)).toBeVisible();
 
   // A code with one character wrong opens nothing.

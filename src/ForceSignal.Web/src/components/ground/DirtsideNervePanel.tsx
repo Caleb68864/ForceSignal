@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as api from '../../lib/dirtsideApi.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 import type { DirtsideSnapshot, GameHandle } from '../../types.ts';
+import { Explain } from './Explain.tsx';
 
 /**
  * Nerve: the tests and declarations a table owes outside the shot and the move.
@@ -41,10 +42,10 @@ export function DirtsideNervePanel({ game, snapshot, busy, run }: {
   return (
     <div className="card-module" aria-label="Nerve">
       <span className="label module-title">Nerve</span>
-      <p className="constraint-line">
+      <Explain topic="nerve tests">
         Take a confidence test when your rules say one is owed, at the threat level your own table
         gives the event. A reaction test is for the platoon activating, before a move it owes one for.
-      </p>
+      </Explain>
       <div className="table-fields">
         <label>
           Platoon
