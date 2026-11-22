@@ -354,10 +354,19 @@ out of scope (indirect fire was in progress on another branch).
         (a real needle shot, then the record corrected, then a threshold-style loss repaired) and
         `...EditingDamage_ClampsEveryNeedledCountToTheDamageItIsPartOf` (screens and drives); both
         fail on the old code at the needled-count assertion.
-  - [ ] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
+  - [x] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
         rewrites mounts from the client, `IsDestroyed`/`IsNeedleKilled`/`AmmoUsed` included. The
         table is evidently trusted here (`UpdateShipDamage` already lets an owner zero their own
         hull), but it is worth a deliberate yes.
+        **Decided by agent 2026-11-21 (owner may revisit): yes, kept open, and made visible.** The
+        edit stays allowed in every phase - a mount transcribed wrong has to be put right at the
+        table, and refusing it would break a flow players use - with the movement freeze around a
+        locked order unchanged. Once play has begun, the log line now says what the edit did to
+        each mount instead of "profile updated": "brought back into action", "marked knocked out",
+        "given back N rounds", "marked N rounds spent", "added", "removed". So the other device has
+        a record of it. Reversible by dropping the description in `UpdateShipProfile`
+        (`InMemoryMatchServiceCommitmentTests.AMountBroughtBackInPlayIsNamedOnTheLog`; fails on the
+        old code).
   - Dirtside endpoints, `GroundCombatEndpoints.cs` and the services behind them (the reviewer
     reproduced each finding against the built service; each fix has a test that fails on the old
     code):

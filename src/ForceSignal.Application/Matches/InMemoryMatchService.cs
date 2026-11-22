@@ -655,6 +655,9 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             ship.PositionY = ClampPosition(request.PositionY, match.TableDepth);
             ship.ScreenRating = Math.Clamp(request.ScreenRating, 0, match.Rules.MaxScreenLevel);
             ship.IconKey = NormalizeIconKey(request.IconKey, request.ClassName);
+            var mountsBefore = ship.Weapons
+                .Select(mount => (mount.Id, mount.Name, mount.IsDestroyed, mount.AmmoUsed))
+                .ToList();
             ship.Weapons.Clear();
             ship.Weapons.AddRange(NormalizeWeapons(request.Weapons));
             ship.FighterEnduranceMax = NormalizeFighterEnduranceMax(request.FighterEnduranceMax, ship.IconKey, ship.ClassName);
@@ -671,10 +674,62 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             ship.HullDamage = ClampDamage(ship.HullDamage, ship.HullMax);
             ship.ArmorDamage = ClampDamage(ship.ArmorDamage, ship.ArmorMax);
             ship.DriveDamage = ClampDamage(ship.DriveDamage, ship.ThrustRating);
-            match.AddLog("Admin", match.Phase.ToString(), $"{DescribeShip(match, ship)} profile updated.");
+            // Decided by agent 2026-11-21 (owner may revisit): the edit stays open in every phase,
+            // because the table is trusted and a mount transcribed wrong has to be put right there
+            // and then. What it does to a mount's state once play has begun is written down, so the
+            // other device reads "Beam A brought back into action" rather than "profile updated".
+            var mountChanges = match.Phase == MatchPhase.FleetSetup
+                ? []
+                : DescribeMountChanges(mountsBefore, ship.Weapons);
+            match.AddLog(
+                "Admin",
+                match.Phase.ToString(),
+                mountChanges.Count == 0
+                    ? $"{DescribeShip(match, ship)} profile updated."
+                    : $"{DescribeShip(match, ship)} profile updated: {string.Join("; ", mountChanges)}.");
             match.Touch("ShipProfileUpdated");
             return ToSnapshot(match);
         }
+    }
+
+    /// <summary>What a profile edit did to the state of each mount, matched by id, in words.</summary>
+    private static List<string> DescribeMountChanges(
+        IReadOnlyList<(Guid Id, string Name, bool IsDestroyed, int AmmoUsed)> before,
+        IReadOnlyList<WeaponMountState> after)
+    {
+        var changes = new List<string>();
+        foreach (var mount in after)
+        {
+            var was = before.FirstOrDefault(old => old.Id == mount.Id);
+            if (was.Id == Guid.Empty)
+            {
+                changes.Add($"{mount.Name} added");
+                continue;
+            }
+
+            if (was.IsDestroyed && !mount.IsDestroyed)
+            {
+                changes.Add($"{mount.Name} brought back into action");
+            }
+            else if (!was.IsDestroyed && mount.IsDestroyed)
+            {
+                changes.Add($"{mount.Name} marked knocked out");
+            }
+
+            if (mount.AmmoUsed < was.AmmoUsed)
+            {
+                changes.Add($"{mount.Name} given back {was.AmmoUsed - mount.AmmoUsed} rounds");
+            }
+            else if (mount.AmmoUsed > was.AmmoUsed)
+            {
+                changes.Add($"{mount.Name} marked {mount.AmmoUsed - was.AmmoUsed} rounds spent");
+            }
+        }
+
+        changes.AddRange(before
+            .Where(old => after.All(mount => mount.Id != old.Id))
+            .Select(old => $"{old.Name} removed"));
+        return changes;
     }
 
     public MatchSnapshotDto DuplicateShip(Guid shipId, DuplicateShipRequest request)
