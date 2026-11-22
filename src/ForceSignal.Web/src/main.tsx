@@ -59,6 +59,7 @@ import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
 import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
 import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
+import { BattleOverPanel } from './components/BattleOverPanel.tsx';
 import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
@@ -436,7 +437,7 @@ function App() {
   const me = snapshot?.participants.find((participant) => participant.id === session?.participantId);
   const commands = snapshot && session
     ? matchCommands(snapshot, session.participantId)
-    : { ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null };
+    : { ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null, endBattle: false };
   // Keyed on the two dimensions alone, so a snapshot that changes nothing about the table does not
   // overwrite a width the player is typing.
   const tableWidth = snapshot?.tableWidth;
@@ -1285,6 +1286,18 @@ function App() {
     );
   }
 
+  async function endBattle() {
+    if (!session) {
+      return;
+    }
+
+    applySnapshot(await post<MatchSnapshot>(
+      `/api/matches/${session.matchId}/end`,
+      { participantToken: session.participantToken },
+      session.participantToken,
+    ));
+  }
+
   async function advanceTurn() {
     if (!session) {
       return;
@@ -1665,6 +1678,19 @@ function App() {
                   disabled={busy}
                 >Advance Turn</button>
               ) : null}
+              {commands.endBattle ? (
+                <button
+                  className="ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    // For both devices and for good: the server refuses further turns once it is
+                    // over, so this asks first. A snapshot saved before it can be restored to play on.
+                    if (window.confirm('End the battle for everyone? No more turns can be played in this match. Save a snapshot first if you might want to play on.')) {
+                      run(endBattle);
+                    }
+                  }}
+                >End Battle</button>
+              ) : null}
               <button className={publicMode ? 'ghost active' : 'ghost'} onClick={() => {
                 setPublicMode((current) => !current);
                 setActiveView('map');
@@ -1704,6 +1730,14 @@ function App() {
                 <p className="storage-warning" role="alert">{storageWarning}</p>
               ) : null}
             </div>
+
+            {snapshot?.battleOver ? (
+              <BattleOverPanel
+                snapshot={snapshot}
+                onExportLog={() => exportAfterAction('md')}
+                onSaveSnapshot={exportSnapshotBackup}
+              />
+            ) : null}
 
             {snapshot?.phase === 'FleetSetup' && activeView === 'ships' ? (
               <section className="setup-workflow" aria-label="Fleet setup workflow">
@@ -1888,6 +1922,9 @@ function App() {
                 const isEditing = editingShipId === ship.id;
                 const isFocused = mapFocusShipId === ship.id || (!mapFocusShipId && canEdit && ownedShips[0]?.id === ship.id);
                 const showShipControls = canEdit && (isFocused || isEditing);
+                // A wreck has no helm and no guns: only its damage record, which stays open so a kill
+                // recorded by mistake can still be put right (playtest M1).
+                const cardMode = ship.isDestroyed ? 'damage' : shipCardMode;
                 const shipThrust = usableThrust(ship);
                 const maxTurn = maxLegalTurn(shipThrust, draft.velocityDelta, ship.currentVelocity);
                 const firingDraft = firingDraftFor(ship, snapshot.ships, firingDrafts, ownedShipIds);
@@ -1904,7 +1941,9 @@ function App() {
                       </strong>
                     </div>
                     <div className="ship-alerts">
-                      {status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
+                      {ship.isDestroyed
+                        ? <span className="danger">Out of action</span>
+                        : status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
                       {ship.hullDamage > 0 || ship.armorDamage > 0 ? <span className="warn">Damage recorded</span> : <span>Undamaged</span>}
                       {ship.fireControlDamage + ship.driveDamage + ship.weaponDamage > 0 ? <span className="danger">Systems degraded</span> : null}
                       {ship.effectiveScreens > 0 ? <span>Screens {ship.effectiveScreens}</span> : null}
@@ -1925,8 +1964,8 @@ function App() {
                         >
                           {isEditing ? 'Close Editor' : 'Edit Stats'}
                         </button>
-                        {showShipControls ? <button className="ghost" disabled={busy} onClick={() => run(() => duplicateShip(ship))}>Duplicate</button> : null}
-                        {showShipControls ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
+                        {showShipControls && !ship.isDestroyed ? <button className="ghost" disabled={busy} onClick={() => run(() => duplicateShip(ship))}>Duplicate</button> : null}
+                        {showShipControls && !ship.isDestroyed ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
                       </div>
                     ) : null}
 
@@ -1964,13 +2003,17 @@ function App() {
 
                     {showShipControls ? (
                       <div className="selected-action-tabs ship-card-tabs" aria-label={`${ship.name} card tools`}>
-                        <button className={shipCardMode === 'helm' ? 'ghost active' : 'ghost'} type="button" onClick={() => setShipCardMode('helm')}>Helm</button>
-                        <button className={shipCardMode === 'fire' ? 'ghost active' : 'ghost'} type="button" onClick={() => setShipCardMode('fire')}>Fire</button>
-                        <button className={shipCardMode === 'damage' ? 'ghost active' : 'ghost'} type="button" onClick={() => setShipCardMode('damage')}>Damage</button>
+                        {ship.isDestroyed ? null : (
+                          <>
+                            <button className={cardMode === 'helm' ? 'ghost active' : 'ghost'} type="button" onClick={() => setShipCardMode('helm')}>Helm</button>
+                            <button className={cardMode === 'fire' ? 'ghost active' : 'ghost'} type="button" onClick={() => setShipCardMode('fire')}>Fire</button>
+                          </>
+                        )}
+                        <button className={cardMode === 'damage' ? 'ghost active' : 'ghost'} type="button" onClick={() => setShipCardMode('damage')}>Damage</button>
                       </div>
                     ) : null}
 
-                    {showShipControls && shipCardMode === 'helm' ? (
+                    {showShipControls && cardMode === 'helm' ? (
                       <section className="card-module" aria-label={`${ship.name} helm`}>
                         <span className="label">Helm</span>
                         <CourseCompass
@@ -1984,7 +2027,7 @@ function App() {
                       </section>
                     ) : null}
 
-                    {showShipControls && shipCardMode === 'helm' ? (
+                    {showShipControls && cardMode === 'helm' ? (
                       <>
                         <div className="order-form card-module">
                           <span className="label module-title">Order plot</span>
@@ -2086,7 +2129,7 @@ function App() {
                       </>
                     ) : null}
 
-                    {showShipControls && shipCardMode === 'fire' ? (
+                    {showShipControls && cardMode === 'fire' ? (
                       <>
                         <FiringConsole
                           ship={ship}
@@ -2107,7 +2150,7 @@ function App() {
                       </>
                     ) : null}
 
-                    {showShipControls && shipCardMode === 'damage' ? (
+                    {showShipControls && cardMode === 'damage' ? (
                       <>
                         <div className="damage-grid card-module" aria-label={`${ship.name} damage controls`}>
                           <span className="label module-title">Damage control</span>

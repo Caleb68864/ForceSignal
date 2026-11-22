@@ -113,7 +113,52 @@ public sealed partial class InMemoryMatchService
         match.LastTurn is { } last
             ? new LastTurnDto(last.TurnNumber, [.. last.Moves.Select(ToDto)], [.. last.FiringResults.Select(ToDto)], [.. last.Events.Select(ToDto)])
             : null,
-        [.. match.PendingThresholds.Select(pending => new PendingThresholdDto(pending.Key, pending.Value))]);
+        [.. match.PendingThresholds.Select(pending => new PendingThresholdDto(pending.Key, pending.Value))],
+        BattleOverFor(match));
+
+    /// <summary>
+    /// Whether the battle is over, and why. Worked out from the match each time rather than stored,
+    /// except for the host's word, so a side wiped out by any route - a shot, a threshold, a damage
+    /// edit - ends it the same way. Only once play has begun: a fleet still being built has no ships
+    /// yet and is not a side that has lost.
+    /// </summary>
+    private static BattleOverDto? BattleOverFor(MatchState match)
+    {
+        if (match.EndedBy is { } host)
+        {
+            return new BattleOverDto("EndedByHost", $"{host} ended the battle.");
+        }
+
+        if (match.Phase == MatchPhase.FleetSetup)
+        {
+            return null;
+        }
+
+        var sides = match.Participants
+            .Select(participant => (Participant: participant, Ships: match.Ships
+                .Where(ship => match.Fleets.Any(fleet => fleet.Id == ship.FleetId && fleet.OwnerParticipantId == participant.Id))
+                .ToList()))
+            .Where(side => side.Ships.Count > 0)
+            .ToList();
+        if (sides.Count < 2)
+        {
+            return null;
+        }
+
+        var beaten = sides.Where(side => side.Ships.All(IsDestroyed)).Select(side => side.Participant.DisplayName).ToList();
+        return beaten.Count == 0
+            ? null
+            : new BattleOverDto("OneSideLeft", $"{string.Join(" and ", beaten)} {(beaten.Count == 1 ? "has" : "have")} no ships left. The battle is over.");
+    }
+
+    /// <summary>Refuses a command that would play on once the battle is over.</summary>
+    private static void RequireBattleNotOver(MatchState match)
+    {
+        if (BattleOverFor(match) is { } over)
+        {
+            throw new InvalidOperationException($"The battle is over: {over.Message} Export the log or save a snapshot to keep it.");
+        }
+    }
 
     private static MovementResultDto ToDto(ResolvedMoveState m) => new(
         m.ShipId, m.StartingVelocity, m.StartingCourse, m.EndingVelocity, m.EndingCourse, m.Segments,

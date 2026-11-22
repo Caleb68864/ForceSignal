@@ -3490,3 +3490,23 @@ small,
   word-break: break-all;
   user-select: all;
 }
+
+/* The end of a battle: said once, at the top of the board, with the record a click away. */
+.battle-over {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber);
+  background: rgba(245, 199, 102, 0.08);
+}
+
+.battle-over h3 {
+  margin: 0;
+  color: var(--amber);
+}
+
+.battle-over-sides {
+  margin: 0;
+  padding-left: 18px;
+}

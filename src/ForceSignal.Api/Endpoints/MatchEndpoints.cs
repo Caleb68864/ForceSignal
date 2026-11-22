@@ -262,6 +262,25 @@ public static class MatchEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        app.MapPost("/api/matches/{matchId:guid}/end", async (
+            Guid matchId,
+            EndBattleRequest request,
+            IMatchService matches,
+            IHubContext<MatchHub> hub) =>
+        {
+            var snapshot = matches.EndBattle(matchId, request);
+            await NotifySnapshotChanged(hub, snapshot, "BattleEnded");
+            return Results.Ok(snapshot);
+        })
+            .WithName("EndBattle")
+            .WithTags("Matches")
+            .WithSummary("Ends the battle where it stands. Host only, once play has begun.")
+            .WithDescription("The table's own call - a withdrawal, a turn limit, time up. A side with no ship left ends the battle by itself; this app invents no other victory condition.")
+            .Produces<MatchSnapshotDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         app.MapPost("/api/matches/{matchId:guid}/points-limit", async (
             Guid matchId,
             UpdateMatchPointsLimitRequest request,

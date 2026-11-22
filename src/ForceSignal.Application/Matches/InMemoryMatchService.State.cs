@@ -67,6 +67,9 @@ public sealed partial class InMemoryMatchService
         public int TableDepth { get; set; } = 48;
         public int PointsLimit { get; set; }
 
+        /// <summary>Who ended the battle, when the host did; null while it is being fought.</summary>
+        public string? EndedBy { get; set; }
+
         /// <summary>When this match was last read or written. Drives idle eviction.</summary>
         public DateTimeOffset LastActivity { get; set; } = DateTimeOffset.UtcNow;
         public List<ParticipantState> Participants { get; } = [owner];

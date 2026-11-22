@@ -168,3 +168,29 @@ describe('the match commands on offer', () => {
     expect(matchCommands({ ...snapshot, firingParticipantId: null }, 'blue')).toMatchObject({ advance: 'primary', advanceWarning: null });
   });
 });
+
+describe('a battle that is over (playtest M1)', () => {
+  // With one side wiped out the loser was told to plot 0 ships and the winner to plot turn five.
+  const over = { reason: 'OneSideLeft', message: 'Red has no ships left. The battle is over.' };
+
+  it('says so on both screens, and offers nothing to press but keeping the record', () => {
+    const snapshot = table({ phase: 'OrderEntry', battleOver: over, ships: [ship('b1', 'fb'), ship('r1', 'fr', { isDestroyed: true })] });
+
+    for (const seat of ['blue', 'red']) {
+      const step = nextStep(snapshot, seat);
+      expect(step.heading).toBe('Battle over');
+      expect(step.you).toContain('Red has no ships left.');
+      expect(step.you).toContain('Export the log or save a snapshot');
+      expect(step.yourMove).toBe(false);
+      const commands = matchCommands(snapshot, seat);
+      expect([commands.lock, commands.reveal, commands.advance, commands.ready]).toEqual([null, null, null, null]);
+      expect(commands.endBattle).toBe(false);
+    }
+  });
+
+  it('offers the host, and only the host, an End Battle once play has begun', () => {
+    expect(matchCommands(table({ phase: 'OrderEntry' }), 'blue').endBattle).toBe(true);
+    expect(matchCommands(table({ phase: 'OrderEntry' }), 'red').endBattle).toBe(false);
+    expect(matchCommands(table({ phase: 'FleetSetup' }), 'blue').endBattle).toBe(false);
+  });
+});

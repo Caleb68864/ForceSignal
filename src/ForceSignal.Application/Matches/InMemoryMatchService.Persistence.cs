@@ -124,7 +124,8 @@ public sealed partial class InMemoryMatchService
             l.Sequence, l.Timestamp, l.TurnNumber, l.Phase, l.Category, l.Message))],
         match.ResolvedMoves is { } moves ? [.. moves] : null,
         [.. match.TurnEvents],
-        match.LastTurn);
+        match.LastTurn,
+        match.EndedBy);
 
     private static PersistedShip ToPersisted(ShipState ship) => new(
         ship.Id, ship.FleetId, ship.Name, ship.ClassName, ship.ThrustRating,
@@ -183,6 +184,7 @@ public sealed partial class InMemoryMatchService
         match.ResolvedMoves = persisted.ResolvedMoves is { } resolvedMoves ? [.. resolvedMoves] : null;
         match.TurnEvents.AddRange(persisted.TurnEvents ?? []);
         match.LastTurn = persisted.LastTurn;
+        match.EndedBy = persisted.EndedBy;
 
         foreach (var id in persisted.MovedFighterGroupIds)
         {
@@ -325,7 +327,9 @@ public sealed partial class InMemoryMatchService
         // revealed orders' plans for the rest of that turn, as it always did.
         IReadOnlyList<ResolvedMoveState>? ResolvedMoves = null,
         IReadOnlyList<TurnEventState>? TurnEvents = null,
-        LastTurnState? LastTurn = null);
+        LastTurnState? LastTurn = null,
+        // Absent from every match written before the host could end one.
+        string? EndedBy = null);
 
     /// <remarks>
     /// No connection state: a connection cannot outlive the process that held it, so a restart

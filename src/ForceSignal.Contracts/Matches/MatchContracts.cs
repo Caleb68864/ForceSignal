@@ -183,6 +183,19 @@ public sealed record RemoveOrdnanceMarkerRequest(string ParticipantToken);
 /// <param name="PointsLimit">Points per player, or zero for no limit.</param>
 public sealed record UpdateMatchPointsLimitRequest(string ParticipantToken, int PointsLimit);
 
+/// <summary>Ends the battle where it stands. Host only, and only once play has begun.</summary>
+/// <param name="ParticipantToken">Owner participant token.</param>
+public sealed record EndBattleRequest(string ParticipantToken);
+
+/// <summary>
+/// Why a battle is over. There are two ends and no others: one side has no ship left, or the host
+/// ended it. This app does not invent victory conditions - withdrawal, turn limits and the like are
+/// the table's to call, which is what the host's control is for.
+/// </summary>
+/// <param name="Reason"><c>OneSideLeft</c> or <c>EndedByHost</c>.</param>
+/// <param name="Message">What both screens say about it.</param>
+public sealed record BattleOverDto(string Reason, string Message);
+
 /// <summary>Updates the physical table dimensions used by map planning.</summary>
 public sealed record UpdateMatchTableRequest(string ParticipantToken, int TableWidth, int TableDepth);
 
@@ -441,7 +454,8 @@ public sealed record MatchSnapshotDto(
     int PointsLimit,
     IReadOnlyList<TurnEventDto>? TurnEvents = null,
     LastTurnDto? LastTurn = null,
-    IReadOnlyList<PendingThresholdDto>? PendingThresholds = null);
+    IReadOnlyList<PendingThresholdDto>? PendingThresholds = null,
+    BattleOverDto? BattleOver = null);
 
 /// <summary>
 /// A ship hit during the volley still being fired, whose threshold check waits for that volley to
