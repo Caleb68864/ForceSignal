@@ -33,7 +33,7 @@ async function json<T>(response: Awaited<ReturnType<APIRequestContext['post']>>)
   return response.json() as Promise<T>;
 }
 
-async function fleetWithShips(request: APIRequestContext, matchId: string, token: string, fleetName: string, shipNames: string[], x: number) {
+async function fleetWithShips(request: APIRequestContext, matchId: string, token: string, fleetName: string, shipNames: string[], x: number, stacked = false) {
   const snapshot = await json<{ fleets: { id: string; name: string }[] }>(
     await request.post(`${apiBase}/api/matches/${matchId}/fleets`, { data: { participantToken: token, name: fleetName, faction: null } }));
   const fleetId = snapshot.fleets.find((fleet) => fleet.name === fleetName)?.id ?? '';
@@ -41,7 +41,7 @@ async function fleetWithShips(request: APIRequestContext, matchId: string, token
     await json(await request.post(`${apiBase}/api/fleets/${fleetId}/ships`, {
       data: {
         participantToken: token, name, className: 'Cruiser', thrustRating: 4, initialVelocity: 0, initialCourse: 12,
-        hullMax: 8, armorMax: 0, startX: x, startY: 10 + index * 6, fireControlMax: 1,
+        hullMax: 8, armorMax: 0, startX: x, startY: stacked ? 20 : 10 + index * 6, fireControlMax: 1,
         weapons: [{ id: '00000000-0000-0000-0000-000000000000', name: 'Beam', attackDice: 2, maxRange: 24, arcs: ['Fore'], kind: 'Beam' }],
       },
     }));
@@ -49,14 +49,14 @@ async function fleetWithShips(request: APIRequestContext, matchId: string, token
 }
 
 /** Seeds a match - in order entry, or still in fleet setup with `ready: false` - and opens it in `page` as the host. */
-export async function openSeededMatch(page: Page, request: APIRequestContext, options: { blueShips?: string[]; redShips?: string[]; ready?: boolean } = {}) {
+export async function openSeededMatch(page: Page, request: APIRequestContext, options: { blueShips?: string[]; redShips?: string[]; ready?: boolean; stacked?: boolean } = {}) {
   const host = await json<Created>(await request.post(`${apiBase}/api/matches`, {
     data: { displayName: 'Blue Admiral', matchName: 'Seeded', rules: inventedRules },
   }));
   const guest = await json<Created>(await request.post(`${apiBase}/api/matches/join`, {
     data: { joinCode: host.joinCode, displayName: 'Red Admiral' },
   }));
-  await fleetWithShips(request, host.matchId, host.participantToken, 'Blue Squadron', options.blueShips ?? ['Valiant', 'Vigilant'], 20);
+  await fleetWithShips(request, host.matchId, host.participantToken, 'Blue Squadron', options.blueShips ?? ['Valiant', 'Vigilant'], 20, options.stacked);
   await fleetWithShips(request, host.matchId, guest.participantToken, 'Red Squadron', options.redShips ?? ['Mark'], 50);
   for (const token of options.ready === false ? [] : [host.participantToken, guest.participantToken]) {
     await json(await request.post(`${apiBase}/api/matches/${host.matchId}/participants/me/ready`, {

@@ -1113,7 +1113,8 @@ small,
   width: 54px;
   min-height: 54px;
   padding: 0;
-  transform: translate(-50%, -50%) scale(var(--marker-scale, 1));
+  /* --spread-x/y fan out contacts stacked on one spot (playtest M6); zero for a ship on its own. */
+  transform: translate(calc(-50% + var(--spread-x, 0px)), calc(-50% + var(--spread-y, 0px))) scale(var(--marker-scale, 1));
   border-color: var(--fleet-color);
   background: rgba(1, 13, 17, 0.94);
   color: var(--fleet-color);
