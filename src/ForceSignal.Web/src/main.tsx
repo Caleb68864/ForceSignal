@@ -56,7 +56,9 @@ import type {
   } from './types.ts';
 import { blankRulesProfile } from './types.ts';
 import { RulesProfileEditor } from './components/RulesProfileEditor.tsx';
-import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
+import { helpStepFor } from './lib/helpStep.ts';
+// Loaded when a player opens How to Play: the guide's text and pictures are not needed for anything else.
+const HelpGuide = lazy(() => import('./components/HelpGuide.tsx').then((module) => ({ default: module.HelpGuide })));
 import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { BattleOverPanel } from './components/BattleOverPanel.tsx';
@@ -1475,14 +1477,16 @@ function App() {
   return (
     <main className={publicMode ? 'shell public-mode' : 'shell'}>
       {helpOpen ? (
-        <HelpGuide
-          currentStepId={helpStepFor(gameMode === 'fullthrust' && snapshot ? {
-            phase: snapshot.phase,
-            rulesPlayable: gapsIn(snapshot.rules ?? blankRulesProfile).length === 0,
-            shipCount: snapshot.ships.length,
-          } : null)}
-          onClose={() => setHelpOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <HelpGuide
+            currentStepId={helpStepFor(gameMode === 'fullthrust' && snapshot ? {
+              phase: snapshot.phase,
+              rulesPlayable: gapsIn(snapshot.rules ?? blankRulesProfile).length === 0,
+              shipCount: snapshot.ships.length,
+            } : null)}
+            onClose={() => setHelpOpen(false)}
+          />
+        </Suspense>
       ) : null}
       <section className="topbar">
         <div>
