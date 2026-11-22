@@ -72,6 +72,13 @@ that fails on the old code.
       browser spec, `e2e-ground/fullThrustLayout.spec.ts` at 1440x900, which seeds a match through
       the API (`e2e-ground/fullThrustSeed.ts`: invented rules, two players, ships, both ready) and
       opens it as the host; it failed on the old styles with a 184px chip.
+- [x] **M6. Map labels were the first three letters of the name**, so "Blue 1" to "Blue 8" all read
+      BLU. `lib/mapLabels.ts` gives each contact the shortest label unique on the map: word initials
+      with numbers kept whole (B1...B8, RL for Red Lancer), more letters where initials collide (VAL,
+      VIG), and a running number only for two ships with the very same name. The full name is still
+      on the contact card when a ship is selected or hovered (`mapLabels.test.ts`;
+      `fullThrustLayout.spec.ts` "the map labels sister ships", failing on the old code with
+      `["BLU", "BLU", "BLU", "RED"]`). *Left:* spreading tokens that sit on the same spot.
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

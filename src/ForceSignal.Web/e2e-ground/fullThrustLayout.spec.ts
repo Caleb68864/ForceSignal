@@ -23,3 +23,13 @@ test('a compact ship card does not stretch to the expanded card beside it (playt
     expect(height).toBeLessThan(60);
   }
 });
+
+test('the map labels sister ships so they can be told apart (playtest M6)', async ({ page, request }) => {
+  await openSeededMatch(page, request, { blueShips: ['Blue 1', 'Blue 2', 'Blue 3'], redShips: ['Red 1'] });
+  await page.getByRole('button', { name: 'Play Map', exact: true }).click();
+
+  const labels = page.locator('.table-map button strong');
+  await expect(labels.first()).toBeVisible();
+  const texts = await labels.allInnerTexts();
+  expect(texts).toEqual(expect.arrayContaining(['B1', 'B2', 'B3', 'R1']));
+});
