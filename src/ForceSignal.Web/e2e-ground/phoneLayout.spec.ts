@@ -67,3 +67,21 @@ test('a Full Thrust ship card lays its readouts out three across', async ({ page
   const tops = await readouts.evaluateAll((cells) => cells.slice(0, 3).map((cell) => Math.round(cell.getBoundingClientRect().top)));
   expect(new Set(tops).size).toBe(1);
 });
+
+test('Full Thrust folds the shipyard away once there is a fleet, so Ready is not 6,000px down', async ({ page, request }) => {
+  await openSeededMatch(page, request, { ready: false });
+  const ready = page.getByRole('button', { name: 'Ready', exact: true }).first();
+  await expect(ready).toBeVisible();
+
+  const shipyard = page.locator('details.setup-shipyard');
+  await expect(shipyard).not.toHaveAttribute('open', '');
+  await expect(page.getByText(/2 ships in your fleet/)).toBeVisible();
+  const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  expect(pageHeight).toBeLessThan(5000);
+
+  // Nor does a ship card carry the helm, the order plot and Lock in setup, where they can only be refused.
+  await expect(page.locator('article.ship-card').getByRole('button', { name: 'Lock', exact: true })).toHaveCount(0);
+
+  await shipyard.locator('summary').click();
+  await expect(page.getByText('Add ship', { exact: true }).first()).toBeVisible();
+});

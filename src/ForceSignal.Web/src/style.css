@@ -3368,7 +3368,12 @@ small,
   }
 }
 
-.setup-details > summary {
+.setup-details > summary,
+.setup-shipyard > summary {
+  /* A full touch target: the Table/rules header was 31px (playtest m17). */
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   cursor: pointer;
   padding: 8px 0;
   color: var(--line-hot);
@@ -3378,7 +3383,8 @@ small,
   text-transform: uppercase;
 }
 
-.setup-details[open] > summary {
+.setup-details[open] > summary,
+.setup-shipyard[open] > summary {
   margin-bottom: 8px;
 }
 

@@ -1788,86 +1788,96 @@ function App() {
                     <button type="button" disabled={busy} onClick={() => run(createAdditionalFleet)}>Create Fleet</button>
                   </div>
                 ) : null}
-                <div className="setup-grid">
-                  <div className="shipyard">
-                    <span className="label">Add ship</span>
-                    {ownedFleets.length === 0 ? (
-                      <div className="fleet-identity">
-                        <label>
-                          Fleet name
-                          <input value={shipForm.fleetName} onChange={(event) => setShipForm({ ...shipForm, fleetName: event.target.value })} />
-                        </label>
-                        <label>
-                          Faction
-                          <input value={shipForm.faction} onChange={(event) => setShipForm({ ...shipForm, faction: event.target.value })} />
-                        </label>
-                        <label>
-                          Fleet color
-                          <input type="color" value={shipForm.fleetColor} onChange={(event) => setShipForm({ ...shipForm, fleetColor: event.target.value })} />
-                        </label>
-                      </div>
-                    ) : null}
-                    <ShipProfileFields
-                      form={shipForm}
-                      onChange={setShipForm}
-                      rules={snapshot?.rules}
-                    />
-                    <button onClick={() => run(createShipFromForm)} disabled={busy}>Add Ship</button>
-                  </div>
-                  <div className="fleet-transfer">
-                    <span className="label">Fleet transfer</span>
-                    <div className="transfer-summary">
-                      <strong>{activeFleetShipCount}</strong>
-                      <span>{activeFleetShipCount === 1 ? 'ship' : 'ships'} in {activeFleet?.name ?? 'this fleet'} - {activeFleetPoints} pts{(snapshot?.pointsLimit ?? 0) > 0 ? ` of ${snapshot?.pointsLimit}` : ''}</span>
+                {/* Once there is a fleet, the shipyard folds to one line: on a phone it was most of a
+                    6,300px page with Ready at the bottom (playtest M10). Open on a tap; opens itself
+                    while there is nothing to fold. */}
+                <details className="setup-shipyard" key={ownedShips.length === 0 ? 'empty' : 'has-ships'} open={ownedShips.length === 0}>
+                  <summary>
+                    {ownedShips.length === 0
+                      ? 'Add your first ship'
+                      : `${ownedShips.length} ${ownedShips.length === 1 ? 'ship' : 'ships'} in your fleet · add another ship, or bring and save fleets`}
+                  </summary>
+                  <div className="setup-grid">
+                    <div className="shipyard">
+                      <span className="label">Add ship</span>
+                      {ownedFleets.length === 0 ? (
+                        <div className="fleet-identity">
+                          <label>
+                            Fleet name
+                            <input value={shipForm.fleetName} onChange={(event) => setShipForm({ ...shipForm, fleetName: event.target.value })} />
+                          </label>
+                          <label>
+                            Faction
+                            <input value={shipForm.faction} onChange={(event) => setShipForm({ ...shipForm, faction: event.target.value })} />
+                          </label>
+                          <label>
+                            Fleet color
+                            <input type="color" value={shipForm.fleetColor} onChange={(event) => setShipForm({ ...shipForm, fleetColor: event.target.value })} />
+                          </label>
+                        </div>
+                      ) : null}
+                      <ShipProfileFields
+                        form={shipForm}
+                        onChange={setShipForm}
+                        rules={snapshot?.rules}
+                      />
+                      <button onClick={() => run(createShipFromForm)} disabled={busy}>Add Ship</button>
                     </div>
-                    <div className="quick-actions">
-                      <button className="ghost" onClick={() => exportOwnedFleet('json')}>Export JSON</button>
-                      <button className="ghost" onClick={() => exportOwnedFleet('csv')}>Export CSV</button>
-                    </div>
-                    <button className="ghost" onClick={saveActiveFleetToLibrary}>Save Fleet To Library</button>
-                    <button onClick={() => fleetImportInputRef.current?.click()}>Import Fleet</button>
-                    <input
-                      ref={fleetImportInputRef}
-                      className="file-input"
-                      type="file"
-                      accept=".json,.csv,application/json,text/csv"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        event.target.value = '';
-                        if (file) {
-                          run(() => importFleetFile(file));
-                        }
-                      }}
-                    />
-                    <p className="privacy">Imports are for user-owned fleet data. Do not bundle official fleet lists, SSDs, logos, artwork, or copied rule text.</p>
-                    {fleetLibrary.length > 0 ? (
-                      <div className="fleet-library">
-                        <span className="label">Fleet library - this device</span>
-                        {fleetLibrary.map((entry) => {
-                          const points = fleetPoints(entry.fleet);
-                          const limit = snapshot?.pointsLimit ?? 0;
-                          return (
-                            <div className="fleet-library-row" key={`${entry.fleet.name}-${entry.savedAt}`}>
-                              <div>
-                                <strong>{entry.fleet.name}</strong>
-                                <small>
-                                  {entry.fleet.ships.length} {entry.fleet.ships.length === 1 ? 'ship' : 'ships'} - {points} pts
-                                  {limit > 0 && points > limit ? ` - ${points - limit} over` : ''}
-                                </small>
-                              </div>
-                              <div className="quick-actions">
-                                <button type="button" disabled={busy} onClick={() => run(() => bringLibraryFleet(entry))}>Bring</button>
-                                <button className="ghost" type="button" onClick={() => removeLibraryFleet(entry)}>Remove</button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                    <div className="fleet-transfer">
+                      <span className="label">Fleet transfer</span>
+                      <div className="transfer-summary">
+                        <strong>{activeFleetShipCount}</strong>
+                        <span>{activeFleetShipCount === 1 ? 'ship' : 'ships'} in {activeFleet?.name ?? 'this fleet'} - {activeFleetPoints} pts{(snapshot?.pointsLimit ?? 0) > 0 ? ` of ${snapshot?.pointsLimit}` : ''}</span>
                       </div>
-                    ) : (
-                      <p className="privacy">Save a fleet to build a device library you can bring to any future match.</p>
-                    )}
+                      <div className="quick-actions">
+                        <button className="ghost" onClick={() => exportOwnedFleet('json')}>Export JSON</button>
+                        <button className="ghost" onClick={() => exportOwnedFleet('csv')}>Export CSV</button>
+                      </div>
+                      <button className="ghost" onClick={saveActiveFleetToLibrary}>Save Fleet To Library</button>
+                      <button onClick={() => fleetImportInputRef.current?.click()}>Import Fleet</button>
+                      <input
+                        ref={fleetImportInputRef}
+                        className="file-input"
+                        type="file"
+                        accept=".json,.csv,application/json,text/csv"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = '';
+                          if (file) {
+                            run(() => importFleetFile(file));
+                          }
+                        }}
+                      />
+                      <p className="privacy">Imports are for user-owned fleet data. Do not bundle official fleet lists, SSDs, logos, artwork, or copied rule text.</p>
+                      {fleetLibrary.length > 0 ? (
+                        <div className="fleet-library">
+                          <span className="label">Fleet library - this device</span>
+                          {fleetLibrary.map((entry) => {
+                            const points = fleetPoints(entry.fleet);
+                            const limit = snapshot?.pointsLimit ?? 0;
+                            return (
+                              <div className="fleet-library-row" key={`${entry.fleet.name}-${entry.savedAt}`}>
+                                <div>
+                                  <strong>{entry.fleet.name}</strong>
+                                  <small>
+                                    {entry.fleet.ships.length} {entry.fleet.ships.length === 1 ? 'ship' : 'ships'} - {points} pts
+                                    {limit > 0 && points > limit ? ` - ${points - limit} over` : ''}
+                                  </small>
+                                </div>
+                                <div className="quick-actions">
+                                  <button type="button" disabled={busy} onClick={() => run(() => bringLibraryFleet(entry))}>Bring</button>
+                                  <button className="ghost" type="button" onClick={() => removeLibraryFleet(entry)}>Remove</button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="privacy">Save a fleet to build a device library you can bring to any future match.</p>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </details>
               </section>
             ) : null}
 
@@ -1924,6 +1934,9 @@ function App() {
                 const isEditing = editingShipId === ship.id;
                 const isFocused = mapFocusShipId === ship.id || (!mapFocusShipId && canEdit && ownedShips[0]?.id === ship.id);
                 const showShipControls = canEdit && (isFocused || isEditing);
+                // Helm, fire and damage are for play. In fleet setup they were a 1,600px card on a
+                // phone with Lock and Reveal on it that the server could only refuse (playtest M10).
+                const showPlayControls = showShipControls && snapshot.phase !== 'FleetSetup';
                 // A wreck has no helm and no guns: only its damage record, which stays open so a kill
                 // recorded by mistake can still be put right (playtest M1).
                 const cardMode = ship.isDestroyed ? 'damage' : shipCardMode;
@@ -1967,7 +1980,7 @@ function App() {
                           {isEditing ? 'Close Editor' : 'Edit Stats'}
                         </button>
                         {showShipControls && !ship.isDestroyed ? <button className="ghost" disabled={busy} onClick={() => run(() => duplicateShip(ship))}>Duplicate</button> : null}
-                        {showShipControls && !ship.isDestroyed ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
+                        {showPlayControls && !ship.isDestroyed ? <button className="ghost" disabled={busy} onClick={() => run(() => repairAll(ship))}>Repair All</button> : null}
                       </div>
                     ) : null}
 
@@ -2003,7 +2016,7 @@ function App() {
                       </div>
                     </div>
 
-                    {showShipControls ? (
+                    {showPlayControls ? (
                       <div className="selected-action-tabs ship-card-tabs" aria-label={`${ship.name} card tools`}>
                         {ship.isDestroyed ? null : (
                           <>
@@ -2015,7 +2028,7 @@ function App() {
                       </div>
                     ) : null}
 
-                    {showShipControls && cardMode === 'helm' ? (
+                    {showPlayControls && cardMode === 'helm' ? (
                       <section className="card-module" aria-label={`${ship.name} helm`}>
                         <span className="label">Helm</span>
                         <CourseCompass
@@ -2029,7 +2042,7 @@ function App() {
                       </section>
                     ) : null}
 
-                    {showShipControls && cardMode === 'helm' ? (
+                    {showPlayControls && cardMode === 'helm' ? (
                       <>
                         <div className="order-form card-module">
                           <span className="label module-title">Order plot</span>
@@ -2131,7 +2144,7 @@ function App() {
                       </>
                     ) : null}
 
-                    {showShipControls && cardMode === 'fire' ? (
+                    {showPlayControls && cardMode === 'fire' ? (
                       <>
                         <FiringConsole
                           ship={ship}
@@ -2152,7 +2165,7 @@ function App() {
                       </>
                     ) : null}
 
-                    {showShipControls && cardMode === 'damage' ? (
+                    {showPlayControls && cardMode === 'damage' ? (
                       <>
                         <div className="damage-grid card-module" aria-label={`${ship.name} damage controls`}>
                           <span className="label module-title">Damage control</span>

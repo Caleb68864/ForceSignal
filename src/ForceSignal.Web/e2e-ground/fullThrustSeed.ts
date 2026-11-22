@@ -48,8 +48,8 @@ async function fleetWithShips(request: APIRequestContext, matchId: string, token
   }
 }
 
-/** Seeds a match in order entry and opens it in `page` as the host. */
-export async function openSeededMatch(page: Page, request: APIRequestContext, options: { blueShips?: string[]; redShips?: string[] } = {}) {
+/** Seeds a match - in order entry, or still in fleet setup with `ready: false` - and opens it in `page` as the host. */
+export async function openSeededMatch(page: Page, request: APIRequestContext, options: { blueShips?: string[]; redShips?: string[]; ready?: boolean } = {}) {
   const host = await json<Created>(await request.post(`${apiBase}/api/matches`, {
     data: { displayName: 'Blue Admiral', matchName: 'Seeded', rules: inventedRules },
   }));
@@ -58,7 +58,7 @@ export async function openSeededMatch(page: Page, request: APIRequestContext, op
   }));
   await fleetWithShips(request, host.matchId, host.participantToken, 'Blue Squadron', options.blueShips ?? ['Valiant', 'Vigilant'], 20);
   await fleetWithShips(request, host.matchId, guest.participantToken, 'Red Squadron', options.redShips ?? ['Mark'], 50);
-  for (const token of [host.participantToken, guest.participantToken]) {
+  for (const token of options.ready === false ? [] : [host.participantToken, guest.participantToken]) {
     await json(await request.post(`${apiBase}/api/matches/${host.matchId}/participants/me/ready`, {
       data: { isReady: true }, headers: { 'X-Participant-Token': token },
     }));

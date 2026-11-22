@@ -116,7 +116,15 @@ that fails on the old code.
       - straight under the status, above the roster, and Full Thrust lays a ship's readouts out three
       across on a phone. `e2e-ground/phoneLayout.spec.ts` at 390x844 checks all three; each failed
       on the old layout. *Left:* collapsing Full Thrust's fleet setup to a summary once a fleet
-      exists, and moving "Table, rules and points" to a tab after the start.
+      exists, and moving "Table, rules and points" to a tab after the start. *Done on
+      `ux/playtest-fixes-4`:* once a player has ships, the shipyard folds to one line ("2 ships in
+      your fleet · add another ship, or bring and save fleets") and opens on a tap; and in fleet
+      setup a ship card no longer carries the helm, the order plot, Lock, Reveal and Repair All,
+      which only play can use - that card alone was 1,600px on a phone. "Table, rules and points"
+      already folds away once play begins; its header and the shipyard's are now 44px touch
+      targets. The phone setup page went from 5,275px (with the shipyard folded) to under 5,000,
+      and no card offers Lock in setup (`phoneLayout.spec.ts` "folds the shipyard away", failing on
+      the old code).
 - [x] **The ground browser suite met the game-creation budget part-way through.** Each spec opens a
       game from the one test address, and with fifteen specs a full run passed ten a minute and got
       429s on Start Game - a flake waiting for CI. The budget is now configurable
