@@ -21,6 +21,66 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Hardening pass 2026-11-21 (`harden/2026-11-21`)
+
+Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to fail on the old code.
+
+- [x] **The Playwright suite, run locally.** `npx playwright test` with `CHROMIUM_PATH=/usr/bin/chromium`:
+      9 of 9 pass. It covers only the map bench page (`vite.bench.config.ts`, no API), so it reaches
+      none of the ground screens; those are covered by the component tests.
+- [x] **The first test in a DOM test file timed out under load.** Seen as "launches an assault with
+      the elements ticked..." (`DirtsideAssault.test.tsx`) failing at vitest's 5 s. Measured: the
+      first test of every jsdom file paid for React's first render and testing-library's first role
+      query (~300 ms cold against ~25 ms warm) on top of its own work, so first tests ran 1-3 s
+      unloaded while the rest of the file ran in a few hundred ms (StarGruntView 2.8 s,
+      DirtsideView 2.1 s, DirtsideAssault 1.9 s, ErrorBoundary 1.4 s). Fixed without touching a
+      timeout: `src/test/warmDom.tsx`, a vitest `setupFiles` entry, renders a small form and runs
+      each kind of query once per DOM file in a `beforeAll` with its own budget. Unloaded, those
+      first tests dropped to 1.1 s, 0.5 s, 0.6 s and 0.3 s. Reproduced with 32 busy loops on 8
+      cores: the old config failed 2 of 4 full runs (that test both times), the new one passed 4 of 4.
+- [x] **A request the rate limiter turned away came back with no body.** The client shows a
+      problem's `detail` and falls back to "Request failed with status 429." when there is none, so
+      a player who mistyped a room code a few times, or a table opening its eleventh game in a
+      minute, read only a status number. `OnRejected` now answers problem+json - "Too many tries
+      from this device in the last minute. Wait N seconds and try again." - with a `Retry-After`
+      header from the limiter's own lease (`ApiHardeningTests.ATurnedAwayRequest_SaysWhyAndWhenToTryAgain`,
+      fails on the old code at the content type).
+- [x] **StarGrunt's status line kept a refused shot's alert over the shot that then landed.** `run()`
+      wrote the line only when given a sentence, and Fire has none, so the refusal stayed up, still
+      `role="alert"` - the defect Dirtside's line had until 2026-11-16. It now shows the command's
+      sentence, else what it logged, else nothing (`StarGruntView.test.tsx`, "shows what the shot
+      logged, not the refusal before it"; fails on the old code).
+- [x] **Both ground status lines went quiet once the log was full.** Each engine keeps the newest
+      2000 entries (`GroundGameGuards.MaxLogEntries`), so past that a logged line leaves the length
+      alone and "did the log grow" read as "nothing logged": Dirtside then said only its fallback
+      ("Turn opened.") and StarGrunt's Fire said nothing. `lib/newestLogEntry.ts` also counts a log
+      whose newest entry changed. One case is still missed and is written on the helper: the very
+      same sentence again at the cap. Tests: one per screen ("... once the log is at its cap"), both
+      failing on the old code, and `newestLogEntry.test.ts`.
+- [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
+      with every field and list entry nulled in turn, against a dev server with a fleet, ships and
+      ground games set up (scripts kept outside the repo). Three routes dereferenced the entry, and
+      the player read "Something went wrong on the server" for a request that was only incomplete:
+  - `POST .../assaults/melee` (StarGrunt) with `"pairings": [null]` - now refused naming the
+    pairing (`GroundGameHardeningTests.AMeleePairingLeftEmptyIsRefusedByName`).
+  - `POST .../rules-profile` with a `null` in the beam damage, point defence or turnaround table.
+    Create and restore do not check the profile, so the same entry was kept there and the match then
+    failed at readiness. `RulesProfile.Normalized()`, which every profile crossing into the app goes
+    through, now drops an empty entry: it carries no face and no score, so no number changes, and a
+    table left empty by it is still named by `Validate`
+    (`InMemoryMatchServiceRulesProfileTests.AnEmptyEntryInATableIsNotATableRow`).
+  - `POST .../orders/preview` with `"turnManeuvers": [null]`. `RequireOrder`, which preview, commit
+    and reveal all call, now refuses it naming the maneuver
+    (`InMemoryMatchServicePreviewTests.AnEmptyTurnManeuverIsRefusedByName`).
+  - `POST /api/matches/restore` with a `null` in any list of the file - participants, fleets, ships,
+    a ship's weapons, firing results, ordnance markers, the log. A hand-edited file, or one a tool
+    cut short, was a 500. No list in a snapshot holds an empty entry, so the endpoint now walks the
+    file first and refuses one naming where it is ("the entry at ships[0] is empty")
+    (`MatchRestoreEndpointTests.ASnapshotFileWithAnEmptyEntryIsRefusedNamingWhereItIs`, four cases).
+  Each test fails on the old code with a 500. After the fixes every variant of every route came
+  back 4xx: ground routes against games with units and an open activation, Full Thrust routes in
+  fleet setup, order entry and firing, and restore against a snapshot taken mid-firing.
+
 ## Two-device play 2026-11-16 (`test/two-player-smoke`)
 
 The long-standing top item - play one real two-device game since the turn structure changed - was
@@ -670,7 +730,11 @@ the roadmap lists only what a table can reach.
 - [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10). **The firefight
       itself landed 2026-11-02** - check, per-stand draws, casualties, the mark, a route and a panel,
       with the Under Fire cost entered on the profile. Still open, and listed under gap 10 in
-      `dirtside-fidelity-gaps.md`: guns on stands, softskins, the rocket, and riders.
+      `dirtside-fidelity-gaps.md`: guns on stands, softskins, the rocket, and riders. *Softskins
+      checked against the resolver 2026-11-21:* not just a roster flag. What a softskin is killed on,
+      what a kill and each special does to a vehicle element, how several winning draws fall across a
+      platoon, and whether the mark is per element are rulebook readings; the six questions are
+      written out under gap 10's "Softskins" bullet. Owner's.
 - [x] Defensive posture declared on the shot (gap 11). Already landed 2026-09-11 in `c80e28c`:
       `FireCommand.TargetPosture` and `DirtsideFireRequest`; this box was simply never ticked.
 - [x] A configurable chit pot, entered on the create screen and carried per game (gap 15,

@@ -153,19 +153,32 @@ public sealed record RulesProfile(
     /// one.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A JSON body that leaves a table out deserialises it as <c>default(ImmutableArray&lt;T&gt;)</c>,
     /// which is not an empty array - it is a null-ish struct that throws the moment anything
     /// enumerates or serialises it. Sending a profile with no turnaround table therefore blew up on
     /// the way back out rather than on the way in, which is a miserable way to find out. Every
     /// profile crossing into the app goes through here.
+    /// </para>
+    /// <para>
+    /// An empty entry in a table (a JSON <c>null</c> in the list) is dropped here. It carries no face
+    /// and no score, so it is not a row anybody entered, and every reader of the tables - the profile
+    /// check included - dereferenced it: a <c>[null]</c> was answered with a 500 at the profile route,
+    /// and kept by create and restore, which do not check. Dropping it changes no number; a table left
+    /// empty by it is still named by <see cref="Validate"/>.
+    /// </para>
     /// </remarks>
     public RulesProfile Normalized() => this with
     {
         Name = Name ?? string.Empty,
-        BeamDamage = BeamDamage.IsDefault ? [] : BeamDamage,
-        Turnaround = Turnaround.IsDefault ? [] : Turnaround,
-        PointDefenseKills = PointDefenseKills.IsDefault ? [] : PointDefenseKills,
+        BeamDamage = WithoutEmptyEntries(BeamDamage),
+        Turnaround = WithoutEmptyEntries(Turnaround),
+        PointDefenseKills = WithoutEmptyEntries(PointDefenseKills),
     };
+
+    private static ImmutableArray<T> WithoutEmptyEntries<T>(ImmutableArray<T> entries)
+        where T : class =>
+        entries.IsDefault ? [] : entries.RemoveAll(entry => entry is null);
 
     /// <summary>
     /// What is still missing before a match can be played against this profile.

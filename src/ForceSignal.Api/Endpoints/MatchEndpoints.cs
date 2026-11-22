@@ -104,6 +104,15 @@ public static class MatchEndpoints
                     ? parsed
                     : null;
 
+            // No list in a snapshot holds an empty entry, and restore dereferences every one, so a
+            // `null` in any of them - a hand-edited file, or one a tool cut short - was a 500. It is a
+            // file that cannot be read, and is said to be, naming where.
+            if (FindEmptyListEntry(snapshotElement, string.Empty) is { } emptyAt)
+            {
+                throw new InvalidOperationException(
+                    $"Snapshot could not be read: the entry at {emptyAt} is empty.");
+            }
+
             MatchSnapshotDto? snapshot;
             try
             {
@@ -604,6 +613,47 @@ public static class MatchEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
         return app;
+    }
+
+    /// <summary>The path of the first <c>null</c> inside a JSON array, or null when there is none.</summary>
+    /// <remarks>Depth is already bounded by <c>RestoreJson</c>'s reader, so the recursion is too.</remarks>
+    private static string? FindEmptyListEntry(JsonElement element, string path)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    var childPath = path.Length == 0 ? property.Name : $"{path}.{property.Name}";
+                    if (FindEmptyListEntry(property.Value, childPath) is { } found)
+                    {
+                        return found;
+                    }
+                }
+
+                return null;
+            case JsonValueKind.Array:
+                var index = 0;
+                foreach (var item in element.EnumerateArray())
+                {
+                    var itemPath = $"{path}[{index}]";
+                    if (item.ValueKind == JsonValueKind.Null)
+                    {
+                        return itemPath;
+                    }
+
+                    if (FindEmptyListEntry(item, itemPath) is { } found)
+                    {
+                        return found;
+                    }
+
+                    index++;
+                }
+
+                return null;
+            default:
+                return null;
+        }
     }
 
     private static string ReadParticipantToken(HttpRequest request)

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.Sqlite;
 using Scalar.AspNetCore;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -96,6 +97,23 @@ builder.Services.AddSingleton(sp => FeatureFlags.Read(
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Answered as every other refusal is, with a sentence the client shows. It used to go out with
+    // no body, and the client - which reads a problem's detail - fell back to "Request failed with
+    // status 429." for a player who had only mistyped a room code a few times. Every window here is
+    // a fixed minute, so the wait is that window's remainder when the limiter knows it.
+    options.OnRejected = (context, _) =>
+    {
+        var wait = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
+            ? retryAfter
+            : TimeSpan.FromMinutes(1);
+        var seconds = Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds));
+        context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+        return new ValueTask(WriteProblem(
+            context.HttpContext,
+            StatusCodes.Status429TooManyRequests,
+            "Too many requests",
+            $"Too many tries from this device in the last minute. Wait {seconds} seconds and try again."));
+    };
     options.AddPolicy(RateLimitPolicies.RoomCodeLookup, context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions

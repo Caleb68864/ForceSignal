@@ -334,6 +334,22 @@ describe('DirtsideView status line', () => {
 
     await waitFor(() => expect(status()).toBe('Turn 2 began; red keeps the initiative.'));
   });
+
+  it('still shows what a command logged once the log is at its cap', async () => {
+    // The server keeps the newest 2000 entries; past that a logged line leaves the length alone,
+    // and "did it grow" said nothing had been logged.
+    // Five entries stand in for the server's 2000: what matters is a log that stays the same length
+    // because the oldest entry was dropped for the new one, and a short one keeps the render cheap.
+    const full = Array.from({ length: 5 }, (_, index) => `entry ${index}`);
+    const before = { ...snapshot, log: full };
+    readGame.mockResolvedValue(before);
+    beginTurn.mockResolvedValue({ ...before, turnNumber: 2, log: [...full.slice(1), 'Turn 2 began; red keeps the initiative.'], version: 2 });
+
+    render(<DirtsideView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Begin Turn' }));
+
+    await waitFor(() => expect(status()).toBe('Turn 2 began; red keeps the initiative.'));
+  });
 });
 
 describe('DirtsideView firer walk', () => {

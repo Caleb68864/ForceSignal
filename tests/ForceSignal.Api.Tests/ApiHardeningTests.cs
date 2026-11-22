@@ -538,6 +538,39 @@ public sealed class ApiHardeningTests
     }
 
     [Fact]
+    public async Task ATurnedAwayRequest_SaysWhyAndWhenToTryAgain()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        // The client shows a problem's detail and falls back to "Request failed with status 429."
+        // when there is none - which is what a player retrying a mistyped room code used to read.
+        HttpResponseMessage? refused = null;
+        for (var attempt = 0; attempt < 40 && refused is null; attempt++)
+        {
+            var response = await client.GetAsync($"/api/matches/by-code/GUESS-{attempt:D3}-CODE");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                refused = response;
+            }
+            else
+            {
+                response.Dispose();
+            }
+        }
+
+        Assert.NotNull(refused);
+        using (refused)
+        {
+            Assert.Equal("application/problem+json", refused.Content.Headers.ContentType?.MediaType);
+            var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(429, problem.GetProperty("status").GetInt32());
+            Assert.Contains("too many", problem.GetProperty("detail").GetString() ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            Assert.True(refused.Headers.RetryAfter?.Delta > TimeSpan.Zero, "A Retry-After header says when to come back.");
+        }
+    }
+
+    [Fact]
     public async Task MatchCreation_IsBudgetedSoAStrangerCannotFillTheServer()
     {
         using var factory = CreateFactory();

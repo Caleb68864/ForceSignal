@@ -67,6 +67,37 @@ public sealed class MatchRestoreEndpointTests
         Assert.Equal(HttpStatusCode.BadRequest, secondClaim.StatusCode);
     }
 
+    [Theory]
+    [InlineData("ships", "ships[0]")]
+    [InlineData("fleets", "fleets[0]")]
+    [InlineData("participants", "participants[0]")]
+    [InlineData("matchLog", "matchLog[0]")]
+    public async Task ASnapshotFileWithAnEmptyEntryIsRefusedNamingWhereItIs(string list, string where)
+    {
+        // Found by a fuzzer: a file with a `null` in any of its lists - hand-edited, or cut short by a
+        // tool that wrote one - was answered 500, "Something went wrong on the server", because restore
+        // dereferenced the entry. It is a file that cannot be read, and is now told as one.
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var created = await (await client.PostAsJsonAsync("/api/matches", new CreateMatchRequest("Blue", "Empty Entry", 72, 48, Rules: TestRules.Invented)))
+            .Content.ReadFromJsonAsync<MatchCreatedResponse>();
+        var fleetSnapshot = await (await client.PostAsJsonAsync($"/api/matches/{created!.MatchId}/fleets",
+            new CreateFleetRequest(created.ParticipantToken, "Blue Watch", null, "#47f1ff")))
+            .Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+        var withShip = await (await client.PostAsJsonAsync($"/api/fleets/{fleetSnapshot!.Fleets.Single().Id}/ships",
+            new CreateShipRequest(created.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24)))
+            .Content.ReadFromJsonAsync<MatchSnapshotDto>(JsonOptions);
+        var file = JsonSerializer.SerializeToNode(withShip, JsonOptions)!.AsObject();
+        file[list] = new System.Text.Json.Nodes.JsonArray((System.Text.Json.Nodes.JsonNode?)null);
+
+        using var response = await client.PostAsync("/api/matches/restore",
+            new StringContent(file.ToJsonString(), Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(where, problem.GetProperty("detail").GetString() ?? string.Empty, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task RestoreAcceptsABareSnapshotAndExposesSeatsByRoomCode()
     {

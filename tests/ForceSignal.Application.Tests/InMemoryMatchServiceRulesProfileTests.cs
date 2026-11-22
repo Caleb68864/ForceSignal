@@ -81,6 +81,33 @@ public sealed class InMemoryMatchServiceRulesProfileTests
     }
 
     [Fact]
+    public void AnEmptyEntryInATableIsNotATableRow()
+    {
+        // Found by posting `"beamDamage": [null]`: the profile check dereferenced the entry and the
+        // server answered 500. Create does not check the profile at all, so the same entry was kept
+        // and the match then failed on readiness - and, had it got that far, on the first beam.
+        var withGaps = TestRules.Invented with
+        {
+            BeamDamage = TestRules.Invented.BeamDamage.Add(null!),
+            PointDefenseKills = TestRules.Invented.PointDefenseKills.Add(null!),
+            Turnaround = TestRules.Invented.Turnaround.Add(null!),
+        };
+        var service = new InMemoryMatchService(_ => 4);
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Gaps", Rules: withGaps));
+        var fleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null)).Fleets.Single();
+        service.CreateShip(fleet.Id, new CreateShipRequest(
+            owner.ParticipantToken, "Valiant", "Cruiser", 4, 6, 3, 12, 4, StartX: 20, StartY: 24));
+
+        var updated = service.UpdateRulesProfile(owner.MatchId, new UpdateRulesProfileRequest(owner.ParticipantToken, withGaps));
+
+        Assert.DoesNotContain(null, updated.Rules.BeamDamage);
+        Assert.DoesNotContain(null, updated.Rules.PointDefenseKills);
+        Assert.DoesNotContain(null, updated.Rules.Turnaround);
+        Assert.Equal(TestRules.Invented.BeamDamage.Length, updated.Rules.BeamDamage.Length);
+        Assert.Equal("OrderEntry", service.SetReady(owner.MatchId, owner.ParticipantToken, true).Phase);
+    }
+
+    [Fact]
     public void StandingDownIsAlwaysAllowedEvenWithNoProfile()
     {
         var service = new InMemoryMatchService(_ => 4);

@@ -18,6 +18,7 @@ import { downloadText, wholeNumberFrom } from '../../lib/format.ts';
 import { qualityLadder as ladder } from '../../lib/groundVocabulary.ts';
 import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
+import { newestLogEntry } from '../../lib/newestLogEntry.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
 import {
@@ -208,6 +209,10 @@ export function StarGruntView() {
   /**
    * Runs a command and keeps whatever the server said about it, refusing to start a second while
    * the first is still going.
+   *
+   * The status line shows `note` when there is one, otherwise what the command logged, otherwise
+   * nothing. It used to be written only when there was a note, and Fire has none - so a refused
+   * shot's alert stayed up, still marked as an alert, over the shot that then went through.
    */
   async function run(work: () => Promise<StarGruntSnapshot>, note?: string) {
     if (busyRef.current) {
@@ -217,10 +222,10 @@ export function StarGruntView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      setSnapshot(await work());
-      if (note) {
-        say(note);
-      }
+      const before = snapshot?.log ?? [];
+      const next = await work();
+      setSnapshot(next);
+      say(note ?? newestLogEntry(before, next.log) ?? '');
     } catch (error) {
       fail(error);
     } finally {
