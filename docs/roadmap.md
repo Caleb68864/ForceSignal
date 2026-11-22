@@ -173,9 +173,37 @@ outside the repo; only what they found is recorded here.
       shows a log entry only when the command added one, and otherwise says what was done
       ("Anvil activated.", "Turn ended."), as StarGrunt does (`DirtsideView.test.tsx`, "status
       line"; the first case fails before the fix, the second is the control).
-- [ ] **Ground games are one device.** Neither Dirtside nor StarGrunt has a join flow or a realtime
+- [x] **Ground games are one device.** Neither Dirtside nor StarGrunt has a join flow or a realtime
       link; a second browser gets only the setup screen. "Two-device" for them is not a thing yet,
       and nothing here says it should be - but it is why only Full Thrust was played across two.
+      *In progress on `feat/ground-multi-device` (2026-11-21).* **Server half done:** `/hubs/ground`
+      (`GroundGameHub.JoinGroundGame(engine, gameId, token)`) lets a device follow a game it holds
+      the token for - the token is the 256-bit one every route already demands, and a wrong token,
+      an unknown game, the other engine's id or an engine switched off are all refused alike - and
+      every ground route that changes a game now pushes `GroundGameChanged(engine, gameId, version)`
+      to that game's followers only, from `GameTokenFilter` once the command has answered; a refusal
+      pushes nothing (`GroundGameHubEndToEndTests`, four cases over a real SignalR client).
+      **Screens done:** each game screen has an "Other devices" panel with the link state and a game
+      code kept hidden until Show Game Code (the game id and its token, `lib/groundShare.ts`; never a
+      link, which would land in history and previews), and each setup screen a Join a Game field
+      that checks the code's shape before asking the server, and says "That game code does not open
+      a game on this server" when it does not. `lib/groundLive.ts` follows the game: a push naming a
+      newer version than the screen shows is read and shown, its own command's is not, and every
+      (re)join reads again for whatever was missed. No seats - both devices are the same table, as
+      one device always was (`GroundMultiDevice.test.tsx`, eight cases failing on the old screens;
+      `groundLive.test.tsx`; `groundShare.test.ts`). **Played in two browsers:**
+      `e2e-ground/twoDevices.spec.ts` starts a Dirtside game in one context, joins it from a second
+      by its code, adds a platoon on each and sees each appear on the other, begins the turn on one
+      and sees it on the other, all without a reload; and a third context with one character of the
+      code wrong is told the code opens nothing. Green on repeats. Done for both engines; the screen
+      code is shared, and the StarGrunt half is covered by the component tests.
+      *CI fix:* the verify job failed with three unhandled vitest errors ("Closing rpc while
+      'onUserConsoleLog' was pending") - on CI's Node 22 the ground screens' component tests really
+      started a SignalR connection in jsdom, and SignalR's own logger wrote after the tests ended.
+      The three ground screen test files now mock the live hook (it has its own test with a mocked
+      hub), and the hook turns SignalR's logger off, since it reports its own failures and only while
+      mounted. `npm test` three times locally: 488 passed, exit 0, no connection logs. Not
+      reproducible on this machine's Node 26, where the start never got far enough to log.
 
 ## Hardening pass 2026-11-09 (`harden/2026-11-09`)
 

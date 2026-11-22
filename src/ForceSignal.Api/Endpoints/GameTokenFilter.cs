@@ -1,4 +1,7 @@
+using ForceSignal.Api.Hubs;
 using ForceSignal.Application.Ground;
+using ForceSignal.Contracts.Ground;
+using Microsoft.AspNetCore.SignalR;
 
 namespace ForceSignal.Api.Endpoints;
 
@@ -53,7 +56,31 @@ internal sealed class GameTokenFilter<TService> : IEndpointFilter
             ?? throw new InvalidOperationException("A route guarded by a game token must carry a gameId."));
 
         http.RequestServices.GetRequiredService<TService>().RequireToken(gameId, token);
-        return next(context);
+        return HttpMethods.IsGet(http.Request.Method) ? next(context) : PushingChanges(context, next, gameId);
+    }
+
+    /// <summary>
+    /// Runs a command, and when it answers with the game it changed, tells every other device
+    /// following that game. A refusal throws before this sees a snapshot, so it pushes nothing.
+    /// </summary>
+    private static async ValueTask<object?> PushingChanges(
+        EndpointFilterInvocationContext context, EndpointFilterDelegate next, Guid gameId)
+    {
+        var result = await next(context);
+        var (engine, version) = (result as IValueHttpResult)?.Value switch
+        {
+            DirtsideSnapshotDto dirtside => ("dirtside", (long?)dirtside.Version),
+            StarGruntSnapshotDto starGrunt => ("stargrunt", starGrunt.Version),
+            _ => (null, null),
+        };
+        if (engine is not null && version is { } changed)
+        {
+            await context.HttpContext.RequestServices.GetRequiredService<IHubContext<GroundGameHub>>()
+                .Clients.Group(GroundGameHub.GroupFor(engine, gameId))
+                .SendAsync("GroundGameChanged", engine, gameId, changed);
+        }
+
+        return result;
     }
 }
 

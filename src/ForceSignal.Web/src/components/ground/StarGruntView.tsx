@@ -9,7 +9,7 @@
  * because that is how the game is played: with a tape measure and an eyeball.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { starGruntGameKey } from '../../constants.ts';
 import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import { fromForceFile, toForceFile } from '../../lib/forceIo.ts';
@@ -19,6 +19,7 @@ import { qualityLadder as ladder } from '../../lib/groundVocabulary.ts';
 import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import { newestLogEntry } from '../../lib/newestLogEntry.ts';
+import { useGroundLive } from '../../lib/groundLive.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
 import {
@@ -30,6 +31,7 @@ import {
 } from '../../lib/starGruntProfile.ts';
 import type { GameHandle, StarGruntRulesProfile, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 import { GroundLog } from './GroundLog.tsx';
+import { GroundJoin, GroundShare } from './GroundShare.tsx';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
 // - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
@@ -235,6 +237,31 @@ export function StarGruntView() {
     }
   }
 
+  /** Opens a game started on another device, from its game code. */
+  async function join(joining: GameHandle) {
+    if (busyRef.current) {
+      return;
+    }
+
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const joined = await api.readGame(joining);
+      writeStorage(starGruntGameKey, joining);
+      setHandle(joining);
+      setSnapshot(joined);
+      say(`Joined ${joined.name}.`);
+    } catch (error) {
+      setMessage(error instanceof ApiRequestError && [401, 403, 404].includes(error.status)
+        ? 'That game code does not open a game on this server.'
+        : error instanceof ApiRequestError ? error.message : 'That did not work.');
+      setMessageIsError(true);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
   async function start() {
     if (busyRef.current) {
       return;
@@ -265,6 +292,28 @@ export function StarGruntView() {
       say('Start a game to begin.');
     }
   }
+
+  // Following the game for changes made on another device holding its code. A push names the version
+  // the game reached; one this screen already shows - its own command's - reads nothing.
+  const shownVersion = useRef(-1);
+  useEffect(() => {
+    shownVersion.current = snapshot?.version ?? -1;
+  }, [snapshot]);
+  const followChange = useCallback((version: number | null) => {
+    if (!handle || (version !== null && version <= shownVersion.current)) {
+      return;
+    }
+
+    api.readGame(handle)
+      .then((next) => {
+        if (next.version > shownVersion.current) {
+          shownVersion.current = next.version;
+          setSnapshot(next);
+        }
+      })
+      .catch((error: unknown) => console.warn('[ForceSignal] could not read the ground game after a push', error));
+  }, [handle]);
+  const link = useGroundLive('stargrunt', snapshot ? handle : null, followChange);
 
   // A stored game is reopened on mount. One the server no longer has, or no longer lets this
   // device into, is forgotten rather than left to fail every action.
@@ -306,8 +355,8 @@ export function StarGruntView() {
       <section className="stargrunt card-module" aria-label="StarGrunt setup">
         <span className="label module-title">StarGrunt II</span>
         <p className="constraint-line">
-          Infantry scale, one device at the table. Bring your own rules: every die below is one you read off
-          your own record card.
+          Infantry scale. No seats: the game is the table's, and any device given its game code plays
+          it. Bring your own rules: every die below is one you read off your own record card.
         </p>
         <label>
           Game name
@@ -426,6 +475,7 @@ export function StarGruntView() {
         </button>
         {handle ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
         <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        {handle ? null : <GroundJoin busy={busy} onJoin={(joining) => void join(joining)} />}
       </section>
     );
   }
@@ -455,6 +505,7 @@ export function StarGruntView() {
           Range table: {starGruntProfileSummary(snapshot.profile)}
         </p>
         <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        <GroundShare game={game} link={link} />
         <div className="quick-actions">
           <button
             className="ghost"

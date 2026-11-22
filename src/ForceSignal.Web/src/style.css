@@ -3460,3 +3460,14 @@ small,
 .table-map.pixi-renderer[data-playback="running"] .ordnance-marker {
   opacity: 0;
 }
+
+/* A ground game's code: a hundred characters with no spaces, so it has to be allowed to break
+   anywhere or it pushes a phone's screen sideways. Selected whole on a tap, for copying by hand. */
+.game-code {
+  display: block;
+  margin: 6px 0;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: all;
+}

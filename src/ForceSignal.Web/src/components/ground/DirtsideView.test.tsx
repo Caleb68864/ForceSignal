@@ -10,6 +10,9 @@ const readGame = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
 const beginTurn = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
 const endTurn = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
 const createGame = vi.fn<(name: string, chitPot?: unknown, profile?: unknown) => Promise<DirtsideGameCreated>>();
+// The live link to other devices is covered in groundLive.test.ts. Here it must not reach for a
+// server: in jsdom a real SignalR start fails and logs after the test has ended.
+vi.mock('../../lib/groundLive.ts', () => ({ useGroundLive: () => 'offline' }));
 vi.mock('../../lib/dirtsideApi.ts', () => ({
   createGame: (name: string, chitPot?: unknown, profile?: unknown) => createGame(name, chitPot, profile),
   readGame: (game: GameHandle) => readGame(game),

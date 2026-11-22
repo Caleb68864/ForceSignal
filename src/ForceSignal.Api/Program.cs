@@ -310,6 +310,8 @@ app.MapGet("/api/features", () => Results.Ok(features.ToDto()))
     .Produces<FeatureFlagsDto>();
 
 app.MapHub<MatchHub>("/hubs/match");
+// Followed by a second device at a ground table; refuses any engine whose flag is off.
+app.MapHub<GroundGameHub>("/hubs/ground");
 
 // Ground-combat engines mount their endpoints here. A disabled engine is not mapped at all, so its
 // routes 404 rather than existing in a half-wired state - which is the point of the flag.

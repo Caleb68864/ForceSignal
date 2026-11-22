@@ -25,6 +25,9 @@ const mocks = vi.hoisted(() => ({
   answerOpportunityFire: vi.fn(),
   declineOpportunityFire: vi.fn(),
 }));
+// The live link to other devices is covered in groundLive.test.ts. Here it must not reach for a
+// server: in jsdom a real SignalR start fails and logs after the test has ended.
+vi.mock('../../lib/groundLive.ts', () => ({ useGroundLive: () => 'offline' }));
 vi.mock('../../lib/dirtsideApi.ts', () => mocks);
 
 const handle: GameHandle = { gameId: 'game-1', token: 'token-1' };
