@@ -65,6 +65,35 @@ that fails on the old code.
       accent colour, inside labels that stay the tap target. `e2e-ground/touchTargets.spec.ts` "a
       checkbox is a checkbox" holds them to 20-28px at phone and tablet size (failing on the old
       styles). The map bench suite still passes (9 of 9).
+- [x] **M5. Full Thrust ship cards stretched to the tallest card in their row.** Grid items stretch
+      by default and the card's own grid shared the spare height out among its rows, so beside an
+      expanded card a compact card's chips were 184px tall boxes. The grid now aligns cards to the
+      top and each card keeps its spare height at the bottom. Covered by the first Full Thrust
+      browser spec, `e2e-ground/fullThrustLayout.spec.ts` at 1440x900, which seeds a match through
+      the API (`e2e-ground/fullThrustSeed.ts`: invented rules, two players, ships, both ready) and
+      opens it as the host; it failed on the old styles with a 184px chip.
+- [x] **M6. Map labels were the first three letters of the name**, so "Blue 1" to "Blue 8" all read
+      BLU. `lib/mapLabels.ts` gives each contact the shortest label unique on the map: word initials
+      with numbers kept whole (B1...B8, RL for Red Lancer), more letters where initials collide (VAL,
+      VIG), and a running number only for two ships with the very same name. The full name is still
+      on the contact card when a ship is selected or hovered (`mapLabels.test.ts`;
+      `fullThrustLayout.spec.ts` "the map labels sister ships", failing on the old code with
+      `["BLU", "BLU", "BLU", "RED"]`). *Left:* spreading tokens that sit on the same spot.
+- [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
+      code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
+      lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
+      the words as the dash, on the server and on the screen (which sends and quotes the canonical
+      code). A code with a word wrong is still not found (`JoinCodeTypingTests`, five separators
+      failing on the old code, and a control; `normalize.test.ts`).
+- [x] **M8. StarGrunt's confidence test ran with no threat level.** "Not entered" rolled as threat 0
+      and dropped a unit two rungs. Both StarGrunt tests (confidence and reaction) now refuse with
+      "Pick a threat level first: the one your own table gives the event." until one is picked, and
+      Dirtside's nerve panel opens blank rather than at 0 and refuses a test until a level is typed
+      - where 0 typed is an answer and is sent. Refused on the screen only: the engines accept 0 as
+      a real threat level and the request carries a plain number, so the server cannot tell "0" from
+      "nobody said" without a contract change (`StarGruntView.test.tsx` "StarGrunt confidence test"
+      and `DirtsideAssault.test.tsx` "refuses a confidence test with no threat level entered", both
+      failing on the old code).
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

@@ -533,12 +533,26 @@ describe('Dirtside nerve panel', () => {
     await open(snapshotWith());
 
     const nerve = within(screen.getByLabelText('Nerve'));
-    expect((nerve.getByLabelText('Nerve threat level') as HTMLInputElement).value).toBe('0');
+    expect((nerve.getByLabelText('Nerve threat level') as HTMLInputElement).value).toBe('');
     fireEvent.change(nerve.getByLabelText('Platoon'), { target: { value: 'bravo' } });
     fireEvent.change(nerve.getByLabelText('Nerve threat level'), { target: { value: '3' } });
     fireEvent.click(nerve.getByRole('button', { name: 'Confidence Test' }));
 
     await waitFor(() => expect(mocks.takeConfidenceTest).toHaveBeenCalledWith(expect.anything(), 'bravo', 3));
+  });
+
+  it('refuses a confidence test with no threat level entered, and tests at a zero typed (playtest M8)', async () => {
+    mocks.takeConfidenceTest.mockResolvedValue(snapshotWith());
+    await open(snapshotWith());
+    const nerve = within(screen.getByLabelText('Nerve'));
+
+    fireEvent.click(nerve.getByRole('button', { name: 'Confidence Test' }));
+    expect(nerve.getByRole('alert').textContent).toContain('Enter the threat level first');
+    expect(mocks.takeConfidenceTest).not.toHaveBeenCalled();
+
+    fireEvent.change(nerve.getByLabelText('Nerve threat level'), { target: { value: '0' } });
+    fireEvent.click(nerve.getByRole('button', { name: 'Confidence Test' }));
+    await waitFor(() => expect(mocks.takeConfidenceTest).toHaveBeenCalledWith(expect.anything(), 'alpha', 0));
   });
 
   it('holds the reaction test shut with the server\'s own words until one is owed', async () => {

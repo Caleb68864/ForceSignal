@@ -11,10 +11,12 @@ const addUnit = vi.fn<(game: GameHandle, unit: Record<string, unknown>) => Promi
 const fightMelee = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
 const createGame = vi.fn<(name: string, profile?: Record<string, unknown>) => Promise<GameHandle & { snapshot: StarGruntSnapshot }>>();
 const fire = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
+const confidenceTest = vi.fn<(game: GameHandle, unitId: string, threat: number) => Promise<StarGruntSnapshot>>();
 // The live link to other devices is covered in groundLive.test.ts. Here it must not reach for a
 // server: in jsdom a real SignalR start fails and logs after the test has ended.
 vi.mock('../../lib/groundLive.ts', () => ({ useGroundLive: () => 'offline' }));
 vi.mock('../../lib/starGruntApi.ts', () => ({
+  confidenceTest: (game: GameHandle, unitId: string, threat: number) => confidenceTest(game, unitId, threat),
   fire: (game: GameHandle, request: Record<string, unknown>) => fire(game, request),
   readGame: (game: GameHandle) => readGame(game),
   addUnit: (game: GameHandle, unit: Record<string, unknown>) => addUnit(game, unit),
@@ -539,5 +541,29 @@ describe('StarGrunt targets (playtest M2)', () => {
     await waitFor(() => expect(fire).toHaveBeenCalledTimes(1));
     expect(fire.mock.calls[0][1]).toMatchObject({ targetId: 'red-b' });
     confirm.mockRestore();
+  });
+});
+
+describe('StarGrunt confidence test (playtest M8)', () => {
+  // "Not entered" rolled as threat 0 and dropped a unit two rungs to Shaken.
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    confidenceTest.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('refuses to test with no threat level picked, and tests at the one picked', async () => {
+    await open(wholeUnit);
+    confidenceTest.mockResolvedValue(snapshotFrom(wholeUnit));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confidence test for Alpha Squad' }));
+    expect(await screen.findByText('Pick a threat level first: the one your own table gives the event.')).toBeTruthy();
+    expect(confidenceTest).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Threat level'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confidence test for Alpha Squad' }));
+    await waitFor(() => expect(confidenceTest).toHaveBeenCalledWith(handle, 'alpha', 2));
   });
 });

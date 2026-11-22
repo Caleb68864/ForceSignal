@@ -7,7 +7,7 @@
  * PlayMap owns the viewport and the pointer handling; everything else here draws one layer.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CommittedNumber } from '../../components/CommittedNumber.tsx';
 import { ShipIcon } from '../../components/ShipCard.tsx';
 import { fighterStatuses, firableArcs, newOrdnanceDraft } from '../../constants.ts';
@@ -16,6 +16,7 @@ import { courseAngle, distanceBetweenShips, mapPercent, rangeDiameterPercent, we
 import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance, tablePointFromClient, trailPointsForResult, viewportZoomedAt } from '../../lib/mapGeometry.ts';
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
 import { useOrderPreview } from '../../lib/useOrderPreview.ts';
+import { mapLabels } from '../../lib/mapLabels.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
 import { describeArcs, fighterFlightRefusal, firingDraftFor, firingReadoutNotes, firingTargetOptions, isFighterGroup, needleSystemNote, salvoStrikeNote } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
@@ -99,6 +100,8 @@ export function PlayMap({
   onCeaseFire: (ship: Ship) => void;
   onFlyFighters: (ship: Ship, x: number, y: number) => void;
 }) {
+  // Labels that tell every contact apart: "Blue 1" to "Blue 8" all used to read BLU (playtest M6).
+  const shipLabels = useMemo(() => mapLabels(snapshot.ships), [snapshot.ships]);
   const selectedShip = snapshot.ships.find((ship) => ship.id === focusedShipId)
     ?? snapshot.ships.find((ship) => ownedShipIds.has(ship.id) && !ship.isDestroyed)
     ?? snapshot.ships[0];
@@ -903,7 +906,7 @@ export function PlayMap({
                   {ship.fireControlDamage > 0 ? <i className="fire-control">FC</i> : null}
                   {ship.isDestroyed ? <i className="destroyed">X</i> : null}
                 </span>
-                <strong>{ship.name.slice(0, 3).toUpperCase()}</strong>
+                <strong>{shipLabels.get(ship.id) ?? ship.name.slice(0, 3).toUpperCase()}</strong>
                 <em>{owner?.displayName ?? 'Player'}</em>
               </button>
             );

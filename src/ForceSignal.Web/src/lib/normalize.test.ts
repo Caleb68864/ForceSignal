@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expandLegacyArc, normalizeArcs, normalizeBattleView, normalizeFleetColor, normalizeGameHandle, normalizeGameMode, normalizeSession, normalizeShipIconKey, normalizeWeaponMount } from './normalize.ts';
+import { expandLegacyArc, normalizeArcs, normalizeBattleView, normalizeFleetColor, normalizeGameHandle, normalizeGameMode, normalizeJoinCode, normalizeSession, normalizeShipIconKey, normalizeWeaponMount } from './normalize.ts';
 import { defaultShipForm } from '../constants.ts';
 import { newWeaponMount } from './weapons.ts';
 
@@ -147,5 +147,13 @@ describe('a mount nobody filled in', () => {
     expect(mount.name).toBe('Heavy Battery');
     expect(mount.attackDice).toBe(4);
     expect(mount.maxRange).toBe(30);
+  });
+});
+
+describe('a room code typed back (playtest M7)', () => {
+  it('reads spaces, dots and doubled dashes between the words as the dash', () => {
+    expect(normalizeJoinCode('zenith tempo lumen falcon')).toBe('ZENITH-TEMPO-LUMEN-FALCON');
+    expect(normalizeJoinCode('  Zenith.Tempo -- Lumen_Falcon ')).toBe('ZENITH-TEMPO-LUMEN-FALCON');
+    expect(normalizeJoinCode('ZENITH-TEMPO-LUMEN-FALCON')).toBe('ZENITH-TEMPO-LUMEN-FALCON');
   });
 });

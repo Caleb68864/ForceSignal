@@ -262,3 +262,12 @@ export function normalizeGameMode(value: unknown): GameMode | null {
 export function normalizeBattleView(value: unknown): BattleView | null {
   return battleViews.find((view) => view === value) ?? null;
 }
+
+/**
+ * A room code as the server stores it: upper case, words joined by single dashes. Typed back from
+ * someone reading it aloud, a code arrives with spaces, dots or doubled dashes between its words
+ * (playtest M7), and every one of those means the dash. The server reads it the same way.
+ */
+export function normalizeJoinCode(text: string): string {
+  return text.toUpperCase().split(/[\s\-_.,/:;]+/).filter(Boolean).join('-');
+}
