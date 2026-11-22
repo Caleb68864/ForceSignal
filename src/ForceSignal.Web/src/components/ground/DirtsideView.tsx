@@ -702,23 +702,8 @@ export function DirtsideView() {
         <button className="ghost" type="button" disabled={busy} onClick={leave}>Leave Game</button>
       </div>
 
-      <div className="card-module" aria-label="Platoons">
-        <span className="label module-title">Platoons</span>
-        {snapshot.units.length === 0 ? (
-          <p className="constraint-line">Nothing on the table yet.</p>
-        ) : null}
-        {snapshot.units.map((unit) => (
-          <PlatoonCard
-            key={unit.id}
-            unit={unit}
-            isActivating={unit.id === snapshot.activatingUnitId}
-            waitingOnAnother={Boolean(snapshot.activatingUnitId) && unit.id !== snapshot.activatingUnitId}
-            busy={busy}
-            onActivate={() => void run(() => api.beginActivation(game, unit.side, unit.id), undefined, `${unit.name} activated.`)}
-          />
-        ))}
-      </div>
-
+      {/* The activated platoon first, straight under the status, so its controls are not below the
+          whole roster on a phone (playtest M10). */}
       {activating ? (
         <div className="card-module" aria-label="Activation">
           <span className="label module-title">{activating.name} is activated</span>
@@ -1053,6 +1038,23 @@ export function DirtsideView() {
           <DirtsideAssaultPanel game={game} snapshot={snapshot} activating={activating} busy={busy} run={run} />
         </div>
       ) : null}
+
+      <div className="card-module" aria-label="Platoons">
+        <span className="label module-title">Platoons</span>
+        {snapshot.units.length === 0 ? (
+          <p className="constraint-line">Nothing on the table yet.</p>
+        ) : null}
+        {snapshot.units.map((unit) => (
+          <PlatoonCard
+            key={unit.id}
+            unit={unit}
+            isActivating={unit.id === snapshot.activatingUnitId}
+            waitingOnAnother={Boolean(snapshot.activatingUnitId) && unit.id !== snapshot.activatingUnitId}
+            busy={busy}
+            onActivate={() => void run(() => api.beginActivation(game, unit.side, unit.id), undefined, `${unit.name} activated.`)}
+          />
+        ))}
+      </div>
 
       <DirtsideNervePanel game={game} snapshot={snapshot} busy={busy} run={run} />
 

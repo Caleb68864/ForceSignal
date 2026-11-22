@@ -604,29 +604,8 @@ export function StarGruntView() {
         </label>
       </div>
 
-      <div className="stargrunt-roster">
-        {snapshot.units.map((unit) => (
-          <UnitCard
-            key={unit.id}
-            unit={unit}
-            isActivating={unit.id === snapshot.activatingUnitId}
-            busy={busy}
-            onActivate={() => run(
-              () => api.beginActivation(game, unit.side, unit.id),
-              `${unit.name} activated.`,
-            )}
-            onTest={() => threatEntered() && run(
-              () => api.confidenceTest(game, unit.id, threatLevel),
-              `${unit.name} tested its nerve.`,
-            )}
-            onToggleDisorganised={() => run(
-              () => api.setDisorganised(game, unit.id, !unit.isDisorganised),
-              `${unit.name} is ${unit.isDisorganised ? 'back in order' : 'disorganised'}.`,
-            )}
-          />
-        ))}
-      </div>
-
+      {/* The activated unit first, straight under the status: on a phone its Fire button used to sit
+          below the whole roster and both assault forms (playtest M10). */}
       {activating ? (
         <div className="card-module" aria-label={`${activating.name} activation`}>
           <span className="label module-title">{activating.name} is activated</span>
@@ -942,6 +921,29 @@ export function StarGruntView() {
           />
         </div>
       ) : null}
+
+      <div className="stargrunt-roster">
+        {snapshot.units.map((unit) => (
+          <UnitCard
+            key={unit.id}
+            unit={unit}
+            isActivating={unit.id === snapshot.activatingUnitId}
+            busy={busy}
+            onActivate={() => run(
+              () => api.beginActivation(game, unit.side, unit.id),
+              `${unit.name} activated.`,
+            )}
+            onTest={() => threatEntered() && run(
+              () => api.confidenceTest(game, unit.id, threatLevel),
+              `${unit.name} tested its nerve.`,
+            )}
+            onToggleDisorganised={() => run(
+              () => api.setDisorganised(game, unit.id, !unit.isDisorganised),
+              `${unit.name} is ${unit.isDisorganised ? 'back in order' : 'disorganised'}.`,
+            )}
+          />
+        ))}
+      </div>
 
       {/* The roster closes at the first turn: the server rebuilds the session from it, so a unit
           added later would restart the game from nothing, and it refuses. */}

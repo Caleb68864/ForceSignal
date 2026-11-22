@@ -107,6 +107,13 @@ that fails on the old code.
       "the one button to press", `DirtsideAssault.test.tsx` "highlights End Turn once every platoon
       has gone" and "tells a side with nothing it can activate to pass" (both failing on the old
       code), `SequenceGuardsTests.EndingTheTurnTooEarlySaysWhatToDoInstead`.
+- [x] **M10. Phone pages buried the button you needed.** StarGrunt's Fire sat below the whole roster
+      and both assault forms; Dirtside's activation below every platoon; Full Thrust's ship readouts
+      ran one per row. Both ground screens now put the activated unit's panel - moves, fire, assault
+      - straight under the status, above the roster, and Full Thrust lays a ship's readouts out three
+      across on a phone. `e2e-ground/phoneLayout.spec.ts` at 390x844 checks all three; each failed
+      on the old layout. *Left:* collapsing Full Thrust's fleet setup to a summary once a fleet
+      exists, and moving "Table, rules and points" to a tab after the start.
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

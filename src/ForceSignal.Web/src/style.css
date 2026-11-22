@@ -2220,9 +2220,23 @@ small,
   .order-form,
   .firing-console,
   .profile-fields,
-  .ship-readouts,
   .damage-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Three across rather than one per row: a ship's readouts were a screen's height on a phone
+     (playtest M10). */
+  .ship-readouts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .ship-readouts div {
+    padding: 6px 8px;
+  }
+
+  .ship-readouts strong {
+    font-size: 1.05rem;
   }
 
   .auth-wide {
