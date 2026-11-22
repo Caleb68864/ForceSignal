@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as signalR from '@microsoft/signalr';
 import './style.css';
@@ -60,8 +60,10 @@ import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
 import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { BattleOverPanel } from './components/BattleOverPanel.tsx';
-import { BattleLog } from './components/BattleLog.tsx';
-import { FleetOrdersTable } from './components/FleetOrdersTable.tsx';
+// Loaded when first shown rather than with the page: the log is its own tab and the fleet orders
+// table is an order-entry aid, and both together are what took the entry chunk over its budget.
+const BattleLog = lazy(() => import('./components/BattleLog.tsx').then((module) => ({ default: module.BattleLog })));
+const FleetOrdersTable = lazy(() => import('./components/FleetOrdersTable.tsx').then((module) => ({ default: module.FleetOrdersTable })));
 import { possessive } from './lib/possessive.ts';
 import { gapsIn } from './lib/rulesProfile.ts';
 
@@ -2003,13 +2005,15 @@ function App() {
             ) : null}
 
             {activeView === 'ships' && snapshot?.phase === 'OrderEntry' && !snapshot.battleOver ? (
-              <FleetOrdersTable
-                ships={ownedShips}
-                drafts={drafts}
-                orderStatuses={snapshot.orderStatuses}
-                onDraftChange={updateDraft}
-                onCopyToFleet={applyOrderToOwnedFleet}
-              />
+              <Suspense fallback={null}>
+                <FleetOrdersTable
+                  ships={ownedShips}
+                  drafts={drafts}
+                  orderStatuses={snapshot.orderStatuses}
+                  onDraftChange={updateDraft}
+                  onCopyToFleet={applyOrderToOwnedFleet}
+                />
+              </Suspense>
             ) : null}
 
             {activeView === 'ships' && snapshot ? (
@@ -2407,7 +2411,9 @@ function App() {
                   <button className="ghost" onClick={() => exportAfterAction('json')}>JSON</button>
                 </div>
               </div>
-              <BattleLog entries={recentLog} />
+              <Suspense fallback={<p className="constraint-line">Loading the log…</p>}>
+                <BattleLog entries={recentLog} />
+              </Suspense>
               {logHiddenCount > 0 ? (
                 <p className="log-truncated">
                   Showing the most recent {recentLog.length} of {(snapshot?.matchLog ?? []).length} entries.

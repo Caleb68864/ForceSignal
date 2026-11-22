@@ -57,6 +57,11 @@ def add_ship(page, name, x, y, course):
     page.get_by_role("spinbutton", name="Position X").fill(str(x))
     page.get_by_role("spinbutton", name="Position Y").fill(str(y))
     page.get_by_role("spinbutton", name="Course", exact=True).fill(str(course))
+    # A reach that crosses the 8 units between the two ships, so each has the other in its fore arc
+    # and range on the map. The new-ship form's mount reaches 1; with that, neither ship could shoot,
+    # and the host's end-firing warning rightly names nobody (a ship with nothing to shoot at loses
+    # nothing by being skipped) - which is not the warning this script is here to check.
+    page.get_by_role("spinbutton", name="Range", exact=True).first.fill("24")
     page.click("button:has-text('Add Ship')")
     page.wait_for_timeout(700)
 
