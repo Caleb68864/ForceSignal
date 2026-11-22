@@ -2468,7 +2468,9 @@ small,
     inset: 63px;
   }
 
-  .constraint-line {
+  /* The helm's lines sit under a centred compass. This used to be every constraint line on a
+     phone, which centred whole paragraphs on the ground screens (playtest m19). */
+  .order-form .constraint-line {
     line-height: 1.2;
     text-align: center;
   }
@@ -3576,4 +3578,115 @@ html {
 /* The start screen's two forms take no box of their own: their fields sit in the grid as before. */
 .auth-form {
   display: contents;
+}
+
+/* On a touch screen every control is a 44px target, the size a thumb can hit (playtest m17). */
+@media (pointer: coarse) {
+  button,
+  select,
+  input:not([type=checkbox]):not([type=radio]):not([type=color]) {
+    min-height: 44px;
+  }
+
+  .next-step-notice button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* These set their own 42px and win on specificity. */
+  .map-contact-select select,
+  .map-controls button {
+    min-height: 44px;
+  }
+}
+
+/* A phone held sideways has a few hundred pixels of height, and the banner took more than half of
+   them (playtest m18): one row - the phase, the step cut to two lines, the action beside it. */
+@media (max-height: 500px) {
+  .next-step {
+    gap: 4px;
+    padding: 6px 10px;
+  }
+
+  .next-step-guide {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .next-step-guide strong {
+    flex: 1 1 auto;
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.85rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .next-step-waiting {
+    display: none;
+  }
+
+  .next-step-action {
+    flex: 0 0 auto;
+  }
+
+  .next-step-notice {
+    padding: 2px 8px;
+  }
+}
+
+/* The ground screens are mostly sentences - rules reminders, refusals, results - and read badly as
+   amber capitals (playtest m19). Sentence case, left-aligned, at reading weight; the line that says
+   what just happened reads as a result, and a refusal as one. */
+.stargrunt .constraint-line,
+.panel[aria-label="Dirtside"] .constraint-line {
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  text-transform: none;
+}
+
+.ground-status {
+  border-left: 3px solid var(--line-hot);
+  padding-left: 8px;
+  color: var(--text, #e6fbff);
+}
+
+.ground-status:empty {
+  display: none;
+}
+
+.ground-status.error {
+  border-left-color: var(--red);
+  color: #ffd2d8;
+}
+
+/* StarGrunt's roster by side, each side in its own colour, the activated unit unmistakable, and the
+   readout labels whole words (playtest m20: "Confiden/t" broke mid-word on a desk). */
+.stargrunt-roster-side {
+  display: grid;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--line-hot);
+}
+
+.stargrunt-roster-side.side-b {
+  border-left-color: var(--amber);
+}
+
+.stargrunt-unit.activating {
+  border-width: 2px;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber), inset 0 0 26px rgba(245, 199, 102, 0.12);
+}
+
+.stargrunt-unit .ship-readouts {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+.stargrunt-unit .ship-readouts .label,
+.stargrunt-unit .ship-readouts strong {
+  overflow-wrap: normal;
+  word-break: keep-all;
 }

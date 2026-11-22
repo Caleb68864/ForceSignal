@@ -575,7 +575,7 @@ export function DirtsideView() {
           </button>
         ) : null}
         {game ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
-        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         {game ? null : <GroundJoin busy={busy} onJoin={(handle) => void join(handle)} />}
       </section>
     );
@@ -655,7 +655,7 @@ export function DirtsideView() {
       >
         Firer walk: {firerWalkSummary(snapshot.profile)}
       </p>
-      <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+      <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
       <GroundShare game={game} link={link} />
 
       {/* One button highlighted - the one the next-step line names - and the rest off when the turn

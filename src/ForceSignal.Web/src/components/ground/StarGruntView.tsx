@@ -23,6 +23,7 @@ import { useGroundLive } from '../../lib/groundLive.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
 import {
+  pastEffectiveRange,
   emptyStarGruntProfileDraft,
   starGruntProfileIsEmpty,
   starGruntProfileSummary,
@@ -490,7 +491,7 @@ export function StarGruntView() {
           {handle ? 'Reopening last game...' : 'Start Game'}
         </button>
         {handle ? <button className="ghost" type="button" onClick={leave}>Forget Last Game</button> : null}
-        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         {handle ? null : <GroundJoin busy={busy} onJoin={(joining) => void join(joining)} />}
       </section>
     );
@@ -526,6 +527,11 @@ export function StarGruntView() {
   const targetFor = (id: string) => targets.find((unit) => unit.id === id) ?? targets[0];
   const shotTarget = targetFor(shot.targetId);
   const assaultTarget = targetFor(assault.defenderId);
+  const withinReachOrConfirmed = () => {
+    const weapon = activating?.weapons.find((candidate) => candidate.name === (shot.weaponName || activating.weapons[0]?.name));
+    const why = activating ? pastEffectiveRange(snapshot.profile, activating.qualityDie, shot.distanceInches, weapon?.isCloseRange ?? false) : null;
+    return !why || window.confirm(`${why} The shot can score nothing. Fire anyway?`);
+  };
   const againstOwnSide = (target: StarGruntUnit | undefined, doing: string) =>
     !target || !activating || target.side !== activating.side
     || window.confirm(`${target.name} is on ${target.side}, ${activating.name}'s own side. ${doing} anyway?`);
@@ -543,7 +549,7 @@ export function StarGruntView() {
         <p className={starGruntProfileIsEmpty(snapshot.profile) ? 'constraint-line warning' : 'constraint-line'}>
           Range table: {starGruntProfileSummary(snapshot.profile)}
         </p>
-        <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
+        <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         <GroundShare game={game} link={link} />
         <div className="quick-actions">
           <button
@@ -908,7 +914,7 @@ export function StarGruntView() {
             shot={shot}
             busy={busy}
             onChange={(patch) => setShot((current) => ({ ...current, ...patch }))}
-            onFire={() => againstOwnSide(shotTarget, 'Fire on it') && run(() => api.fire(game, {
+            onFire={() => againstOwnSide(shotTarget, 'Fire on it') && withinReachOrConfirmed() && run(() => api.fire(game, {
               firerId: activating.id,
               targetId: shotTarget?.id ?? '',
               weaponName: shot.weaponName || activating.weapons[0]?.name || '',
@@ -922,12 +928,18 @@ export function StarGruntView() {
         </div>
       ) : null}
 
+      {/* Grouped by side, in the order the sides were named, so a table can find its own units; the
+          roster was one undifferentiated list (playtest m20). */}
+      {[...new Set([...snapshot.sides, ...snapshot.units.map((unit) => unit.side)])].map((side, sideIndex) => (
+      <section key={side} className={`stargrunt-roster-side side-${sideIndex % 2 === 0 ? 'a' : 'b'}`} aria-label={`${side} units`}>
+      <span className="label">{side}</span>
       <div className="stargrunt-roster">
-        {snapshot.units.map((unit) => (
+        {snapshot.units.filter((unit) => unit.side === side).map((unit) => (
           <UnitCard
             key={unit.id}
             unit={unit}
             isActivating={unit.id === snapshot.activatingUnitId}
+            waitingOnAnother={Boolean(snapshot.activatingUnitId) && unit.id !== snapshot.activatingUnitId}
             busy={busy}
             onActivate={() => run(
               () => api.beginActivation(game, unit.side, unit.id),
@@ -944,6 +956,8 @@ export function StarGruntView() {
           />
         ))}
       </div>
+      </section>
+      ))}
 
       {/* The roster closes at the first turn: the server rebuilds the session from it, so a unit
           added later would restart the game from nothing, and it refuses. */}
@@ -1072,6 +1086,7 @@ export function StarGruntView() {
 function UnitCard({
   unit,
   isActivating,
+  waitingOnAnother = false,
   busy,
   onActivate,
   onTest,
@@ -1079,6 +1094,8 @@ function UnitCard({
 }: {
   unit: StarGruntUnit;
   isActivating: boolean;
+  /** Another unit's activation is open: said once by the next-step line, not on every card. */
+  waitingOnAnother?: boolean;
   busy: boolean;
   onActivate: () => void;
   onTest: () => void;
@@ -1098,7 +1115,7 @@ function UnitCard({
         <div><span className="label">Quality</span><strong>D{unit.qualityDie}</strong></div>
       </div>
       <p className="constraint-line">
-        {wiped ? 'Wiped out.' : unit.canActivate ? 'Ready to activate.' : unit.activationBlocker ?? 'Not now.'}
+        {wiped ? 'Wiped out.' : isActivating ? 'Activated.' : unit.canActivate ? 'Ready to activate.' : waitingOnAnother ? '' : unit.activationBlocker ?? 'Not now.'}
         {unit.isInCover ? ' In cover.' : ''}
         {unit.isDisorganised ? ' Disorganised.' : ''}
         {unit.isLeaderDown ? ' Leader down.' : ''}

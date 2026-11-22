@@ -583,3 +583,62 @@ describe('StarGrunt says one word for one state (playtest m7)', () => {
     expect(screen.getByText('Mark Disorganised', { selector: 'button' })).toBeTruthy();
   });
 });
+
+describe('StarGrunt roster (playtest m20)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('groups the units by side and does not repeat the open activation on every card', async () => {
+    const red = wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "red-a", "name": "Red Alpha", "side": "red"')
+      .replace('"canActivate": true, "activationBlocker": null', '"canActivate": false, "activationBlocker": "Alpha Squad is still activated."');
+    const blueTwo = wholeUnit.replace('"id": "alpha", "name": "Alpha Squad"', '"id": "beta", "name": "Beta Squad"')
+      .replace('"canActivate": true, "activationBlocker": null', '"canActivate": false, "activationBlocker": "Alpha Squad is still activated."');
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...snapshotFrom(`${red},${wholeUnit},${blueTwo}`), activatingUnitId: 'alpha' });
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    const blue = screen.getByLabelText('blue units');
+    expect(blue.textContent).toContain('Alpha Squad');
+    expect(blue.textContent).toContain('Beta Squad');
+    expect(blue.textContent).not.toContain('Red Alpha');
+    expect(screen.getByLabelText('red units').textContent).toContain('Red Alpha');
+    expect(screen.queryByText('Alpha Squad is still activated.')).toBeNull();
+  });
+});
+
+describe('StarGrunt shots past effective range (playtest m21)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    fire.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('asks before a shot the range table says can score nothing, and fires only on a yes', async () => {
+    const armed = wholeUnit.replace('"weaponLegality": []', '"weaponLegality": [{ "name": "Rifles", "canFire": true, "blocker": null }]');
+    const enemy = wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "bravo", "name": "Bravo Squad", "side": "red"');
+    const table = '"profile": { "bandWidths": [{ "qualityDie": 8, "inches": 12 }], "rangeDice": [], "effectiveBands": 2, "lowestLeadershipValue": 2, "highestLeadershipValue": 5 },';
+    const game = { ...snapshotFrom(`${armed},${enemy}`, table), activatingUnitId: 'alpha' };
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue(game);
+    fire.mockResolvedValue(game);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Range'), { target: { value: '36' } });
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    expect(confirm.mock.calls[0][0]).toContain('past effective range: 3 bands out');
+    expect(fire).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    await waitFor(() => expect(fire).toHaveBeenCalledTimes(1));
+    confirm.mockRestore();
+  });
+});

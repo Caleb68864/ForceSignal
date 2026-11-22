@@ -154,6 +154,37 @@ that fails on the old code.
       a JSON ship with no weapons list, now imports with no mounts, as the server already treats a
       ship that names none. Two old tests asserted the placeholder and were turned round
       (`fleetIo.test.ts`, failing on the old code).
+- [x] **m17. Touch targets under 44px.** The polish branch fixed the start screen's (the "New here?"
+      link, Rules) and the Table/rules header; this does the rest on touch screens. Under
+      `(pointer: coarse)` every button, select and field is at least 44px, the banner's dismiss is
+      44x44 instead of 25x19, and the map's contact select and buttons - which set their own 42px -
+      follow. `e2e-ground/touchTargetsInPlay.spec.ts` walks a Full Thrust match in order entry
+      (ship card, Fire and Damage tabs, Play Map) on a phone, a phone held sideways and a tablet and
+      finds nothing under 44px; all three failed on the old styles.
+- [x] **m18. The sticky banner covered most of a phone held sideways**, and cards scrolled up under it.
+      Controls brought into view now stop clear of it (the CI fix on `ux/playtest-fixes-3`). On a
+      short screen the banner is now one row - phase, the step cut to two lines, the action beside
+      it - and the standing "Ready." notice is gone (p3), so the notice row only appears when there
+      is something to say. At 844x390 the banner went from 199px to under a sixth of the screen
+      (`phoneLayout.spec.ts` "a phone held sideways", failing on the old styles).
+- [x] **m19. Ground text was all capitals, centred and amber**, and results read like help text. The
+      centring came from a phone rule meant for the helm that caught every constraint line; it is
+      scoped to the helm now. On both ground screens the lines are sentence case, left-aligned and at
+      reading weight, and the line saying what just happened is styled as a result (a cyan rule) or
+      a refusal (red) (`phoneLayout.spec.ts` "the ground screens read in sentences", failing on the
+      old styles; axe still clean). *Left:* folding long rules text behind a "?".
+- [x] **m20. StarGrunt's roster had no order and no side colours.** Units are now grouped by side, in
+      the order the sides were named, each side with its own coloured rule; the activated unit has an
+      amber outline and says "Activated."; the other cards no longer repeat "...is still activated"
+      (the next-step line says it once); and the readout labels break between words, not inside them
+      (`StarGruntView.test.tsx` "StarGrunt roster", failing on the old code).
+- [x] **m21. StarGrunt let a shot go at 30-42 inches for "0 potential hits"**, spending the action.
+      Warning only: when the game's own range table says the shot is past effective range - or a
+      close-range weapon is past its one band - Fire asks first ("That is past effective range: 3
+      bands out, and this game's range table gives small arms 2. The shot can score nothing. Fire
+      anyway?"), read the way the server reads it (`pastEffectiveRange`). A table that has entered
+      no reach is not second-guessed (`StarGruntView.test.tsx` "shots past effective range", failing
+      on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
