@@ -237,7 +237,7 @@ export function HelpGuide({ currentStepId, onClose }: { currentStepId: string; o
                 aria-current={itemIndex === index ? 'step' : undefined}
                 onClick={() => setIndex(itemIndex)}
               >
-                {item.title}
+                <span className="help-step-title">{item.title}</span>
                 {item.id === currentStepId ? <em>You are here</em> : null}
               </button>
             </li>

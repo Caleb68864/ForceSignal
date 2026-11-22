@@ -3173,19 +3173,37 @@ small,
     padding: 12px 16px;
   }
 
+  /* Every step in view at once, as a numbered square: the strip of titles scrolled sideways and cut
+     the second step off mid-word (playtest p6). The open step's title is the heading below, and
+     each square keeps its title for a screen reader. */
   .help-steps {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .help-steps li {
-    flex: 0 0 auto;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    overflow: visible;
   }
 
   .help-steps button {
-    width: auto;
+    min-height: 44px;
+    place-items: center;
+    text-align: center;
+  }
+
+  .help-steps button::before {
+    content: counter(help-step);
+    color: inherit;
+  }
+
+  .help-steps button.current {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  .help-step-title,
+  .help-steps em {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
     white-space: nowrap;
   }
 }

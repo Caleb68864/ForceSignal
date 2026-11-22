@@ -242,6 +242,11 @@ that fails on the old code.
       whole instead of breaking its words; the row wraps from the right on a desk and from the left
       on a phone (`fullThrustLayout.spec.ts` "the header's buttons keep their words on one line",
       failing on the old styles with four wrapped buttons).
+- [x] **p6. The help guide's step strip was cut off on a phone.** It scrolled sideways, one and a half
+      steps wide, and cut the second step's title mid-word. On a phone every step now shows at once
+      as a numbered square - the step you are at in amber, the open one outlined - with the open
+      step's title as the heading below and each square keeping its title for a screen reader
+      (`touchTargets.spec.ts` "the help guide on a phone", failing on the old styles).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
