@@ -688,7 +688,11 @@ the roadmap lists only what a table can reach.
 - [ ] Infantry as stands with the firefight rules rather than as vehicles (gap 10). **The firefight
       itself landed 2026-11-02** - check, per-stand draws, casualties, the mark, a route and a panel,
       with the Under Fire cost entered on the profile. Still open, and listed under gap 10 in
-      `dirtside-fidelity-gaps.md`: guns on stands, softskins, the rocket, and riders.
+      `dirtside-fidelity-gaps.md`: guns on stands, softskins, the rocket, and riders. *Softskins
+      checked against the resolver 2026-11-21:* not just a roster flag. What a softskin is killed on,
+      what a kill and each special does to a vehicle element, how several winning draws fall across a
+      platoon, and whether the mark is per element are rulebook readings; the six questions are
+      written out under gap 10's "Softskins" bullet. Owner's.
 - [x] Defensive posture declared on the shot (gap 11). Already landed 2026-09-11 in `c80e28c`:
       `FireCommand.TargetPosture` and `DirtsideFireRequest`; this box was simply never ticked.
 - [x] A configurable chit pot, entered on the create screen and carried per game (gap 15,

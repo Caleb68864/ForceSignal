@@ -354,6 +354,33 @@ names them, as the assault does (gap 1).
   count is read from is not in this repository.
 - **Softskins.** The resolver has them and the roster has no flag saying which vehicles are soft, so a
   firefight at a vehicle platoon is refused by name.
+  *Checked against the resolver 2026-11-21 and left for the owner: the flag is the small part.*
+  `SmallArmsTarget.Softskin` and `InfantryCombat.Against` are complete for one draw - specials
+  count against a softskin and nothing else changes - but the resolver hands back four results
+  (`Destroyed`, `Immobilised`, `TargetSystemsDown`, `CatastrophicKill`) and nothing in this
+  repository says what each does to a *vehicle element*, which is where the rules come in. The
+  questions, each a rulebook reading, none of which may be guessed:
+  1. **Which number a softskin is killed on.** The resolver's remark says the rules give a softskin
+     "the toughness of the sturdiest class of infantry rather than a number of its own". Is that the
+     element's own `KillThreshold` box on its card (entered by the player like a stand's), or the
+     highest infantry threshold in the game, or a profile entry?
+  2. **What a draw reaching that number does to a vehicle** - destroyed outright, or damaged the way
+     a vehicle hit that equals its armour is? (Stands have no damaged state; vehicles do.)
+  3. **The specials:** does a Mobility chit set the existing `Immobilised` mark, a systems-down chit
+     place the existing Systems Down marker (with the same recovery timing as a direct-fire one),
+     and a Boom chit destroy the vehicle - and do these land on the element aimed at only, or spread
+     through the platoon the way winning draws spread through stands?
+  4. **Casualties past the first:** a firefight removes one stand per winning draw across the target
+     unit. Is that how several winning draws against a platoon of trucks fall, or does every draw
+     hit only the vehicle aimed at?
+  5. **Per element or per platoon:** is "softskin" a mark on the element's card (a mixed platoon of a
+     tank and a truck) or on the platoon?
+  6. **The other route:** a softskin is still a vehicle to `Fire`. Is it shot at by guns through the
+     two-stage vehicle path with its card armour, or through small arms as well (which is "guns on
+     stands" again)?
+  Once 1-5 are answered the wiring is contained: a card flag, the refusal in
+  `DirtsideGame.Firefight.cs` (`WhyFirefightIsRefused`) relaxed for flagged elements, and the four
+  results mapped onto `ElementStatus`.
 - **The anti-vehicle rocket**, which needs a mark on the weapon card and a route.
 - **Riders.** Mounting and dismounting are not written down here, and `ResolveRiders` wants a die and
   two numbers that would need profile entries. "Transport as a tracked state" is under "Deliberately
