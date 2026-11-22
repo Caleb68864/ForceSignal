@@ -91,7 +91,10 @@ that fails on the old code.
       Dirtside's nerve panel opens blank rather than at 0 and refuses a test until a level is typed
       - where 0 typed is an answer and is sent. Refused on the screen only: the engines accept 0 as
       a real threat level and the request carries a plain number, so the server cannot tell "0" from
-      "nobody said" without a contract change (`StarGruntView.test.tsx` "StarGrunt confidence test"
+      "nobody said" without a contract change. *Server side added on `ux/playtest-fixes-3`:* the
+      three nerve-test requests now carry a nullable threat level - backward-compatible, a number
+      sent works as before - and one left out is refused by name ("No threat level was entered...")
+      instead of binding to 0 (`ThreatLevelEnteredTests`, not compiling on the old contract) (`StarGruntView.test.tsx` "StarGrunt confidence test"
       and `DirtsideAssault.test.tsx` "refuses a confidence test with no threat level entered", both
       failing on the old code).
 - [x] **M9. The ground games gave no "what now".** After every unit had gone the status still said

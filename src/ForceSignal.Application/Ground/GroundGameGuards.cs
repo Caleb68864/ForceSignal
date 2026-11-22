@@ -99,6 +99,17 @@ internal static class GroundGameGuards
     public static string? TruncateOptional(string? value) => value is null ? null : Truncate(value);
 
     /// <summary>
+    /// A threat level the table entered, or a refusal naming it. Left out of a request it used to bind
+    /// to 0 and roll as threat 0, which can drop a unit two rungs (playtest M8).
+    /// </summary>
+    /// <param name="threatLevel">The level sent, or null when none was.</param>
+    /// <returns>The level.</returns>
+    /// <exception cref="InvalidOperationException">No threat level was sent.</exception>
+    public static int EnteredThreat(int? threatLevel) =>
+        threatLevel ?? throw new InvalidOperationException(
+            "No threat level was entered. Enter the one your own table gives the event.");
+
+    /// <summary>
     /// Mints a game token: 256 bits from the platform's cryptographic source, as the Full Thrust
     /// participant tokens are. Handed back once, when the game is created, and required in a
     /// header on everything after.
