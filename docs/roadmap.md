@@ -215,6 +215,12 @@ that fails on the old code.
       browser's own record of a failed request, written for any 4xx `fetch` and not something a page
       can turn off. Answering refusals with 200 to hide it would make the API lie about what
       happened. The refusal itself is already shown in words on the screen.
+- [x] **A flaky multi-device screen test, and the read it caught.** "reads nothing for a version this
+      screen already shows" failed one run in three: the ref holding the version on screen was set in
+      a passive effect, so a push arriving straight after a render compared against the old version
+      and read the game again for nothing - harmless at a table, a flake in the suite. It is set in a
+      layout effect now, on both ground screens: 14 of 14 runs green, six of them beside six busy
+      loops.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
