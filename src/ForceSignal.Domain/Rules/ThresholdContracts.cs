@@ -90,7 +90,12 @@ public sealed record ShipSystem(ShipSystemKind Kind, string Name, Guid? WeaponId
 /// <param name="Threshold">Deepest row completed, 1 through 3.</param>
 /// <param name="ExtraThresholds">Further rows completed by the same attack beyond the first.</param>
 /// <param name="Systems">Systems that are still working and therefore roll.</param>
-public sealed record ThresholdCheck(int Threshold, int ExtraThresholds, IReadOnlyList<ShipSystem> Systems);
+/// <param name="RowCount">
+/// How many rows this hull's track is drawn with, which bounds the threshold. Null falls back to the
+/// profile's row count; where rows are drawn by class, the caller passes the hull's own, or a cruiser
+/// drawn with more rows than the default was checked against the default's deepest row.
+/// </param>
+public sealed record ThresholdCheck(int Threshold, int ExtraThresholds, IReadOnlyList<ShipSystem> Systems, int? RowCount = null);
 
 /// <summary>One system's die roll during a threshold check.</summary>
 public sealed record ThresholdRoll(ShipSystem System, int Die, bool IsLost);

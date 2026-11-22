@@ -318,13 +318,20 @@ out of scope (indirect fire was in progress on another branch).
         no open volley). Tests: `InMemoryMatchServiceThresholdTests.ASnapshotExportedMidVolley_...`
         (fails on the old code: no threshold check after the restored volley closes) and
         `...ASnapshotsPendingThresholds_AreMappedToTheRestoredShipsAndClampedToTheirDamage`.
-  - [ ] **The threshold roll is clamped twice, against different row counts.** With
+  - [x] **The threshold roll is clamped twice, against different row counts.** With
         `ThresholdRows = ByShipClass`, the service caps the threshold by the hull band's row count
         (`Combat.cs`), then `FullThrustLightThresholdRules.Resolve` caps it again by
         `ThresholdRowCount`, which it is given instead of the band. A profile whose band count
         exceeds `ThresholdRowCount` (e.g. cruiser 4, default 3) loses systems on 2- instead of 3-.
         `RulesProfile.Validate` does not forbid that profile. Touches how profile numbers combine,
         so left with F17 in mind rather than changed here.
+        **Decided by agent 2026-11-21 (owner may revisit): the hull's own rows decide.** Not an F17
+        number - no value changes, only which of the players' own two entries bounds the check.
+        Where the profile draws rows by class, the resolver is now handed the hull's row count
+        (`ThresholdCheck.RowCount`, optional; a caller that leaves it out gets the old behaviour), so
+        the check is bounded by the same track the screen draws and the service already capped by.
+        A fixed-rows profile is unchanged (`InMemoryMatchServiceThresholdTests.ACruiserDrawnWithMoreRowsThanTheProfileDefault_IsCheckedAgainstItsOwnRows`;
+        fails on the old code with "threshold 2").
   - [x] **A refused `FireWeapon` can still roll firing initiative** (`Combat.cs`, before
         `PrepareShot`): when no one holds initiative, the roll and its log lines happen, the shot is
         then refused, and nothing calls `Touch` - so the change is neither versioned, persisted nor
@@ -354,10 +361,19 @@ out of scope (indirect fire was in progress on another branch).
         (a real needle shot, then the record corrected, then a threshold-style loss repaired) and
         `...EditingDamage_ClampsEveryNeedledCountToTheDamageItIsPartOf` (screens and drives); both
         fail on the old code at the needled-count assertion.
-  - [ ] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
+  - [x] *Design question, not a bug:* `UpdateShipProfile` is allowed in the firing phase and
         rewrites mounts from the client, `IsDestroyed`/`IsNeedleKilled`/`AmmoUsed` included. The
         table is evidently trusted here (`UpdateShipDamage` already lets an owner zero their own
         hull), but it is worth a deliberate yes.
+        **Decided by agent 2026-11-21 (owner may revisit): yes, kept open, and made visible.** The
+        edit stays allowed in every phase - a mount transcribed wrong has to be put right at the
+        table, and refusing it would break a flow players use - with the movement freeze around a
+        locked order unchanged. Once play has begun, the log line now says what the edit did to
+        each mount instead of "profile updated": "brought back into action", "marked knocked out",
+        "given back N rounds", "marked N rounds spent", "added", "removed". So the other device has
+        a record of it. Reversible by dropping the description in `UpdateShipProfile`
+        (`InMemoryMatchServiceCommitmentTests.AMountBroughtBackInPlayIsNamedOnTheLog`; fails on the
+        old code).
   - Dirtside endpoints, `GroundCombatEndpoints.cs` and the services behind them (the reviewer
     reproduced each finding against the built service; each fix has a test that fails on the old
     code):
@@ -701,13 +717,19 @@ defences, damage control, needle beams - found six more divergences. Each is wri
       now wired and tested against both layers: **the enhanced needle beam** puts a point into the
       hull on a 5 or a 6 and that point ignores armour, and **flight operations** run at one group
       per operational bay out, half the bays back, with a turnaround roll on recovery.
-- [ ] **Threshold rows by class** is *not* a Fleet Book difference and is deliberately not wired.
+- [x] **Threshold rows by class** is *not* a Fleet Book difference and is deliberately not wired.
       Four rows for every hull is the Fleet Book rule and is what both shipped layers use; rows by
       class band - an escort two, a cruiser three, a capital four - is the second edition rule, and
       ForceSignal has no second-edition profile to hang it on. The seam exists
       (`RulesProfile.ThresholdRows`, `ShipClassBands`, `FullThrustLightThresholdRules.RowCountFor`),
       so adding a second-edition layer is a matter of selecting it. Whether to add that layer is a
       separate decision: it also changes screens, needle reach, fighter moves and ship points.
+      **Decided by agent 2026-11-21 (owner may revisit): no built-in second-edition layer.** The
+      rows themselves are already the players' to choose - a profile can set rows by class and enter
+      its own escort and cruiser counts on the profile editor, and with the double clamp above fixed
+      that choice now plays as entered. A named layer would mean this app shipping a rulebook's
+      screens, needle reach, fighter moves and points, which is the kind of number it does not ship.
+      Nothing changed in code for this; the seam stays.
 
 ## Movement Rule Fidelity
 
@@ -1151,10 +1173,10 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
       defenders in cover and the entry is missing, never asked in the open.
 - [x] **StarGrunt's communication die**, one rung per command level skipped. No production caller, so
       the cost per level is a parameter - the precedent Dirtside's rider check set.
-- [ ] **Dirtside's firer walk**, `(int)band + (firerMovedOverHalf ? -1 : 0)`: the `WeaponRangeBand`
+- [x] **Dirtside's firer walk**, `(int)band + (firerMovedOverHalf ? -1 : 0)`: the `WeaponRangeBand`
       enum values *are* the table - close +1, medium 0, long -1 - and a hurried shot costs one more.
       The same shape StarGrunt's walk was. **Partly done 2026-11-09 (engine and wire); the
-      screen 2026-11-21. Only the owner's call at the end is left.** The walk is an entry now: `DirtsideRulesProfile.FirerWalk` (`Combat/FirerWalk`:
+      screen 2026-11-21; the owner's call decided by agent 2026-11-21 (below).** The walk is an entry now: `DirtsideRulesProfile.FirerWalk` (`Combat/FirerWalk`:
       rungs up at close, down at long, down for moving over half), read by `HitResolution.Solve`
       through `FirerWalk.Steps`, so the enum's values no longer carry it. On the wire as the optional
       `DirtsideRulesProfileDto.FirerWalk` (`DirtsideFirerWalkDto`), mapped both ways, a negative rung
@@ -1182,8 +1204,18 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
             the control.
       - [x] Mapping round-trip and negative-rung refusal over HTTP:
             `DirtsideEndpointTests.TheFirerWalkRoundTripsAndANegativeRungIsRefused`.
-      - [ ] Owner's call: whether the fallback becomes a refusal once profiles can be edited, which
-            is what takes this off `NotYetThePlayers`.
+      - [x] Owner's call: whether the fallback becomes a refusal once profiles can be edited, which
+            is what takes this off `NotYetThePlayers`. **Decided by agent 2026-11-21 (owner may
+            revisit): a warning and a confirm, not a refusal.** Starting a game with all three walk
+            boxes blank now asks "No firer walk was entered, so this game will play the built-in
+            firer walk ... Start anyway?"; No starts nothing and points back at the boxes, Yes starts
+            the game exactly as before. The server still falls back and reports it, so no API client,
+            stored game or existing flow changes - a hard refusal would have stranded every stored
+            game's close and long shots, since nothing edits a game's profile. Reversible by deleting
+            the check in `DirtsideView.start`. `NotYetThePlayers` keeps its entry, because the
+            fallback is still this app's number (`DirtsideView.test.tsx`, "asks before starting a game
+            that will play the built-in walk"; fails on the old code; "does not ask when the walk was
+            entered" is the control).
 - [x] **`DirtsideRulesProfile` equality ignored `RungsLostUnderFire`** (found 2026-11-09): the
       hand-written `Equals`/`GetHashCode` skipped it, so two profiles differing only there compared
       equal. Fixed with the firer walk; `HitResolutionTests.TheFirerWalkIsPartOfTheProfilesEquality`.

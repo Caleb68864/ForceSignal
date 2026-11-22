@@ -35,6 +35,26 @@ public sealed class InMemoryMatchServiceThresholdTests
     }
 
     [Fact]
+    public void ACruiserDrawnWithMoreRowsThanTheProfileDefault_IsCheckedAgainstItsOwnRows()
+    {
+        // Rows by class, a cruiser drawn with four rows against a default of three. The service capped
+        // the threshold by the cruiser's four rows, then the resolver capped it again by the default's
+        // three, so the third row rolled the second row's number. The players' four rows now decide.
+        var rules = TestRules.WithRowsByClass with { ThresholdRowCount = 3, CruiserRowCount = 4 };
+        var table = ThresholdTable.Build(fallbackFace: 8, targetHull: 8, targetScreens: 0, rules: rules);
+
+        table.Fire();
+        var result = table.CeaseFire();
+
+        var target = result.Ships.Single(s => s.Id == table.TargetId);
+        Assert.Equal([2, 2, 2, 2], target.HullRows);
+        Assert.Equal(3, target.HullRowsCompleted);
+        var check = Assert.Single(result.MatchLog, entry => entry.Category == "Threshold");
+        Assert.Contains("threshold 3", check.Message, StringComparison.Ordinal);
+        Assert.Contains("systems lost on 5 or less", check.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FireWeapon_WhenThresholdRollsAreLow_KnocksOutSystemsAndSaysWhat()
     {
         // Top faces for the attack dice, then ones for the threshold rolls, so everything is lost.
@@ -178,11 +198,11 @@ public sealed class InMemoryMatchServiceThresholdTests
         Guid TargetId,
         Guid WeaponId)
     {
-        public static ThresholdTable Build(int targetHull, int targetScreens, int attackDice = 3, int fallbackFace = 6)
+        public static ThresholdTable Build(int targetHull, int targetScreens, int attackDice = 3, int fallbackFace = 6, RulesProfile? rules = null)
         {
             var dice = new ScriptedDice { Fallback = fallbackFace };
             var service = new InMemoryMatchService(dice.Next);
-            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Threshold Table", Rules: TestRules.Invented));
+            var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Threshold Table", Rules: rules ?? TestRules.Invented));
             var opponent = service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "Red"));
             var blueFleet = service.CreateFleet(owner.MatchId, new CreateFleetRequest(owner.ParticipantToken, "Blue", null))
                 .Fleets.Single(f => f.OwnerParticipantId == owner.ParticipantId);

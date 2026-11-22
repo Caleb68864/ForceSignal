@@ -9,7 +9,9 @@ import { newElementCard, toElementInputs } from '../../lib/dirtsideCard.ts';
 import type { DirtsideProfileDraft } from '../../lib/dirtsideProfile.ts';
 import {
   emptyProfileDraft,
+  builtInWalkQuestion,
   firerWalkSummary,
+  firerWalkTouched,
   profileSummary,
   signatures,
   toProfileInput,
@@ -155,6 +157,15 @@ export function DirtsideView() {
 
   async function start() {
     if (busyRef.current) {
+      return;
+    }
+
+    // Decided by agent 2026-11-21 (owner may revisit): a game started with no firer walk is asked
+    // about, not refused. The server still plays its built-in walk and says so on every screen; this
+    // is the one moment the table can still enter its own instead, before a shot has been rolled.
+    if (!firerWalkTouched(profile) && !window.confirm(builtInWalkQuestion)) {
+      setMessage('Enter your firer walk, or start again to play the built-in one.');
+      setMessageIsError(false);
       return;
     }
 

@@ -55,6 +55,27 @@ public sealed class InMemoryMatchServiceCommitmentTests
             ScreenRating: ship.ScreenRating);
 
     [Fact]
+    public void AMountBroughtBackInPlayIsNamedOnTheLog()
+    {
+        // Decided by agent 2026-11-21: the profile edit stays open in play - the table is trusted,
+        // and a mount transcribed wrong has to be put right there and then - but what it changes about
+        // a mount's state is written down for the other device, rather than "profile updated".
+        var t = Ready();
+        WeaponMountDto Mount(bool destroyed, int ammoUsed) =>
+            new(Guid.Parse("00000000-0000-0000-0000-0000000000a1"), "Salvo Rack", 1, 24, [FiringArc.Fore],
+                AmmoMax: 3, AmmoUsed: ammoUsed, IsDestroyed: destroyed, Kind: WeaponKind.PulseTorpedo);
+        UpdateShipProfileRequest With(WeaponMountDto mount) =>
+            MoveTo(t.OwnerToken, t.BlueShip, t.BlueShip.PositionX, t.BlueShip.PositionY) with { Weapons = [mount] };
+        t.Service.UpdateShipProfile(t.BlueShip.Id, With(Mount(destroyed: true, ammoUsed: 3)));
+
+        var restored = t.Service.UpdateShipProfile(t.BlueShip.Id, With(Mount(destroyed: false, ammoUsed: 0)));
+
+        var line = restored.MatchLog[^1].Message;
+        Assert.Contains("Salvo Rack brought back into action", line, StringComparison.Ordinal);
+        Assert.Contains("Salvo Rack given back 3 rounds", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void APositionMayStillBeCorrectedWhileOrdersAreBeingWritten()
     {
         var t = Ready();
