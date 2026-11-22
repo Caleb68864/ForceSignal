@@ -81,7 +81,16 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       per-element buttons had been fixed for exactly this. Each now carries the unit's name
       ("Activate Alpha Squad", "Confidence test for Alpha Squad", "Mark Alpha Squad scattered"); the
       visible text is unchanged (`StarGruntView.test.tsx`, "names the unit in every button on its
-      card"; fails on the old code). Found writing the browser spec below. Tests: one per screen ("... once the log is at its cap"), both
+      card"; fails on the old code). Found writing the browser spec below.
+- [x] **Browser coverage for the ground screens.** The Playwright suite only ever loaded the map bench
+      page. `e2e-ground/` now plays each ground screen against a real API with both engines on:
+      a Dirtside game created with the players' dice and firer walk, a platoon a side added through
+      the card editor, a turn begun and one activation moved and ended; a StarGrunt game created
+      with its Leadership Values, a squad a side added, and one activation stepped and ended. Each
+      also fails on any uncaught page error. `npm run e2e:ground` (`playwright.ground.config.ts`)
+      starts the API and the dev server unless something already answers on their ports, and CI's
+      `two-player` job now switches the engines on and runs it after the smoke script. Checked to
+      catch a regression: with the unit-card names above put back, the StarGrunt spec fails. Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
 - [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
       with every field and list entry nulled in turn, against a dev server with a fleet, ships and

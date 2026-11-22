@@ -27,6 +27,7 @@
     "test": "tsc --noEmit && eslint . && vitest run",
     "lint": "eslint .",
     "e2e": "playwright test",
+    "e2e:ground": "playwright test -c playwright.ground.config.ts",
     "check:bundle": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {

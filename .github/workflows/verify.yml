@@ -80,6 +80,7 @@ jobs:
       - name: Start the API
         run: |
           ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:8080 \
+          FORCESIGNAL_FEATURES_STARGRUNT=true FORCESIGNAL_FEATURES_DIRTSIDE=true \
             dotnet run --project src/ForceSignal.Api --no-launch-profile > /tmp/api.log 2>&1 &
 
       - name: Start the web dev server
@@ -106,6 +107,14 @@ jobs:
 
       - name: Play a turn on two devices
         run: python scripts/two-player-smoke.py
+
+      # The ground screens, against the same pair (both engines are switched on above). The Node
+      # Playwright wants its own browser build, separate from the Python one the smoke script uses.
+      - name: Play an activation on each ground screen
+        working-directory: src/ForceSignal.Web
+        run: |
+          npx playwright install --with-deps chromium
+          GROUND_API_PORT=8080 npm run e2e:ground
 
       - name: Server logs
         if: failure()
