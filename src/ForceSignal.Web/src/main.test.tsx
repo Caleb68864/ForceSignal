@@ -737,6 +737,58 @@ describe('the end of a battle (playtest M1)', () => {
     expect(await screen.findByText(/Max Accel spends all of Valiant's thrust on speed, so 1 plotted turn step was cleared\./)).toBeTruthy();
   });
 
+  it('puts your own cards first, and offers Lock but not Reveal while orders are written (playtest m22, m23)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const board = inPlay(2);
+    // The opponent's ship listed first, as creation order can have it.
+    get.mockResolvedValue({ ...board, ships: [...board.ships].reverse() });
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    await waitFor(() => expect(document.querySelectorAll('article.ship-card h3').length).toBe(2));
+    const titles = [...document.querySelectorAll('article.ship-card h3')].map((title) => title.textContent);
+    expect(titles[0]).toBe('Valiant');
+    expect(await findButton('Lock')).toBeTruthy();
+    expect(screen.queryByText('Reveal', { selector: 'button' })).toBeNull();
+  });
+
+  it('folds the per-ship snapshot rows in the battle record (playtest m15)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const matchLog = Array.from({ length: 8 }, (_, index) => ({
+      sequence: index + 1, timestamp: '2026-11-22T10:00:00Z', turnNumber: 2, phase: 'Firing', category: 'Snapshot', message: `Ship ${index} pos 1,1`,
+    }));
+    get.mockResolvedValue(inPlay(2, { matchLog }));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+    fireEvent.click(await findButton('Log'));
+
+    await screen.findByLabelText('Battle record entries');
+    expect(document.querySelectorAll('.log-list > li')).toHaveLength(1);
+  });
+
+  it('asks before locking a fleet with most ships unplotted (playtest p8)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const board = inPlay(2);
+    const blueTwo = { ...board.ships[0], id: 'ship-blue-2', name: 'Vigilant' };
+    get.mockResolvedValue({ ...board, ships: [...board.ships, blueTwo] });
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+    post.mockClear();
+
+    fireEvent.click((await screen.findAllByText('Lock Fleet Orders', { selector: 'button' }))[0]);
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('2 of your 2 ships have no order plotted'));
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));

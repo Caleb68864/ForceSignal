@@ -3690,3 +3690,17 @@ html {
   overflow-wrap: normal;
   word-break: keep-all;
 }
+
+/* The battle record's filter, and a folded run of ship-state snapshots (playtest m15). */
+.log-filter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 320px;
+  margin-bottom: 8px;
+}
+
+.log-snapshots summary {
+  cursor: pointer;
+  color: var(--muted);
+}

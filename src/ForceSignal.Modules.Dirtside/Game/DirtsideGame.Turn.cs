@@ -3,6 +3,7 @@ using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.Dirtside.Game;
 
@@ -191,7 +192,7 @@ public sealed partial record DirtsideGame
 
             if (Unit(watcher).Side == Unit(mover).Side)
             {
-                return $"{Unit(watcher).Name} is on {Unit(mover).Name}'s own side.";
+                return $"{Unit(watcher).Name} is on {Words.Possessive(Unit(mover).Name)} own side.";
             }
 
             if (Status(watcher).IsWipedOut)
@@ -494,7 +495,7 @@ public sealed partial record DirtsideGame
 
         if (!status.IsSystemsDown)
         {
-            return $"{definition.Name}'s systems are not down.";
+            return $"{Words.Possessive(definition.Name)} systems are not down.";
         }
 
         if (!SystemsDownRecovery.CanAttempt(status.SystemsDownOnActivation ?? 0, CurrentActivationNumber))
@@ -643,7 +644,7 @@ public sealed partial record DirtsideGame
     /// <summary>An element in words, for the log.</summary>
     private string Describe(UnitId unit, ElementId element) =>
         Units.TryGetValue(unit, out var platoon) && platoon.Element(element) is { } part
-            ? $"{platoon.Name}'s {part.Name}"
+            ? $"{Words.Possessive(platoon.Name)} {part.Name}"
             : $"{unit}'s {element}";
 
     /// <summary>

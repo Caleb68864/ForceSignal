@@ -4,6 +4,7 @@ using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.Dirtside.Game;
 
@@ -219,7 +220,7 @@ public sealed partial record DirtsideGame
 
         if (firing.Side == receiving.Side)
         {
-            return $"{receiving.Name} is on {firing.Name}'s own side.";
+            return $"{receiving.Name} is on {Words.Possessive(firing.Name)} own side.";
         }
 
         if (firing.Element(command.Element) is not { } firer)
@@ -260,8 +261,8 @@ public sealed partial record DirtsideGame
     {
         var firer = Unit(command.Firer);
         var target = Unit(command.Target);
-        var firerName = $"{firer.Name}'s {firer.Element(command.Element)!.Name}";
-        var targetName = $"{target.Name}'s {target.Element(command.TargetElement)!.Name}";
+        var firerName = $"{Words.Possessive(firer.Name)} {firer.Element(command.Element)!.Name}";
+        var targetName = $"{Words.Possessive(target.Name)} {target.Element(command.TargetElement)!.Name}";
 
         if (!result.WasFired)
         {
@@ -370,6 +371,6 @@ public sealed partial record DirtsideGame
             ? $" {firerName} has its own systems down and takes no combat action until they are back."
             : string.Empty;
         return $"{firerName} fired on {targetName} at {band}: {rolls}. "
-            + $"{result.Hits} hit(s): {string.Join(", ", effects)}.{firerDown}";
+            + $"{Words.Count(result.Hits, "hit")}: {string.Join(", ", effects)}.{firerDown}";
     }
 }

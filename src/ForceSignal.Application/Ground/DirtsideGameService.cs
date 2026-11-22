@@ -10,6 +10,7 @@ using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Morale;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Application.Ground;
 
@@ -817,7 +818,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
         // for good. Said here, by name, while the card is still being filled in.
         if (element.AssaultChits is { } assaultChits)
         {
-            RequireDrawFits(assaultChits, potSize, $"{element.Name}'s assault chits");
+            RequireDrawFits(assaultChits, potSize, $"{Words.Possessive(element.Name)} assault chits");
         }
         GroundGameGuards.RequireAtMost(element.Weapons?.Count ?? 0, GroundGameGuards.MaxWeaponsPerUnit, "weapons");
 
@@ -849,7 +850,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
     private static WeaponDefinition ToWeapon(DirtsideWeaponDto weapon, int potSize)
     {
         ArgumentNullException.ThrowIfNull(weapon);
-        RequireDrawFits(weapon.ChitCount, potSize, $"{weapon.Name}'s chit count");
+        RequireDrawFits(weapon.ChitCount, potSize, $"{Words.Possessive(weapon.Name)} chit count");
 
         return new WeaponDefinition(
             Required(weapon.Name, "A weapon needs a name."),

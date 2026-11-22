@@ -508,11 +508,11 @@ public sealed partial class InMemoryMatchService
             fighters.HullDamage = ClampDamage(fighters.HullDamage + defense.Kills, fighters.HullMax);
         }
 
-        var overkillNote = defense.Overkill > 0 ? $" {defense.Overkill} kill(s) wasted." : string.Empty;
+        var overkillNote = defense.Overkill > 0 ? $" {defense.Overkill} {(defense.Overkill == 1 ? "kill" : "kills")} wasted." : string.Empty;
         match.AddLog(
             "PointDefense",
             match.Phase.ToString(),
-            $"{DescribeShip(match, target)} point defence fired at {DescribeShip(match, fighters)} at range {range}: rolled {string.Join(",", defense.Rolls)} and shot down {defense.Kills} of {incoming} fighter(s).{overkillNote}");
+            $"{DescribeShip(match, target)} point defence fired at {DescribeShip(match, fighters)} at range {range}: rolled {string.Join(",", defense.Rolls)} and shot down {defense.Kills} of {incoming} {(incoming == 1 ? "fighter" : "fighters")}.{overkillNote}");
         match.AddEvent(new TurnEventState(TurnEventKinds.PointDefenseFired)
         {
             ActorShipId = target.Id,

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.Dirtside.Game;
 
@@ -107,7 +108,7 @@ public sealed partial record DirtsideGame : IDirtsideBoard
             if (sides.FirstOrDefault(side => string.Equals(side.Value, platoon.Side.Value, StringComparison.OrdinalIgnoreCase)) is { Value: not null } spelt)
             {
                 throw new InvalidOperationException(
-                    $"{platoon.Name}'s side '{platoon.Side.Value}' is spelt differently from the side already on the table as '{spelt.Value}'. Use '{spelt.Value}', or it counts as a third side.");
+                    $"{Words.Possessive(platoon.Name)} side '{platoon.Side.Value}' is spelt differently from the side already on the table as '{spelt.Value}'. Use '{spelt.Value}', or it counts as a third side.");
             }
 
             if (sides.Length >= 2)

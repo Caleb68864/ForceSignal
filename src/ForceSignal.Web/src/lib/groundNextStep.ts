@@ -7,6 +7,8 @@
  * ground games, worked out only from what the snapshot already says.
  */
 
+import { possessive } from './possessive.ts';
+
 export type GroundTurn = {
   turnNumber: number;
   phase: string;
@@ -63,7 +65,7 @@ export function groundNextStep(turn: GroundTurn, unit: string): GroundStep {
       };
     case 'Activating': {
       if (turn.activatingName) {
-        return { heading, you: `Finish ${turn.activatingName}'s activation, then End Activation.`, primary: 'end-activation' };
+        return { heading, you: `Finish ${possessive(turn.activatingName)} activation, then End Activation.`, primary: 'end-activation' };
       }
 
       // Playtest M9: with every unit gone the screen still said "blue to act", and End Turn was

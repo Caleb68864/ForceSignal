@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { dirtsideGameKey } from '../../constants.ts';
 import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import * as api from '../../lib/dirtsideApi.ts';
@@ -254,7 +254,9 @@ export function DirtsideView() {
   // Following the game for changes made on another device holding its code. A push names the version
   // the game reached; one this screen already shows - its own command's - reads nothing.
   const shownVersion = useRef(-1);
-  useEffect(() => {
+  // A layout effect, so the ref is current before anything can deliver a push for this render: set
+  // in a passive effect, a push landing straight after a render read the game again for nothing.
+  useLayoutEffect(() => {
     shownVersion.current = snapshot?.version ?? -1;
   }, [snapshot]);
   const followChange = useCallback((version: number | null) => {

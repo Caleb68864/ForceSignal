@@ -9,7 +9,7 @@
  * because that is how the game is played: with a tape measure and an eyeball.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { starGruntGameKey } from '../../constants.ts';
 import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.ts';
 import { fromForceFile, toForceFile } from '../../lib/forceIo.ts';
@@ -19,6 +19,7 @@ import { qualityLadder as ladder, wordsFor } from '../../lib/groundVocabulary.ts
 import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import { newestLogEntry } from '../../lib/newestLogEntry.ts';
+import { possessive } from '../../lib/possessive.ts';
 import { useGroundLive } from '../../lib/groundLive.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
@@ -313,7 +314,9 @@ export function StarGruntView() {
   // Following the game for changes made on another device holding its code. A push names the version
   // the game reached; one this screen already shows - its own command's - reads nothing.
   const shownVersion = useRef(-1);
-  useEffect(() => {
+  // A layout effect, so the ref is current before anything can deliver a push for this render: set
+  // in a passive effect, a push landing straight after a render read the game again for nothing.
+  useLayoutEffect(() => {
     shownVersion.current = snapshot?.version ?? -1;
   }, [snapshot]);
   const followChange = useCallback((version: number | null) => {
@@ -534,7 +537,7 @@ export function StarGruntView() {
   };
   const againstOwnSide = (target: StarGruntUnit | undefined, doing: string) =>
     !target || !activating || target.side !== activating.side
-    || window.confirm(`${target.name} is on ${target.side}, ${activating.name}'s own side. ${doing} anyway?`);
+    || window.confirm(`${target.name} is on ${target.side}, ${possessive(activating.name)} own side. ${doing} anyway?`);
 
   return (
     <section className="stargrunt" aria-label="StarGrunt game">
@@ -1066,7 +1069,7 @@ export function StarGruntView() {
               }
 
               setSnapshot(await api.readGame(game));
-              say(`Imported ${force.units.length} unit(s) into ${side}.`);
+              say(`Imported ${force.units.length} ${force.units.length === 1 ? 'unit' : 'units'} into ${side}.`);
             } catch (error) {
               setMessage(error instanceof Error ? error.message : 'That file could not be read.');
               setMessageIsError(true);

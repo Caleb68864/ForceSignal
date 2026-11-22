@@ -5,6 +5,7 @@ using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Combat;
 using ForceSignal.Modules.StarGrunt.Morale;
 using ForceSignal.Modules.StarGrunt.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.StarGrunt.Game;
 
@@ -140,7 +141,7 @@ public sealed partial record StarGruntGame
             if (joining.SupportFirepowerDie is null)
             {
                 return GameOutcome.Refused<StarGruntGame>(
-                    $"{joining.Name}'s card does not say what die it adds to a volley, so it cannot join one.");
+                    $"{Words.Possessive(joining.Name)} card does not say what die it adds to a volley, so it cannot join one.");
             }
 
             support.Add(joining);
@@ -162,7 +163,7 @@ public sealed partial record StarGruntGame
         if (target.Figures.IsDefaultOrEmpty)
         {
             return GameOutcome.Refused<StarGruntGame>(
-                $"{target.Name}'s roster carries no armour dice, so there is nothing to resolve a hit against.");
+                $"{Words.Possessive(target.Name)} roster carries no armour dice, so there is nothing to resolve a hit against.");
         }
 
         var armour = target.Figures[0].ArmourDie;

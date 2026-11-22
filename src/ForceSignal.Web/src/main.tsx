@@ -12,7 +12,7 @@ import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
 import { fleetExportToCsv, normalizeSavedFleets, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
 import { clampDraftForShip, createDraftOrder, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, resetOrderDraft, toOrder, totalTurnSteps, turnManeuversForDraft, turnPatchFromManeuvers, usableThrust } from './lib/movement.ts';
 import { activeViewKey, defaultShipForm, displayNameKey, draftsKey, fleetLibraryKey, gameModeKey, officialRulesUrl, sessionKey, snapshotBackupKey } from './constants.ts';
-import { describeActivity, downloadText, formatLogTime, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
+import { describeActivity, downloadText, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
 import {
   ApiRequestError,
   apiBaseUrl,
@@ -60,6 +60,8 @@ import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
 import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { BattleOverPanel } from './components/BattleOverPanel.tsx';
+import { BattleLog } from './components/BattleLog.tsx';
+import { possessive } from './lib/possessive.ts';
 import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
@@ -477,7 +479,7 @@ function App() {
     // rate-limited attempt that never reached the match logic at all.
     const response = await post<Session & { matchId: string; joinCode: string }>('/api/matches', {
       displayName,
-      matchName: `${displayName}'s Match`,
+      matchName: `${possessive(displayName)} Match`,
     });
     clearLocalMatchState();
     setSession(response);
@@ -807,6 +809,27 @@ function App() {
     }));
   }
 
+  /**
+   * Locks the fleet's orders, asking first when most ships have nothing plotted: an unplotted ship
+   * holds course and speed, which is legal, but locking a fleet that has barely been touched is
+   * usually a tap too early (playtest p8).
+   */
+  function lockIfMeant() {
+    if (!snapshot) {
+      return;
+    }
+
+    const open = ownedShips.filter((ship) => !ship.isDestroyed
+      && !snapshot.orderStatuses.find((status) => status.shipId === ship.id)?.isCommitted);
+    const unplotted = open.filter((ship) => !drafts[ship.id]);
+    if (open.length > 1 && unplotted.length * 2 > open.length
+      && !window.confirm(`${unplotted.length} of your ${open.length} ships have no order plotted and will hold course and speed. Lock the fleet's orders anyway?`)) {
+      return;
+    }
+
+    run(lockOwnedOrders);
+  }
+
   async function lockOwnedOrders() {
     if (!session || !snapshot) {
       return;
@@ -899,7 +922,7 @@ function App() {
     applySnapshot(latest);
     setMessage(missingDraftShips.length > 0
       ? `${missingDraftShips.length} locked friendly order${missingDraftShips.length === 1 ? '' : 's'} need the original local draft before reveal.`
-      : revealableShips.length === 0 ? 'No friendly locked orders need reveal.' : `Revealed ${revealableShips.length} friendly orders.`);
+      : revealableShips.length === 0 ? 'No friendly locked orders need reveal.' : `Revealed ${revealableShips.length} friendly ${revealableShips.length === 1 ? 'order' : 'orders'}.`);
   }
 
   async function updateDamage(ship: Ship, patch: Partial<DamageState>, trackUndo = true) {
@@ -1290,7 +1313,7 @@ function App() {
     });
     setMessage(
       skipped > 0
-        ? `Order copied to ${eligible.length} ship(s). ${skipped} already locked and were left alone.`
+        ? `Order copied to ${eligible.length} ${eligible.length === 1 ? 'ship' : 'ships'}. ${skipped} already locked ${skipped === 1 ? 'was' : 'were'} left alone.`
         : 'Order copied to your fleet.',
     );
   }
@@ -1318,7 +1341,7 @@ function App() {
     const lost = totalTurnSteps(draft) - totalTurnSteps(next);
     if (lost > 0) {
       setMessage(
-        `${velocityDelta > 0 ? 'Max Accel' : 'Max Decel'} spends all of ${ship.name}'s thrust on speed, so ${lost} plotted turn step${lost === 1 ? ' was' : 's were'} cleared.`,
+        `${velocityDelta > 0 ? 'Max Accel' : 'Max Decel'} spends all of ${possessive(ship.name)} thrust on speed, so ${lost} plotted turn step${lost === 1 ? ' was' : 's were'} cleared.`,
         'info',
       );
     }
@@ -1404,7 +1427,7 @@ function App() {
   const bannerAction: BannerAction | null = commands.ready === 'primary'
     ? { label: 'Ready', onClick: () => run(markReady), disabled: busy }
     : commands.lock === 'primary'
-      ? { label: 'Lock Fleet Orders', onClick: () => run(lockOwnedOrders), disabled: busy }
+      ? { label: 'Lock Fleet Orders', onClick: () => lockIfMeant(), disabled: busy }
       : commands.reveal === 'primary'
         ? { label: 'Reveal Fleet Orders', onClick: () => run(revealOwnedOrders), disabled: busy }
         : commands.advance === 'primary'
@@ -1691,7 +1714,7 @@ function App() {
                 </>
               ) : null}
               {commands.lock === 'primary' ? (
-                <button className={commandClass(commands.lock)} onClick={() => run(lockOwnedOrders)} disabled={busy}>Lock Fleet Orders</button>
+                <button className={commandClass(commands.lock)} onClick={() => lockIfMeant()} disabled={busy}>Lock Fleet Orders</button>
               ) : null}
               {/* Only while the declaration still means nothing - once everyone has closed out,
                   the phase has turned over and reopening the turn is not one player's to do. */}
@@ -1961,7 +1984,7 @@ function App() {
 
             {activeView === 'ships' && snapshot ? (
             <div className="ship-grid">
-              {focusedFirstShips(snapshot.ships, mapFocusShipId, ownedShips[0]?.id).map((ship) => {
+              {focusedFirstShips(snapshot.ships, mapFocusShipId, ownedShips[0]?.id, ownedShipIds).map((ship) => {
                 const draft = draftFor(ship.id, drafts);
                 const status = snapshot.orderStatuses.find((item) => item.shipId === ship.id);
                 const result = snapshot.movementResults.find((item) => item.shipId === ship.id);
@@ -2178,8 +2201,14 @@ function App() {
                               <button className="ghost" type="button" onClick={() => updateDraft(ship.id, turnPatchFromManeuvers([]))}>Clear Turns</button>
                             </div>
                           </div>
-                          <button onClick={() => run(() => commit(ship))} disabled={busy}>Lock</button>
-                          <button onClick={() => run(() => reveal(ship))} disabled={busy}>Reveal</button>
+                          {/* Each in its own phase: Reveal was on offer while orders were still being written,
+                              and the server could only refuse it (playtest m23). */}
+                          {snapshot.phase === 'OrderEntry'
+                            ? <button onClick={() => run(() => commit(ship))} disabled={busy}>Lock</button>
+                            : null}
+                          {['OrdersLocked', 'Reveal'].includes(snapshot.phase) && status?.isCommitted && !status.isRevealed
+                            ? <button onClick={() => run(() => reveal(ship))} disabled={busy}>Reveal</button>
+                            : null}
                         </div>
                       </>
                     ) : null}
@@ -2348,16 +2377,7 @@ function App() {
                   <button className="ghost" onClick={() => exportAfterAction('json')}>JSON</button>
                 </div>
               </div>
-              {/* Scrolls on its own, so it takes focus: a keyboard could not reach its entries (axe:
-                  scrollable-region-focusable). */}
-              <ol className="log-list" tabIndex={0} aria-label="Battle record entries">
-                {recentLog.map((entry) => (
-                  <li key={entry.sequence}>
-                    <span>T{entry.turnNumber} · {formatPhase(entry.phase)} · {entry.category} · {formatLogTime(entry.timestamp)}</span>
-                    <p>{entry.message}</p>
-                  </li>
-                ))}
-              </ol>
+              <BattleLog entries={recentLog} />
               {logHiddenCount > 0 ? (
                 <p className="log-truncated">
                   Showing the most recent {recentLog.length} of {(snapshot?.matchLog ?? []).length} entries.

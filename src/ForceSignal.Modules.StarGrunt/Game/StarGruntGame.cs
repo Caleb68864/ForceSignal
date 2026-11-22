@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using ForceSignal.Modules.GroundCombat.Sequence;
 using ForceSignal.Modules.StarGrunt.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.StarGrunt.Game;
 
@@ -91,7 +92,7 @@ public sealed partial record StarGruntGame : IStarGruntBoard
             if (sides.FirstOrDefault(side => string.Equals(side.Value, unit.Side.Value, StringComparison.OrdinalIgnoreCase)) is { Value: not null } spelt)
             {
                 throw new InvalidOperationException(
-                    $"{unit.Name}'s side '{unit.Side.Value}' is spelt differently from the side already on the table as '{spelt.Value}'. Use '{spelt.Value}', or it counts as a third side.");
+                    $"{Words.Possessive(unit.Name)} side '{unit.Side.Value}' is spelt differently from the side already on the table as '{spelt.Value}'. Use '{spelt.Value}', or it counts as a third side.");
             }
 
             if (sides.Length >= 2)
@@ -191,7 +192,7 @@ public sealed partial record StarGruntGame : IStarGruntBoard
     /// </remarks>
     private static string? LeadershipBlocker(UnitDefinition unit) =>
         unit.LeadershipValue is null
-            ? $"{unit.Name}'s record card does not say what its Leadership Value is, and that is the "
+            ? $"{Words.Possessive(unit.Name)} record card does not say what its Leadership Value is, and that is the "
                 + "number this roll is measured against. Enter it on the unit - this app ships no "
                 + "leadership ratings of its own."
             : null;

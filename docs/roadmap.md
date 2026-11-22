@@ -185,6 +185,42 @@ that fails on the old code.
       anyway?"), read the way the server reads it (`pastEffectiveRange`). A table that has entered
       no reach is not second-guessed (`StarGruntView.test.tsx` "shots past effective range", failing
       on the old code).
+- [x] **m22. Full Thrust mixed your ship cards with the opponent's.** Cards now run: the focused ship,
+      the rest of your own fleet, then everyone else's, each group in its own order.
+- [x] **m23. Reveal was offered during order entry and then refused.** A ship card offers Lock only
+      while orders are written, and Reveal only once orders are locked, for a ship that has locked
+      and not yet revealed. (`main.test.tsx` "puts your own cards first, and offers Lock but not
+      Reveal", failing on the old code; `rules.test.ts` for the ordering.)
+- [x] **m15. The battle log was mostly per-ship snapshot rows**, 300 by turn five, and the Log tab
+      took most of a second to open. `components/BattleLog.tsx`: each run of ship-state snapshots
+      folds into one row ("T3 · Firing · 8 ship states") that opens on a tap; a filter narrows the
+      record to fire and damage, movement and orders, turns and phases, or setup; and only 60 rows
+      are drawn at once, with "Show 60 older" for more. The export still writes every entry
+      (`BattleLog.test.tsx`; `main.test.tsx` "folds the per-ship snapshot rows", failing on the old
+      code; axe still clean at three sizes).
+- [x] **p1. Grammar.** "Revealed 1 friendly orders", "1 hit(s)", "shot down 4 of 6 fighter(s)", "lost 1
+      level(s)", "Red Lancers's". Counts now take the right noun everywhere they were written with
+      "(s)" - the Dirtside shot, nerve and assault lines, the StarGrunt melee line, point defence, and
+      five web messages - and a name ending in s takes "'" rather than "'s" in every ground log line
+      and refusal and on the screens (`Words` in the shared ground module, `possessive` on the web).
+      `WordsTests`, `possessive.test.ts`; the point-defence test now asserts "6 fighters" and failed
+      against the new text before it was updated, as the old text fails it now.
+- [x] **p8. Lock Fleet Orders with most ships unplotted needed a confirm.** With more than half of a
+      player's open ships unplotted, Lock asks first ("2 of your 2 ships have no order plotted and
+      will hold course and speed. Lock the fleet's orders anyway?"), from the commands and from the
+      banner alike. A one-ship fleet is never asked, so the two-device smoke script's lock is
+      unchanged (`main.test.tsx` "asks before locking a fleet with most ships unplotted", failing
+      on the old code).
+- [ ] **p7. Every refused action logs a red 400 in the console.** Left, deliberately: that line is the
+      browser's own record of a failed request, written for any 4xx `fetch` and not something a page
+      can turn off. Answering refusals with 200 to hide it would make the API lie about what
+      happened. The refusal itself is already shown in words on the screen.
+- [x] **A flaky multi-device screen test, and the read it caught.** "reads nothing for a version this
+      screen already shows" failed one run in three: the ref holding the version on screen was set in
+      a passive effect, so a push arriving straight after a render compared against the old version
+      and read the game again for nothing - harmless at a table, a flake in the suite. It is set in a
+      layout effect now, on both ground screens: 14 of 14 runs green, six of them beside six busy
+      loops.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
