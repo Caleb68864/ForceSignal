@@ -92,6 +92,17 @@ that fails on the old code.
       serious violation the screens had grown since: the Full Thrust battle log scrolls on its own and
       a keyboard could not reach it (`scrollable-region-focusable`). It now takes focus and is
       labelled. 12 of 12 clean; three cases failed before the fix.
+- [x] **m1. Duplicate display names were allowed** ("Cobalt rolled 6, Cobalt rolled 3"). A second
+      player with a name already at the table joins as "Cobalt 2", and so on, case folded
+      (`DuplicateDisplayNameTests`, failing on the old code).
+- [x] **m2. The opponent's damage report used fixed maximums** - fire control out of 6, weapons out
+      of 12, for every ship. It uses the ship's own fire control and mount count now, and so does
+      the owner's weapons control.
+- [x] **m3. Stale order text.** An opponent card said "order remains hidden until reveal" beside
+      REVEALED, and a ship that held course read "Awaiting orders" all through firing. The hidden
+      line shows only while the order is hidden and orders are being written, locked or revealed;
+      the order chip only in those phases. (`main.test.tsx` "reports an opponent ship out of its own
+      numbers", failing on the old code, covers m2 and m3.)
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

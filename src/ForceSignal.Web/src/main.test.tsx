@@ -706,6 +706,23 @@ describe('the end of a battle (playtest M1)', () => {
     expect(screen.getAllByText('Battle over').length).toBeGreaterThan(0);
   });
 
+  it('reports an opponent ship out of its own numbers, and drops order chatter once orders are done (playtest m2, m3)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(inPlay(2, { phase: 'Firing' }));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    const report = (await screen.findByText('Damage report')).parentElement as HTMLElement;
+    expect(report.textContent).toContain('Firecon0/1');
+    expect(report.textContent).toContain('Weapons0/0');
+    expect(report.textContent).not.toContain('/6');
+    expect(report.textContent).not.toContain('/12');
+    expect(report.textContent).not.toContain('remains hidden until reveal');
+    expect(screen.queryByText('Awaiting orders')).toBeNull();
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));

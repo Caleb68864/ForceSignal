@@ -305,7 +305,7 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             }
 
             RequireRoom(match.Participants.Count, MaxParticipantsPerMatch, "players");
-            var participant = ParticipantState.Create(NormalizeText(request.DisplayName, "Player"), "Player");
+            var participant = ParticipantState.Create(UniqueDisplayName(match, NormalizeText(request.DisplayName, "Player")), "Player");
             match.Participants.Add(participant);
             match.AddLog("Setup", match.Phase.ToString(), $"{participant.DisplayName} joined the match.");
             match.Touch("ParticipantJoined");
@@ -518,6 +518,27 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
             match.Touch("PointsLimitUpdated");
             return ToSnapshot(match);
         }
+    }
+
+    /// <summary>
+    /// A name no one else at the table has. Two players called Cobalt made the log read "Cobalt
+    /// rolled 6, Cobalt rolled 3" (playtest m1); the second is "Cobalt 2", and so on.
+    /// </summary>
+    private static string UniqueDisplayName(MatchState match, string wanted)
+    {
+        bool Taken(string name) => match.Participants.Any(p => string.Equals(p.DisplayName, name, StringComparison.OrdinalIgnoreCase));
+        if (!Taken(wanted))
+        {
+            return wanted;
+        }
+
+        var suffix = 2;
+        while (Taken($"{wanted} {suffix}"))
+        {
+            suffix++;
+        }
+
+        return $"{wanted} {suffix}";
     }
 
     public MatchSnapshotDto EndBattle(Guid matchId, EndBattleRequest request)

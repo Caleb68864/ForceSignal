@@ -1956,9 +1956,13 @@ function App() {
                       </strong>
                     </div>
                     <div className="ship-alerts">
+                      {/* Orders are news only while they are being written: in movement and firing a ship that
+                          held course read "Awaiting orders" (playtest m3). */}
                       {ship.isDestroyed
                         ? <span className="danger">Out of action</span>
-                        : status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
+                        : !['OrderEntry', 'OrdersLocked', 'Reveal'].includes(snapshot.phase)
+                          ? null
+                          : status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
                       {ship.hullDamage > 0 || ship.armorDamage > 0 ? <span className="warn">Damage recorded</span> : <span>Undamaged</span>}
                       {ship.fireControlDamage + ship.driveDamage + ship.weaponDamage > 0 ? <span className="danger">Systems degraded</span> : null}
                       {ship.effectiveScreens > 0 ? <span>Screens {ship.effectiveScreens}</span> : null}
@@ -2204,7 +2208,7 @@ function App() {
                           <DamageControl
                             label="Weapons"
                             value={ship.weaponDamage}
-                            max={12}
+                            max={ship.weapons?.length ?? 0}
                             disabled={busy}
                             onChange={(value) => run(() => updateDamage(ship, { weaponDamage: value }))}
                           />
@@ -2244,10 +2248,15 @@ function App() {
                         <span className="label module-title">Damage report</span>
                         <DamageMeter label="Hull" value={ship.hullDamage} max={ship.hullMax} />
                         <DamageMeter label="Armor" value={ship.armorDamage} max={ship.armorMax} />
-                        <DamageMeter label="Firecon" value={ship.fireControlDamage} max={6} />
+                        {/* The ship's own numbers: a report out of 6 and 12 for every ship told the opponent
+                            nothing true (playtest m2). */}
+                        <DamageMeter label="Firecon" value={ship.fireControlDamage} max={ship.fireControlMax ?? 1} />
                         <DamageMeter label="Drive" value={ship.driveDamage} max={ship.thrustRating} />
-                        <DamageMeter label="Weapons" value={ship.weaponDamage} max={12} />
-                        <p className="privacy">Opponent order remains hidden until reveal.</p>
+                        <DamageMeter label="Weapons" value={ship.weaponDamage} max={ship.weapons?.length ?? 0} />
+                        {/* Only while it is still hidden: beside REVEALED it was simply wrong (playtest m3). */}
+                        {!status?.isRevealed && ['OrderEntry', 'OrdersLocked', 'Reveal'].includes(snapshot.phase)
+                          ? <p className="privacy">Opponent order remains hidden until reveal.</p>
+                          : null}
                       </div>
                     ) : null}
                     <footer>
