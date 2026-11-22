@@ -225,6 +225,12 @@ that fails on the old code.
       the comma and "No turn" after "No". The cells are wide enough for a value on one line now, and
       a value never wraps. `fullThrustLayout.spec.ts` checks every readout at 390 and 1440px for a
       second line and for being cut short (failing on the old styles at 1440px).
+- [x] **p3. A meaningless "Ready." notice, and a reload losing the scroll position.** The notice went
+      with m18. The scroll position was *not reproduced*: a reload kept it on the old code in a Full
+      Thrust match and a Dirtside game alike, even with the server's answer held back a second so the
+      page was short when the browser restored. No change was made without a failing case; the
+      Dirtside reload is kept as a guard (`phoneLayout.spec.ts` "a reload of a ground game comes back
+      where the player was scrolled to").
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

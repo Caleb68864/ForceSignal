@@ -111,3 +111,22 @@ test('the ground screens read in sentences, left-aligned, not centred amber capi
   });
   expect(style).toEqual({ transform: 'none', align: 'left' });
 });
+
+test('a reload of a ground game comes back where the player was scrolled to (playtest p3)', async ({ page }) => {
+  await openEngine(page, 'Dirtside II');
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Start Game' }).click();
+  await expect(page.getByLabel('Add platoon')).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.waitForTimeout(300);
+
+  // The game is read from the server after the page loads, so the browser's own restoration runs
+  // against the short setup screen and lands at the top.
+  await page.route('**/api/dirtside/games/*', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.continue();
+  });
+  await page.reload();
+  await expect(page.getByLabel('Add platoon')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { timeout: 5_000 }).toBeGreaterThan(1300);
+});
