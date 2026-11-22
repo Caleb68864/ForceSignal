@@ -247,7 +247,7 @@ export function profileSummary(profile: DirtsideRulesProfile | null | undefined)
     leadershipValuesOf(profile).length === 0 ? 'Leadership Values' : null,
   ].filter((part): part is string => part !== null);
 
-  const counted = `${rows} die table row(s) entered, from your own rulebook`;
+  const counted = `${rows} die table ${rows === 1 ? 'row' : 'rows'} entered, from your own rulebook`;
   return missing.length === 0
     ? `${counted}. Every row this game can ask for is there.`
     : `${counted}. Partly filled in: ${missing.join(', ')}. That is fine until a shot reads a row `

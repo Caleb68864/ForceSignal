@@ -5,6 +5,7 @@ using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.Dirtside.Game;
 
@@ -147,7 +148,7 @@ public sealed partial record DirtsideGame
 
         if (firing.Side == target.Side)
         {
-            return $"{target.Name} is on {firing.Name}'s own side.";
+            return $"{target.Name} is on {Words.Possessive(firing.Name)} own side.";
         }
 
         // Softskin vehicles are small-arms targets in the resolver, and nothing on the roster says
@@ -203,7 +204,7 @@ public sealed partial record DirtsideGame
 
         if (aimedAt.KillThreshold is null)
         {
-            return $"{aimedAt.Name}'s card does not give a kill threshold, so a draw has nothing to reach.";
+            return $"{Words.Possessive(aimedAt.Name)} card does not give a kill threshold, so a draw has nothing to reach.";
         }
 
         if (Status(command.Firer).IsUnderFire && profile.RungsLostUnderFire is null)

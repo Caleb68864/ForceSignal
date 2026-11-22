@@ -198,6 +198,13 @@ that fails on the old code.
       are drawn at once, with "Show 60 older" for more. The export still writes every entry
       (`BattleLog.test.tsx`; `main.test.tsx` "folds the per-ship snapshot rows", failing on the old
       code; axe still clean at three sizes).
+- [x] **p1. Grammar.** "Revealed 1 friendly orders", "1 hit(s)", "shot down 4 of 6 fighter(s)", "lost 1
+      level(s)", "Red Lancers's". Counts now take the right noun everywhere they were written with
+      "(s)" - the Dirtside shot, nerve and assault lines, the StarGrunt melee line, point defence, and
+      five web messages - and a name ending in s takes "'" rather than "'s" in every ground log line
+      and refusal and on the screens (`Words` in the shared ground module, `possessive` on the web).
+      `WordsTests`, `possessive.test.ts`; the point-defence test now asserts "6 fighters" and failed
+      against the new text before it was updated, as the old text fails it now.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

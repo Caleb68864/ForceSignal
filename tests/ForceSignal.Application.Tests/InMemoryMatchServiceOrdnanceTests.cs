@@ -138,7 +138,7 @@ public sealed class InMemoryMatchServiceOrdnanceTests
         var result = table.FighterStrike(range: 4);
 
         var defense = Assert.Single(result.MatchLog, entry => entry.Category == "PointDefense");
-        Assert.Contains("shot down 4 of 6 fighter(s)", defense.Message, StringComparison.Ordinal);
+        Assert.Contains("shot down 4 of 6 fighters", defense.Message, StringComparison.Ordinal);
         var group = result.Ships.Single(ship => ship.Id == table.FighterGroupId);
         Assert.Equal(4, group.HullDamage);
         // Two fighters left to roll.

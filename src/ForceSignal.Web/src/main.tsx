@@ -61,6 +61,7 @@ import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from 
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { BattleOverPanel } from './components/BattleOverPanel.tsx';
 import { BattleLog } from './components/BattleLog.tsx';
+import { possessive } from './lib/possessive.ts';
 import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
@@ -478,7 +479,7 @@ function App() {
     // rate-limited attempt that never reached the match logic at all.
     const response = await post<Session & { matchId: string; joinCode: string }>('/api/matches', {
       displayName,
-      matchName: `${displayName}'s Match`,
+      matchName: `${possessive(displayName)} Match`,
     });
     clearLocalMatchState();
     setSession(response);
@@ -900,7 +901,7 @@ function App() {
     applySnapshot(latest);
     setMessage(missingDraftShips.length > 0
       ? `${missingDraftShips.length} locked friendly order${missingDraftShips.length === 1 ? '' : 's'} need the original local draft before reveal.`
-      : revealableShips.length === 0 ? 'No friendly locked orders need reveal.' : `Revealed ${revealableShips.length} friendly orders.`);
+      : revealableShips.length === 0 ? 'No friendly locked orders need reveal.' : `Revealed ${revealableShips.length} friendly ${revealableShips.length === 1 ? 'order' : 'orders'}.`);
   }
 
   async function updateDamage(ship: Ship, patch: Partial<DamageState>, trackUndo = true) {
@@ -1291,7 +1292,7 @@ function App() {
     });
     setMessage(
       skipped > 0
-        ? `Order copied to ${eligible.length} ship(s). ${skipped} already locked and were left alone.`
+        ? `Order copied to ${eligible.length} ${eligible.length === 1 ? 'ship' : 'ships'}. ${skipped} already locked ${skipped === 1 ? 'was' : 'were'} left alone.`
         : 'Order copied to your fleet.',
     );
   }
@@ -1319,7 +1320,7 @@ function App() {
     const lost = totalTurnSteps(draft) - totalTurnSteps(next);
     if (lost > 0) {
       setMessage(
-        `${velocityDelta > 0 ? 'Max Accel' : 'Max Decel'} spends all of ${ship.name}'s thrust on speed, so ${lost} plotted turn step${lost === 1 ? ' was' : 's were'} cleared.`,
+        `${velocityDelta > 0 ? 'Max Accel' : 'Max Decel'} spends all of ${possessive(ship.name)} thrust on speed, so ${lost} plotted turn step${lost === 1 ? ' was' : 's were'} cleared.`,
         'info',
       );
     }

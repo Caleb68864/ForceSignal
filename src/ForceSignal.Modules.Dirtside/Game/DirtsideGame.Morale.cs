@@ -2,6 +2,7 @@ using ForceSignal.Modules.Dirtside.Morale;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Morale;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.Dirtside.Game;
 
@@ -40,7 +41,7 @@ public sealed partial record DirtsideGame
 
         var outcome = test.LevelsLost == 0
             ? $"held at {test.After}"
-            : $"lost {test.LevelsLost} level(s) to {test.After}";
+            : $"lost {Words.Count(test.LevelsLost, "level")} to {test.After}";
 
         return GameOutcome.Allowed(
             WithStatus(unit, status => status with { Confidence = test.After })

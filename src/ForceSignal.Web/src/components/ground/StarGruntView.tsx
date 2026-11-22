@@ -19,6 +19,7 @@ import { qualityLadder as ladder, wordsFor } from '../../lib/groundVocabulary.ts
 import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import { newestLogEntry } from '../../lib/newestLogEntry.ts';
+import { possessive } from '../../lib/possessive.ts';
 import { useGroundLive } from '../../lib/groundLive.ts';
 import * as api from '../../lib/starGruntApi.ts';
 import type { StarGruntProfileDraft } from '../../lib/starGruntProfile.ts';
@@ -534,7 +535,7 @@ export function StarGruntView() {
   };
   const againstOwnSide = (target: StarGruntUnit | undefined, doing: string) =>
     !target || !activating || target.side !== activating.side
-    || window.confirm(`${target.name} is on ${target.side}, ${activating.name}'s own side. ${doing} anyway?`);
+    || window.confirm(`${target.name} is on ${target.side}, ${possessive(activating.name)} own side. ${doing} anyway?`);
 
   return (
     <section className="stargrunt" aria-label="StarGrunt game">
@@ -1066,7 +1067,7 @@ export function StarGruntView() {
               }
 
               setSnapshot(await api.readGame(game));
-              say(`Imported ${force.units.length} unit(s) into ${side}.`);
+              say(`Imported ${force.units.length} ${force.units.length === 1 ? 'unit' : 'units'} into ${side}.`);
             } catch (error) {
               setMessage(error instanceof Error ? error.message : 'That file could not be read.');
               setMessageIsError(true);

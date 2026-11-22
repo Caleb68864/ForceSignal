@@ -6,6 +6,7 @@ using ForceSignal.Modules.StarGrunt.Assault;
 using ForceSignal.Modules.StarGrunt.Combat;
 using ForceSignal.Modules.StarGrunt.Morale;
 using ForceSignal.Modules.StarGrunt.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.StarGrunt.Game;
 
@@ -67,7 +68,7 @@ public sealed partial record StarGruntGame
         var receiving = Unit(defender);
         if (charging.Side == receiving.Side)
         {
-            return GameOutcome.Refused<StarGruntGame>($"{receiving.Name} is on {charging.Name}'s own side.");
+            return GameOutcome.Refused<StarGruntGame>($"{receiving.Name} is on {Words.Possessive(charging.Name)} own side.");
         }
 
         var status = Status(attacker);
@@ -258,7 +259,7 @@ public sealed partial record StarGruntGame
         return GameOutcome.Allowed(
             fought.WithLog(
                 $"{charging.Name} closed with {receiving.Name}: {string.Join("; ", lines)}. "
-                + $"{attackerDown} attacker(s) and {defenderDown} defender(s) down."));
+                + $"{Words.Count(attackerDown, "attacker")} and {Words.Count(defenderDown, "defender")} down."));
     }
 
     /// <summary>

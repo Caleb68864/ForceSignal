@@ -5,6 +5,7 @@ using ForceSignal.Modules.Dirtside.Sequence;
 using ForceSignal.Modules.GroundCombat.Dice;
 using ForceSignal.Modules.GroundCombat.Morale;
 using ForceSignal.Modules.GroundCombat.Sequence;
+using ForceSignal.Modules.GroundCombat.Text;
 
 namespace ForceSignal.Modules.Dirtside.Game;
 
@@ -165,7 +166,7 @@ public sealed partial record DirtsideGame
                 LastRound: null),
         }).WithLog(
             $"{going.Name} went in on {holding.Name} with {stands}: rolled {test.Roll} against "
-            + $"{test.ScoreToBeat}. {holding.Name}'s marker is turned; it must stand or give way."));
+            + $"{test.ScoreToBeat}. {Words.Possessive(holding.Name)} marker is turned; it must stand or give way."));
     }
 
     /// <summary>Whether an assault could be launched, and why not.</summary>
@@ -201,7 +202,7 @@ public sealed partial record DirtsideGame
         var holding = Unit(defender);
         if (going.Side == holding.Side)
         {
-            return $"{holding.Name} is on {going.Name}'s own side.";
+            return $"{holding.Name} is on {Words.Possessive(going.Name)} own side.";
         }
 
         if (Status(defender).IsWipedOut)
@@ -296,7 +297,7 @@ public sealed partial record DirtsideGame
             {
                 Assault = assault with { Stage = AssaultStage.AwaitingFollowThrough },
             }).WithLog(
-                $"{holding.Name} {why}. The position is {going.Name}'s without a shot; it may test to drive on through."));
+                $"{holding.Name} {why}. The position is {Words.Possessive(going.Name)} without a shot; it may test to drive on through."));
         }
 
         var test = defence.Test!.Value;
@@ -392,7 +393,7 @@ public sealed partial record DirtsideGame
 
         var cover = round.DefenderCoverStillCounted ? string.Empty : ", hand to hand";
         return GameOutcome.Allowed(fought.WithLog(
-            $"Round {round.Round} of {Unit(attacker.Unit).Name}'s assault on {Unit(defender.Unit).Name}{cover}: "
+            $"Round {round.Round} of {Words.Possessive(Unit(attacker.Unit).Name)} assault on {Unit(defender.Unit).Name}{cover}: "
             + $"{Draws(attacker.Unit, round.Attacker)}; {Draws(defender.Unit, round.Defender)}. "
             + $"{Removed(attacker.Unit, attackerLost)} {Removed(defender.Unit, defenderLost)}"));
     }
@@ -442,7 +443,7 @@ public sealed partial record DirtsideGame
             return GameOutcome.Allowed((this with
             {
                 Assault = assault with { Stage = AssaultStage.AwaitingFollowThrough },
-            }).WithLog($"{holding.Name} has nobody left on the position. It is {going.Name}'s; it may test to drive on through."));
+            }).WithLog($"{holding.Name} has nobody left on the position. It is {Words.Possessive(going.Name)}; it may test to drive on through."));
         }
 
         if (assault.Attacker.Stands.IsEmpty)
@@ -484,7 +485,7 @@ public sealed partial record DirtsideGame
                 Assault = assault with { Stage = AssaultStage.AwaitingFollowThrough },
             }).WithLog(
                 $"{defenderLine} and broke to {aftermath.DefenderTest.After}, falling back under fire. "
-                + $"The position is {going.Name}'s; it may test to drive on through.")),
+                + $"The position is {Words.Possessive(going.Name)}; it may test to drive on through.")),
 
             AssaultOutcome.AttackerFallsBack => GameOutcome.Allowed((tested with { Assault = null }).WithLog(
                 $"{defenderLine} and held; {going.Name} rolled {aftermath.AttackerTest!.Value.Roll} against "
@@ -623,7 +624,7 @@ public sealed partial record DirtsideGame
     /// <summary>Why a platoon cannot be tested at all: its card does not say what it rolls.</summary>
     private static string? ProfileBlocker(PlatoonDefinition platoon) =>
         platoon.Quality is null || platoon.LeadershipValue is null
-            ? $"{platoon.Name}'s record card does not say what die it rolls or what its leadership value is, so its nerve cannot be tested."
+            ? $"{Words.Possessive(platoon.Name)} record card does not say what die it rolls or what its leadership value is, so its nerve cannot be tested."
             : null;
 
     /// <summary>Whether a platoon has at least one element it could commit: alive, with assault numbers.</summary>
@@ -665,7 +666,7 @@ public sealed partial record DirtsideGame
 
             if (definition.AssaultChits is null || definition.KillThreshold is null)
             {
-                return $"{definition.Name}'s record card does not say how many chits it draws in an assault or what total removes it.";
+                return $"{Words.Possessive(definition.Name)} record card does not say how many chits it draws in an assault or what total removes it.";
             }
 
             // The resolver refuses a side with mixed toughness in the middle of a round. Refusing it
@@ -673,7 +674,7 @@ public sealed partial record DirtsideGame
             threshold ??= definition.KillThreshold;
             if (threshold != definition.KillThreshold)
             {
-                return $"{platoon.Name}'s committed elements do not all share one kill threshold, so there is no single number for the other side to draw against.";
+                return $"{Words.Possessive(platoon.Name)} committed elements do not all share one kill threshold, so there is no single number for the other side to draw against.";
             }
         }
 
