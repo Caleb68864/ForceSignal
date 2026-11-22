@@ -33,3 +33,22 @@ test('the map labels sister ships so they can be told apart (playtest M6)', asyn
   const texts = await labels.allInnerTexts();
   expect(texts).toEqual(expect.arrayContaining(['B1', 'B2', 'B3', 'R1']));
 });
+
+test('ships on the same spot fan out on the map instead of hiding each other (playtest M6)', async ({ page, request }) => {
+  await openSeededMatch(page, request, { blueShips: ['Blue 1', 'Blue 2', 'Blue 3', 'Blue 4'], stacked: true });
+  await page.getByRole('button', { name: 'Play Map', exact: true }).click();
+
+  const markers = page.locator('.table-map button.map-ship');
+  await expect(markers.first()).toBeVisible();
+  const boxes = (await markers.evaluateAll((buttons) => buttons.map((button) => {
+    const box = button.getBoundingClientRect();
+    return { label: button.querySelector('strong')?.textContent ?? '', x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }))).filter((box) => box.label.startsWith('B'));
+
+  expect(boxes).toHaveLength(4);
+  for (let a = 0; a < boxes.length; a += 1) {
+    for (let b = a + 1; b < boxes.length; b += 1) {
+      expect(Math.hypot(boxes[a].x - boxes[b].x, boxes[a].y - boxes[b].y)).toBeGreaterThan(30);
+    }
+  }
+});

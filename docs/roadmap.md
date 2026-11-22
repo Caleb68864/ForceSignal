@@ -78,7 +78,13 @@ that fails on the old code.
       VIG), and a running number only for two ships with the very same name. The full name is still
       on the contact card when a ship is selected or hovered (`mapLabels.test.ts`;
       `fullThrustLayout.spec.ts` "the map labels sister ships", failing on the old code with
-      `["BLU", "BLU", "BLU", "RED"]`). *Left:* spreading tokens that sit on the same spot.
+      `["BLU", "BLU", "BLU", "RED"]`). *Left:* spreading tokens that sit on the same spot. *Done
+      on `ux/playtest-fixes-4`:* contacts within a table-width/40 of each other (chained) fan out on
+      a ring just wide enough for 54px markers; only the drawing moves - positions, ranges and arcs
+      are read from where each ship is, and its title keeps the coordinates (`mapSpread.test.ts`;
+      `fullThrustLayout.spec.ts` "ships on the same spot fan out", failing on the old code with all
+      four markers on one point). On the animated map a fanned-out button no longer sits exactly on
+      its hull, which is drawn where the ship is.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
@@ -116,7 +122,15 @@ that fails on the old code.
       - straight under the status, above the roster, and Full Thrust lays a ship's readouts out three
       across on a phone. `e2e-ground/phoneLayout.spec.ts` at 390x844 checks all three; each failed
       on the old layout. *Left:* collapsing Full Thrust's fleet setup to a summary once a fleet
-      exists, and moving "Table, rules and points" to a tab after the start.
+      exists, and moving "Table, rules and points" to a tab after the start. *Done on
+      `ux/playtest-fixes-4`:* once a player has ships, the shipyard folds to one line ("2 ships in
+      your fleet · add another ship, or bring and save fleets") and opens on a tap; and in fleet
+      setup a ship card no longer carries the helm, the order plot, Lock, Reveal and Repair All,
+      which only play can use - that card alone was 1,600px on a phone. "Table, rules and points"
+      already folds away once play begins; its header and the shipyard's are now 44px touch
+      targets. The phone setup page went from 5,275px (with the shipyard folded) to under 5,000,
+      and no card offers Lock in setup (`phoneLayout.spec.ts` "folds the shipyard away", failing on
+      the old code).
 - [x] **The ground browser suite met the game-creation budget part-way through.** Each spec opens a
       game from the one test address, and with fifteen specs a full run passed ten a minute and got
       429s on Start Game - a flake waiting for CI. The budget is now configurable

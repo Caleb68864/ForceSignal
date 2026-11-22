@@ -17,6 +17,7 @@ import { clampMapViewport, courseFromTablePoint, measureCourse, measureDistance,
 import { appendTurnPatchForCourse, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, totalTurnSteps, usableThrust } from '../../lib/movement.ts';
 import { useOrderPreview } from '../../lib/useOrderPreview.ts';
 import { mapLabels } from '../../lib/mapLabels.ts';
+import { spreadOffsets } from '../../lib/mapSpread.ts';
 import { normalizeFleetColor, normalizeOrdnanceStatus, normalizeShipIconKey } from '../../lib/normalize.ts';
 import { describeArcs, fighterFlightRefusal, firingDraftFor, firingReadoutNotes, firingTargetOptions, isFighterGroup, needleSystemNote, salvoStrikeNote } from '../../lib/rules.ts';
 import { useFiringSolution } from '../../lib/useFiringSolution.ts';
@@ -102,6 +103,11 @@ export function PlayMap({
 }) {
   // Labels that tell every contact apart: "Blue 1" to "Blue 8" all used to read BLU (playtest M6).
   const shipLabels = useMemo(() => mapLabels(snapshot.ships), [snapshot.ships]);
+  // Stacked contacts fan out on screen so each can be seen and tapped; their real positions stand.
+  const shipSpread = useMemo(
+    () => spreadOffsets(snapshot.ships.map((ship) => ({ id: ship.id, x: ship.positionX, y: ship.positionY })), Math.max(1.5, snapshot.tableWidth / 40)),
+    [snapshot.ships, snapshot.tableWidth],
+  );
   const selectedShip = snapshot.ships.find((ship) => ship.id === focusedShipId)
     ?? snapshot.ships.find((ship) => ownedShipIds.has(ship.id) && !ship.isDestroyed)
     ?? snapshot.ships[0];
@@ -791,6 +797,8 @@ export function PlayMap({
                   top: `${mapPercent(ship.positionY, snapshot.tableDepth)}%`,
                   '--course': `${courseAngle(ship.currentCourse)}deg`,
                   '--fleet-color': fleetColor,
+                  '--spread-x': `${shipSpread.get(ship.id)?.dx ?? 0}px`,
+                  '--spread-y': `${shipSpread.get(ship.id)?.dy ?? 0}px`,
                 } as CSSProperties}
                 title={`${ship.name} ${ship.positionX.toFixed(1)},${ship.positionY.toFixed(1)} V${ship.currentVelocity} C${ship.currentCourse}`}
                 // Hovering shows the contact card, which is not a live region. Writing the readout
