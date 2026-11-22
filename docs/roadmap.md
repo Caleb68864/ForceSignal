@@ -149,6 +149,11 @@ that fails on the old code.
       button ("Your fleet is 120 points, over the 100-point limit.") and the setup checklist lists
       it as a blocker, before anyone presses anything (`nextStep.test.ts` "a fleet over the points
       limit", failing on the old code).
+- [x] **m16. Imported ships without weapons got a placeholder mount** - "Unnamed Mount 1D/1" - that
+      nobody had entered and that showed as out of range at every target. A blank CSV weapons cell, or
+      a JSON ship with no weapons list, now imports with no mounts, as the server already treats a
+      ship that names none. Two old tests asserted the placeholder and were turned round
+      (`fleetIo.test.ts`, failing on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

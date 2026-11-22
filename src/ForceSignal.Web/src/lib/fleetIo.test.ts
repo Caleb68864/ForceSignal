@@ -120,8 +120,8 @@ describe('normalizeFleetExportShip', () => {
     expect(read).toMatchObject({ className: 'Escort', iconKey: 'escort', initialVelocity: 6, startX: 3, startY: 4, fireControlMax: 1, pointDefenseSystems: 2, fighterBays: 1, damageControlParties: 3, pointsValue: 40 });
   });
 
-  it('gives a ship with no weapons one mount rather than none', () => {
-    expect(normalizeFleetExportShip({ name: 'Bare' }, defaultShipForm).weapons).toHaveLength(1);
+  it('gives a ship with no weapons no mounts, rather than one nobody entered (playtest m16)', () => {
+    expect(normalizeFleetExportShip({ name: 'Bare' }, defaultShipForm).weapons).toEqual([]);
   });
 
   it('refuses a row that is not an object', () => {
@@ -189,8 +189,8 @@ describe('parseWeaponsCell', () => {
     expect(parseWeaponsCell('Beam|2|24|Port').at(0)?.arcs).toEqual(['AftPort', 'ForePort']);
   });
 
-  it('gives an empty cell one default mount', () => {
-    expect(parseWeaponsCell('  ')).toHaveLength(1);
+  it('reads an empty cell as no mounts (playtest m16: it read as "Unnamed Mount 1D/1")', () => {
+    expect(parseWeaponsCell('  ')).toEqual([]);
   });
 });
 

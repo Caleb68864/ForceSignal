@@ -14,7 +14,6 @@
 
 import { csvEscape, normalizeHeader, numberFrom, stringFrom, stripFileExtension, wholeNumberFrom } from './format.ts';
 import { normalizeFighterStatus, normalizeFleetColor, normalizeShipIconKey, normalizeWeaponMount } from './normalize.ts';
-import { newWeaponMount } from './weapons.ts';
 import type { Fleet, FleetExport, FleetExportShip, SavedFleet, Ship, ShipForm, WeaponMount } from '../types.ts';
 
 /**
@@ -75,8 +74,10 @@ export function normalizeSavedFleets(value: unknown, fallback: ShipForm, maxScre
 }
 
 export function parseWeaponsCell(value: string): WeaponMount[] {
+  // A blank cell is a ship with no mounts. It used to come back with a placeholder - "Unnamed Mount
+  // 1D/1" - nobody had entered, which then showed as out of range at every target (playtest m16).
   if (!value.trim()) {
-    return [newWeaponMount()];
+    return [];
   }
 
   return value.split(';').map((entry) => {
@@ -236,7 +237,7 @@ export function normalizeFleetExportShip(value: unknown, fallback: ShipForm, max
     pointDefenseSystems: wholeNumberFrom(record.pointDefenseSystems ?? record.pds, unentered, 0, 12),
     fighterBays: wholeNumberFrom(record.fighterBays ?? record.bays, unentered, 0, 12),
     damageControlParties: wholeNumberFrom(record.damageControlParties ?? record.dcp, unentered, 0, 12),
-    weapons: Array.isArray(record.weapons) ? record.weapons.map(normalizeWeaponMount) : [newWeaponMount()],
+    weapons: Array.isArray(record.weapons) ? record.weapons.map(normalizeWeaponMount) : [],
     fighterEnduranceMax: wholeNumberFrom(record.fighterEnduranceMax ?? record.fighterEndurance, unentered, 0, 24),
     fighterEnduranceUsed: wholeNumberFrom(record.fighterEnduranceUsed ?? record.fighterUsed, unentered, 0, 24),
     fighterMaxRange: wholeNumberFrom(record.fighterMaxRange ?? record.fighterRange, unentered, 0, 120),
