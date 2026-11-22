@@ -640,7 +640,11 @@ public sealed record ShipDto(
     int EffectiveScreens = 0,
     int WorkingFireControl = 0,
     int FighterReach = 0,
-    IReadOnlyList<SystemOptionDto>? RepairableSystems = null);
+    IReadOnlyList<SystemOptionDto>? RepairableSystems = null,
+    // During firing only, and only advice: whether any working mount has an opposing ship in its
+    // arc and reach on the map. The table's own measurement is what a shot is settled on, so this
+    // never refuses anything - it lets a screen say which ships have nothing to shoot at.
+    bool? HasTargetOnMap = null);
 
 /// <summary>Commit/reveal status for a ship order.</summary>
 public sealed record OrderStatusDto(Guid ShipId, Guid OwnerParticipantId, bool IsCommitted, bool IsRevealed, bool VerificationFailed);

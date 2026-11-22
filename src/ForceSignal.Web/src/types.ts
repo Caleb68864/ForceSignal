@@ -77,6 +77,9 @@ export type Ship = {
   workingFireControl: number;
   fighterReach: number;
   repairableSystems: SystemOption[];
+  // Firing only, and advice: whether a working mount has an opposing ship in arc and reach on the
+  // map. The table's measurement settles a shot; this lets the screen skip ships with nothing to shoot.
+  hasTargetOnMap?: boolean | null;
   // How much of each system a needle cut out, rather than ordinary damage. Needled systems are
   // beyond damage control, which is why the server counts them apart.
   needledFireControl?: number;

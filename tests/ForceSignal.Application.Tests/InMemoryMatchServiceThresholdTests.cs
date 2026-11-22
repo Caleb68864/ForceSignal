@@ -55,6 +55,30 @@ public sealed class InMemoryMatchServiceThresholdTests
     }
 
     [Fact]
+    public void InFiringEachShipSaysWhetherItHasATargetInArcAndReachOnTheMap()
+    {
+        // Design suggestion 3: skip ships with nothing to shoot at. Advice only, read off the map.
+        var table = ThresholdTable.Build(targetHull: 9, targetScreens: 0);
+        var snapshot = table.Service.GetSnapshot(table.MatchId);
+
+        Assert.Equal("Firing", snapshot.Phase);
+        Assert.True(snapshot.Ships.Single(s => s.Id == table.AttackerId).HasTargetOnMap);
+
+        // Knock the attacker's only mount out: nothing left that bears.
+        table.KnockOutAttackerMount();
+        Assert.False(table.Service.GetSnapshot(table.MatchId).Ships.Single(s => s.Id == table.AttackerId).HasTargetOnMap);
+    }
+
+    [Fact]
+    public void OutsideFiringNoShipIsJudgedForTargets()
+    {
+        var service = new InMemoryMatchService(_ => 6);
+        var owner = service.CreateMatch(new CreateMatchRequest("Blue", "Setup", Rules: TestRules.Invented));
+
+        Assert.All(service.GetSnapshot(owner.MatchId).Ships, ship => Assert.Null(ship.HasTargetOnMap));
+    }
+
+    [Fact]
     public void FireWeapon_WhenThresholdRollsAreLow_KnocksOutSystemsAndSaysWhat()
     {
         // Top faces for the attack dice, then ones for the threshold rolls, so everything is lost.

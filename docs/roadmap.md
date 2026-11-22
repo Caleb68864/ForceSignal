@@ -256,6 +256,16 @@ that fails on the old code.
       tap from anywhere. The "Next:" keeps it from being taken for the turn button it repeats; the
       browser specs now name turn buttons exactly (`DirtsideAssault.test.tsx` "carries the command
       to press now in the banner", failing on the old code; 41 of 41 browser specs).
+- [x] **Design suggestion 3. Skip ships with nothing in arc or range during firing.** During firing
+      each ship's snapshot now says whether a working mount has an opposing ship in its arc and reach
+      on the map (`HasTargetOnMap`, read with the same bearing, reach and target rules a shot is
+      checked against). It is advice, never a refusal - the table measures the shot. The banner
+      names the ships that have a shot ("pick Valiant, open Fire...") and the ones that have none,
+      says to Hold Fire when none of a player's remaining ships has anything to shoot at, and the
+      host's end-firing warning no longer counts a ship with nothing to shoot at as fire lost.
+      Tests: `InMemoryMatchServiceThresholdTests` "InFiringEachShipSaysWhetherItHasATargetInArcAndReachOnTheMap"
+      and "OutsideFiringNoShipIsJudgedForTargets"; `nextStep.test.ts` "ships with nothing to shoot
+      at" (two of three failing on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

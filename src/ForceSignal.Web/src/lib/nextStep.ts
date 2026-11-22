@@ -106,11 +106,28 @@ export function nextStep(snapshot: MatchSnapshot, meId: string): NextStep {
 
       if (firing === meId) {
         const open = myShips.find((ship) => ship.id === snapshot.firingShipId);
+        if (open) {
+          return { heading, you: `${open.name} is firing. Fire its other weapons, then press Done Firing to hand over.`, waiting: null, yourMove: true };
+        }
+
+        // Design suggestion 3: say which ships have nothing to shoot at on the map, so they can be
+        // passed over with Hold Fire instead of opened one by one. Advice: the table measures.
+        const activated = new Set(snapshot.activatedShipIds ?? []);
+        const left = myLiveShips.filter((ship) => !activated.has(ship.id));
+        const idle = left.filter((ship) => ship.hasTargetOnMap === false);
+        const armed = left.filter((ship) => ship.hasTargetOnMap !== false);
+        if (left.length > 0 && armed.length === 0) {
+          return {
+            heading,
+            you: `None of your ships still to fire has a target in arc and range on the map (${idle.map((ship) => ship.name).join(', ')}). Hold Fire for each - or measure on the table if the map is out.`,
+            waiting: null,
+            yourMove: true,
+          };
+        }
+
         return {
           heading,
-          you: open
-            ? `${open.name} is firing. Fire its other weapons, then press Done Firing to hand over.`
-            : 'Your turn to fire: on Play Map pick a ship, open Fire, choose a target and fire. Press Done Firing (or Hold Fire) when that ship is finished.',
+          you: `Your turn to fire: pick ${armed.length > 0 ? armed.map((ship) => ship.name).join(' or ') : 'a ship'}, open Fire, choose a target and fire. Press Done Firing (or Hold Fire) when that ship is finished.${idle.length > 0 ? ` ${idle.map((ship) => ship.name).join(', ')} ${idle.length === 1 ? 'has' : 'have'} nothing in arc and range on the map.` : ''}`,
           waiting: null,
           yourMove: true,
         };
@@ -222,7 +239,9 @@ function commandsForPhase(
 
       const ownerOf = new Map(snapshot.fleets.map((fleet) => [fleet.id, fleet.ownerParticipantId]));
       const activated = new Set(snapshot.activatedShipIds ?? []);
-      const waiting = snapshot.ships.filter((ship) => !ship.isDestroyed && !activated.has(ship.id) && ship.weapons?.some((weapon) => !weapon.isDestroyed));
+      // A ship with nothing in arc and range on the map loses nothing by being skipped (design 3).
+      const waiting = snapshot.ships.filter((ship) => !ship.isDestroyed && !activated.has(ship.id)
+        && ship.hasTargetOnMap !== false && ship.weapons?.some((weapon) => !weapon.isDestroyed));
       const names = waiting.map((ship) => {
         const owner = snapshot.participants.find((participant) => participant.id === ownerOf.get(ship.fleetId));
         return owner ? `${ship.name} (${owner.displayName})` : ship.name;
