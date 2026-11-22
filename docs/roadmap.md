@@ -173,6 +173,11 @@ that fails on the old code.
       reading weight, and the line saying what just happened is styled as a result (a cyan rule) or
       a refusal (red) (`phoneLayout.spec.ts` "the ground screens read in sentences", failing on the
       old styles; axe still clean). *Left:* folding long rules text behind a "?".
+- [x] **m20. StarGrunt's roster had no order and no side colours.** Units are now grouped by side, in
+      the order the sides were named, each side with its own coloured rule; the activated unit has an
+      amber outline and says "Activated."; the other cards no longer repeat "...is still activated"
+      (the next-step line says it once); and the readout labels break between words, not inside them
+      (`StarGruntView.test.tsx` "StarGrunt roster", failing on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

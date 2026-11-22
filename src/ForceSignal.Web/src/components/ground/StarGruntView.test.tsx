@@ -583,3 +583,30 @@ describe('StarGrunt says one word for one state (playtest m7)', () => {
     expect(screen.getByText('Mark Disorganised', { selector: 'button' })).toBeTruthy();
   });
 });
+
+describe('StarGrunt roster (playtest m20)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('groups the units by side and does not repeat the open activation on every card', async () => {
+    const red = wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "red-a", "name": "Red Alpha", "side": "red"')
+      .replace('"canActivate": true, "activationBlocker": null', '"canActivate": false, "activationBlocker": "Alpha Squad is still activated."');
+    const blueTwo = wholeUnit.replace('"id": "alpha", "name": "Alpha Squad"', '"id": "beta", "name": "Beta Squad"')
+      .replace('"canActivate": true, "activationBlocker": null', '"canActivate": false, "activationBlocker": "Alpha Squad is still activated."');
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...snapshotFrom(`${red},${wholeUnit},${blueTwo}`), activatingUnitId: 'alpha' });
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    const blue = screen.getByLabelText('blue units');
+    expect(blue.textContent).toContain('Alpha Squad');
+    expect(blue.textContent).toContain('Beta Squad');
+    expect(blue.textContent).not.toContain('Red Alpha');
+    expect(screen.getByLabelText('red units').textContent).toContain('Red Alpha');
+    expect(screen.queryByText('Alpha Squad is still activated.')).toBeNull();
+  });
+});

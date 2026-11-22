@@ -922,12 +922,18 @@ export function StarGruntView() {
         </div>
       ) : null}
 
+      {/* Grouped by side, in the order the sides were named, so a table can find its own units; the
+          roster was one undifferentiated list (playtest m20). */}
+      {[...new Set([...snapshot.sides, ...snapshot.units.map((unit) => unit.side)])].map((side, sideIndex) => (
+      <section key={side} className={`stargrunt-roster-side side-${sideIndex % 2 === 0 ? 'a' : 'b'}`} aria-label={`${side} units`}>
+      <span className="label">{side}</span>
       <div className="stargrunt-roster">
-        {snapshot.units.map((unit) => (
+        {snapshot.units.filter((unit) => unit.side === side).map((unit) => (
           <UnitCard
             key={unit.id}
             unit={unit}
             isActivating={unit.id === snapshot.activatingUnitId}
+            waitingOnAnother={Boolean(snapshot.activatingUnitId) && unit.id !== snapshot.activatingUnitId}
             busy={busy}
             onActivate={() => run(
               () => api.beginActivation(game, unit.side, unit.id),
@@ -944,6 +950,8 @@ export function StarGruntView() {
           />
         ))}
       </div>
+      </section>
+      ))}
 
       {/* The roster closes at the first turn: the server rebuilds the session from it, so a unit
           added later would restart the game from nothing, and it refuses. */}
@@ -1072,6 +1080,7 @@ export function StarGruntView() {
 function UnitCard({
   unit,
   isActivating,
+  waitingOnAnother = false,
   busy,
   onActivate,
   onTest,
@@ -1079,6 +1088,8 @@ function UnitCard({
 }: {
   unit: StarGruntUnit;
   isActivating: boolean;
+  /** Another unit's activation is open: said once by the next-step line, not on every card. */
+  waitingOnAnother?: boolean;
   busy: boolean;
   onActivate: () => void;
   onTest: () => void;
@@ -1098,7 +1109,7 @@ function UnitCard({
         <div><span className="label">Quality</span><strong>D{unit.qualityDie}</strong></div>
       </div>
       <p className="constraint-line">
-        {wiped ? 'Wiped out.' : unit.canActivate ? 'Ready to activate.' : unit.activationBlocker ?? 'Not now.'}
+        {wiped ? 'Wiped out.' : isActivating ? 'Activated.' : unit.canActivate ? 'Ready to activate.' : waitingOnAnother ? '' : unit.activationBlocker ?? 'Not now.'}
         {unit.isInCover ? ' In cover.' : ''}
         {unit.isDisorganised ? ' Disorganised.' : ''}
         {unit.isLeaderDown ? ' Leader down.' : ''}

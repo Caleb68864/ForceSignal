@@ -3661,3 +3661,32 @@ html {
   border-left-color: var(--red);
   color: #ffd2d8;
 }
+
+/* StarGrunt's roster by side, each side in its own colour, the activated unit unmistakable, and the
+   readout labels whole words (playtest m20: "Confiden/t" broke mid-word on a desk). */
+.stargrunt-roster-side {
+  display: grid;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--line-hot);
+}
+
+.stargrunt-roster-side.side-b {
+  border-left-color: var(--amber);
+}
+
+.stargrunt-unit.activating {
+  border-width: 2px;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber), inset 0 0 26px rgba(245, 199, 102, 0.12);
+}
+
+.stargrunt-unit .ship-readouts {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+.stargrunt-unit .ship-readouts .label,
+.stargrunt-unit .ship-readouts strong {
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
