@@ -21,6 +21,24 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Hardening pass 2026-11-21 (`harden/2026-11-21`)
+
+Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to fail on the old code.
+
+- [x] **The Playwright suite, run locally.** `npx playwright test` with `CHROMIUM_PATH=/usr/bin/chromium`:
+      9 of 9 pass. It covers only the map bench page (`vite.bench.config.ts`, no API), so it reaches
+      none of the ground screens; those are covered by the component tests.
+- [x] **The first test in a DOM test file timed out under load.** Seen as "launches an assault with
+      the elements ticked..." (`DirtsideAssault.test.tsx`) failing at vitest's 5 s. Measured: the
+      first test of every jsdom file paid for React's first render and testing-library's first role
+      query (~300 ms cold against ~25 ms warm) on top of its own work, so first tests ran 1-3 s
+      unloaded while the rest of the file ran in a few hundred ms (StarGruntView 2.8 s,
+      DirtsideView 2.1 s, DirtsideAssault 1.9 s, ErrorBoundary 1.4 s). Fixed without touching a
+      timeout: `src/test/warmDom.tsx`, a vitest `setupFiles` entry, renders a small form and runs
+      each kind of query once per DOM file in a `beforeAll` with its own budget. Unloaded, those
+      first tests dropped to 1.1 s, 0.5 s, 0.6 s and 0.3 s. Reproduced with 32 busy loops on 8
+      cores: the old config failed 2 of 4 full runs (that test both times), the new one passed 4 of 4.
+
 ## Two-device play 2026-11-16 (`test/two-player-smoke`)
 
 The long-standing top item - play one real two-device game since the turn structure changed - was

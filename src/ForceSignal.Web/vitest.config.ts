@@ -18,5 +18,9 @@ export default defineConfig({
     // in the first place.
     execArgv: ['--no-experimental-webstorage'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Warms React, testing-library's queries and jsdom in each DOM file before its first test, under
+    // a budget of its own, so that cold start is not charged to whichever test happens to be first.
+    // See src/test/warmDom.tsx.
+    setupFiles: ['src/test/warmDom.tsx'],
   },
 });
