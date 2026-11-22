@@ -458,3 +458,25 @@ describe('StarGrunt log', () => {
     expect(screen.getByText('Showing the most recent 300 of 350 lines.')).toBeTruthy();
   });
 });
+
+describe('StarGrunt unit cards are told apart', () => {
+  // Every card carried buttons named only "Activate", "Confidence Test" and "Scattered", so a screen
+  // reader - or a test, or a voice command - heard the same three names once per unit. Dirtside's
+  // per-element buttons were fixed for the same thing.
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('names the unit in every button on its card', async () => {
+    await open(`${wholeUnit},${wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "bravo", "name": "Bravo Squad", "side": "red"')}`);
+
+    for (const name of ['Alpha Squad', 'Bravo Squad']) {
+      expect(screen.getByRole('button', { name: `Activate ${name}` })).toBeTruthy();
+      expect(screen.getByRole('button', { name: `Confidence test for ${name}` })).toBeTruthy();
+      expect(screen.getByRole('button', { name: `Mark ${name} scattered` })).toBeTruthy();
+    }
+  });
+});

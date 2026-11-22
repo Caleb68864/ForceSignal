@@ -1013,9 +1013,17 @@ function UnitCard({
         {unit.nextMoveLeavesCover ? (unit.reactionTestCleared ? ' Ready to go.' : ' Next move leaves cover.') : ''}
       </p>
       <div className="quick-actions">
-        <button type="button" disabled={busy || !unit.canActivate} onClick={onActivate}>Activate</button>
-        <button className="ghost" type="button" disabled={busy} onClick={onTest}>Confidence Test</button>
-        <button className="ghost" type="button" disabled={busy} onClick={onToggleDisorganised}>
+        {/* Named for the unit: every card carries the same three buttons, and a name heard once per
+            unit says nothing about which unit it is. */}
+        <button type="button" disabled={busy || !unit.canActivate} aria-label={`Activate ${unit.name}`} onClick={onActivate}>Activate</button>
+        <button className="ghost" type="button" disabled={busy} aria-label={`Confidence test for ${unit.name}`} onClick={onTest}>Confidence Test</button>
+        <button
+          className="ghost"
+          type="button"
+          disabled={busy}
+          aria-label={unit.isDisorganised ? `Mark ${unit.name} in order` : `Mark ${unit.name} scattered`}
+          onClick={onToggleDisorganised}
+        >
           {unit.isDisorganised ? 'In Order' : 'Scattered'}
         </button>
       </div>

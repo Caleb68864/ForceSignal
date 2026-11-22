@@ -75,7 +75,13 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       nulled, emptied or pushed to the integer limits) ran against a fresh match with both ships
       locked, once with nothing revealed and once with the other ship already revealed: every
       answer was 4xx or a handled reveal, and the match read back afterwards each time. Nothing to
-      fix. Tests: one per screen ("... once the log is at its cap"), both
+      fix.
+- [x] **StarGrunt's unit cards gave every unit the same three button names.** "Activate",
+      "Confidence Test" and "Scattered" were heard once per unit with nothing saying which; Dirtside's
+      per-element buttons had been fixed for exactly this. Each now carries the unit's name
+      ("Activate Alpha Squad", "Confidence test for Alpha Squad", "Mark Alpha Squad scattered"); the
+      visible text is unchanged (`StarGruntView.test.tsx`, "names the unit in every button on its
+      card"; fails on the old code). Found writing the browser spec below. Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
 - [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
       with every field and list entry nulled in turn, against a dev server with a fleet, ships and
