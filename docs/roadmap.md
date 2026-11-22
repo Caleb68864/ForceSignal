@@ -236,6 +236,12 @@ that fails on the old code.
       and then, when the match has been read, the newest log line written since - "Mark fired Beam
       at Valiant: 2 damage." - skipping the per-ship state rows (`main.test.tsx` "what the other
       device did", failing on the old code).
+- [x] **p5. "NO MATCH" looked like a button, and the header's buttons wrapped at 1440px** ("How to /
+      play", "StarGrunt / II", the room chip). The phase status is plain amber text behind a marker
+      rule now, not a bordered box, and a header button that runs out of room moves to the next row
+      whole instead of breaking its words; the row wraps from the right on a desk and from the left
+      on a phone (`fullThrustLayout.spec.ts` "the header's buttons keep their words on one line",
+      failing on the old styles with four wrapped buttons).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

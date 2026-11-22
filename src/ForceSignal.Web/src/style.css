@@ -205,17 +205,24 @@ h3 {
 
 .topbar-status {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
   align-items: center;
 }
 
+/* A button that runs out of room moves to the next row whole, rather than breaking into "How to /
+   play" (playtest p5). */
+.topbar-status button {
+  white-space: nowrap;
+}
+
+/* The phase is a status, not a control: it wore a button's border and read as something to press
+   (playtest p5: "NO MATCH" looked like a button). */
 .topbar strong {
   min-width: max-content;
-  border: 1px solid var(--amber);
-  border-radius: 0;
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
-  padding: 10px 16px;
-  background: rgba(1, 8, 10, 0.96);
+  padding: 6px 4px 6px 12px;
+  border-left: 3px solid var(--amber);
   color: var(--amber);
   font-size: 0.92rem;
   text-transform: uppercase;
@@ -3708,4 +3715,10 @@ html {
 .log-snapshots summary {
   cursor: pointer;
   color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .topbar-status {
+    justify-content: flex-start;
+  }
 }

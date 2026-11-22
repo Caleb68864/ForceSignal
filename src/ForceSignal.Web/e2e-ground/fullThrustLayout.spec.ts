@@ -95,3 +95,18 @@ for (const [width, height] of [[390, 844], [1440, 900]] as const) {
     expect(cut).toEqual([]);
   });
 }
+
+test('the header\'s buttons keep their words on one line, and the status reads as a status (playtest p5)', async ({ page, request }) => {
+  await openSeededMatch(page, request);
+  await expect(page.locator('article.ship-card').first()).toBeVisible();
+
+  const wrapped = await page.locator('.topbar-status button').evaluateAll((buttons) => buttons.filter((button) => {
+    const range = document.createRange();
+    range.selectNodeContents(button);
+    return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size > 1;
+  }).map((button) => button.textContent));
+  expect(wrapped).toEqual([]);
+
+  const status = await page.locator('.topbar-status strong').evaluate((element) => getComputedStyle(element).borderTopStyle);
+  expect(status).toBe('none');
+});
