@@ -641,11 +641,16 @@ small,
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(410px, 1fr));
   gap: 12px;
+  /* Each card its own height: stretched to the expanded card beside it, a compact card's chips
+     became 130px boxes and its buttons 100px (playtest M5). */
+  align-items: start;
 }
 
 .ship-card {
   display: grid;
   gap: 12px;
+  /* Spare height - the min-height below - stays at the bottom instead of swelling every row. */
+  align-content: start;
   min-height: 560px;
   border: 1px solid #267885;
   padding: 16px;

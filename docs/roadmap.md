@@ -65,6 +65,13 @@ that fails on the old code.
       accent colour, inside labels that stay the tap target. `e2e-ground/touchTargets.spec.ts` "a
       checkbox is a checkbox" holds them to 20-28px at phone and tablet size (failing on the old
       styles). The map bench suite still passes (9 of 9).
+- [x] **M5. Full Thrust ship cards stretched to the tallest card in their row.** Grid items stretch
+      by default and the card's own grid shared the spare height out among its rows, so beside an
+      expanded card a compact card's chips were 184px tall boxes. The grid now aligns cards to the
+      top and each card keeps its spare height at the bottom. Covered by the first Full Thrust
+      browser spec, `e2e-ground/fullThrustLayout.spec.ts` at 1440x900, which seeds a match through
+      the API (`e2e-ground/fullThrustSeed.ts`: invented rules, two players, ships, both ready) and
+      opens it as the host; it failed on the old styles with a 184px chip.
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 
