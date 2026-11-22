@@ -9,6 +9,7 @@ import { newElementCard, toElementInputs } from '../../lib/dirtsideCard.ts';
 import type { DirtsideProfileDraft } from '../../lib/dirtsideProfile.ts';
 import {
   emptyProfileDraft,
+  firerWalkSummary,
   profileSummary,
   signatures,
   toProfileInput,
@@ -427,6 +428,43 @@ export function DirtsideView() {
             </label>
           </div>
           <p className="privacy">
+            The firer walk - how many rungs the firer's die moves from the one its sight rolls at
+            medium range - off your own rulebook. All three or none: left blank, the game plays this
+            app's built-in walk and says so on every screen.
+          </p>
+          <div className="table-fields">
+            <label title="Rungs the firer's die moves up for a shot in the close band. Zero is an answer.">
+              Firer walk: rungs up at close
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.firerWalkUpAtClose}
+                onChange={(event) =>
+                  setProfile({ ...profile, firerWalkUpAtClose: event.target.value })}
+              />
+            </label>
+            <label title="Rungs the firer's die moves down for a shot in the long band. Zero is an answer.">
+              Rungs down at long
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.firerWalkDownAtLong}
+                onChange={(event) =>
+                  setProfile({ ...profile, firerWalkDownAtLong: event.target.value })}
+              />
+            </label>
+            <label title="Rungs down for a firer that moved, or will move, over half. Zero is an answer.">
+              Rungs down moving over half
+              <input
+                inputMode="numeric"
+                placeholder="Not entered"
+                value={profile.firerWalkDownMovingOverHalf}
+                onChange={(event) =>
+                  setProfile({ ...profile, firerWalkDownMovingOverHalf: event.target.value })}
+              />
+            </label>
+          </div>
+          <p className="privacy">
             Which numbers your command markers carry as Leadership Values - both ends, off your own
             rulebook. This app ships none, and a marker cannot carry one until they are entered.
           </p>
@@ -525,6 +563,19 @@ export function DirtsideView() {
         }
       >
         Die tables: {profileSummary(snapshot.profile)}
+      </p>
+      {/*
+        Its own line, styled as the fallback pot is: the walk is the one profile entry the server
+        fills in by itself, so a game playing it is told so rather than left to read a null.
+      */}
+      <p
+        className={
+          snapshot.profile && !snapshot.profile.firerWalk
+            ? 'constraint-line warning'
+            : 'constraint-line'
+        }
+      >
+        Firer walk: {firerWalkSummary(snapshot.profile)}
       </p>
       <p className="constraint-line" aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
 

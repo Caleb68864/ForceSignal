@@ -16,7 +16,7 @@
 import { fireControls, postures, qualityDice } from './groundVocabulary.ts';
 import { leadershipValuesOf } from './leadershipValues.ts';
 import type { DirtsideRulesProfileInput } from './dirtsideApi.ts';
-import type { DirtsideRulesProfile } from '../types.ts';
+import type { DirtsideFirerWalk, DirtsideRulesProfile } from '../types.ts';
 
 /** The signatures a record card can carry. Which numbers exist, not what any of them rolls. */
 export const signatures = ['1', '2', '3', '4', '5'] as const;
@@ -41,6 +41,12 @@ export type DirtsideProfileDraft = {
   lowestLeadershipValue: string;
   /** The largest. Both ends or neither - the server refuses half a range where it is entered. */
   highestLeadershipValue: string;
+  /** Firer walk: rungs up for a shot at close range. Blank is not entered; 0 is an answer. */
+  firerWalkUpAtClose: string;
+  /** Rungs down for a shot at long range. */
+  firerWalkDownAtLong: string;
+  /** Rungs down for a firer that moved, or will move, over half. */
+  firerWalkDownMovingOverHalf: string;
 };
 
 /** A form nobody has typed into. */
@@ -56,6 +62,9 @@ export function emptyProfileDraft(): DirtsideProfileDraft {
     rungsLostUnderFire: '',
     lowestLeadershipValue: '',
     highestLeadershipValue: '',
+    firerWalkUpAtClose: '',
+    firerWalkDownAtLong: '',
+    firerWalkDownMovingOverHalf: '',
   };
 }
 
@@ -113,12 +122,14 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
   const lowest = enteredNumber(draft.lowestLeadershipValue);
   const highest = enteredNumber(draft.highestLeadershipValue);
   const rungsLostUnderFire = enteredNumber(draft.rungsLostUnderFire);
+  const firerWalk = firerWalkOf(draft);
 
   const entered =
     fireControl.length + posture.length + signature.length
     + (recoveryDie ? 1 : 0) + recoveryRoll + recoveryWithBackup + areaDefenceReach
     + (lowest === null ? 0 : 1) + (highest === null ? 0 : 1)
-    + (rungsLostUnderFire === null ? 0 : 1);
+    + (rungsLostUnderFire === null ? 0 : 1)
+    + (firerWalk ? 1 : 0);
   if (entered === 0) {
     return undefined;
   }
@@ -134,7 +145,59 @@ export function toProfileInput(draft: DirtsideProfileDraft): DirtsideRulesProfil
     ...(lowest === null ? {} : { lowestLeadershipValue: lowest }),
     ...(highest === null ? {} : { highestLeadershipValue: highest }),
     ...(rungsLostUnderFire === null ? {} : { rungsLostUnderFire }),
+    ...(firerWalk ? { firerWalk } : {}),
   };
+}
+
+/**
+ * The firer walk the table entered: all three rungs, or nothing.
+ *
+ * Unlike the Leadership Value pair, half a walk cannot be passed through for the server to refuse.
+ * The wire record takes three numbers and a member left out binds to zero there, which is an answer
+ * nobody gave - so a part-filled walk is refused here, naming the box still blank. A negative rung is
+ * sent as typed and refused by the server in its own words.
+ */
+function firerWalkOf(draft: DirtsideProfileDraft): DirtsideFirerWalk | undefined {
+  const rungs = [
+    { value: enteredNumber(draft.firerWalkUpAtClose), name: 'rungs up at close range' },
+    { value: enteredNumber(draft.firerWalkDownAtLong), name: 'rungs down at long range' },
+    { value: enteredNumber(draft.firerWalkDownMovingOverHalf), name: 'rungs down for moving over half' },
+  ];
+  const blank = rungs.filter((rung) => rung.value === null);
+  if (blank.length === rungs.length) {
+    return undefined;
+  }
+  if (blank.length > 0) {
+    throw new Error(
+      `The firer walk is part entered: ${blank.map((rung) => rung.name).join(', ')} still blank. `
+      + 'Enter all three rungs, or none to play the built-in walk.',
+    );
+  }
+  const [up, down, hurried] = rungs.map((rung) => rung.value as number);
+  return { rungsUpAtClose: up, rungsDownAtLong: down, rungsDownMovingOverHalf: hurried };
+}
+
+/**
+ * What the table should be told about the firer walk it is playing.
+ *
+ * The one entry the server still fills in by itself when nobody entered it, so it is reported the
+ * way the fallback chit pot is: as the app's, not the table's. The built-in rungs are named because
+ * a table checking a roll needs them, and they are exactly what the server plays.
+ */
+export function firerWalkSummary(profile: DirtsideRulesProfile | null | undefined): string {
+  if (!profile) {
+    return 'This server does not report which firer walk this game plays.';
+  }
+
+  const walk = profile.firerWalk;
+  if (!walk) {
+    return 'playing the built-in firer walk - one rung up at close, one down at long, one down for '
+      + 'moving over half. That is this app\'s walk, not your rulebook\'s: start a new game with your '
+      + 'own rungs to play yours.';
+  }
+
+  return `${walk.rungsUpAtClose} up at close, ${walk.rungsDownAtLong} down at long, `
+    + `${walk.rungsDownMovingOverHalf} down for moving over half, off your own rulebook.`;
 }
 
 /**
