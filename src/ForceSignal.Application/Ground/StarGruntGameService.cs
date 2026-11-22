@@ -378,11 +378,15 @@ public sealed class StarGruntGameService : IStarGruntGameService
     {
         ArgumentNullException.ThrowIfNull(request);
         GroundGameGuards.RequireAtMost(request.Pairings?.Count ?? 0, GroundGameGuards.MaxMeleePairings, "melee pairings");
-        var pairings = (request.Pairings ?? []).Select(pairing => new MeleePairing(
-            pairing.AttackerShift,
-            pairing.DefenderShift,
-            pairing.AttackerPowerArmour,
-            pairing.DefenderPowerArmour)).ToArray();
+        // An empty entry is an incomplete request, not a fault: refused by position, as the form
+        // numbers them, rather than dereferenced into a 500.
+        var pairings = (request.Pairings ?? []).Select((pairing, at) => pairing is null
+            ? throw new InvalidOperationException($"Melee pairing {at + 1} was sent empty.")
+            : new MeleePairing(
+                pairing.AttackerShift,
+                pairing.DefenderShift,
+                pairing.AttackerPowerArmour,
+                pairing.DefenderPowerArmour)).ToArray();
 
         return CommandWithHeld(gameId, (game, held) => game.FightMeleeRound(
             new UnitId(request.AttackerId),

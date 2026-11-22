@@ -1881,6 +1881,20 @@ public sealed partial class InMemoryMatchService(Func<int, int>? rollDie = null,
         {
             throw new InvalidOperationException("A movement order is required.");
         }
+
+        // An empty entry is an incomplete order, not a fault. Every reader of the list - the
+        // movement rules, the hash, the log line, flight operations - dereferenced it, so a
+        // `[null]` was a 500 at preview and would have been one at commit and reveal too.
+        if (order.TurnManeuvers is { } maneuvers)
+        {
+            for (var at = 0; at < maneuvers.Count; at++)
+            {
+                if (maneuvers[at] is null)
+                {
+                    throw new InvalidOperationException($"The order's turn maneuver {at + 1} was sent empty.");
+                }
+            }
+        }
     }
 
     private static ParticipantState FindParticipant(MatchState match, string token) =>

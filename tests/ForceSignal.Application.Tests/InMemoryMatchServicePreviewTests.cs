@@ -36,6 +36,21 @@ public sealed class InMemoryMatchServicePreviewTests
     }
 
     [Fact]
+    public void AnEmptyTurnManeuverIsRefusedByName()
+    {
+        // Found by posting `"turnManeuvers": [null]` to the preview: the movement rules dereferenced
+        // the entry and the server answered 500. Commit and reveal take the same order shape through
+        // the same check, so all three refuse it here.
+        var table = PreviewTable.Create();
+        var order = new MovementOrder(0, 0, TurnDirection.None, [new TurnManeuver(TurnDirection.Starboard, 1), null!]);
+
+        var refused = Assert.Throws<InvalidOperationException>(() => table.Service.PreviewOrder(
+            table.MatchId, new PreviewOrderRequest(table.OwnerToken, table.Ship.Id, order)));
+
+        Assert.Contains("turn maneuver 2", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PreviewOrder_PutsTheShipWhereTheGeometrySays()
     {
         // Pinned to worked-out numbers rather than only to agreement with resolution. The

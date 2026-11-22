@@ -258,6 +258,20 @@ public sealed partial class GroundGameHardeningTests
     }
 
     [Fact]
+    public void AMeleePairingLeftEmptyIsRefusedByName()
+    {
+        // Found by posting `"pairings": [null]`: the mapping dereferenced the entry and the server
+        // answered 500, "Something went wrong on the server", for a request that was simply incomplete.
+        var service = new StarGruntGameService();
+        var game = service.CreateGame(new CreateStarGruntGameRequest("Hill 43", StarGruntTestProfile.LeadershipValuesOnly)).GameId;
+
+        var refused = Assert.Throws<InvalidOperationException>(() => service.FightMelee(game, new StarGruntMeleeRequest(
+            "alpha", "bravo", [new StarGruntMeleePairingDto(), null!])));
+
+        Assert.Contains("pairing 2", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SettlingTheDownedCannotBeAskedToRollForever()
     {
         // Every roll a 1, so every settled figure is dead. The count arrives off the wire; before

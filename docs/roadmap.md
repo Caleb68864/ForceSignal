@@ -57,6 +57,23 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       whose newest entry changed. One case is still missed and is written on the helper: the very
       same sentence again at the cap. Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
+- [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
+      with every field and list entry nulled in turn, against a dev server with a fleet, ships and
+      ground games set up (scripts kept outside the repo). Three routes dereferenced the entry, and
+      the player read "Something went wrong on the server" for a request that was only incomplete:
+  - `POST .../assaults/melee` (StarGrunt) with `"pairings": [null]` - now refused naming the
+    pairing (`GroundGameHardeningTests.AMeleePairingLeftEmptyIsRefusedByName`).
+  - `POST .../rules-profile` with a `null` in the beam damage, point defence or turnaround table.
+    Create and restore do not check the profile, so the same entry was kept there and the match then
+    failed at readiness. `RulesProfile.Normalized()`, which every profile crossing into the app goes
+    through, now drops an empty entry: it carries no face and no score, so no number changes, and a
+    table left empty by it is still named by `Validate`
+    (`InMemoryMatchServiceRulesProfileTests.AnEmptyEntryInATableIsNotATableRow`).
+  - `POST .../orders/preview` with `"turnManeuvers": [null]`. `RequireOrder`, which preview, commit
+    and reveal all call, now refuses it naming the maneuver
+    (`InMemoryMatchServicePreviewTests.AnEmptyTurnManeuverIsRefusedByName`).
+  Each test fails on the old code with the `NullReferenceException`. Every other ground and Full
+  Thrust route came back 4xx for every variant.
 
 ## Two-device play 2026-11-16 (`test/two-player-smoke`)
 
