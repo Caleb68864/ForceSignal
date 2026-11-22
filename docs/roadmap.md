@@ -55,7 +55,47 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       alone and "did the log grow" read as "nothing logged": Dirtside then said only its fallback
       ("Turn opened.") and StarGrunt's Fire said nothing. `lib/newestLogEntry.ts` also counts a log
       whose newest entry changed. One case is still missed and is written on the helper: the very
-      same sentence again at the cap. Tests: one per screen ("... once the log is at its cap"), both
+      same sentence again at the cap. *Closed on `harden/2026-11-21b`:* both ground snapshots now
+      carry `logStart`, how many lines the cap has dropped over the game's life (kept in the row's
+      optional settings, so a restart does not reset it; additive, no format change). The screens
+      count a logged line as a rise in `logStart + log.length`, which a repeated sentence moves too;
+      the text comparison remains only for a server older than the field
+      (`GroundGameLogStartTests`, both engines, not compiling on the old code; `StarGruntView.test.tsx`,
+      "shows the same sentence again when the shot logs it at the cap", failing on the old code).
+- [x] **Both ground screens drew their whole log on every render.** Up to 2000 lines went into the DOM
+      on every render, every keystroke on the add-a-platoon form included - the stutter the Full Thrust
+      log was cut to 300 for. `components/ground/GroundLog.tsx` draws the newest 300, oldest first as
+      before, with "Showing the most recent 300 of N lines." above them; the snapshot keeps the whole
+      log, and rows are keyed by their place in the game's history so sliding the window re-renders
+      nothing else (`DirtsideView.test.tsx` "battle log", `StarGruntView.test.tsx` "StarGrunt log";
+      both fail on the old code).
+- [x] **Order reveal, fuzzed on throwaway matches.** Skipped in the first pass because an order that
+      cannot be proved before anything is public unlocks the ship by design, so fuzzing one live
+      match changes what the next variant meets. Each of 32 variants (every field and list entry
+      nulled, emptied or pushed to the integer limits) ran against a fresh match with both ships
+      locked, once with nothing revealed and once with the other ship already revealed: every
+      answer was 4xx or a handled reveal, and the match read back afterwards each time. Nothing to
+      fix.
+- [x] **StarGrunt's unit cards gave every unit the same three button names.** "Activate",
+      "Confidence Test" and "Scattered" were heard once per unit with nothing saying which; Dirtside's
+      per-element buttons had been fixed for exactly this. Each now carries the unit's name
+      ("Activate Alpha Squad", "Confidence test for Alpha Squad", "Mark Alpha Squad scattered"); the
+      visible text is unchanged (`StarGruntView.test.tsx`, "names the unit in every button on its
+      card"; fails on the old code). Found writing the browser spec below.
+- [x] **Browser coverage for the ground screens.** The Playwright suite only ever loaded the map bench
+      page. `e2e-ground/` now plays each ground screen against a real API with both engines on:
+      a Dirtside game created with the players' dice and firer walk, a platoon a side added through
+      the card editor, a turn begun and one activation moved and ended; a StarGrunt game created
+      with its Leadership Values, a squad a side added, and one activation stepped and ended. Each
+      also fails on any uncaught page error. `npm run e2e:ground` (`playwright.ground.config.ts`)
+      starts the API and the dev server unless something already answers on their ports, and CI's
+      `two-player` job now switches the engines on and runs it after the smoke script. Checked to
+      catch a regression: with the unit-card names above put back, the StarGrunt spec fails. Made
+      solid before relying on it: 4 repeats of both specs on 2 and 4 workers against a running pair,
+      and a cold run where the config starts its own pair, all green. One early run lost the engine
+      buttons to a features read that failed while the dev server was still settling; the specs now
+      open an engine through `e2e-ground/openEngine.ts`, which uses the screen's own Check Again
+      before failing, and keep a screenshot and trace of any failure. Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
 - [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
       with every field and list entry nulled in turn, against a dev server with a fleet, ships and

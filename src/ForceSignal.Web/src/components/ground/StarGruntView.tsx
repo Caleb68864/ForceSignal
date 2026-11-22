@@ -29,6 +29,7 @@ import {
   visibleBandRows,
 } from '../../lib/starGruntProfile.ts';
 import type { GameHandle, StarGruntRulesProfile, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
+import { GroundLog } from './GroundLog.tsx';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
 // - firing, shaking off suppression, rallying, reorganising - has a command and a button of its own,
@@ -222,10 +223,10 @@ export function StarGruntView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      const before = snapshot?.log ?? [];
+      const before = snapshot;
       const next = await work();
       setSnapshot(next);
-      say(note ?? newestLogEntry(before, next.log) ?? '');
+      say(note ?? newestLogEntry(before, next) ?? '');
     } catch (error) {
       fail(error);
     } finally {
@@ -970,9 +971,7 @@ export function StarGruntView() {
 
       <div className="card-module" aria-label="StarGrunt log">
         <span className="label module-title">Log</span>
-        {snapshot.log.length === 0
-          ? <p className="constraint-line">Nothing has happened yet.</p>
-          : <ul className="stargrunt-log">{snapshot.log.map((entry, index) => <li key={`${index}-${entry}`}>{entry}</li>)}</ul>}
+        <GroundLog log={snapshot.log} logStart={snapshot.logStart} listClassName="stargrunt-log" />
       </div>
     </section>
   );
@@ -1014,9 +1013,17 @@ function UnitCard({
         {unit.nextMoveLeavesCover ? (unit.reactionTestCleared ? ' Ready to go.' : ' Next move leaves cover.') : ''}
       </p>
       <div className="quick-actions">
-        <button type="button" disabled={busy || !unit.canActivate} onClick={onActivate}>Activate</button>
-        <button className="ghost" type="button" disabled={busy} onClick={onTest}>Confidence Test</button>
-        <button className="ghost" type="button" disabled={busy} onClick={onToggleDisorganised}>
+        {/* Named for the unit: every card carries the same three buttons, and a name heard once per
+            unit says nothing about which unit it is. */}
+        <button type="button" disabled={busy || !unit.canActivate} aria-label={`Activate ${unit.name}`} onClick={onActivate}>Activate</button>
+        <button className="ghost" type="button" disabled={busy} aria-label={`Confidence test for ${unit.name}`} onClick={onTest}>Confidence Test</button>
+        <button
+          className="ghost"
+          type="button"
+          disabled={busy}
+          aria-label={unit.isDisorganised ? `Mark ${unit.name} in order` : `Mark ${unit.name} scattered`}
+          onClick={onToggleDisorganised}
+        >
           {unit.isDisorganised ? 'In Order' : 'Scattered'}
         </button>
       </div>

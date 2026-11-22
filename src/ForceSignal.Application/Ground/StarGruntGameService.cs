@@ -171,7 +171,8 @@ public sealed class StarGruntGameService : IStarGruntGameService
                     1,
                     row.Token,
                     row.LastActivity,
-                    ReadStoredProfile(row.Settings));
+                    ReadStoredProfile(row.Settings),
+                    ReadStoredLogStart(row.Settings));
             }
 #pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
             catch (Exception ex)
@@ -471,6 +472,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
         var held = previous with
         {
             Game = TrimLog(game),
+            LogStart = previous.LogStart + Math.Max(0, game.Log.Length - GroundGameGuards.MaxLogEntries),
             Version = previous.Version + 1,
             LastActivity = DateTimeOffset.UtcNow,
         };
@@ -505,9 +507,28 @@ public sealed class StarGruntGameService : IStarGruntGameService
     /// retired every stored StarGrunt game on the machine.
     /// </remarks>
     private static string? WriteSettings(Held held) =>
-        held.Profile.IsBlank
+        held.Profile.IsBlank && held.LogStart == 0
             ? null
-            : JsonSerializer.Serialize(new StoredSettings(StarGruntRulesProfileMapping.ToDto(held.Profile)), SettingsJson);
+            : JsonSerializer.Serialize(
+                new StoredSettings(
+                    held.Profile.IsBlank ? null : StarGruntRulesProfileMapping.ToDto(held.Profile),
+                    held.LogStart),
+                SettingsJson);
+
+    /// <summary>How many log lines this game has dropped off the front, or 0 when the row does not say.</summary>
+    private static int ReadStoredLogStart(string? settings)
+    {
+        try
+        {
+            return string.IsNullOrWhiteSpace(settings)
+                ? 0
+                : Math.Max(0, JsonSerializer.Deserialize<StoredSettings>(settings, SettingsJson)?.LogStart ?? 0);
+        }
+        catch (JsonException)
+        {
+            return 0;
+        }
+    }
 
     /// <summary>
     /// Reads a stored row's range table, or answers a blank one.
@@ -708,7 +729,9 @@ public sealed class StarGruntGameService : IStarGruntGameService
             held.Version,
             // Reported whether or not anything was entered. A blank table coming back as a blank table
             // is what lets a screen say so before the first shot is refused, rather than after.
-            StarGruntRulesProfileMapping.ToDto(held.Profile));
+            StarGruntRulesProfileMapping.ToDto(held.Profile),
+            // Where the first line of Log sits in the game's whole history; see Dirtside's snapshot.
+            held.LogStart);
     }
 
     private static StarGruntUnitDto ToUnitDto(
@@ -765,14 +788,17 @@ public sealed class StarGruntGameService : IStarGruntGameService
     /// takes it as an argument to the command that reads it. Blank when nobody entered one, which is a
     /// playable state and not an error - it is the first shot that says what is missing.
     /// </param>
+    /// <param name="LogStart">How many log lines have been dropped off the front at the ceiling.</param>
     private sealed record Held(
         StarGruntGame Game,
         long Version,
         string Token,
         DateTimeOffset LastActivity,
-        StarGruntRulesProfile Profile);
+        StarGruntRulesProfile Profile,
+        int LogStart = 0);
 
     /// <summary>What the stored row's settings field holds for this engine.</summary>
     /// <param name="Profile">The range table, or null when nobody entered one.</param>
-    private sealed record StoredSettings(StarGruntRulesProfileDto? Profile = null);
+    /// <param name="LogStart">How many log lines have been dropped off the front at the ceiling.</param>
+    private sealed record StoredSettings(StarGruntRulesProfileDto? Profile = null, int LogStart = 0);
 }

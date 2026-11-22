@@ -383,6 +383,11 @@ public sealed record StarGruntUnitDto(
 /// not, so a screen can say "this game has no range table" before the first shot is refused rather
 /// than after.
 /// </param>
+/// <param name="LogStart">
+/// How many lines have been dropped off the front of <paramref name="Log"/> at the ceiling, over the
+/// game's whole life. A client tells whether a command logged anything from the change in
+/// <c>LogStart + Log.Count</c>, which keeps moving after the length stops.
+/// </param>
 public sealed record StarGruntSnapshotDto(
     Guid GameId,
     string Name,
@@ -395,7 +400,8 @@ public sealed record StarGruntSnapshotDto(
     IReadOnlyList<StarGruntUnitDto> Units,
     IReadOnlyList<string> Log,
     long Version,
-    StarGruntRulesProfileDto? Profile = null);
+    StarGruntRulesProfileDto? Profile = null,
+    int LogStart = 0);
 
 /// <summary>What creating a game hands back.</summary>
 /// <param name="GameId">The new game's id.</param>

@@ -420,4 +420,63 @@ describe('StarGrunt status line after a shot', () => {
     fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
     expect(await screen.findByText('Alpha Squad fired on Bravo Squad: one down.', { selector: 'p' })).toBeTruthy();
   });
+
+  it('shows the same sentence again when the shot logs it at the cap', async () => {
+    // The newest line is the same before and after, so only where the log starts can tell.
+    const full = [...Array.from({ length: 4 }, (_, index) => `entry ${index}`), 'Alpha Squad fired on Bravo Squad: one down.'];
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...firingSnapshot(full), logStart: 10 });
+    fire.mockResolvedValueOnce({ ...firingSnapshot([...full.slice(1), 'Alpha Squad fired on Bravo Squad: one down.']), logStart: 11 });
+
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    expect(await screen.findByText('Alpha Squad fired on Bravo Squad: one down.', { selector: 'p' })).toBeTruthy();
+  });
+});
+
+describe('StarGrunt log', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('draws only the newest 300 lines of a long log, and says so', async () => {
+    const log = Array.from({ length: 350 }, (_, index) => `entry ${index}`);
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...snapshotFrom(wholeUnit), log });
+
+    const { container } = render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    const lines = container.querySelectorAll('[aria-label="StarGrunt log"] li');
+    expect(lines.length).toBe(300);
+    expect(lines[0].textContent).toBe('entry 50');
+    expect(screen.getByText('Showing the most recent 300 of 350 lines.')).toBeTruthy();
+  });
+});
+
+describe('StarGrunt unit cards are told apart', () => {
+  // Every card carried buttons named only "Activate", "Confidence Test" and "Scattered", so a screen
+  // reader - or a test, or a voice command - heard the same three names once per unit. Dirtside's
+  // per-element buttons were fixed for the same thing.
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('names the unit in every button on its card', async () => {
+    await open(`${wholeUnit},${wholeUnit.replace('"id": "alpha", "name": "Alpha Squad", "side": "blue"', '"id": "bravo", "name": "Bravo Squad", "side": "red"')}`);
+
+    for (const name of ['Alpha Squad', 'Bravo Squad']) {
+      expect(screen.getByRole('button', { name: `Activate ${name}` })).toBeTruthy();
+      expect(screen.getByRole('button', { name: `Confidence test for ${name}` })).toBeTruthy();
+      expect(screen.getByRole('button', { name: `Mark ${name} scattered` })).toBeTruthy();
+    }
+  });
 });
