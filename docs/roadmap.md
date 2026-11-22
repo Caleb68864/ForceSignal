@@ -103,6 +103,15 @@ that fails on the old code.
       line shows only while the order is hidden and orders are being written, locked or revealed;
       the order chip only in those phases. (`main.test.tsx` "reports an opponent ship out of its own
       numbers", failing on the old code, covers m2 and m3.)
+- [x] **m4. A ship with no thrust and no weapons was accepted without a word**, and showed as
+      Operational. Warnings only: adding one says so ("...added with no thrust and no weapons. If
+      that is not what its record card says, open Edit Stats."), and the setup checklist names it.
+      The turn cap at thrust 0 is a rules question and is left alone (`rules.test.ts` "a ship with
+      nothing entered", failing on the old code).
+- [x] **m5. A bad fleet file showed the JSON parser's error.** It now says "broken.json isn't a
+      ForceSignal fleet file - it is not readable JSON. Nothing was imported.", and a JSON file with
+      no list of ships - which used to import as nothing, silently - is refused the same way
+      (`fleetIo.test.ts` "a file that is not a fleet", failing on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

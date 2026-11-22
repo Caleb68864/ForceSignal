@@ -123,7 +123,20 @@ export function toFleetExport(fleet: Fleet, ships: Ship[]): FleetExport {
 }
 export function parseFleetExport(text: string, fileName: string, fallback: ShipForm, maxScreenLevel = 0): FleetExport {
   if (fileName.toLowerCase().endsWith('.json')) {
-    return normalizeFleetExport(JSON.parse(text), fallback, fileName, maxScreenLevel);
+    // A file that will not parse is not a ForceSignal fleet, and the parser's own words ("Unexpected
+    // token } in JSON at position 413") told the player nothing (playtest m5).
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(`${fileName} isn't a ForceSignal fleet file - it is not readable JSON. Nothing was imported.`);
+    }
+
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).ships)) {
+      throw new Error(`${fileName} isn't a ForceSignal fleet file - it has no list of ships. Nothing was imported.`);
+    }
+
+    return normalizeFleetExport(parsed, fallback, fileName, maxScreenLevel);
   }
 
   const rows = parseCsv(text).filter((row) => row.some((cell) => cell.trim().length > 0));

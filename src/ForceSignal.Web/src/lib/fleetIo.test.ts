@@ -97,8 +97,9 @@ describe('parseFleetExport', () => {
 
   it('refuses an empty CSV and a JSON file that is not an object', () => {
     expect(() => parseFleetExport('\n\n', 'x.csv', defaultShipForm)).toThrow('CSV import is empty.');
-    expect(() => parseFleetExport('[]', 'x.json', defaultShipForm)).not.toThrow();
-    expect(() => parseFleetExport('null', 'x.json', defaultShipForm)).toThrow('Fleet JSON must be an object.');
+    // Neither is a fleet: an empty list used to import as nothing, without a word (playtest m5).
+    expect(() => parseFleetExport('[]', 'x.json', defaultShipForm)).toThrow('it has no list of ships');
+    expect(() => parseFleetExport('null', 'x.json', defaultShipForm)).toThrow('it has no list of ships');
   });
 });
 
@@ -228,5 +229,12 @@ describe('normalizeSavedFleets', () => {
     expect(normalizeSavedFleets(null, defaultShipForm)).toEqual([]);
     expect(normalizeSavedFleets({ fleet: good.fleet }, defaultShipForm)).toEqual([]);
     expect(normalizeSavedFleets('[]', defaultShipForm)).toEqual([]);
+  });
+});
+
+describe('a file that is not a fleet (playtest m5)', () => {
+  it('says so in words instead of the JSON parser\'s', () => {
+    expect(() => parseFleetExport('{ "ships": [ }', 'broken.json', defaultShipForm)).toThrow("broken.json isn't a ForceSignal fleet file - it is not readable JSON. Nothing was imported.");
+    expect(() => parseFleetExport('{ "name": "x" }', 'other.json', defaultShipForm)).toThrow('it has no list of ships');
   });
 });

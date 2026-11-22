@@ -613,7 +613,11 @@ function App() {
       ...current,
       name: nextShipName(current.name),
     }));
-    setMessage('Ship added to fleet.');
+    // Accepted as entered, but said: a ship with no thrust and no mounts is usually a form left at
+    // its blanks, and it showed as Operational with a turn cap of 12 (playtest m4).
+    setMessage(shipForm.thrustRating === 0 && shipForm.weapons.length === 0
+      ? `${shipForm.name} was added with no thrust and no weapons. If that is not what its record card says, open Edit Stats.`
+      : 'Ship added to fleet.', shipForm.thrustRating === 0 && shipForm.weapons.length === 0 ? 'info' : undefined);
   }
 
   function exportOwnedFleet(format: 'json' | 'csv') {
