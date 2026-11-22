@@ -1049,8 +1049,8 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
       the cost per level is a parameter - the precedent Dirtside's rider check set.
 - [ ] **Dirtside's firer walk**, `(int)band + (firerMovedOverHalf ? -1 : 0)`: the `WeaponRangeBand`
       enum values *are* the table - close +1, medium 0, long -1 - and a hurried shot costs one more.
-      The same shape StarGrunt's walk was. **Partly done 2026-11-09 (engine and wire; not the
-      screen).** The walk is an entry now: `DirtsideRulesProfile.FirerWalk` (`Combat/FirerWalk`:
+      The same shape StarGrunt's walk was. **Partly done 2026-11-09 (engine and wire); the
+      screen 2026-11-21. Only the owner's call at the end is left.** The walk is an entry now: `DirtsideRulesProfile.FirerWalk` (`Combat/FirerWalk`:
       rungs up at close, down at long, down for moving over half), read by `HitResolution.Solve`
       through `FirerWalk.Steps`, so the enum's values no longer carry it. On the wire as the optional
       `DirtsideRulesProfileDto.FirerWalk` (`DirtsideFirerWalkDto`), mapped both ways, a negative rung
@@ -1060,11 +1060,22 @@ touched in any form, any call on `QualityDice`, an integer cast to a die, the di
       profile, so a refusal would strand every stored game's close and long shots. Additive and
       optional, so no `GroundGameRecord.FormatVersion` change and no stored game is retired. Still
       in `NotYetThePlayers` (reason reworded) because the fallback is this app's number. Left open:
-      - [ ] The create screen has no field for it (`lib/dirtsideProfile.ts`, `DirtsideView.tsx`,
+      - [x] The create screen has no field for it (`lib/dirtsideProfile.ts`, `DirtsideView.tsx`,
             `types.ts`, `lib/dirtsideApi.ts`), so today only an API client can enter one.
-      - [ ] The snapshot reports the fallback only by a null `firerWalk` on the profile; the
+            *Fixed 2026-11-21 on `feat/dirtside-firer-walk-screen`:* three boxes beside "Rungs lost
+            under fire", blank meaning not entered and zero an answer. All three or none: a walk
+            part entered is refused on the screen naming the blank box, because the wire record
+            takes three numbers and a member left out would bind to zero on the server - an answer
+            nobody gave. A negative rung is sent as typed and refused by the server in its words.
+      - [x] The snapshot reports the fallback only by a null `firerWalk` on the profile; the
             screen should say "playing the built-in firer walk" the way the default chit pot is
-            reported (`DirtsideGameService.cs:1059`).
+            reported (`DirtsideGameService.cs:1059`). *Fixed with the above:* a "Firer walk:" line
+            under the die tables, in the warning style when the built-in walk is played, naming its
+            rungs and saying they are this app's; an entered walk is read back as the table's
+            (`firerWalkSummary`). Tests: `dirtsideProfile.test.ts` ("the firer walk on the draft",
+            "what the table is told about its firer walk") and `DirtsideView.test.tsx` ("DirtsideView
+            firer walk"); seven fail on the old code, the eighth (no walk sent when none entered) is
+            the control.
       - [x] Mapping round-trip and negative-rung refusal over HTTP:
             `DirtsideEndpointTests.TheFirerWalkRoundTripsAndANegativeRungIsRefused`.
       - [ ] Owner's call: whether the fallback becomes a refusal once profiles can be edited, which

@@ -767,6 +767,16 @@ export type DirtsideRulesProfile = {
   highestLeadershipValue?: number | null;
   // Rungs an Under Fire marker costs a fire-effectiveness check. Null when nobody entered it.
   rungsLostUnderFire?: number | null;
+  // How far a shot's band and a hurried firer move the firer's die. Null when nobody entered it, and
+  // then the server plays its own built-in walk rather than refusing - the screen says so.
+  firerWalk?: DirtsideFirerWalk | null;
+};
+
+/** Rungs the firer's die moves from the die its sight rolls at medium range. Off the players' rulebook. */
+export type DirtsideFirerWalk = {
+  rungsUpAtClose: number;
+  rungsDownAtLong: number;
+  rungsDownMovingOverHalf: number;
 };
 
 /** How many chits of one colour and number the pot holds. Counted off the user's own sheet. */

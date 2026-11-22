@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   emptyProfileDraft,
+  firerWalkSummary,
   profileSummary,
   signatures,
   toProfileInput,
@@ -150,6 +151,72 @@ describe('the die table draft', () => {
     expect(input?.fireControl.map((row) => row.key)).toEqual([...fireControls]);
     expect(input?.posture.map((row) => row.key)).toEqual([...postures]);
     expect(input?.signature.map((row) => row.key)).toEqual([...signatures]);
+  });
+});
+
+describe('the firer walk on the draft', () => {
+  // The walk is the one Dirtside entry the server still fills in by itself when nobody entered it
+  // (FirerWalk.BuiltIn), so the form is the only place a table can say it plays something else.
+  it('sends the three rungs the table entered, zero included', () => {
+    const draft = emptyProfileDraft();
+    draft.firerWalkUpAtClose = '2';
+    draft.firerWalkDownAtLong = '0';
+    draft.firerWalkDownMovingOverHalf = '1';
+
+    expect(toProfileInput(draft)?.firerWalk).toEqual({
+      rungsUpAtClose: 2,
+      rungsDownAtLong: 0,
+      rungsDownMovingOverHalf: 1,
+    });
+  });
+
+  it('sends no walk when none of it was entered, so the server plays and reports its own', () => {
+    const draft = emptyProfileDraft();
+    draft.fireControl.Basic = 'D6';
+
+    expect(toProfileInput(draft)).not.toHaveProperty('firerWalk');
+  });
+
+  it('refuses half a walk by name rather than letting the blank arrive as a zero', () => {
+    // The wire record takes three numbers; a member left out binds to 0 on the server, which is
+    // an answer nobody gave. So the form refuses it where the blank field still is.
+    const draft = emptyProfileDraft();
+    draft.firerWalkUpAtClose = '1';
+
+    expect(() => toProfileInput(draft)).toThrow(/rungs down at long range/);
+  });
+});
+
+describe('what the table is told about its firer walk', () => {
+  const blank: DirtsideRulesProfile = {
+    fireControl: [],
+    posture: [],
+    signature: [],
+    systemsDownRecoveryDie: null,
+    systemsDownRecoveryRoll: 0,
+    systemsDownRecoveryRollWithBackup: 0,
+    areaDefenceReach: 0,
+  };
+
+  it('says the game is playing the built-in walk when none was entered', () => {
+    const said = firerWalkSummary({ ...blank, firerWalk: null });
+
+    expect(said).toContain('playing the built-in firer walk');
+    expect(said).toContain('not your rulebook');
+  });
+
+  it('reads back the walk the table entered as theirs', () => {
+    const said = firerWalkSummary({
+      ...blank,
+      firerWalk: { rungsUpAtClose: 2, rungsDownAtLong: 0, rungsDownMovingOverHalf: 3 },
+    });
+
+    expect(said).toContain('2 up at close, 0 down at long, 3 down for moving over half');
+    expect(said).not.toContain('built-in');
+  });
+
+  it('does not pretend to know when the server says nothing', () => {
+    expect(firerWalkSummary(null)).toContain('does not report');
   });
 });
 

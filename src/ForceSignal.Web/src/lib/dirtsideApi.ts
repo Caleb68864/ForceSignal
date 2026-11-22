@@ -9,6 +9,7 @@
 
 import { get, post } from './api.ts';
 import type {
+  DirtsideFirerWalk,
   DirtsideGameCreated,
   DirtsideNumericalChits,
   DirtsideSnapshot,
@@ -47,6 +48,8 @@ export type DirtsideRulesProfileInput = {
   lowestLeadershipValue?: number;
   highestLeadershipValue?: number;
   rungsLostUnderFire?: number;
+  /** All three rungs or none; left out, the server plays its built-in walk and says so. */
+  firerWalk?: DirtsideFirerWalk;
 };
 
 /**

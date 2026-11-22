@@ -3,13 +3,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dirtsideGameKey } from '../../constants.ts';
 import { ApiRequestError } from '../../lib/api.ts';
-import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
+import type { DirtsideElementState, DirtsideGameCreated, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 import { DirtsideView } from './DirtsideView.tsx';
 
 const readGame = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
 const beginTurn = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
 const endTurn = vi.fn<(game: GameHandle) => Promise<DirtsideSnapshot>>();
+const createGame = vi.fn<(name: string, chitPot?: unknown, profile?: unknown) => Promise<DirtsideGameCreated>>();
 vi.mock('../../lib/dirtsideApi.ts', () => ({
+  createGame: (name: string, chitPot?: unknown, profile?: unknown) => createGame(name, chitPot, profile),
   readGame: (game: GameHandle) => readGame(game),
   beginTurn: (game: GameHandle) => beginTurn(game),
   endTurn: (game: GameHandle) => endTurn(game),
@@ -331,5 +333,52 @@ describe('DirtsideView status line', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Begin Turn' }));
 
     await waitFor(() => expect(status()).toBe('Turn 2 began; red keeps the initiative.'));
+  });
+});
+
+describe('DirtsideView firer walk', () => {
+  // The walk reached the engine and the wire on 2026-11-09 and not the screen: only an API client
+  // could enter one, and a game that fell back to the built-in walk said so only by a null field.
+  const profile: DirtsideSnapshot['profile'] = {
+    fireControl: [{ key: 'Basic', die: 'D6' }],
+    posture: [],
+    signature: [],
+    systemsDownRecoveryDie: null,
+    systemsDownRecoveryRoll: 0,
+    systemsDownRecoveryRollWithBackup: 0,
+    areaDefenceReach: 0,
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    createGame.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('sends the walk typed on the create screen', async () => {
+    createGame.mockResolvedValue({ ...handle, snapshot: { ...snapshot, profile } });
+
+    render(<DirtsideView />);
+    fireEvent.change(screen.getByLabelText('Firer walk: rungs up at close'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Rungs down at long'), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('Rungs down moving over half'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start Game' }));
+
+    await waitFor(() => expect(createGame).toHaveBeenCalled());
+    expect(createGame.mock.calls[0][2]).toMatchObject({
+      firerWalk: { rungsUpAtClose: 2, rungsDownAtLong: 0, rungsDownMovingOverHalf: 3 },
+    });
+  });
+
+  it('says on the game screen when the built-in walk is being played', async () => {
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...snapshot, profile: { ...profile, firerWalk: null } });
+
+    render(<DirtsideView />);
+
+    const line = await screen.findByText(/playing the built-in firer walk/);
+    expect(line.className).toContain('warning');
   });
 });
