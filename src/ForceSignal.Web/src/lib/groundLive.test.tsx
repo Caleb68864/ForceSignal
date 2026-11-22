@@ -16,6 +16,7 @@ vi.mock('@microsoft/signalr', () => {
   class HubConnectionBuilder {
     withUrl(url: string) { hub.url = url; return this; }
     withAutomaticReconnect() { return this; }
+    configureLogging() { return this; }
     build() {
       return {
         on: (event: string, handler: (...args: unknown[]) => void) => { hub.handlers[event] = handler; },
@@ -29,7 +30,7 @@ vi.mock('@microsoft/signalr', () => {
     }
   }
 
-  return { HubConnectionBuilder };
+  return { HubConnectionBuilder, LogLevel: { None: 6 } };
 });
 
 const game: GameHandle = { gameId: 'game-1', token: 'token-1' };

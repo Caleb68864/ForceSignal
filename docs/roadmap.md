@@ -197,6 +197,13 @@ outside the repo; only what they found is recorded here.
       and sees it on the other, all without a reload; and a third context with one character of the
       code wrong is told the code opens nothing. Green on repeats. Done for both engines; the screen
       code is shared, and the StarGrunt half is covered by the component tests.
+      *CI fix:* the verify job failed with three unhandled vitest errors ("Closing rpc while
+      'onUserConsoleLog' was pending") - on CI's Node 22 the ground screens' component tests really
+      started a SignalR connection in jsdom, and SignalR's own logger wrote after the tests ended.
+      The three ground screen test files now mock the live hook (it has its own test with a mocked
+      hub), and the hook turns SignalR's logger off, since it reports its own failures and only while
+      mounted. `npm test` three times locally: 488 passed, exit 0, no connection logs. Not
+      reproducible on this machine's Node 26, where the start never got far enough to log.
 
 ## Hardening pass 2026-11-09 (`harden/2026-11-09`)
 

@@ -42,6 +42,9 @@ export function useGroundLive(
     let attempts = 0;
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(`${apiBaseUrl}/hubs/ground`)
+      // This hook reports its own failures, once, and only while the screen is still mounted;
+      // SignalR's own logger would otherwise write after the screen - or a test - had gone.
+      .configureLogging(signalR.LogLevel.None)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: (context) =>
           Math.min(30_000, 1_000 * 2 ** Math.min(context.previousRetryCount, 5)),

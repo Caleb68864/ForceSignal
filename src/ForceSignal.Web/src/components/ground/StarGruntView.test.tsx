@@ -11,6 +11,9 @@ const addUnit = vi.fn<(game: GameHandle, unit: Record<string, unknown>) => Promi
 const fightMelee = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
 const createGame = vi.fn<(name: string, profile?: Record<string, unknown>) => Promise<GameHandle & { snapshot: StarGruntSnapshot }>>();
 const fire = vi.fn<(game: GameHandle, request: Record<string, unknown>) => Promise<StarGruntSnapshot>>();
+// The live link to other devices is covered in groundLive.test.ts. Here it must not reach for a
+// server: in jsdom a real SignalR start fails and logs after the test has ended.
+vi.mock('../../lib/groundLive.ts', () => ({ useGroundLive: () => 'offline' }));
 vi.mock('../../lib/starGruntApi.ts', () => ({
   fire: (game: GameHandle, request: Record<string, unknown>) => fire(game, request),
   readGame: (game: GameHandle) => readGame(game),
