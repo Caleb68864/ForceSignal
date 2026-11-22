@@ -266,6 +266,14 @@ that fails on the old code.
       Tests: `InMemoryMatchServiceThresholdTests` "InFiringEachShipSaysWhetherItHasATargetInArcAndReachOnTheMap"
       and "OutsideFiringNoShipIsJudgedForTargets"; `nextStep.test.ts` "ships with nothing to shoot
       at" (two of three failing on the old code).
+- [x] **Design suggestion 2. A one-row-per-ship plotting table.** Eight ships took about thirty taps
+      a turn: focus a card, open its helm, plot, next card. In order entry the Ships view now opens
+      with a Fleet orders table - a row for each of your ships with speed down and up a step, a turn a
+      step to port or starboard, Drift, and "To all" to give every ship that order - through the same
+      clamps and the same locked-order guard as the card's helm, which is still there for anything
+      finer. On a phone each row stacks into two columns of 44px controls (`main.test.tsx` "plots
+      every ship from one table", failing on the old code). *Left:* plotting by dragging on the map,
+      which the card and map already allow for the focused ship.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

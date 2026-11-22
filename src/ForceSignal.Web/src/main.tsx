@@ -61,6 +61,7 @@ import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from 
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { BattleOverPanel } from './components/BattleOverPanel.tsx';
 import { BattleLog } from './components/BattleLog.tsx';
+import { FleetOrdersTable } from './components/FleetOrdersTable.tsx';
 import { possessive } from './lib/possessive.ts';
 import { gapsIn } from './lib/rulesProfile.ts';
 
@@ -1998,6 +1999,16 @@ function App() {
                 ownedShipIds={visibleOwnedShipIds}
                 damageUndoLabel={damageUndo?.shipName}
                 onUndoDamage={() => run(undoLastDamage)}
+              />
+            ) : null}
+
+            {activeView === 'ships' && snapshot?.phase === 'OrderEntry' && !snapshot.battleOver ? (
+              <FleetOrdersTable
+                ships={ownedShips}
+                drafts={drafts}
+                orderStatuses={snapshot.orderStatuses}
+                onDraftChange={updateDraft}
+                onCopyToFleet={applyOrderToOwnedFleet}
               />
             ) : null}
 

@@ -789,6 +789,29 @@ describe('the end of a battle (playtest M1)', () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it('plots every ship from one table, a row a ship (design suggestion 2)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const board = inPlay(2);
+    const blueTwo = { ...board.ships[0], id: 'ship-blue-2', name: 'Vigilant' };
+    get.mockResolvedValue({ ...board, ships: [...board.ships, blueTwo] });
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+
+    const table = await screen.findByLabelText('Fleet orders');
+    fireEvent.click(screen.getByLabelText('Turn Valiant to starboard'));
+    fireEvent.click(screen.getByLabelText('Speed up Valiant'));
+    const valiantRow = screen.getByText('Valiant', { selector: 'th' }).closest('tr') as HTMLElement;
+    expect(valiantRow.textContent).toContain('+1');
+    expect(valiantRow.textContent).toMatch(/S1/);
+
+    fireEvent.click(screen.getByLabelText("Give every ship Valiant's order"));
+    const vigilantRow = screen.getByText('Vigilant', { selector: 'th' }).closest('tr') as HTMLElement;
+    await waitFor(() => expect(vigilantRow.textContent).toMatch(/S1/));
+    expect(table).toBeTruthy();
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));
