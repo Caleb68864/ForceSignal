@@ -176,7 +176,7 @@ public sealed record StarGruntUnitActionRequest(string UnitId);
 /// How serious it was, read off the player's own threat table. Not supplied by this app: the table
 /// is rated against the force's mission motivation and belongs to the user's rules.
 /// </param>
-public sealed record StarGruntConfidenceTestRequest(string UnitId, int ThreatLevel);
+public sealed record StarGruntConfidenceTestRequest(string UnitId, int? ThreatLevel);
 
 /// <summary>Spends a command element's action steadying a subordinate.</summary>
 /// <param name="RallyingUnitId">The command element, which spends the action.</param>
@@ -189,7 +189,7 @@ public sealed record StarGruntRallyRequest(string RallyingUnitId, string Rallied
 /// How much they are being asked to swallow, off the player's own table. Mission motivation does
 /// not scale a reaction test.
 /// </param>
-public sealed record StarGruntReactionTestRequest(string UnitId, int ThreatLevel);
+public sealed record StarGruntReactionTestRequest(string UnitId, int? ThreatLevel);
 
 /// <summary>Declares that a unit's next move would take it out of cover or on to a located enemy.</summary>
 /// <param name="UnitId">The unit.</param>

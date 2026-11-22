@@ -10,6 +10,7 @@
 
 import { useEffect } from 'react';
 import type { NextStep } from '../lib/nextStep.ts';
+import { useStickyClearance } from '../lib/useStickyClearance.ts';
 
 export type NoticeTone = 'success' | 'error' | 'info';
 /** `at` is when it was said, so a phase change can tell a fresh message from an old one. */
@@ -30,8 +31,9 @@ export function NextStepBanner({ step, notice, onDismiss, action }: { step: Next
     return () => window.clearTimeout(timer);
   }, [notice, onDismiss]);
 
+  const bar = useStickyClearance<HTMLElement>();
   return (
-    <section className={step?.yourMove ? 'next-step your-move' : 'next-step'} data-testid="next-step" aria-label="What to do next">
+    <section ref={bar} className={step?.yourMove ? 'next-step your-move' : 'next-step'} data-testid="next-step" aria-label="What to do next">
       {step ? (
         <div className="next-step-guide">
           <span className="label">{step.heading}</span>

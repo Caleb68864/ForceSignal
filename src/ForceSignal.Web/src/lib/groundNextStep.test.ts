@@ -36,3 +36,28 @@ describe('where a ground turn has got to', () => {
     expect(step.you).toBe('Begin Turn to start turn 4.');
   });
 });
+
+describe('the one button to press (playtest M9)', () => {
+  const unit = (side: string, canActivate: boolean, hasActivated: boolean) => ({ side, canActivate, hasActivated });
+
+  it('points at End Turn once every unit has gone, instead of "blue to act"', () => {
+    const step = groundNextStep({ ...base, phase: 'Activating', activeSide: 'blue', units: [unit('blue', false, true), unit('red', false, true)] }, 'unit');
+    expect(step.primary).toBe('end-turn');
+    expect(step.you).toBe('Every unit has gone. End Turn.');
+  });
+
+  it('tells a side with nothing it can activate to pass', () => {
+    const step = groundNextStep({ ...base, phase: 'Activating', activeSide: 'blue', units: [unit('blue', false, true), unit('red', false, false)] }, 'platoon');
+    expect(step.primary).toBe('pass');
+    expect(step.side).toBe('blue');
+    expect(step.you).toBe('blue has nothing it can activate now: press blue passes.');
+  });
+
+  it('highlights Begin Turn, the first-activator choice, an activation and End Activation in their phases', () => {
+    expect(groundNextStep({ ...base, turnNumber: 0, phase: 'NotStarted' }, 'unit').primary).toBe('begin-turn');
+    expect(groundNextStep({ ...base, phase: 'ChoosingFirstActivator' }, 'unit').primary).toBe('choose-first');
+    expect(groundNextStep({ ...base, phase: 'Activating', activeSide: 'blue', units: [unit('blue', true, false)] }, 'unit').primary).toBe('activate');
+    expect(groundNextStep({ ...base, phase: 'Activating', activatingName: 'Anvil' }, 'unit').primary).toBe('end-activation');
+    expect(groundNextStep({ ...base, phase: 'TurnEnded' }, 'unit').primary).toBe('begin-turn');
+  });
+});

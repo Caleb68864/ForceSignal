@@ -616,6 +616,25 @@ public sealed class ApiHardeningTests
     }
 
     [Fact]
+    public async Task TheGameCreationBudgetCanBeRaisedForATestServer()
+    {
+        // A browser test run opens a game per test from one address and met the budget part-way
+        // through; its own server raises it. Unset, the budget is unchanged (the test above).
+        using var factory = CreateFactory(new Dictionary<string, string?>
+        {
+            ["Features:Dirtside"] = "true",
+            ["RateLimits:GameCreatesPerMinute"] = "100",
+        });
+        using var client = factory.CreateClient();
+
+        for (var attempt = 0; attempt < 15; attempt++)
+        {
+            using var response = await client.PostAsJsonAsync("/api/dirtside/games", new { name = $"Run {attempt}" });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task ATableOpeningOneGroundGame_IsNotTurnedAway()
     {
         using var factory = CreateFactory(new Dictionary<string, string?>

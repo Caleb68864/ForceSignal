@@ -2220,9 +2220,23 @@ small,
   .order-form,
   .firing-console,
   .profile-fields,
-  .ship-readouts,
   .damage-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Three across rather than one per row: a ship's readouts were a screen's height on a phone
+     (playtest M10). */
+  .ship-readouts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .ship-readouts div {
+    padding: 6px 8px;
+  }
+
+  .ship-readouts strong {
+    font-size: 1.05rem;
   }
 
   .auth-wide {
@@ -3244,9 +3258,10 @@ small,
     font-size: 0.92rem;
   }
 
-  /* Room for the fixed banner, so it never sits over the last control on the page. */
-  .shell:has(> .next-step) {
-    padding-bottom: 150px;
+  /* Room for the fixed banner, so it never sits over the last control on the page - the ground
+     screens' banner included, which is not a direct child of the shell. */
+  .shell:has(.next-step) {
+    padding-bottom: calc(var(--sticky-clearance, 142px) + 8px);
   }
 }
 
@@ -3530,4 +3545,18 @@ small,
 .battle-over-sides {
   margin: 0;
   padding-left: 18px;
+}
+
+/* Scrolling something into view - keyboard focus, find, a click - leaves it below the sticky
+   "What to do next" line, whose height is measured into --sticky-clearance. */
+html {
+  scroll-padding-top: calc(var(--sticky-clearance, 0px) + 8px);
+}
+
+/* On a phone the line is fixed to the bottom edge instead, so that is the edge to keep clear. */
+@media (max-width: 720px) {
+  html {
+    scroll-padding-top: 0;
+    scroll-padding-bottom: calc(var(--sticky-clearance, 0px) + 8px);
+  }
 }

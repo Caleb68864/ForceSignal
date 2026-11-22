@@ -306,7 +306,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
     public StarGruntSnapshotDto TakeConfidenceTest(Guid gameId, StarGruntConfidenceTestRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Command(gameId, game => game.TakeConfidenceTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+        return Command(gameId, game => game.TakeConfidenceTest(new UnitId(request.UnitId), GroundGameGuards.EnteredThreat(request.ThreatLevel), _dice));
     }
 
     /// <inheritdoc />
@@ -348,7 +348,7 @@ public sealed class StarGruntGameService : IStarGruntGameService
     public StarGruntSnapshotDto TakeReactionTest(Guid gameId, StarGruntReactionTestRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Command(gameId, game => game.TakeReactionTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+        return Command(gameId, game => game.TakeReactionTest(new UnitId(request.UnitId), GroundGameGuards.EnteredThreat(request.ThreatLevel), _dice));
     }
 
     /// <inheritdoc />

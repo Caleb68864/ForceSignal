@@ -573,8 +573,11 @@ public sealed record DirtsidePlatoonStateDto(
 
 /// <summary>Takes a confidence test or a reaction test.</summary>
 /// <param name="UnitId">The platoon being tested.</param>
-/// <param name="ThreatLevel">The threat level, off the player's own table.</param>
-public sealed record DirtsideNerveTestRequest(string UnitId, int ThreatLevel);
+/// <param name="ThreatLevel">
+/// The threat level, off the player's own table. Nullable so a request that leaves it out is refused
+/// by name rather than rolled as threat 0 (playtest M8); a number sent is used as it always was.
+/// </param>
+public sealed record DirtsideNerveTestRequest(string UnitId, int? ThreatLevel);
 
 /// <summary>Declares whether a platoon's next move takes it toward the enemy or out of cover.</summary>
 /// <param name="UnitId">The platoon.</param>

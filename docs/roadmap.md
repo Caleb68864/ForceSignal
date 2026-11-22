@@ -91,9 +91,50 @@ that fails on the old code.
       Dirtside's nerve panel opens blank rather than at 0 and refuses a test until a level is typed
       - where 0 typed is an answer and is sent. Refused on the screen only: the engines accept 0 as
       a real threat level and the request carries a plain number, so the server cannot tell "0" from
-      "nobody said" without a contract change (`StarGruntView.test.tsx` "StarGrunt confidence test"
+      "nobody said" without a contract change. *Server side added on `ux/playtest-fixes-3`:* the
+      three nerve-test requests now carry a nullable threat level - backward-compatible, a number
+      sent works as before - and one left out is refused by name ("No threat level was entered...")
+      instead of binding to 0 (`ThreatLevelEnteredTests`, not compiling on the old contract) (`StarGruntView.test.tsx` "StarGrunt confidence test"
       and `DirtsideAssault.test.tsx` "refuses a confidence test with no threat level entered", both
       failing on the old code).
+- [x] **M9. The ground games gave no "what now".** After every unit had gone the status still said
+      "blue to act"; End Turn was refused with "Neither side has run out nor have both passed in
+      succession."; Begin Turn stayed highlighted mid-turn and "X goes first" stayed live; Dirtside's
+      End Turn during the choice said "No turn is being played" under a "Turn 1" header. Guidance and
+      highlighting only - nothing passes by itself. The next-step line (added on the polish branch)
+      now reads the roster: "Every platoon has gone. End Turn." once all have, and "blue has nothing
+      it can activate now: press blue passes." for a side with nothing it can activate. Both screens
+      highlight exactly the button it names (Begin Turn, the first-activator choice, End Activation,
+      the right side's Pass, End Turn) and switch off the turn buttons that do not apply in the
+      phase. The sequence's End Turn refusals say what to do instead. Tests: `groundNextStep.test.ts`
+      "the one button to press", `DirtsideAssault.test.tsx` "highlights End Turn once every platoon
+      has gone" and "tells a side with nothing it can activate to pass" (both failing on the old
+      code), `SequenceGuardsTests.EndingTheTurnTooEarlySaysWhatToDoInstead`.
+- [x] **M10. Phone pages buried the button you needed.** StarGrunt's Fire sat below the whole roster
+      and both assault forms; Dirtside's activation below every platoon; Full Thrust's ship readouts
+      ran one per row. Both ground screens now put the activated unit's panel - moves, fire, assault
+      - straight under the status, above the roster, and Full Thrust lays a ship's readouts out three
+      across on a phone. `e2e-ground/phoneLayout.spec.ts` at 390x844 checks all three; each failed
+      on the old layout. *Left:* collapsing Full Thrust's fleet setup to a summary once a fleet
+      exists, and moving "Table, rules and points" to a tab after the start.
+- [x] **The ground browser suite met the game-creation budget part-way through.** Each spec opens a
+      game from the one test address, and with fifteen specs a full run passed ten a minute and got
+      429s on Start Game - a flake waiting for CI. The budget is now configurable
+      (`RateLimits:GameCreatesPerMinute`, unset means ten, as before); the ground config's own
+      server and CI's two-player job raise it for the test run only
+      (`ApiHardeningTests.TheGameCreationBudgetCanBeRaisedForATestServer`, failing on the old code at
+      the eleventh create). Two full runs back to back: 15 of 15 each.
+- [x] **CI: the phone layout spec's click was intercepted by the "What to do next" bar.** On a phone
+      the bar is fixed to the bottom edge, and nothing kept a control that is brought into view clear
+      of it - so a button parked just above the edge was wholly "visible" and still under the bar,
+      and Playwright retried the click thirty times while the bar took it. The same thing happened
+      to anyone tabbing through the page (m18). The bar's height is now measured into
+      `--sticky-clearance` (`lib/useStickyClearance.ts`, on both the ground and Full Thrust bars)
+      and the page's scroll padding keeps that much clear - the bottom edge on a phone, the top
+      elsewhere - and the end-of-page room under the phone bar now covers the ground screens too.
+      `e2e-ground/stickyCover.spec.ts` parks Add Platoon under the bar and focuses it: 45px of
+      overlap on the old styles, none now. The whole ground suite, three times over on two workers
+      with twelve busy loops: 48 of 48.
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

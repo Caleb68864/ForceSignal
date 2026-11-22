@@ -25,7 +25,7 @@ const snapshot: DirtsideSnapshot = {
   gameId: 'game-1',
   name: 'Ridge Line',
   turnNumber: 1,
-  phase: 'Setup',
+  phase: 'NotStarted',
   sides: ['blue', 'red'],
   elementsStillToChoose: [],
   canEndActivation: false,

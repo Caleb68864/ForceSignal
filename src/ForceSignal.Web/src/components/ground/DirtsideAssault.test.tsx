@@ -183,6 +183,26 @@ describe('Dirtside close assault', () => {
     expect(screen.getByLabelText('What to do next').textContent).toContain("Finish Alpha Troop's activation");
   });
 
+  it('highlights End Turn once every platoon has gone, and switches off what does not apply (playtest M9)', async () => {
+    const done = (unit: typeof alpha) => ({ ...unit, hasActivated: true, canActivate: false, whyItCannotActivate: 'It has already gone.' });
+    await open(snapshotWith({ phase: 'Activating', activatingUnitId: null, activeSide: 'blue', units: [done(alpha), done(bravo)] }));
+
+    const button = (name: string) => screen.getByText(name, { selector: 'button' }) as HTMLButtonElement;
+    expect(screen.getByLabelText('What to do next').textContent).toContain('Every platoon has gone. End Turn.');
+    expect(button('End Turn').className).not.toContain('ghost');
+    expect(button('Begin Turn').disabled).toBe(true);
+    expect(button('blue Goes First').disabled).toBe(true);
+    expect(button('red Passes').disabled).toBe(true);
+  });
+
+  it('tells a side with nothing it can activate to pass, and highlights its Pass', async () => {
+    const done = { ...alpha, hasActivated: true, canActivate: false };
+    await open(snapshotWith({ phase: 'Activating', activatingUnitId: null, activeSide: 'blue', units: [done, { ...bravo, canActivate: false }] }));
+
+    expect(screen.getByLabelText('What to do next').textContent).toContain('blue has nothing it can activate now: press blue passes.');
+    expect((screen.getByText('blue Passes', { selector: 'button' }) as HTMLButtonElement).className).not.toContain('ghost');
+  });
+
   it('sends a separate hand-to-hand validity only when asked to', async () => {
     mocks.launchAssault.mockResolvedValue(snapshotWith({ assault: assaultAt('AwaitingDefender') }));
     await open(snapshotWith());

@@ -31,7 +31,8 @@ import {
 } from '../../lib/starGruntProfile.ts';
 import type { GameHandle, StarGruntRulesProfile, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 import { GroundLog } from './GroundLog.tsx';
-import { GroundNextStep } from './GroundNextStep.tsx';
+import { GroundNextStep, primaryWhen } from './GroundNextStep.tsx';
+import { groundNextStep } from '../../lib/groundNextStep.ts';
 import { GroundJoin, GroundShare } from './GroundShare.tsx';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
@@ -497,6 +498,21 @@ export function StarGruntView() {
 
   const game = handle;
   const activating = snapshot.units.find((unit) => unit.id === snapshot.activatingUnitId);
+  const step = groundNextStep({
+    turnNumber: snapshot.turnNumber,
+    phase: snapshot.phase,
+    sides: snapshot.sides,
+    activeSide: snapshot.activeSide,
+    activatingName: activating?.name ?? null,
+    firstActivationChooser: snapshot.firstActivationChooser,
+    unitCount: snapshot.units.length,
+    units: snapshot.units.map((unit) => ({
+      side: unit.side,
+      canActivate: unit.canActivate,
+      hasActivated: unit.hasActivated,
+      isOut: unit.figuresAlive <= 0,
+    })),
+  }, 'unit');
   const canPlay = snapshot.units.length >= 2 && snapshot.sides.length === 2;
   // The server refuses new units once the first turn has begun (`StarGruntGame.WithUnit`).
   const rosterOpen = snapshot.turnNumber === 0;
@@ -518,18 +534,7 @@ export function StarGruntView() {
     <section className="stargrunt" aria-label="StarGrunt game">
       <div className="card-module">
         <span className="label module-title">{snapshot.name}</span>
-        <GroundNextStep
-          unit="unit"
-          turn={{
-            turnNumber: snapshot.turnNumber,
-            phase: snapshot.phase,
-            sides: snapshot.sides,
-            activeSide: snapshot.activeSide,
-            activatingName: activating?.name ?? null,
-            firstActivationChooser: snapshot.firstActivationChooser,
-            unitCount: snapshot.units.length,
-          }}
-        />
+        <GroundNextStep step={step} />
         {/*
           On every screen rather than only at setup, so a table arguing about a shot can read which
           numbers the game is settling it with. Warning-styled when there is nothing to settle one
@@ -542,9 +547,9 @@ export function StarGruntView() {
         <GroundShare game={game} link={link} />
         <div className="quick-actions">
           <button
-            className="ghost"
+            className={primaryWhen(step.primary === 'begin-turn')}
             type="button"
-            disabled={busy || !canPlay}
+            disabled={busy || !canPlay || !['NotStarted', 'TurnEnded'].includes(snapshot.phase)}
             onClick={() => run(() => api.beginTurn(game), 'Turn opened.')}
           >
             Begin Turn
@@ -552,7 +557,7 @@ export function StarGruntView() {
           {snapshot.sides.map((side) => (
             <button
               key={`first-${side}`}
-              className="ghost"
+              className={primaryWhen(step.primary === 'choose-first' && (!snapshot.firstActivationChooser || snapshot.firstActivationChooser === side))}
               type="button"
               disabled={busy || snapshot.phase !== 'ChoosingFirstActivator'}
               onClick={() => run(() => api.chooseFirstActivator(game, side, true), `${side} takes the first activation.`)}
@@ -563,18 +568,18 @@ export function StarGruntView() {
           {snapshot.sides.map((side) => (
             <button
               key={`pass-${side}`}
-              className="ghost"
+              className={primaryWhen(step.primary === 'pass' && step.side === side)}
               type="button"
-              disabled={busy}
+              disabled={busy || snapshot.phase !== 'Activating' || Boolean(activating) || (Boolean(snapshot.activeSide) && snapshot.activeSide !== side)}
               onClick={() => run(() => api.pass(game, side), `${side} passed.`)}
             >
               {side} passes
             </button>
           ))}
           <button
-            className="ghost"
+            className={primaryWhen(step.primary === 'end-turn')}
             type="button"
-            disabled={busy}
+            disabled={busy || snapshot.phase !== 'Activating' || Boolean(activating)}
             onClick={() => run(() => api.endTurn(game), 'Turn ended.')}
           >
             End Turn
@@ -599,29 +604,8 @@ export function StarGruntView() {
         </label>
       </div>
 
-      <div className="stargrunt-roster">
-        {snapshot.units.map((unit) => (
-          <UnitCard
-            key={unit.id}
-            unit={unit}
-            isActivating={unit.id === snapshot.activatingUnitId}
-            busy={busy}
-            onActivate={() => run(
-              () => api.beginActivation(game, unit.side, unit.id),
-              `${unit.name} activated.`,
-            )}
-            onTest={() => threatEntered() && run(
-              () => api.confidenceTest(game, unit.id, threatLevel),
-              `${unit.name} tested its nerve.`,
-            )}
-            onToggleDisorganised={() => run(
-              () => api.setDisorganised(game, unit.id, !unit.isDisorganised),
-              `${unit.name} is ${unit.isDisorganised ? 'back in order' : 'disorganised'}.`,
-            )}
-          />
-        ))}
-      </div>
-
+      {/* The activated unit first, straight under the status: on a phone its Fire button used to sit
+          below the whole roster and both assault forms (playtest M10). */}
       {activating ? (
         <div className="card-module" aria-label={`${activating.name} activation`}>
           <span className="label module-title">{activating.name} is activated</span>
@@ -937,6 +921,29 @@ export function StarGruntView() {
           />
         </div>
       ) : null}
+
+      <div className="stargrunt-roster">
+        {snapshot.units.map((unit) => (
+          <UnitCard
+            key={unit.id}
+            unit={unit}
+            isActivating={unit.id === snapshot.activatingUnitId}
+            busy={busy}
+            onActivate={() => run(
+              () => api.beginActivation(game, unit.side, unit.id),
+              `${unit.name} activated.`,
+            )}
+            onTest={() => threatEntered() && run(
+              () => api.confidenceTest(game, unit.id, threatLevel),
+              `${unit.name} tested its nerve.`,
+            )}
+            onToggleDisorganised={() => run(
+              () => api.setDisorganised(game, unit.id, !unit.isDisorganised),
+              `${unit.name} is ${unit.isDisorganised ? 'back in order' : 'disorganised'}.`,
+            )}
+          />
+        ))}
+      </div>
 
       {/* The roster closes at the first turn: the server rebuilds the session from it, so a unit
           added later would restart the game from nothing, and it refuses. */}

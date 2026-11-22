@@ -313,14 +313,14 @@ public sealed class DirtsideGameService : IDirtsideGameService
     public DirtsideSnapshotDto TakeConfidenceTest(Guid gameId, DirtsideNerveTestRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Command(gameId, game => game.TakeConfidenceTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+        return Command(gameId, game => game.TakeConfidenceTest(new UnitId(request.UnitId), GroundGameGuards.EnteredThreat(request.ThreatLevel), _dice));
     }
 
     /// <inheritdoc />
     public DirtsideSnapshotDto TakeReactionTest(Guid gameId, DirtsideNerveTestRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Command(gameId, game => game.TakeReactionTest(new UnitId(request.UnitId), request.ThreatLevel, _dice));
+        return Command(gameId, game => game.TakeReactionTest(new UnitId(request.UnitId), GroundGameGuards.EnteredThreat(request.ThreatLevel), _dice));
     }
 
     /// <inheritdoc />

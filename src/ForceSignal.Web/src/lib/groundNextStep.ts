@@ -17,9 +17,17 @@ export type GroundTurn = {
   /** StarGrunt says which side holds the choice of who goes first; Dirtside does not. */
   firstActivationChooser?: string | null;
   unitCount: number;
+  /**
+   * Each unit's side and whether it can still go: activate now, or has yet to this turn. Optional,
+   * so a caller that has not got it still gets the plain step.
+   */
+  units?: readonly { side: string; canActivate: boolean; hasActivated: boolean; isOut?: boolean }[];
 };
 
-export type GroundStep = { heading: string; you: string };
+/** The one button the table presses next, highlighted on the screen. */
+export type GroundPrimary = 'begin-turn' | 'choose-first' | 'activate' | 'end-activation' | 'pass' | 'end-turn' | null;
+
+export type GroundStep = { heading: string; you: string; primary: GroundPrimary; side?: string | null };
 
 const phaseWordsByName: Record<string, string> = {
   NotStarted: 'Setting up',
@@ -41,33 +49,45 @@ export function groundNextStep(turn: GroundTurn, unit: string): GroundStep {
 
   switch (turn.phase) {
     case 'NotStarted':
-      return {
-        heading,
-        you: turn.sides.length < 2 || turn.unitCount < 2
-          ? `Put a ${unit} on the table for each side, then Begin Turn.`
-          : 'Begin Turn when both sides are on the table.',
-      };
+      return turn.sides.length < 2 || turn.unitCount < 2
+        ? { heading, you: `Put a ${unit} on the table for each side, then Begin Turn.`, primary: null }
+        : { heading, you: 'Begin Turn when both sides are on the table.', primary: 'begin-turn' };
     case 'ChoosingFirstActivator':
       return {
         heading,
         you: turn.firstActivationChooser
           ? `${turn.firstActivationChooser} chooses who goes first.`
           : 'Choose which side goes first.',
+        primary: 'choose-first',
+        side: turn.firstActivationChooser ?? null,
       };
-    case 'Activating':
+    case 'Activating': {
       if (turn.activatingName) {
-        return { heading, you: `Finish ${turn.activatingName}'s activation, then End Activation.` };
+        return { heading, you: `Finish ${turn.activatingName}'s activation, then End Activation.`, primary: 'end-activation' };
+      }
+
+      // Playtest M9: with every unit gone the screen still said "blue to act", and End Turn was
+      // refused in words nobody could act on. Worked out from the roster when the screen has it.
+      const live = (turn.units ?? []).filter((candidate) => !candidate.isOut);
+      if (live.length > 0 && live.every((candidate) => candidate.hasActivated)) {
+        return { heading, you: `Every ${unit} has gone. End Turn.`, primary: 'end-turn' };
+      }
+
+      const side = turn.activeSide ?? null;
+      if (side && turn.units && !live.some((candidate) => candidate.side === side && candidate.canActivate)) {
+        return { heading, you: `${side} has nothing it can activate now: press ${side} passes.`, primary: 'pass', side };
       }
 
       return {
         heading,
-        you: turn.activeSide
-          ? `${turn.activeSide} activates a ${unit}, or passes.`
-          : `Activate a ${unit}, or pass.`,
+        you: side ? `${side} activates a ${unit}, or passes.` : `Activate a ${unit}, or pass.`,
+        primary: 'activate',
+        side,
       };
+    }
     case 'TurnEnded':
-      return { heading, you: `Begin Turn to start turn ${turn.turnNumber + 1}.` };
+      return { heading, you: `Begin Turn to start turn ${turn.turnNumber + 1}.`, primary: 'begin-turn' };
     default:
-      return { heading, you: '' };
+      return { heading, you: '', primary: null };
   }
 }

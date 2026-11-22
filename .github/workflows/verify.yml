@@ -81,6 +81,7 @@ jobs:
         run: |
           ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:8080 \
           FORCESIGNAL_FEATURES_STARGRUNT=true FORCESIGNAL_FEATURES_DIRTSIDE=true \
+          RateLimits__GameCreatesPerMinute=1000 \
             dotnet run --project src/ForceSignal.Api --no-launch-profile > /tmp/api.log 2>&1 &
 
       - name: Start the web dev server
