@@ -173,7 +173,7 @@ outside the repo; only what they found is recorded here.
       shows a log entry only when the command added one, and otherwise says what was done
       ("Anvil activated.", "Turn ended."), as StarGrunt does (`DirtsideView.test.tsx`, "status
       line"; the first case fails before the fix, the second is the control).
-- [ ] **Ground games are one device.** Neither Dirtside nor StarGrunt has a join flow or a realtime
+- [x] **Ground games are one device.** Neither Dirtside nor StarGrunt has a join flow or a realtime
       link; a second browser gets only the setup screen. "Two-device" for them is not a thing yet,
       and nothing here says it should be - but it is why only Full Thrust was played across two.
       *In progress on `feat/ground-multi-device` (2026-11-21).* **Server half done:** `/hubs/ground`
@@ -191,7 +191,12 @@ outside the repo; only what they found is recorded here.
       newer version than the screen shows is read and shown, its own command's is not, and every
       (re)join reads again for whatever was missed. No seats - both devices are the same table, as
       one device always was (`GroundMultiDevice.test.tsx`, eight cases failing on the old screens;
-      `groundLive.test.tsx`; `groundShare.test.ts`). Still to come: a two-browser check.
+      `groundLive.test.tsx`; `groundShare.test.ts`). **Played in two browsers:**
+      `e2e-ground/twoDevices.spec.ts` starts a Dirtside game in one context, joins it from a second
+      by its code, adds a platoon on each and sees each appear on the other, begins the turn on one
+      and sees it on the other, all without a reload; and a third context with one character of the
+      code wrong is told the code opens nothing. Green on repeats. Done for both engines; the screen
+      code is shared, and the StarGrunt half is covered by the component tests.
 
 ## Hardening pass 2026-11-09 (`harden/2026-11-09`)
 
