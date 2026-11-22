@@ -5,6 +5,9 @@
 //
 // The servers are started here unless something already answers on their ports (CI starts its own
 // pair; locally a running dev pair is reused). GROUND_API_PORT / GROUND_WEB_PORT move them.
+//
+// Each test opens one game, and opening games is budgeted at ten a minute per address, so a local
+// --repeat-each past five against one API will start meeting 429s; that is the budget, not the app.
 import { defineConfig } from '@playwright/test';
 
 const apiPort = process.env.GROUND_API_PORT ?? '8080';
@@ -15,6 +18,8 @@ export default defineConfig({
   timeout: 60_000,
   use: {
     baseURL: `http://localhost:${webPort}`,
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
     launchOptions: { executablePath: process.env.CHROMIUM_PATH || undefined },
   },
   webServer: [

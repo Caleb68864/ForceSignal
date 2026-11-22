@@ -1,13 +1,13 @@
 // A Dirtside game played through the real screen against a real API: create it with the players'
 // own dice, put a platoon a side on the table, and take one activation through to its end.
 import { expect, test } from '@playwright/test';
+import { openEngine } from './openEngine.ts';
 
 test('a Dirtside game is created, armed and plays an activation', async ({ page }) => {
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(error.message));
 
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Dirtside II' }).click();
+  await openEngine(page, 'Dirtside II');
 
   // The players' own dice, and their own firer walk, typed on the create screen.
   await page.getByLabel('Basic gunnery').selectOption('D6');

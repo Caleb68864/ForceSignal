@@ -90,7 +90,12 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       also fails on any uncaught page error. `npm run e2e:ground` (`playwright.ground.config.ts`)
       starts the API and the dev server unless something already answers on their ports, and CI's
       `two-player` job now switches the engines on and runs it after the smoke script. Checked to
-      catch a regression: with the unit-card names above put back, the StarGrunt spec fails. Tests: one per screen ("... once the log is at its cap"), both
+      catch a regression: with the unit-card names above put back, the StarGrunt spec fails. Made
+      solid before relying on it: 4 repeats of both specs on 2 and 4 workers against a running pair,
+      and a cold run where the config starts its own pair, all green. One early run lost the engine
+      buttons to a features read that failed while the dev server was still settling; the specs now
+      open an engine through `e2e-ground/openEngine.ts`, which uses the screen's own Check Again
+      before failing, and keep a screenshot and trace of any failure. Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
 - [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
       with every field and list entry nulled in turn, against a dev server with a fleet, ships and

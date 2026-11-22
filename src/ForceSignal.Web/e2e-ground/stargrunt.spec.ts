@@ -1,13 +1,13 @@
 // A StarGrunt game played through the real screen against a real API: create it with the players'
 // Leadership Values, put a squad a side on the table, and take one activation through to its end.
 import { expect, test } from '@playwright/test';
+import { openEngine } from './openEngine.ts';
 
 test('a StarGrunt game is created, manned and plays an activation', async ({ page }) => {
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(error.message));
 
-  await page.goto('/');
-  await page.getByRole('button', { name: 'StarGrunt II' }).click();
+  await openEngine(page, 'StarGrunt II');
 
   const setup = page.getByLabel('StarGrunt setup');
   await setup.getByLabel('Lowest Leadership Value').fill('1');
