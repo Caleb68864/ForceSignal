@@ -35,6 +35,17 @@ tablet (820x1180) size. Each fix has a test that fails on the old code.
       still read as what they are. `e2e-ground/touchTargets.spec.ts` holds the start screen and both
       ground setup screens at both sizes to no sideways scroll and no control under 40px, and checks
       a link in a sentence stays within the line; all four cases failed on the old styles.
+- [x] **The ground screens printed the engine's phase name and no next step.** The header read
+      "Turn 1 · ChoosingFirstActivator", a refused Activate read "The turn is not in its activation
+      phase (ChoosingFirstActivator).", and nothing said which of the row of buttons the game was
+      waiting for. Both ground screens now carry the sticky "What to do next" line Full Thrust has:
+      the turn and phase in words ("Turn 1 · Choosing who goes first") and the step ("Choose which
+      side goes first.", "blue activates a platoon, or passes.", "Finish Anvil's activation, then
+      End Activation.", "Put a platoon on the table for each side, then Begin Turn."), worked out
+      only from the snapshot (`lib/groundNextStep.ts`). The sequence's two phase refusals say the
+      phase in words too. Tests: `groundNextStep.test.ts`; `DirtsideView.test.tsx` "names the phase in
+      words and the step the game is waiting for" and
+      `SequenceGuardsTests.ARefusalForTheWrongPhaseSaysThePhaseInWords`, both failing on the old code.
 
 ## Hardening pass 2026-11-21 (`harden/2026-11-21`)
 

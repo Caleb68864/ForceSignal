@@ -37,6 +37,7 @@ import { DirtsideElementCards } from './DirtsideElementCards.tsx';
 import { DirtsideFirefightPanel } from './DirtsideFirefightPanel.tsx';
 import { DirtsideNervePanel } from './DirtsideNervePanel.tsx';
 import { GroundLog } from './GroundLog.tsx';
+import { GroundNextStep } from './GroundNextStep.tsx';
 import { GroundJoin, GroundShare } from './GroundShare.tsx';
 
 /** A number the card may not give. Blank means left out, not zero. */
@@ -602,10 +603,17 @@ export function DirtsideView() {
   return (
     <section className="panel" aria-label="Dirtside">
       <h2>{snapshot.name}</h2>
-      <p className="constraint-line">
-        Turn {snapshot.turnNumber} · {snapshot.phase}
-        {snapshot.activeSide ? ` · ${snapshot.activeSide} to go` : ''}
-      </p>
+      <GroundNextStep
+        unit="platoon"
+        turn={{
+          turnNumber: snapshot.turnNumber,
+          phase: snapshot.phase,
+          sides: snapshot.sides,
+          activeSide: snapshot.activeSide,
+          activatingName: activating?.name ?? null,
+          unitCount: snapshot.units.length,
+        }}
+      />
       {/*
         On every screen rather than only at the start: the composition moves every probability in
         the damage model, so a table settling an argument about a draw should be able to read what is

@@ -31,6 +31,7 @@ import {
 } from '../../lib/starGruntProfile.ts';
 import type { GameHandle, StarGruntRulesProfile, StarGruntSnapshot, StarGruntUnit } from '../../types.ts';
 import { GroundLog } from './GroundLog.tsx';
+import { GroundNextStep } from './GroundNextStep.tsx';
 import { GroundJoin, GroundShare } from './GroundShare.tsx';
 const covers = ['None', 'Soft', 'Hard'];
 // Only the actions that are pure declarations live here. Anything that rolls or names another unit
@@ -491,11 +492,18 @@ export function StarGruntView() {
     <section className="stargrunt" aria-label="StarGrunt game">
       <div className="card-module">
         <span className="label module-title">{snapshot.name}</span>
-        <p className="constraint-line">
-          Turn {snapshot.turnNumber} · {snapshot.phase}
-          {snapshot.activeSide ? ` · ${snapshot.activeSide} to act` : ''}
-          {snapshot.firstActivationChooser ? ` · ${snapshot.firstActivationChooser} chooses who goes first` : ''}
-        </p>
+        <GroundNextStep
+          unit="unit"
+          turn={{
+            turnNumber: snapshot.turnNumber,
+            phase: snapshot.phase,
+            sides: snapshot.sides,
+            activeSide: snapshot.activeSide,
+            activatingName: activating?.name ?? null,
+            firstActivationChooser: snapshot.firstActivationChooser,
+            unitCount: snapshot.units.length,
+          }}
+        />
         {/*
           On every screen rather than only at setup, so a table arguing about a shot can read which
           numbers the game is settling it with. Warning-styled when there is nothing to settle one

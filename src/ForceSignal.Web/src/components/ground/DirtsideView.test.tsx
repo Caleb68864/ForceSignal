@@ -461,3 +461,26 @@ describe('DirtsideView battle log', () => {
     expect(screen.getByText('Showing the most recent 300 of 350 lines.')).toBeTruthy();
   });
 });
+
+describe('DirtsideView says what to do next', () => {
+  // The header printed the engine's phase name - "Turn 1 · ChoosingFirstActivator" - and left the
+  // table to find the button the game was waiting for.
+  beforeEach(() => {
+    localStorage.clear();
+    readGame.mockReset();
+    localStorage.setItem(dirtsideGameKey, JSON.stringify(handle));
+  });
+
+  afterEach(cleanup);
+
+  it('names the phase in words and the step the game is waiting for', async () => {
+    readGame.mockResolvedValue({ ...snapshot, phase: 'ChoosingFirstActivator' });
+
+    render(<DirtsideView />);
+
+    const next = await screen.findByLabelText('What to do next');
+    expect(next.textContent).toContain('Turn 1 · Choosing who goes first');
+    expect(next.textContent).toContain('Choose which side goes first.');
+    expect(screen.queryByText(/ChoosingFirstActivator/)).toBeNull();
+  });
+});
