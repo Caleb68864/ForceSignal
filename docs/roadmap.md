@@ -42,6 +42,15 @@ that fails on the old code.
       Tests: `InMemoryMatchServiceBattleOverTests` (five cases, not compiling on the old code),
       `nextStep.test.ts` and `rules.test.ts` "battle over" cases, and `main.test.tsx` "the end of a
       battle" (two cases, both failing on the old screen).
+- [x] **M2. StarGrunt Fire and Close Assault defaulted to a friendly unit.** Targets were the roster
+      in order, so a red squad's default target was the other red squad, and no option said whose a
+      unit was. Enemies now come first and are the default; every option names the side and marks
+      "own side"; firing on or charging an own-side unit asks first ("Red Bravo is on red, Red
+      Alpha's own side. Fire on it anyway?") and goes ahead only on a yes - friendly fire stays
+      possible, because whether it is ever legal is the rulebook's. A target picked in an earlier
+      activation that is now the activating unit, or gone, falls back to the first enemy instead of
+      being sent as it was (`StarGruntView.test.tsx` "StarGrunt targets", two cases failing on the
+      old code).
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

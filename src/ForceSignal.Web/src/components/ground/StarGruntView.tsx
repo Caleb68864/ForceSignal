@@ -486,7 +486,19 @@ export function StarGruntView() {
   const canPlay = snapshot.units.length >= 2 && snapshot.sides.length === 2;
   // The server refuses new units once the first turn has begun (`StarGruntGame.WithUnit`).
   const rosterOpen = snapshot.turnNumber === 0;
-  const targets = snapshot.units.filter((unit) => unit.id !== activating?.id && unit.figuresAlive > 0);
+  // Enemies first, so the default is one (playtest M2: both red squads shot their own side's unit
+  // because it came first in the roster). Own-side units stay in the list - whether a table allows
+  // fire on them is its rulebook's call - but each option says whose it is, and firing on one asks.
+  const targets = snapshot.units
+    .filter((unit) => unit.id !== activating?.id && unit.figuresAlive > 0)
+    .sort((a, b) => Number(a.side === activating?.side) - Number(b.side === activating?.side));
+  // A target chosen in an earlier activation may be this unit, or gone: fall back to the first.
+  const targetFor = (id: string) => targets.find((unit) => unit.id === id) ?? targets[0];
+  const shotTarget = targetFor(shot.targetId);
+  const assaultTarget = targetFor(assault.defenderId);
+  const againstOwnSide = (target: StarGruntUnit | undefined, doing: string) =>
+    !target || !activating || target.side !== activating.side
+    || window.confirm(`${target.name} is on ${target.side}, ${activating.name}'s own side. ${doing} anyway?`);
 
   return (
     <section className="stargrunt" aria-label="StarGrunt game">
@@ -692,11 +704,11 @@ export function StarGruntView() {
             <label>
               Target
               <select
-                value={assault.defenderId || targets[0]?.id || ''}
+                value={assaultTarget?.id ?? ''}
                 onChange={(event) => setAssault((current) => ({ ...current, defenderId: event.target.value }))}
               >
                 {targets.map((target) => (
-                  <option key={target.id} value={target.id}>{target.name} · {target.figuresAlive} figures</option>
+                  <option key={target.id} value={target.id}>{targetLabel(target, activating)}</option>
                 ))}
               </select>
             </label>
@@ -776,8 +788,8 @@ export function StarGruntView() {
               <button
                 type="button"
                 disabled={busy || targets.length === 0}
-                onClick={() => run(
-                  () => api.declareCharge(game, activating.id, assault.defenderId || targets[0].id, assault.threatLevel),
+                onClick={() => againstOwnSide(assaultTarget, 'Charge it') && run(
+                  () => api.declareCharge(game, activating.id, assaultTarget?.id ?? '', assault.threatLevel),
                   `${activating.name} was ordered in.`,
                 )}
               >
@@ -788,7 +800,7 @@ export function StarGruntView() {
                 type="button"
                 disabled={busy || targets.length === 0}
                 onClick={() => run(
-                  () => api.defenderStands(game, activating.id, assault.defenderId || targets[0].id, assault.terror),
+                  () => api.defenderStands(game, activating.id, assaultTarget?.id ?? '', assault.terror),
                   'The defenders were tested.',
                 )}
               >
@@ -801,7 +813,7 @@ export function StarGruntView() {
                 onClick={() => run(
                   () => api.fightMelee(game, {
                     attackerId: activating.id,
-                    defenderId: assault.defenderId || targets[0].id,
+                    defenderId: assaultTarget?.id ?? '',
                     pairings: Array.from({ length: Math.max(1, assault.pairs) }, () => ({
                       attackerShift: assault.attackerShift,
                       defenderShift: assault.defenderShift,
@@ -898,9 +910,9 @@ export function StarGruntView() {
             shot={shot}
             busy={busy}
             onChange={(patch) => setShot((current) => ({ ...current, ...patch }))}
-            onFire={() => run(() => api.fire(game, {
+            onFire={() => againstOwnSide(shotTarget, 'Fire on it') && run(() => api.fire(game, {
               firerId: activating.id,
-              targetId: shot.targetId || targets[0]?.id || '',
+              targetId: shotTarget?.id ?? '',
               weaponName: shot.weaponName || activating.weapons[0]?.name || '',
               firepowerDie: shot.firepowerDie,
               supportWeapons: shot.supportWeapons,
@@ -1090,6 +1102,12 @@ function UnitCard({
   );
 }
 
+/** A target as an option reads: whose it is, and a plain warning when it is the firer's own side. */
+function targetLabel(target: StarGruntUnit, firer: StarGruntUnit | undefined) {
+  const own = firer && target.side === firer.side ? ' · own side' : '';
+  return `${target.name} (${target.side})${own} · ${target.figuresAlive} figures`;
+}
+
 function FirePanel({
   firer,
   targets,
@@ -1118,9 +1136,9 @@ function FirePanel({
       </p>
       <label>
         Target
-        <select value={shot.targetId || targets[0]?.id || ''} onChange={(event) => onChange({ targetId: event.target.value })}>
+        <select value={(targets.find((target) => target.id === shot.targetId) ?? targets[0])?.id ?? ''} onChange={(event) => onChange({ targetId: event.target.value })}>
           {targets.map((target) => (
-            <option key={target.id} value={target.id}>{target.name} · {target.figuresAlive} figures</option>
+            <option key={target.id} value={target.id}>{targetLabel(target, firer)}</option>
           ))}
         </select>
       </label>
