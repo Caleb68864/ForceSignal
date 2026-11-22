@@ -85,6 +85,15 @@ that fails on the old code.
       the words as the dash, on the server and on the screen (which sends and quotes the canonical
       code). A code with a word wrong is still not found (`JoinCodeTypingTests`, five separators
       failing on the old code, and a control; `normalize.test.ts`).
+- [x] **M8. StarGrunt's confidence test ran with no threat level.** "Not entered" rolled as threat 0
+      and dropped a unit two rungs. Both StarGrunt tests (confidence and reaction) now refuse with
+      "Pick a threat level first: the one your own table gives the event." until one is picked, and
+      Dirtside's nerve panel opens blank rather than at 0 and refuses a test until a level is typed
+      - where 0 typed is an answer and is sent. Refused on the screen only: the engines accept 0 as
+      a real threat level and the request carries a plain number, so the server cannot tell "0" from
+      "nobody said" without a contract change (`StarGruntView.test.tsx` "StarGrunt confidence test"
+      and `DirtsideAssault.test.tsx` "refuses a confidence test with no threat level entered", both
+      failing on the old code).
 
 ## Polish pass 2026-11-21 (`polish/2026-11-21`)
 

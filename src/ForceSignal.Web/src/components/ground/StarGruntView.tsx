@@ -185,6 +185,20 @@ export function StarGruntView() {
   // it - which is why the form says so rather than letting them find out mid-firefight.
   const [profile, setProfile] = useState<StarGruntProfileDraft>(emptyStarGruntProfileDraft);
 
+  /**
+   * Whether a threat level has been picked. "Not entered" used to roll as threat 0 and dropped a unit
+   * two rungs (playtest M8); a number nobody entered is refused here, as everywhere else in the app.
+   */
+  function threatEntered() {
+    if (threatLevel !== unentered) {
+      return true;
+    }
+
+    setMessage('Pick a threat level first: the one your own table gives the event.');
+    setMessageIsError(true);
+    return false;
+  }
+
   /** Sets one of the range table's plain numbers, keeping whatever was typed as typed. */
   function setProfileNumber(
     field: 'effectiveBands' | 'softCoverShift' | 'hardCoverShift' | 'inPositionShift' | 'meleeCoverShift'
@@ -596,7 +610,7 @@ export function StarGruntView() {
               () => api.beginActivation(game, unit.side, unit.id),
               `${unit.name} activated.`,
             )}
-            onTest={() => run(
+            onTest={() => threatEntered() && run(
               () => api.confidenceTest(game, unit.id, threatLevel),
               `${unit.name} tested its nerve.`,
             )}
@@ -638,7 +652,7 @@ export function StarGruntView() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => run(
+                onClick={() => threatEntered() && run(
                   () => api.reactionTest(game, activating.id, threatLevel),
                   `${activating.name} steeled itself.`,
                 )}

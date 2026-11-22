@@ -16,7 +16,19 @@ export function DirtsideNervePanel({ game, snapshot, busy, run }: {
   run: (action: () => Promise<DirtsideSnapshot>, note?: string) => Promise<void>;
 }) {
   const [chosenId, setChosenId] = useState('');
-  const [threatLevel, setThreatLevel] = useState(0);
+  // Blank until the table types one: zero is an answer, blank is not (playtest M8).
+  const [threatText, setThreatText] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const threatLevel = threatText.trim() === '' ? null : wholeNumberFrom(threatText, 0, 0, 99);
+  const withThreat = (test: (threat: number) => Promise<DirtsideSnapshot>) => {
+    if (threatLevel === null) {
+      setProblem('Enter the threat level first: the one your own table gives the event.');
+      return;
+    }
+
+    setProblem(null);
+    void run(() => test(threatLevel));
+  };
 
   // The activating platoon if nothing has been picked, because that is whose move is waiting.
   const unit = snapshot.units.find((candidate) => candidate.id === chosenId)
@@ -42,12 +54,12 @@ export function DirtsideNervePanel({ game, snapshot, busy, run }: {
         </label>
         <label title="Off your own threat table.">
           Nerve threat level
-          <input type="number" min="0" max="99" value={threatLevel} onChange={(e) => setThreatLevel(wholeNumberFrom(e.target.value, 0, 0, 99))} />
+          <input type="number" min="0" max="99" placeholder="Not entered" value={threatText} onChange={(e) => setThreatText(e.target.value)} />
         </label>
         <button
           type="button"
           disabled={busy}
-          onClick={() => void run(() => api.takeConfidenceTest(game, unit.id, threatLevel))}
+          onClick={() => withThreat((threat) => api.takeConfidenceTest(game, unit.id, threat))}
         >
           Confidence Test
         </button>
@@ -55,10 +67,11 @@ export function DirtsideNervePanel({ game, snapshot, busy, run }: {
           type="button"
           disabled={busy || unit.canTakeReactionTest !== true}
           title={unit.whyItCannotTakeReactionTest ?? undefined}
-          onClick={() => void run(() => api.takeReactionTest(game, unit.id, threatLevel))}
+          onClick={() => withThreat((threat) => api.takeReactionTest(game, unit.id, threat))}
         >
           Reaction Test
         </button>
+        {problem ? <p className="constraint-line" role="alert">{problem}</p> : null}
         <label title="Whether its next move takes it toward the enemy or out of cover. Your eyeball, not this app's.">
           Next move advances
           <input
