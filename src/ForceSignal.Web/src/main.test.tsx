@@ -812,6 +812,34 @@ describe('the end of a battle (playtest M1)', () => {
     expect(table).toBeTruthy();
   });
 
+  it('offers Duplicate only while fleets are built, and repairs only between turns (second playtest pass)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(inPlay(2, { phase: 'Firing' }));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+    await waitFor(() => expect(document.querySelectorAll('article.ship-card').length).toBe(2));
+
+    expect(screen.queryByText('Duplicate', { selector: 'button' })).toBeNull();
+    expect(screen.queryByText('Repair All', { selector: 'button' })).toBeNull();
+  });
+
+  it('puts the fleet orders table away once plotting is declared closed', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const board = inPlay(2);
+    const blueTwo = { ...board.ships[0], id: 'ship-blue-2', name: 'Vigilant' };
+    const closed = { ...board, ships: [...board.ships, blueTwo], participants: board.participants.map((p) => (p.role === 'Owner' ? { ...p, ordersComplete: true } : p)) };
+    get.mockResolvedValue(closed);
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+    await waitFor(() => expect(document.querySelectorAll('article.ship-card').length).toBe(3));
+
+    expect(screen.queryByLabelText('Fleet orders')).toBeNull();
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));

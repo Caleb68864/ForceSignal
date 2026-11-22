@@ -2403,9 +2403,10 @@ small,
     text-align: center;
   }
 
+  /* Two across: one button a row made each ship card's actions a screen's height (second pass). */
   .card-actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .view-tabs {

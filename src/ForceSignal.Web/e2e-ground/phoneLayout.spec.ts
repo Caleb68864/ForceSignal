@@ -142,3 +142,11 @@ test('a ground panel\'s rules reminder waits behind a "?" (playtest m19 follow-u
   await page.locator('summary', { hasText: 'How a record card works' }).click();
   await expect(reminder).toBeVisible();
 });
+
+test('a ship card\'s actions sit two across on a phone (second playtest pass)', async ({ page, request }) => {
+  await openSeededMatch(page, request);
+  const actions = page.locator('article.ship-card .card-actions').first().locator('button');
+  await expect(actions.first()).toBeVisible();
+  const tops = await actions.evaluateAll((buttons) => buttons.slice(0, 2).map((button) => Math.round(button.getBoundingClientRect().top)));
+  expect(tops[0]).toBe(tops[1]);
+});

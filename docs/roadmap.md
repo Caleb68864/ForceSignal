@@ -21,6 +21,21 @@
 > that script would surface — most sharply, joining a second room still
 > displays the first one's state (`ForceSignal.Web/src/main.tsx:1164-1171`).
 
+## Second playtest pass 2026-11-22 (`ux/playtest-fixes-4`)
+
+The agent's own pass over all three games at 390x844, 820x1180 and 1440x900, scripted the way the
+first playtester worked (a turn of Full Thrust through firing, a Dirtside and a StarGrunt activation
+through fire), with screenshots read at each step. Each fix has a test that fails on the old code.
+
+- [x] **Full Thrust cards offered what the phase could not take.** Duplicate stayed on a ship card in
+      play, where it put a new ship on the table mid-battle; Repair All and the Damage tab's Repair
+      showed in movement and firing, where the server refuses repairs. Duplicate is a fleet-setup
+      control now and the repairs show only between turns. The Fleet orders table also stays put
+      after a player declares plotting closed - it goes, as the orders are in - and on a phone a
+      card's action buttons sit two across instead of one a row (`main.test.tsx` "offers Duplicate
+      only while fleets are built" and "puts the fleet orders table away", `phoneLayout.spec.ts`
+      "a ship card's actions sit two across", all failing on the old code).
+
 ## Playtest fixes 2026-11-21 (`ux/playtest-fixes`)
 
 Working the UX playtester's report (42 findings against master `3ae95f4`), in its order: M1-M10,
