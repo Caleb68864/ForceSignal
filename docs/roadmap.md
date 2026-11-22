@@ -41,6 +41,11 @@ through fire), with screenshots read at each step. Each fix has a test that fail
       turn, where the table checks them, and fold into "This game's numbers · 2 guessed or missing"
       once play begins, one tap away (`DirtsideAssault.test.tsx` "the game's own numbers once play
       begins", failing on the old code).
+- [x] **StarGrunt's close assault opened with "Defenders in cover" ticked.** A melee against men in
+      the open was fought with their cover bonus unless somebody noticed the box. It opens unticked,
+      as the power-armour flags do: it is a fact about the figures, and nothing in the rules makes
+      cover the usual case (`StarGruntView.test.tsx` "does not put the defenders in cover until the
+      table says so", failing on the old code).
 
 ## Playtest fixes 2026-11-21 (`ux/playtest-fixes`)
 

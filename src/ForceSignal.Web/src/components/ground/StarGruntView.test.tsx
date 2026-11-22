@@ -296,6 +296,17 @@ describe('StarGrunt close assault', () => {
     expect(sent.pairings[0].attackerPowerArmour).toBe(false);
     expect(sent.pairings[0].defenderPowerArmour).toBe(false);
   });
+
+  it('does not put the defenders in cover until the table says so (second playtest pass)', async () => {
+    await openAssault();
+    fightMelee.mockResolvedValue(assaultSnapshot());
+
+    expect((screen.getByLabelText('Defenders in cover') as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Fight Round' }));
+
+    expect(await screen.findByText('A round of melee was fought.')).toBeTruthy();
+    expect((fightMelee.mock.calls[0][1] as { defendersInCover: boolean }).defendersInCover).toBe(false);
+  });
 });
 
 /**

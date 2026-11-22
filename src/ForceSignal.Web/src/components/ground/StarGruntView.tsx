@@ -130,7 +130,10 @@ export const newAssaultForm = {
   // The die those two bands are read against. It was not on this form at all and the engine threw
   // a D6 regardless, so a table whose chart is written for a D10 had its top band made unreachable.
   fateDie: 0,
-  defendersInCover: true,
+  // Unticked until the table says the defenders are in cover. Opening ticked meant a melee against
+  // men in the open was fought with their cover bonus unless somebody noticed the box (second
+  // playtest pass); like the power-armour flags below, it is a fact about the figures on the table.
+  defendersInCover: false,
   // Whether the men on each side are in power armour, which doubles a melee score after the roll.
   // The contract carried these, `StarGruntGameService` passed them, and `CloseAssault.Fight`
   // applies them - and this screen, the only caller of `fightMelee` anywhere, sent a literal false
