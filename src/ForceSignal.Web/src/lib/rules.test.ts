@@ -307,3 +307,14 @@ describe('the checklist once the battle is over (playtest M1)', () => {
     expect(items[0].text).toContain('The battle is over');
   });
 });
+
+describe('a ship with nothing entered (playtest m4)', () => {
+  it('is warned about in fleet setup, not refused', () => {
+    const board = snapshot({ phase: 'FleetSetup', ships: [ship({ id: 'mine', name: 'Blank', thrustRating: 0, weapons: [] })] });
+
+    const item = buildPreTurnChecklist(board, new Set(['mine'])).find((entry) => entry.id === 'blank-ships');
+
+    expect(item?.severity).toBe('warning');
+    expect(item?.text).toContain('Blank has no thrust and no weapons');
+  });
+});

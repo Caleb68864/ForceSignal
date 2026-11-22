@@ -15,7 +15,7 @@ import { ApiRequestError, newId, readStored, writeStorage } from '../../lib/api.
 import { fromForceFile, toForceFile } from '../../lib/forceIo.ts';
 import { downloadText, wholeNumberFrom } from '../../lib/format.ts';
 // The ladder the API accepts, not this screen's idea of it. See groundVocabulary.ts.
-import { qualityLadder as ladder } from '../../lib/groundVocabulary.ts';
+import { qualityLadder as ladder, wordsFor } from '../../lib/groundVocabulary.ts';
 import { leadershipValuesOf, leadershipValuesSummary } from '../../lib/leadershipValues.ts';
 import { normalizeGameHandle } from '../../lib/normalize.ts';
 import { newestLogEntry } from '../../lib/newestLogEntry.ts';
@@ -616,9 +616,9 @@ export function StarGruntView() {
                 className="ghost"
                 type="button"
                 disabled={busy}
-                onClick={() => run(() => api.takeStep(game, action), `${activating.name}: ${action}.`)}
+                onClick={() => run(() => api.takeStep(game, action), `${activating.name}: ${wordsFor(action)}.`)}
               >
-                {action}
+                {wordsFor(action)}
               </button>
             ))}
             <button
@@ -1113,10 +1113,12 @@ function UnitCard({
           className="ghost"
           type="button"
           disabled={busy}
-          aria-label={unit.isDisorganised ? `Mark ${unit.name} in order` : `Mark ${unit.name} scattered`}
+          // One word for one state (playtest m7): the card said Scattered, the status Disorganised and
+          // the activation Reorganise. Disorganised is the game's, and Reorganise its way back.
+          aria-label={unit.isDisorganised ? `Mark ${unit.name} back in order` : `Mark ${unit.name} disorganised`}
           onClick={onToggleDisorganised}
         >
-          {unit.isDisorganised ? 'In Order' : 'Scattered'}
+          {unit.isDisorganised ? 'Mark Back in Order' : 'Mark Disorganised'}
         </button>
       </div>
     </div>

@@ -105,3 +105,28 @@ describe('the guide states no rules numbers', () => {
     expect([...digits].filter((digit) => !(digit in accountedFor))).toEqual([]);
   });
 });
+
+describe('the guide and the keyboard (playtest m8)', () => {
+  afterEach(cleanup);
+
+  it('keeps Tab inside the dialog, both ways, and hands focus back on close', () => {
+    const opener = document.createElement('button');
+    opener.textContent = 'How to play';
+    document.body.appendChild(opener);
+    opener.focus();
+    const view = render(<HelpGuide currentStepId={helpSteps[0].id} onClose={() => undefined} />);
+
+    const dialog = screen.getByRole('dialog');
+    const buttons = [...dialog.querySelectorAll('button:not([disabled])')] as HTMLElement[];
+    buttons[buttons.length - 1].focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(buttons[0]);
+
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+
+    view.unmount();
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+});

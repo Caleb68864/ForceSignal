@@ -85,3 +85,26 @@ export type ChitSpecialName = (typeof chitSpecials)[number];
 export type ValueScaleName = (typeof valueScales)[number];
 export type ChitColourSetName = (typeof chitColourSets)[number];
 export type PostureName = (typeof postures)[number];
+
+/** Words the generic split would get wrong, or that read better said another way. */
+const wordsByCode: Record<string, string> = {
+  SystemsDownTarget: 'Systems down (target)',
+  SystemsDownFirer: 'Systems down (firer)',
+  FaceValue: 'Face value',
+  GoInPosition: 'Go in position',
+  DismountedInfantry: 'Dismounted infantry',
+};
+
+/**
+ * One of the engine's code names as a person would say it: "HullDown" is "Hull down". The value
+ * sent to the server stays the code; only what is shown changes (playtest m6: SoftCover, HullDown,
+ * TurretDown, GoInPosition and SystemsDownTarget were printed as they are spelt in the code).
+ */
+export function wordsFor(code: string): string {
+  if (wordsByCode[code]) {
+    return wordsByCode[code];
+  }
+
+  const spaced = code.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+  return spaced.charAt(0) + spaced.slice(1).toLowerCase();
+}

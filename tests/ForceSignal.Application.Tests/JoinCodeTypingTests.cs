@@ -35,3 +35,19 @@ public sealed class JoinCodeTypingTests
         Assert.Throws<NotFoundException>(() => service.JoinMatch(new JoinMatchRequest(wrong, "Red")));
     }
 }
+
+/// <summary>Two players with one name made a log nobody could follow (playtest m1).</summary>
+public sealed class DuplicateDisplayNameTests
+{
+    [Fact]
+    public void ASecondPlayerWithTheSameNameIsNumbered()
+    {
+        var service = new InMemoryMatchService(_ => 4);
+        var owner = service.CreateMatch(new CreateMatchRequest("Cobalt", "Names"));
+
+        service.JoinMatch(new JoinMatchRequest(owner.JoinCode, "cobalt"));
+
+        var names = service.GetSnapshot(owner.MatchId).Participants.Select(p => p.DisplayName).ToArray();
+        Assert.Equal(["Cobalt", "cobalt 2"], names);
+    }
+}

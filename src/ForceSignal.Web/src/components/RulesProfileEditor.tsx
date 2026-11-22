@@ -8,6 +8,8 @@ type Props = {
   value: RulesProfile;
   /** True while the profile can still be changed, which is during fleet setup only. */
   editable: boolean;
+  /** Why it cannot be edited, when it cannot: a guest is told the host sets it (playtest m13). */
+  lockedReason?: string;
   /** Sends a completed profile to the server. */
   onApply: (profile: RulesProfile) => void;
 };
@@ -19,7 +21,7 @@ type Props = {
  * starting suggestion. This form starts blank, saves what you type in this browser so you only do
  * it once, and reads and writes JSON so a table can share one file between them.
  */
-export function RulesProfileEditor({ value, editable, onApply }: Props) {
+export function RulesProfileEditor({ value, editable, lockedReason, onApply }: Props) {
   const [draft, setDraft] = useState<RulesProfile>(value);
   // Both halves of what this browser is holding: the profiles, and anything under the same key that
   // this version cannot read whole. The second half used to be invisible - it came back coerced,
@@ -87,7 +89,8 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
       </p>
 
       <div className="table-fields">
-        <label>
+        {/* The whole row: half of the sidebar cut "Nothing saved yet" to "Nothing sav" (playtest m11). */}
+        <label className="table-fields-wide">
           Saved profiles
           <select
             value=""
@@ -237,8 +240,8 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
       </div>
       {!editable ? (
         <p className="constraint-line">
-          The profile is settled during fleet setup, so it cannot change now. You can still save it
-          to this browser for the next match.
+          {lockedReason ?? 'The profile is settled during fleet setup, so it cannot change now.'} You can
+          still save it to this browser for the next match.
         </p>
       ) : null}
     </div>

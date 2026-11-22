@@ -397,6 +397,10 @@ small,
   gap: 8px;
 }
 
+.table-fields-wide {
+  grid-column: 1 / -1;
+}
+
 .side-actions button,
 .table-setup button {
   min-height: 36px;
@@ -881,7 +885,8 @@ small,
 
 .weapon-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.4fr) minmax(72px, 0.6fr) minmax(82px, 0.7fr) minmax(110px, 1fr) minmax(92px, 0.7fr);
+  /* The type column fits "Beam battery": at 72px it read "Beam b" (playtest m11). */
+  grid-template-columns: minmax(120px, 1.4fr) minmax(136px, 1fr) minmax(82px, 0.7fr) minmax(110px, 1fr) minmax(92px, 0.7fr);
   gap: 8px;
   align-items: end;
 }
@@ -3566,4 +3571,9 @@ html {
     scroll-padding-top: 0;
     scroll-padding-bottom: calc(var(--sticky-clearance, 0px) + 8px);
   }
+}
+
+/* The start screen's two forms take no box of their own: their fields sit in the grid as before. */
+.auth-form {
+  display: contents;
 }

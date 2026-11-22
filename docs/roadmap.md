@@ -85,6 +85,75 @@ that fails on the old code.
       `fullThrustLayout.spec.ts` "ships on the same spot fan out", failing on the old code with all
       four markers on one point). On the animated map a fanned-out button no longer sits exactly on
       its hull, which is drawn where the ship is.
+- [x] **An axe pass at phone, tablet and desktop size, kept as a test.** The playtest ran axe-core
+      once by hand. `e2e-ground/accessibility.spec.ts` now runs it (axe-core 4.10.3, a pinned dev
+      dependency) over the start screen, a Full Thrust match's Ships, Play Map and Log views, and a
+      Dirtside and a StarGrunt game mid-activation, at 390x844, 820x1180 and 1440x900. It found one
+      serious violation the screens had grown since: the Full Thrust battle log scrolls on its own and
+      a keyboard could not reach it (`scrollable-region-focusable`). It now takes focus and is
+      labelled. 12 of 12 clean; three cases failed before the fix.
+- [x] **m1. Duplicate display names were allowed** ("Cobalt rolled 6, Cobalt rolled 3"). A second
+      player with a name already at the table joins as "Cobalt 2", and so on, case folded
+      (`DuplicateDisplayNameTests`, failing on the old code).
+- [x] **m2. The opponent's damage report used fixed maximums** - fire control out of 6, weapons out
+      of 12, for every ship. It uses the ship's own fire control and mount count now, and so does
+      the owner's weapons control.
+- [x] **m3. Stale order text.** An opponent card said "order remains hidden until reveal" beside
+      REVEALED, and a ship that held course read "Awaiting orders" all through firing. The hidden
+      line shows only while the order is hidden and orders are being written, locked or revealed;
+      the order chip only in those phases. (`main.test.tsx` "reports an opponent ship out of its own
+      numbers", failing on the old code, covers m2 and m3.)
+- [x] **m4. A ship with no thrust and no weapons was accepted without a word**, and showed as
+      Operational. Warnings only: adding one says so ("...added with no thrust and no weapons. If
+      that is not what its record card says, open Edit Stats."), and the setup checklist names it.
+      The turn cap at thrust 0 is a rules question and is left alone (`rules.test.ts` "a ship with
+      nothing entered", failing on the old code).
+- [x] **m5. A bad fleet file showed the JSON parser's error.** It now says "broken.json isn't a
+      ForceSignal fleet file - it is not readable JSON. Nothing was imported.", and a JSON file with
+      no list of ships - which used to import as nothing, silently - is refused the same way
+      (`fleetIo.test.ts` "a file that is not a fleet", failing on the old code).
+- [x] **m6. Raw code names in the ground games.** The phase names went on the polish branch; the rest
+      now go too: posture and chit-special rows, the posture choice on a shot, value scales and
+      StarGrunt's step buttons read "Hull down", "Systems down (target)", "Face value", "Go in
+      position" (`wordsFor` in `lib/groundVocabulary.ts`; the value sent stays the code).
+      `groundVocabulary.test.ts`, and `DirtsideView.test.tsx` "in words", failing on the old code.
+- [x] **m7. Scattered, Disorganised and Reorganise named one StarGrunt state.** The card's toggle now
+      says "Mark Disorganised" / "Mark Back in Order", matching the status line and the activation's
+      Reorganise (`StarGruntView.test.tsx` "one word for one state").
+- [x] **m8. The help dialog did not trap focus.** Tab walked out into the page behind the backdrop.
+      It now cycles inside the dialog both ways, and closing it hands focus back to whatever opened
+      it (`HelpGuide.test.tsx` "the guide and the keyboard", failing on the old code).
+- [x] **m9. Enter did not submit Create Match or Join Match.** Each is a form now, laid out with
+      `display: contents` so the start screen's grid is unchanged (`main.test.tsx` "joins on Enter in
+      the room code field", failing on the old code; the start screen stays clean in the touch-target
+      and axe specs).
+- [x] **m10. The legal notice's links looked like strike-through text.** Fixed on the polish branch
+      (`a223c96`): the two credit links are plain underlined text on their line.
+- [x] **m11. Dropdowns cut off their text.** Measured at 1440px: the saved-profiles choice read
+      "Nothing sav" in half the sidebar, and a mount's type "Beam b" in a 72px column. The first now
+      takes the whole row and the type column fits "Beam battery". `fullThrustLayout.spec.ts` "a
+      dropdown shows its whole choice" measures every visible select against its text (failing on
+      the old styles with both). *Not reproduced:* "Crimsor" and the 130px phone contact list -
+      neither showed up when the same measure was run over the setup, ships, map and log views.
+- [x] **m12. Max Accel silently wiped plotted turns.** Turns and acceleration share one thrust, so
+      the clamp took the turns. Warning only - the order stands as clamped - and Max Accel and Max
+      Decel now say what went ("Max Accel spends all of Valiant's thrust on speed, so 1 plotted turn
+      step was cleared."). Whether turns and acceleration should share thrust is the rulebook's.
+- [x] **m13. Host-only controls appeared on the guest's screen.** The table size and points limit
+      are disabled for the guest, with "The host sets the table." in place of Set Table and no Set
+      Limit, and the rules profile editor says "The host sets the rules profile for this match." -
+      the server already refused all three. (`main.test.tsx` "says so when Max Accel clears the
+      turns already plotted" and "host-only controls on a guest's screen", both failing on the old
+      code.)
+- [x] **m14. A points overrun only showed after pressing Ready.** Ready is now held back beside the
+      button ("Your fleet is 120 points, over the 100-point limit.") and the setup checklist lists
+      it as a blocker, before anyone presses anything (`nextStep.test.ts` "a fleet over the points
+      limit", failing on the old code).
+- [x] **m16. Imported ships without weapons got a placeholder mount** - "Unnamed Mount 1D/1" - that
+      nobody had entered and that showed as out of range at every target. A blank CSV weapons cell, or
+      a JSON ship with no weapons list, now imports with no mounts, as the server already treats a
+      ship that names none. Two old tests asserted the placeholder and were turned round
+      (`fleetIo.test.ts`, failing on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

@@ -3,7 +3,7 @@ import * as api from '../../lib/dirtsideApi.ts';
 import type { DirtsideValidityInput } from '../../lib/dirtsideApi.ts';
 import { wholeNumberFrom } from '../../lib/format.ts';
 // The lists the API accepts, not this panel's idea of them. See groundVocabulary.ts.
-import { chitColourSets, valueScales } from '../../lib/groundVocabulary.ts';
+import { chitColourSets, valueScales, wordsFor } from '../../lib/groundVocabulary.ts';
 import type { DirtsideElementState, DirtsidePlatoonState, DirtsideSnapshot, GameHandle } from '../../types.ts';
 
 
@@ -316,7 +316,7 @@ function ValidityFields({ value, onChange, title, prefix }: {
       <label>
         {name('Value scale', 'value scale')}
         <select value={value.valueScale} onChange={(event) => onChange({ ...value, valueScale: event.target.value })}>
-          {valueScales.map((scale) => <option key={scale} value={scale}>{scale}</option>)}
+          {valueScales.map((scale) => <option key={scale} value={scale}>{wordsFor(scale)}</option>)}
         </select>
       </label>
       <label title="True when the special chits do something.">

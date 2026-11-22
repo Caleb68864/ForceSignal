@@ -435,6 +435,7 @@ function App() {
   }, [session?.matchId, session?.participantToken]);
 
   const me = snapshot?.participants.find((participant) => participant.id === session?.participantId);
+  const isHost = me?.role === 'Owner';
   const commands = snapshot && session
     ? matchCommands(snapshot, session.participantId)
     : { ready: null, lock: null, reveal: null, advance: null, advanceWarning: null, readyBlocker: null, endBattle: false };
@@ -613,7 +614,11 @@ function App() {
       ...current,
       name: nextShipName(current.name),
     }));
-    setMessage('Ship added to fleet.');
+    // Accepted as entered, but said: a ship with no thrust and no mounts is usually a form left at
+    // its blanks, and it showed as Operational with a turn cap of 12 (playtest m4).
+    setMessage(shipForm.thrustRating === 0 && shipForm.weapons.length === 0
+      ? `${shipForm.name} was added with no thrust and no weapons. If that is not what its record card says, open Edit Stats.`
+      : 'Ship added to fleet.', shipForm.thrustRating === 0 && shipForm.weapons.length === 0 ? 'info' : undefined);
   }
 
   function exportOwnedFleet(format: 'json' | 'csv') {
@@ -1300,6 +1305,23 @@ function App() {
     ));
   }
 
+  /**
+   * Max Accel and Max Decel: all of a ship's thrust on its speed. Turns share the same thrust, so the
+   * clamp takes plotted turns away to make room - which it used to do without a word (playtest
+   * m12). The order stands as clamped; the notice says what went.
+   */
+  function plotAtFullThrust(ship: Ship, thrust: number, draft: DraftOrder, velocityDelta: number) {
+    const next = clampDraftForShip(thrust, { ...draft, velocityDelta }, ship.currentVelocity);
+    updateDraft(ship.id, next);
+    const lost = totalTurnSteps(draft) - totalTurnSteps(next);
+    if (lost > 0) {
+      setMessage(
+        `${velocityDelta > 0 ? 'Max Accel' : 'Max Decel'} spends all of ${ship.name}'s thrust on speed, so ${lost} plotted turn step${lost === 1 ? ' was' : 's were'} cleared.`,
+        'info',
+      );
+    }
+  }
+
   async function advanceTurn() {
     if (!session) {
       return;
@@ -1549,16 +1571,22 @@ function App() {
         </section>
       ) : gameMode !== 'fullthrust' ? null : !session ? (
         <section className="panel auth-grid" aria-label="Create or join match">
-          <label>
-            Display name
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-          </label>
-          <button onClick={() => run(createMatch)} disabled={busy}>Create Match</button>
-          <label>
-            Room code
-            <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
-          </label>
-          <button onClick={() => run(joinMatch)} disabled={busy}>Join Match</button>
+          {/* Forms, so Enter in either field does what its button does (playtest m9). Laid out as if
+              the forms were not there (display: contents), so the grid is unchanged. */}
+          <form className="auth-form" onSubmit={(event) => { event.preventDefault(); run(createMatch); }}>
+            <label>
+              Display name
+              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+            </label>
+            <button type="submit" disabled={busy}>Create Match</button>
+          </form>
+          <form className="auth-form" onSubmit={(event) => { event.preventDefault(); run(joinMatch); }}>
+            <label>
+              Room code
+              <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} />
+            </label>
+            <button type="submit" disabled={busy}>Join Match</button>
+          </form>
           <p className="privacy auth-wide">
             One player creates a match and reads out the room code; the other joins with it.{' '}
             <button className="link-button" type="button" onClick={() => setHelpOpen(true)}>New here? How to play</button>
@@ -1601,18 +1629,23 @@ function App() {
                 <div className="table-fields">
                   <label>
                     Width
-                    <input type="number" min="24" max="144" value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: wholeNumberFrom(event.target.value, 24, 24, 144) })} />
+                    <input type="number" min="24" max="144" disabled={!isHost} value={tableForm.width} onChange={(event) => setTableForm({ ...tableForm, width: wholeNumberFrom(event.target.value, 24, 24, 144) })} />
                   </label>
                   <label>
                     Depth
-                    <input type="number" min="24" max="96" value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
+                    <input type="number" min="24" max="96" disabled={!isHost} value={tableForm.depth} onChange={(event) => setTableForm({ ...tableForm, depth: wholeNumberFrom(event.target.value, 24, 24, 96) })} />
                   </label>
                 </div>
-                <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
+                {/* Host only, as the server has it: a guest saw live controls the server then refused
+                    (playtest m13). */}
+                {isHost
+                  ? <button className="ghost" disabled={busy} onClick={() => run(updateTable)}>Set Table</button>
+                  : <p className="privacy">The host sets the table.</p>}
               </div>
               <RulesProfileEditor
                 value={snapshot?.rules ?? blankRulesProfile}
-                editable={snapshot?.phase === 'FleetSetup'}
+                editable={snapshot?.phase === 'FleetSetup' && isHost}
+                lockedReason={snapshot?.phase === 'FleetSetup' && !isHost ? 'The host sets the rules profile for this match.' : undefined}
                 onApply={(rules) => {
                   if (snapshot?.phase === 'FleetSetup') {
                     run(() => updateRulesProfile(rules));
@@ -1628,6 +1661,7 @@ function App() {
                       type="number"
                       min="0"
                       max="99999"
+                      disabled={!isHost}
                       value={pointsLimitForm}
                       onChange={(event) => setPointsLimitForm(event.target.value)}
                     />
@@ -1637,7 +1671,7 @@ function App() {
                     <small>{(snapshot?.pointsLimit ?? 0) > 0 ? `of ${snapshot?.pointsLimit}` : 'no limit'}</small>
                   </div>
                 </div>
-                <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button>
+                {isHost ? <button className="ghost" disabled={busy} onClick={() => run(updatePointsLimit)}>Set Limit</button> : null}
                 <p className="privacy">0 means unlimited. Only the owner can change it, which is how both sides agree to a mismatch.</p>
               </div>
             </details>
@@ -1956,9 +1990,13 @@ function App() {
                       </strong>
                     </div>
                     <div className="ship-alerts">
+                      {/* Orders are news only while they are being written: in movement and firing a ship that
+                          held course read "Awaiting orders" (playtest m3). */}
                       {ship.isDestroyed
                         ? <span className="danger">Out of action</span>
-                        : status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
+                        : !['OrderEntry', 'OrdersLocked', 'Reveal'].includes(snapshot.phase)
+                          ? null
+                          : status?.isCommitted ? <span>Orders locked</span> : <span className="warn">Awaiting orders</span>}
                       {ship.hullDamage > 0 || ship.armorDamage > 0 ? <span className="warn">Damage recorded</span> : <span>Undamaged</span>}
                       {ship.fireControlDamage + ship.driveDamage + ship.weaponDamage > 0 ? <span className="danger">Systems degraded</span> : null}
                       {ship.effectiveScreens > 0 ? <span>Screens {ship.effectiveScreens}</span> : null}
@@ -2051,8 +2089,8 @@ function App() {
                           </p>
                           <div className="quick-actions">
                             <button className="ghost" type="button" onClick={() => updateDraft(ship.id, resetOrderDraft(draft))}>Drift</button>
-                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: shipThrust }, ship.currentVelocity))}>Max Accel</button>
-                            <button className="ghost" type="button" onClick={() => updateDraft(ship.id, clampDraftForShip(shipThrust, { ...draft, velocityDelta: -shipThrust }, ship.currentVelocity))}>Max Decel</button>
+                            <button className="ghost" type="button" onClick={() => plotAtFullThrust(ship, shipThrust, draft, shipThrust)}>Max Accel</button>
+                            <button className="ghost" type="button" onClick={() => plotAtFullThrust(ship, shipThrust, draft, -shipThrust)}>Max Decel</button>
                             <button className="ghost" type="button" onClick={() => applyOrderToOwnedFleet(ship.id)}>Copy Fleet</button>
                           </div>
                           <label>
@@ -2204,7 +2242,7 @@ function App() {
                           <DamageControl
                             label="Weapons"
                             value={ship.weaponDamage}
-                            max={12}
+                            max={ship.weapons?.length ?? 0}
                             disabled={busy}
                             onChange={(value) => run(() => updateDamage(ship, { weaponDamage: value }))}
                           />
@@ -2244,10 +2282,15 @@ function App() {
                         <span className="label module-title">Damage report</span>
                         <DamageMeter label="Hull" value={ship.hullDamage} max={ship.hullMax} />
                         <DamageMeter label="Armor" value={ship.armorDamage} max={ship.armorMax} />
-                        <DamageMeter label="Firecon" value={ship.fireControlDamage} max={6} />
+                        {/* The ship's own numbers: a report out of 6 and 12 for every ship told the opponent
+                            nothing true (playtest m2). */}
+                        <DamageMeter label="Firecon" value={ship.fireControlDamage} max={ship.fireControlMax ?? 1} />
                         <DamageMeter label="Drive" value={ship.driveDamage} max={ship.thrustRating} />
-                        <DamageMeter label="Weapons" value={ship.weaponDamage} max={12} />
-                        <p className="privacy">Opponent order remains hidden until reveal.</p>
+                        <DamageMeter label="Weapons" value={ship.weaponDamage} max={ship.weapons?.length ?? 0} />
+                        {/* Only while it is still hidden: beside REVEALED it was simply wrong (playtest m3). */}
+                        {!status?.isRevealed && ['OrderEntry', 'OrdersLocked', 'Reveal'].includes(snapshot.phase)
+                          ? <p className="privacy">Opponent order remains hidden until reveal.</p>
+                          : null}
                       </div>
                     ) : null}
                     <footer>
@@ -2303,7 +2346,9 @@ function App() {
                   <button className="ghost" onClick={() => exportAfterAction('json')}>JSON</button>
                 </div>
               </div>
-              <ol className="log-list">
+              {/* Scrolls on its own, so it takes focus: a keyboard could not reach its entries (axe:
+                  scrollable-region-focusable). */}
+              <ol className="log-list" tabIndex={0} aria-label="Battle record entries">
                 {recentLog.map((entry) => (
                   <li key={entry.sequence}>
                     <span>T{entry.turnNumber} · {formatPhase(entry.phase)} · {entry.category} · {formatLogTime(entry.timestamp)}</span>

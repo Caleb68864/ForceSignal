@@ -484,3 +484,17 @@ describe('DirtsideView says what to do next', () => {
     expect(screen.queryByText(/ChoosingFirstActivator/)).toBeNull();
   });
 });
+
+describe('DirtsideView in words (playtest m6)', () => {
+  afterEach(cleanup);
+
+  it('labels the posture and chit rows in words, not code names', () => {
+    localStorage.clear();
+    render(<DirtsideView />);
+
+    expect(screen.getByLabelText('Hull down')).toBeTruthy();
+    expect(screen.getByLabelText('Systems down (target)')).toBeTruthy();
+    expect(screen.queryByText('HullDown')).toBeNull();
+    expect(screen.queryByText('SystemsDownTarget')).toBeNull();
+  });
+});
