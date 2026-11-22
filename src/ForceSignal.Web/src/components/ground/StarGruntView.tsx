@@ -560,9 +560,15 @@ export function StarGruntView() {
           numbers the game is settling it with. Warning-styled when there is nothing to settle one
           with, so the news arrives before a model is in somebody's hand.
         */}
-        <p className={starGruntProfileIsEmpty(snapshot.profile) ? 'constraint-line warning' : 'constraint-line'}>
-          Range table: {starGruntProfileSummary(snapshot.profile)}
-        </p>
+        {/* Open before the first turn, folded after (second playtest pass), as Dirtside's are. */}
+        <details className="game-numbers" key={snapshot.turnNumber === 0 ? 'setup' : 'play'} open={snapshot.turnNumber === 0}>
+          <summary>
+            This game's numbers{starGruntProfileIsEmpty(snapshot.profile) ? ' · range table not entered' : ''}
+          </summary>
+          <p className={starGruntProfileIsEmpty(snapshot.profile) ? 'constraint-line warning' : 'constraint-line'}>
+            Range table: {starGruntProfileSummary(snapshot.profile)}
+          </p>
+        </details>
         <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
         <GroundShare game={game} link={link} />
         <div className="quick-actions">

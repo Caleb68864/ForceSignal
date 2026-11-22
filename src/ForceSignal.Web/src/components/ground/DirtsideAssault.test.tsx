@@ -711,3 +711,23 @@ describe('Dirtside validity-card editor', () => {
     expect(element.weapons[0].chitCount).toBe(0);
   });
 });
+
+describe('the game\'s own numbers once play begins (second playtest pass)', () => {
+  afterEach(cleanup);
+
+  it('folds them away, saying how many are guessed or missing, and leaves them open before the first turn', async () => {
+    localStorage.clear();
+    await open(snapshotWith({ turnNumber: 2, chitPot: { numericals: [], specials: [], isBuiltInDefaultGuess: true } }));
+
+    const numbers = screen.getByText(/This game's numbers/).closest('details') as HTMLDetailsElement;
+    expect(numbers.open).toBe(false);
+    expect(numbers.textContent).toContain('guessed or missing');
+  });
+
+  it('is open before the first turn', async () => {
+    localStorage.clear();
+    await open(snapshotWith({ turnNumber: 0, phase: 'NotStarted', activatingUnitId: null }));
+
+    expect((screen.getByText(/This game's numbers/).closest('details') as HTMLDetailsElement).open).toBe(true);
+  });
+});

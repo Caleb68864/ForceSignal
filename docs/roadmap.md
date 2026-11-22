@@ -35,6 +35,12 @@ through fire), with screenshots read at each step. Each fix has a test that fail
       card's action buttons sit two across instead of one a row (`main.test.tsx` "offers Duplicate
       only while fleets are built" and "puts the fleet orders table away", `phoneLayout.spec.ts`
       "a ship card's actions sit two across", all failing on the old code).
+- [x] **The ground screens' own numbers took the top of every turn.** Dirtside's chit pot, die
+      tables and firer walk lines - three red or amber paragraphs, about 250px on a phone - and
+      StarGrunt's range table line sat above the game on every turn. They stay open before the first
+      turn, where the table checks them, and fold into "This game's numbers · 2 guessed or missing"
+      once play begins, one tap away (`DirtsideAssault.test.tsx` "the game's own numbers once play
+      begins", failing on the old code).
 
 ## Playtest fixes 2026-11-21 (`ux/playtest-fixes`)
 

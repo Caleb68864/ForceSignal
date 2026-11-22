@@ -588,6 +588,11 @@ export function DirtsideView() {
   // the add-a-platoon panel offers none and says so.
   const leadershipValues = leadershipValuesOf(snapshot.profile);
   const activating = snapshot.units.find((unit) => unit.id === snapshot.activatingUnitId) ?? null;
+  const numbersNeedingAttention = [
+    Boolean(snapshot.chitPot?.isBuiltInDefaultGuess),
+    Boolean(snapshot.profile && snapshot.profile.fireControl.length === 0),
+    Boolean(snapshot.profile && !snapshot.profile.firerWalk),
+  ].filter(Boolean).length;
   const step = groundNextStep({
     turnNumber: snapshot.turnNumber,
     phase: snapshot.phase,
@@ -632,41 +637,50 @@ export function DirtsideView() {
                   : null
         }
       />
-      {/*
-        On every screen rather than only at the start: the composition moves every probability in
-        the damage model, so a table settling an argument about a draw should be able to read what is
-        in the bag without going back to whoever pressed Start Game.
-      */}
-      <p className={snapshot.chitPot?.isBuiltInDefaultGuess ? 'constraint-line warning' : 'constraint-line'}>
-        Chit pot: {chitPotSummary(snapshot.chitPot)}
-      </p>
-      {/*
-        Beside the pot, and for the same reason: a table arguing about a roll should be able to read
-        which die the game thinks it is settling that roll with. The warning styling is on the case
-        that ends in a refused shot, so the news arrives before the model is in somebody's hand.
-      */}
-      <p
-        className={
-          snapshot.profile && snapshot.profile.fireControl.length === 0
-            ? 'constraint-line warning'
-            : 'constraint-line'
-        }
-      >
-        Die tables: {profileSummary(snapshot.profile)}
-      </p>
-      {/*
-        Its own line, styled as the fallback pot is: the walk is the one profile entry the server
-        fills in by itself, so a game playing it is told so rather than left to read a null.
-      */}
-      <p
-        className={
-          snapshot.profile && !snapshot.profile.firerWalk
-            ? 'constraint-line warning'
-            : 'constraint-line'
-        }
-      >
-        Firer walk: {firerWalkSummary(snapshot.profile)}
-      </p>
+      {/* Open before the first turn, where the table checks them; folded after, one tap away, so they
+          do not take the top of every turn (second playtest pass). The summary says how many are the
+          app's guess or missing. */}
+      <details className="game-numbers" key={snapshot.turnNumber === 0 ? 'setup' : 'play'} open={snapshot.turnNumber === 0}>
+        <summary>
+          This game's numbers
+          {numbersNeedingAttention > 0 ? ` · ${numbersNeedingAttention} guessed or missing` : ''}
+        </summary>
+        {/*
+          On every screen rather than only at the start: the composition moves every probability in
+          the damage model, so a table settling an argument about a draw should be able to read what is
+          in the bag without going back to whoever pressed Start Game.
+        */}
+        <p className={snapshot.chitPot?.isBuiltInDefaultGuess ? 'constraint-line warning' : 'constraint-line'}>
+          Chit pot: {chitPotSummary(snapshot.chitPot)}
+        </p>
+        {/*
+          Beside the pot, and for the same reason: a table arguing about a roll should be able to read
+          which die the game thinks it is settling that roll with. The warning styling is on the case
+          that ends in a refused shot, so the news arrives before the model is in somebody's hand.
+        */}
+        <p
+          className={
+            snapshot.profile && snapshot.profile.fireControl.length === 0
+              ? 'constraint-line warning'
+              : 'constraint-line'
+          }
+        >
+          Die tables: {profileSummary(snapshot.profile)}
+        </p>
+        {/*
+          Its own line, styled as the fallback pot is: the walk is the one profile entry the server
+          fills in by itself, so a game playing it is told so rather than left to read a null.
+        */}
+        <p
+          className={
+            snapshot.profile && !snapshot.profile.firerWalk
+              ? 'constraint-line warning'
+              : 'constraint-line'
+          }
+        >
+          Firer walk: {firerWalkSummary(snapshot.profile)}
+        </p>
+      </details>
       <p className={messageIsError ? 'constraint-line ground-status error' : 'constraint-line ground-status'} aria-live="polite" role={messageIsError ? 'alert' : undefined}>{message}</p>
       <GroundShare game={game} link={link} />
 

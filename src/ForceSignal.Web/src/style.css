@@ -3849,3 +3849,22 @@ html {
     height: 44px;
   }
 }
+
+/* A ground game's own numbers - pot, die tables, walk, range table - folded once play begins. */
+.game-numbers > summary {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  cursor: pointer;
+  color: var(--line-hot);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (pointer: coarse) {
+  .game-numbers > summary {
+    min-height: 44px;
+  }
+}
