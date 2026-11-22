@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as signalR from '@microsoft/signalr';
 import './style.css';
@@ -172,6 +172,11 @@ function App() {
 
 
   const snapshotVersionRef = useRef(-1);
+  // The newest log line this device has shown, so a push can say what happened since.
+  const lastLogSequence = useRef(0);
+  useLayoutEffect(() => {
+    lastLogSequence.current = snapshot?.matchLog?.at(-1)?.sequence ?? 0;
+  }, [snapshot]);
 
   /**
    * The only way a snapshot reaches the board.
@@ -365,7 +370,19 @@ function App() {
         // the message line overwrote whatever error the player was reading, so a failed action
         // vanished a fraction of a second later and left no evidence it had happened at all.
         setActivity(describeActivity(reason));
-        loadSnapshot(session.matchId).catch((error: unknown) => handleSessionError(error, true));
+        // Then what actually happened, once the match has been read: "A weapon fired." said nothing
+        // about whose, at what, or what it did (playtest p4). The newest log line written since the
+        // last read says that, skipping the per-ship state rows a phase change writes.
+        const seenUpTo = lastLogSequence.current;
+        loadSnapshot(session.matchId)
+          .then((next) => {
+            const newest = [...(next.matchLog ?? [])].reverse()
+              .find((entry) => entry.sequence > seenUpTo && entry.category !== 'Snapshot' && entry.category !== 'Summary');
+            if (newest) {
+              setActivity(newest.message);
+            }
+          })
+          .catch((error: unknown) => handleSessionError(error, true));
       }
     });
 
@@ -569,7 +586,9 @@ function App() {
     // The snapshot is the whole game, so it is only for the people at the table. The token proves
     // this device is one of them; the match id proves nothing, since it is handed out by the
     // room-code lookup and echoed in every notification.
-    applySnapshot(await get<MatchSnapshot>(`/api/matches/${matchId}/snapshot`, session?.participantToken));
+    const next = await get<MatchSnapshot>(`/api/matches/${matchId}/snapshot`, session?.participantToken);
+    applySnapshot(next);
+    return next;
   }
 
   async function createShipFromForm() {

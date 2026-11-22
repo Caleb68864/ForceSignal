@@ -231,6 +231,11 @@ that fails on the old code.
       page was short when the browser restored. No change was made without a failing case; the
       Dirtside reload is kept as a guard (`phoneLayout.spec.ts` "a reload of a ground game comes back
       where the player was scrolled to").
+- [x] **p4. Vague activity messages.** When the other device acted, the activity line said "A weapon
+      fired." or "A ship was edited." and nothing about whose or what. It still says that at once,
+      and then, when the match has been read, the newest log line written since - "Mark fired Beam
+      at Valiant: 2 damage." - skipping the per-ship state rows (`main.test.tsx` "what the other
+      device did", failing on the old code).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between

@@ -856,3 +856,38 @@ describe('host-only controls on a guest\'s screen (playtest m13)', () => {
     expect(screen.getByText(/The host sets the rules profile for this match\./)).toBeTruthy();
   });
 });
+
+describe('what the other device did (playtest p4)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    get.mockReset();
+    post.mockReset();
+    hub.notify = undefined;
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('says what happened, from the log, rather than "A weapon fired."', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    get.mockResolvedValue(snapshot('ALPHA', 1));
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+    const notify = await subscribedHandler();
+
+    get.mockResolvedValue({
+      ...snapshot('ALPHA', 2),
+      matchLog: [
+        { sequence: 1, timestamp: '2026-11-22T10:00:00Z', turnNumber: 1, phase: 'Firing', category: 'Fire', message: 'Mark fired Beam at Valiant: 2 damage.' },
+        { sequence: 2, timestamp: '2026-11-22T10:00:01Z', turnNumber: 1, phase: 'Firing', category: 'Snapshot', message: 'After fire: Valiant pos 20,20' },
+      ],
+    });
+    notify('match-ALPHA', 2, 'WeaponFired');
+
+    expect(await screen.findByText('Mark fired Beam at Valiant: 2 damage.', { selector: '.activity-line' })).toBeTruthy();
+  });
+});
