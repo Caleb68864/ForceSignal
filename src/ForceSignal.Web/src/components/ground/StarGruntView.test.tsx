@@ -420,4 +420,18 @@ describe('StarGrunt status line after a shot', () => {
     fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
     expect(await screen.findByText('Alpha Squad fired on Bravo Squad: one down.', { selector: 'p' })).toBeTruthy();
   });
+
+  it('shows the same sentence again when the shot logs it at the cap', async () => {
+    // The newest line is the same before and after, so only where the log starts can tell.
+    const full = [...Array.from({ length: 4 }, (_, index) => `entry ${index}`), 'Alpha Squad fired on Bravo Squad: one down.'];
+    localStorage.setItem(starGruntGameKey, JSON.stringify(handle));
+    readGame.mockResolvedValue({ ...firingSnapshot(full), logStart: 10 });
+    fire.mockResolvedValueOnce({ ...firingSnapshot([...full.slice(1), 'Alpha Squad fired on Bravo Squad: one down.']), logStart: 11 });
+
+    render(<StarGruntView />);
+    expect(await screen.findByText('Reopened Hill 43.')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Fire', { selector: 'button' }));
+    expect(await screen.findByText('Alpha Squad fired on Bravo Squad: one down.', { selector: 'p' })).toBeTruthy();
+  });
 });

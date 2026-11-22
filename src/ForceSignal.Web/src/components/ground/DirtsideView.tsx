@@ -140,10 +140,10 @@ export function DirtsideView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      const before = snapshot?.log ?? [];
+      const before = snapshot;
       const next = await action();
       setSnapshot(next);
-      say(note ?? newestLogEntry(before, next.log) ?? ifNothingLogged ?? '');
+      say(note ?? newestLogEntry(before, next) ?? ifNothingLogged ?? '');
     } catch (error) {
       fail(error);
     } finally {

@@ -55,7 +55,13 @@ Stacked on the firer walk screen (PR #12). Every fix carries a test confirmed to
       alone and "did the log grow" read as "nothing logged": Dirtside then said only its fallback
       ("Turn opened.") and StarGrunt's Fire said nothing. `lib/newestLogEntry.ts` also counts a log
       whose newest entry changed. One case is still missed and is written on the helper: the very
-      same sentence again at the cap. Tests: one per screen ("... once the log is at its cap"), both
+      same sentence again at the cap. *Closed on `harden/2026-11-21b`:* both ground snapshots now
+      carry `logStart`, how many lines the cap has dropped over the game's life (kept in the row's
+      optional settings, so a restart does not reset it; additive, no format change). The screens
+      count a logged line as a rise in `logStart + log.length`, which a repeated sentence moves too;
+      the text comparison remains only for a server older than the field
+      (`GroundGameLogStartTests`, both engines, not compiling on the old code; `StarGruntView.test.tsx`,
+      "shows the same sentence again when the shot logs it at the cap", failing on the old code). Tests: one per screen ("... once the log is at its cap"), both
       failing on the old code, and `newestLogEntry.test.ts`.
 - [x] **An empty entry in a request list was a 500.** Found by a fuzzer posting each route's body
       with every field and list entry nulled in turn, against a dev server with a fleet, ships and

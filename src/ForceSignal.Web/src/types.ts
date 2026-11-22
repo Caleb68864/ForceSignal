@@ -481,6 +481,9 @@ export type StarGruntSnapshot = {
   firstActivationChooser?: string | null;
   units: StarGruntUnit[];
   log: string[];
+  // How many lines the server's 2000-line cap has dropped off the front of `log`, over the game's
+  // life. Absent from a server older than the field.
+  logStart?: number;
   version: number;
   // The range table this game is played on, as the players entered it. Empty is a real answer:
   // this app ships no range table, and a game whose entries are missing is told so before it fires.
@@ -730,6 +733,9 @@ export type DirtsideSnapshot = {
   assault?: DirtsideAssaultState | null;
   units: DirtsidePlatoonState[];
   log: string[];
+  // How many lines the server's 2000-line cap has dropped off the front of `log`, over the game's
+  // life. Absent from a server older than the field.
+  logStart?: number;
   version: number;
   // What this game's chit pot holds, so the table can read back the counts it is playing on.
   chitPot?: DirtsideChitPot | null;

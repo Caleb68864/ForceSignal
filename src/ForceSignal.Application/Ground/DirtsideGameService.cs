@@ -203,7 +203,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
                     composition,
                     isDefault,
                     _pot(composition),
-                    ReadStoredProfile(row.Settings));
+                    ReadStoredProfile(row.Settings),
+                    ReadStoredLogStart(row.Settings));
             }
 #pragma warning disable CA1031 // Every failure is the same failure here: this row does not load.
             catch (Exception ex)
@@ -560,6 +561,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
         var held = previous with
         {
             Game = TrimLog(game),
+            LogStart = previous.LogStart + Math.Max(0, game.Log.Length - GroundGameGuards.MaxLogEntries),
             Version = previous.Version + 1,
             LastActivity = DateTimeOffset.UtcNow,
         };
@@ -594,8 +596,22 @@ public sealed class DirtsideGameService : IDirtsideGameService
         JsonSerializer.Serialize(
             new StoredSettings(
                 DirtsideChitPotMapping.ToDto(held.Composition, held.ChitPotIsBuiltInDefault),
-                held.Profile.IsBlank ? null : DirtsideRulesProfileMapping.ToDto(held.Profile)),
+                held.Profile.IsBlank ? null : DirtsideRulesProfileMapping.ToDto(held.Profile),
+                held.LogStart),
             SettingsJson);
+
+    /// <summary>How many log lines this game has dropped off the front, or 0 when the row does not say.</summary>
+    private static int ReadStoredLogStart(string? settings)
+    {
+        try
+        {
+            return Math.Max(0, ReadSettings(settings)?.LogStart ?? 0);
+        }
+        catch (JsonException)
+        {
+            return 0;
+        }
+    }
 
     /// <summary>Reads the settings back, or nothing when the row carried none.</summary>
     private static StoredSettings? ReadSettings(string? settings) =>
@@ -978,7 +994,12 @@ public sealed class DirtsideGameService : IDirtsideGameService
                 ? new DirtsideOpportunityWindowDto(
                     window.RespondingSide.Value,
                     [.. window.EligibleResponders.Where(window.MayAnswer).Select(unit => unit.Value)])
-                : null);
+                : null,
+
+            // Where the first line of Log sits in the game's whole history. A screen counts what a
+            // command logged as the change in LogStart + Log.Count; once the ceiling drops a line for
+            // every one added, the length alone stops moving.
+            held.LogStart);
     }
 
     private static DirtsideAssaultDto ToAssaultState(DirtsideAssault assault) => new(
@@ -1114,6 +1135,7 @@ public sealed class DirtsideGameService : IDirtsideGameService
     /// read it and has no field for it. Blank when nobody entered any, which is a playable state and
     /// not an error - it is the first shot that says what is missing.
     /// </param>
+    /// <param name="LogStart">How many log lines have been dropped off the front at the ceiling.</param>
     private sealed record Held(
         DirtsideGame Game,
         int Version,
@@ -1122,7 +1144,8 @@ public sealed class DirtsideGameService : IDirtsideGameService
         ChitPotComposition Composition,
         bool ChitPotIsBuiltInDefault,
         IChitPot Pot,
-        DirtsideRulesProfile Profile);
+        DirtsideRulesProfile Profile,
+        int LogStart = 0);
 
     /// <summary>What the stored row's settings field holds for this engine.</summary>
     /// <param name="ChitPot">The pot this game draws from.</param>
@@ -1133,5 +1156,9 @@ public sealed class DirtsideGameService : IDirtsideGameService
     /// written before profiles existed has to keep loading. It does - as a game whose first shot
     /// asks for a row.
     /// </param>
-    private sealed record StoredSettings(DirtsideChitPotDto? ChitPot, DirtsideRulesProfileDto? Profile = null);
+    /// <param name="LogStart">
+    /// How many log lines have been dropped off the front of this game's log at the ceiling. Kept so a
+    /// restart does not reset the position a screen counts new entries from.
+    /// </param>
+    private sealed record StoredSettings(DirtsideChitPotDto? ChitPot, DirtsideRulesProfileDto? Profile = null, int LogStart = 0);
 }

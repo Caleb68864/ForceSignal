@@ -222,10 +222,10 @@ export function StarGruntView() {
     busyRef.current = true;
     setBusy(true);
     try {
-      const before = snapshot?.log ?? [];
+      const before = snapshot;
       const next = await work();
       setSnapshot(next);
-      say(note ?? newestLogEntry(before, next.log) ?? '');
+      say(note ?? newestLogEntry(before, next) ?? '');
     } catch (error) {
       fail(error);
     } finally {

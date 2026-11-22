@@ -616,6 +616,11 @@ public sealed record DirtsideDisorganisedRequest(string UnitId, bool IsDisorgani
 /// should be able to see that the rows are simply not there.
 /// </param>
 /// <param name="OpportunityWindow">The move waiting on the other side's answer, or null when none is.</param>
+/// <param name="LogStart">
+/// How many lines have been dropped off the front of <paramref name="Log"/> at the ceiling, over the
+/// game's whole life. A client tells whether a command logged anything from the change in
+/// <c>LogStart + Log.Count</c>, which keeps moving after the length stops.
+/// </param>
 public sealed record DirtsideSnapshotDto(
     Guid GameId,
     string Name,
@@ -633,7 +638,8 @@ public sealed record DirtsideSnapshotDto(
     int Version,
     DirtsideChitPotDto? ChitPot = null,
     DirtsideRulesProfileDto? Profile = null,
-    DirtsideOpportunityWindowDto? OpportunityWindow = null);
+    DirtsideOpportunityWindowDto? OpportunityWindow = null,
+    int LogStart = 0);
 
 /// <summary>A game that has just been started.</summary>
 /// <param name="GameId">Which game.</param>
