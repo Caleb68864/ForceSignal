@@ -87,7 +87,8 @@ export function RulesProfileEditor({ value, editable, onApply }: Props) {
       </p>
 
       <div className="table-fields">
-        <label>
+        {/* The whole row: half of the sidebar cut "Nothing saved yet" to "Nothing sav" (playtest m11). */}
+        <label className="table-fields-wide">
           Saved profiles
           <select
             value=""

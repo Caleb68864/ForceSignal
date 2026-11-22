@@ -52,3 +52,25 @@ test('ships on the same spot fan out on the map instead of hiding each other (pl
     }
   }
 });
+
+test('a dropdown shows its whole choice (playtest m11)', async ({ page, request }) => {
+  await openSeededMatch(page, request, { ready: false });
+  await page.locator('details.setup-shipyard summary').click();
+  await expect(page.locator('select').first()).toBeVisible();
+
+  const cut = await page.evaluate(() => {
+    const canvas = document.createElement('canvas').getContext('2d') as CanvasRenderingContext2D;
+    return [...document.querySelectorAll('select')]
+      .filter((select) => select.getBoundingClientRect().width > 0)
+      .map((select) => {
+        const style = getComputedStyle(select);
+        canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const text = select.selectedOptions[0]?.textContent ?? '';
+        // The text, the padding either side and the arrow.
+        return { text, room: Math.round(select.getBoundingClientRect().width - canvas.measureText(text).width - 36) };
+      })
+      .filter((select) => select.room < 0)
+      .map((select) => select.text);
+  });
+  expect(cut).toEqual([]);
+});

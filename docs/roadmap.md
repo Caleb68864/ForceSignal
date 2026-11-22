@@ -127,6 +127,14 @@ that fails on the old code.
       `display: contents` so the start screen's grid is unchanged (`main.test.tsx` "joins on Enter in
       the room code field", failing on the old code; the start screen stays clean in the touch-target
       and axe specs).
+- [x] **m10. The legal notice's links looked like strike-through text.** Fixed on the polish branch
+      (`a223c96`): the two credit links are plain underlined text on their line.
+- [x] **m11. Dropdowns cut off their text.** Measured at 1440px: the saved-profiles choice read
+      "Nothing sav" in half the sidebar, and a mount's type "Beam b" in a 72px column. The first now
+      takes the whole row and the type column fits "Beam battery". `fullThrustLayout.spec.ts` "a
+      dropdown shows its whole choice" measures every visible select against its text (failing on
+      the old styles with both). *Not reproduced:* "Crimsor" and the 130px phone contact list -
+      neither showed up when the same measure was run over the setup, ships, map and log views.
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
