@@ -12,7 +12,7 @@ import { matchLogToCsv, matchLogToMarkdown } from './lib/reporting.ts';
 import { fleetExportToCsv, normalizeSavedFleets, parseFleetExport, toFleetExport } from './lib/fleetIo.ts';
 import { clampDraftForShip, createDraftOrder, draftFor, formatTurnSequence, maxLegalTurn, previewCourse, resetOrderDraft, toOrder, totalTurnSteps, turnManeuversForDraft, turnPatchFromManeuvers, usableThrust } from './lib/movement.ts';
 import { activeViewKey, defaultShipForm, displayNameKey, draftsKey, fleetLibraryKey, gameModeKey, officialRulesUrl, sessionKey, snapshotBackupKey } from './constants.ts';
-import { describeActivity, downloadText, formatLogTime, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
+import { describeActivity, downloadText, formatPhase, formatRulesProfile, slugify, stringFrom, wholeNumberFrom } from './lib/format.ts';
 import {
   ApiRequestError,
   apiBaseUrl,
@@ -60,6 +60,7 @@ import { HelpGuide, helpStepFor } from './components/HelpGuide.tsx';
 import { NextStepBanner, type BannerAction, type Notice, type NoticeTone } from './components/NextStepBanner.tsx';
 import { matchCommands, nextStep, type CommandState } from './lib/nextStep.ts';
 import { BattleOverPanel } from './components/BattleOverPanel.tsx';
+import { BattleLog } from './components/BattleLog.tsx';
 import { gapsIn } from './lib/rulesProfile.ts';
 
 function App() {
@@ -2354,16 +2355,7 @@ function App() {
                   <button className="ghost" onClick={() => exportAfterAction('json')}>JSON</button>
                 </div>
               </div>
-              {/* Scrolls on its own, so it takes focus: a keyboard could not reach its entries (axe:
-                  scrollable-region-focusable). */}
-              <ol className="log-list" tabIndex={0} aria-label="Battle record entries">
-                {recentLog.map((entry) => (
-                  <li key={entry.sequence}>
-                    <span>T{entry.turnNumber} · {formatPhase(entry.phase)} · {entry.category} · {formatLogTime(entry.timestamp)}</span>
-                    <p>{entry.message}</p>
-                  </li>
-                ))}
-              </ol>
+              <BattleLog entries={recentLog} />
               {logHiddenCount > 0 ? (
                 <p className="log-truncated">
                   Showing the most recent {recentLog.length} of {(snapshot?.matchLog ?? []).length} entries.

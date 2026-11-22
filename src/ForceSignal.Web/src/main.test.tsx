@@ -754,6 +754,22 @@ describe('the end of a battle (playtest M1)', () => {
     expect(screen.queryByText('Reveal', { selector: 'button' })).toBeNull();
   });
 
+  it('folds the per-ship snapshot rows in the battle record (playtest m15)', async () => {
+    post.mockResolvedValue(session('ALPHA'));
+    const matchLog = Array.from({ length: 8 }, (_, index) => ({
+      sequence: index + 1, timestamp: '2026-11-22T10:00:00Z', turnNumber: 2, phase: 'Firing', category: 'Snapshot', message: `Ship ${index} pos 1,1`,
+    }));
+    get.mockResolvedValue(inPlay(2, { matchLog }));
+
+    await import('./main.tsx');
+    fireEvent.click(await findButton('Create Match'));
+    await screen.findByText('Created room ALPHA.');
+    fireEvent.click(await findButton('Log'));
+
+    await screen.findByLabelText('Battle record entries');
+    expect(document.querySelectorAll('.log-list > li')).toHaveLength(1);
+  });
+
   it('marks a wreck out of action rather than awaiting orders', async () => {
     post.mockResolvedValue(session('ALPHA'));
     get.mockResolvedValue(inPlay(2));

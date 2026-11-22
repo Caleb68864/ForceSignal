@@ -191,6 +191,13 @@ that fails on the old code.
       while orders are written, and Reveal only once orders are locked, for a ship that has locked
       and not yet revealed. (`main.test.tsx` "puts your own cards first, and offers Lock but not
       Reveal", failing on the old code; `rules.test.ts` for the ordering.)
+- [x] **m15. The battle log was mostly per-ship snapshot rows**, 300 by turn five, and the Log tab
+      took most of a second to open. `components/BattleLog.tsx`: each run of ship-state snapshots
+      folds into one row ("T3 · Firing · 8 ship states") that opens on a tap; a filter narrows the
+      record to fire and damage, movement and orders, turns and phases, or setup; and only 60 rows
+      are drawn at once, with "Show 60 older" for more. The export still writes every entry
+      (`BattleLog.test.tsx`; `main.test.tsx` "folds the per-ship snapshot rows", failing on the old
+      code; axe still clean at three sizes).
 - [x] **M7. A room code typed with spaces was refused.** "ZENITH TEMPO LUMEN FALCON" - the right
       code - was "no room", because the lookup only trimmed and folded case. Join, the by-code
       lookup and seat claims now read spaces, dots, underscores, commas and doubled dashes between
